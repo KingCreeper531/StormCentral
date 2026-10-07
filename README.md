@@ -6,6 +6,19 @@ Every data source is free and open. No paid weather API keys are required.
 
 > ⚠️ StormCentral is not an official warning system. Always follow the National Weather Service and local emergency management.
 
+## Download
+
+Get the newest version from **[Releases](https://github.com/KingCreeper531/StormCentral/releases/latest)**.
+
+| Device | File | Updates |
+|---|---|---|
+| **Windows 10 / 11** (64-bit) | `StormCentral-Setup-<version>.exe` | Automatic. The app downloads new releases in the background and asks to restart. |
+| **Android 7.0+** | `StormCentral-<version>.apk` | The app shows a notice when a new release is out; tap **Download** and install it over the old one. |
+
+- **Windows:** the installer isn't code-signed yet, so SmartScreen may say "Windows protected your PC". Choose **More info → Run anyway**. It installs for your user only, with no admin prompt.
+- **Android:** open the APK on your phone and allow your browser to install apps when asked.
+- **Self-contained:** both apps work with no server. The Windows app runs StormCentral's own server on your PC, so every feature works, including accounts and reports (stored on that PC). The Android app runs the weather feeds on the phone. The spotter network needs a shared server, so it's turned off there until one is set up (see [Desktop and Android apps](#desktop-and-android-apps)).
+
 ---
 
 ## Modes
@@ -41,7 +54,8 @@ Press **1–5** to switch modes and **⌘K / Ctrl-K** to search any place. Hover
 | Data and auth | **Drizzle ORM** on **libSQL/SQLite** (Turso-ready), Node `crypto` scrypt, opaque DB sessions, **Zod** validation |
 | Science | Custom ephemerides, wind and thermodynamics, DOP; **satellite.js** (SGP4) on the server |
 | Icons | [Makin-Things/weather-icons](https://github.com/Makin-Things/weather-icons) (animated SVG, MIT) + Lucide for UI chrome |
-| Tests | **Vitest**: 68 unit tests across science, radar, parsers, security and the DB schema |
+| Apps | **Electron 44** + **electron-updater** (Windows), **Capacitor 8** (Android), released by GitHub Actions |
+| Tests | **Vitest**: 74 unit tests across science, radar, parsers, feeds, security and the DB schema |
 
 ## Data sources
 
@@ -82,10 +96,52 @@ That's all you need. A SQLite database is created at `./data/stormcentral.db` on
 | `npm run typecheck` / `lint` | `tsc --noEmit` / ESLint (incl. React Compiler rules) |
 | `npm run check` | All three of the above |
 | `npm run icons:sync` | Re-vendor the Makin-Things icon set |
+| `npm run desktop:start` | Build the desktop server bundle and open the Electron app |
+| `npm run desktop:dist` | Package the Windows installer into `dist/desktop/` (run on Windows) |
+| `npm run android:build` | Build the static bundle and sync it into `android/` |
 
 ### Deploying
 
 On Vercel (or any Node host), set `DATABASE_URL` and `DATABASE_AUTH_TOKEN` to a Turso database. The schema is applied automatically on first request. Every proxy route sends `s-maxage` / `stale-while-revalidate`, so a CDN absorbs most traffic. Rate limiting is per instance; swap `src/lib/server/rate-limit.ts` for Redis/Upstash when you scale horizontally.
+
+## Desktop and Android apps
+
+One codebase, three packages. `BUILD_TARGET` in `next.config.ts` picks the output:
+
+| Package | Build | How it runs |
+|---|---|---|
+| **Web** | `next build` | Any Node host or Vercel. |
+| **Windows** | `standalone` server + Electron (`desktop/`) | The app starts StormCentral's own Next.js server on `127.0.0.1` in a background process and shows it in a window. The database lives in `%APPDATA%\StormCentral`, so updates never touch accounts or reports. |
+| **Android** | static export + Capacitor (`android/`) | No server. The weather routes (`/api/alerts`, `/api/gnss`, …) run on the phone: the same feed code as the server (`src/lib/feeds/`), with native HTTP so government APIs that don't send CORS headers still work. |
+
+**Sharing one spotter network.** Accounts and reports need one shared server. Deploy the web app (Vercel plus a free [Turso](https://turso.tech) database works), then add a repository variable **`STORMCENTRAL_URL`** (Settings → Secrets and variables → Actions → Variables) set to its `https://` address. The next release builds both apps to load that server, with everything enabled for every user.
+
+### Building locally
+
+```bash
+# Windows app (run on Windows; packaging the .exe needs Windows or Wine)
+npm install && npm install --prefix desktop
+npm run desktop:dist                       # → dist/desktop/StormCentral-Setup-<version>.exe
+
+# Android app (JDK 21 + Android SDK)
+npm run android:build
+cd android && ./gradlew assembleRelease    # → android/app/build/outputs/apk/release/app-release.apk
+```
+
+### Releases
+
+`.github/workflows/release.yml` builds both apps on every push that touches the packaging, and publishes a release for version tags:
+
+1. Bump `version` in `package.json` (it is the version of the web app, the Windows app and the APK), commit and push.
+2. Tag it: `git tag v0.2.0 && git push origin v0.2.0`. You can also run **Release apps** from the Actions tab with **publish** ticked.
+3. The workflow checks the code, builds the installer and the APK, and publishes the GitHub release. Installed Windows apps update themselves from it, and Android apps offer the new APK.
+
+Optional repository secrets:
+
+| Secret | Purpose |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | Sign the APK with your own key. Without them, APKs are signed with the shared development key in `android/app/debug.keystore`. That key isn't secret: it keeps builds installable over each other, but anyone could sign an APK with it. Create a key with `keytool -genkeypair -v -keystore release.jks -alias stormcentral -keyalg RSA -keysize 4096 -validity 10000` and store `base64 -w0 release.jks` as `ANDROID_KEYSTORE_BASE64`. Android only installs an update signed with the same key, so after switching keys, users reinstall once. |
+| `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` | A code-signing certificate (base64 `.pfx`). Signed installers skip the SmartScreen warning. |
 
 ## Project structure
 
@@ -93,12 +149,17 @@ On Vercel (or any Node host), set `DATABASE_URL` and `DATABASE_AUTH_TOKEN` to a 
 StormCentral/
 ├─ ARCHITECTURE.md              ← state, polling, caching & radar pipeline in depth
 ├─ docs/DESIGN.md               ← design system: tokens, banned patterns, recipes, mobile rules
-├─ next.config.ts               ← CSP & security headers, cache headers
+├─ next.config.ts               ← build targets (web / desktop / mobile), CSP & cache headers
+├─ .github/workflows/release.yml ← builds the Windows installer + APK, publishes releases
+├─ desktop/                     ← Electron app: local server, window, auto-updates
+├─ electron-builder.config.mjs  ← Windows installer (NSIS) + GitHub update feed
+├─ android/                     ← Capacitor Android project (icons, signing, permissions)
+├─ capacitor.config.ts          ← Android app config
 ├─ public/
 │  ├─ sw.js                     ← bounded cache-first radar tile service worker
 │  ├─ icons/weather/            ← Makin-Things animated + static SVGs (MIT)
 │  └─ vendor/                   ← MapLibre worker (generated on install)
-├─ scripts/                     ← icon sync, MapLibre worker vendoring
+├─ scripts/                     ← icon sync, MapLibre worker vendoring, native builds
 └─ src/
    ├─ app/
    │  ├─ page.tsx               ← dashboard (AppShell)
@@ -128,8 +189,12 @@ StormCentral/
       ├─ science/               ← wind/shear, atmosphere, pressure, DOP, GNSS, scores,
       │                            air & pollen, storm motion
       ├─ api/                   ← Open-Meteo clients, shared response types
-      ├─ server/                ← coalescing cache, parsers, rate limit, CSRF guard,
-      │                            image sanitising, community repository
+      ├─ feeds/                 ← weather feeds behind /api (alerts, radar, Kp, rivers,
+      │                            GNSS, SPC): parsers + coalescing cache; run on the
+      │                            server and, in the Android app, on the phone
+      ├─ native/                ← Android: in-app /api dispatcher, native HTTP, update check
+      ├─ server/                ← route helpers, rate limit, CSRF guard, image
+      │                            sanitising, community repository
       ├─ auth/  db/             ← scrypt, sessions, Drizzle schema
       └─ weather/               ← units, WMO codes → icons/scenes, view helpers
 ```

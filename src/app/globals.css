@@ -52,14 +52,15 @@
   color-scheme: dark;
   /* Legacy alias — the accent is a single constant now (no per-mode theming). */
   --accent: var(--color-accent);
-  /* Heights of fixed chrome, consumed by layouts and sheets. */
-  --topbar-h: 56px;
+  /* Heights of fixed chrome, consumed by layouts and sheets. They include the
+     safe-area insets, which are non-zero in the edge-to-edge Android app. */
+  --topbar-h: calc(56px + env(safe-area-inset-top));
   --tabbar-h: 0px;
 }
 
 @media (max-width: 767px) {
   :root {
-    --topbar-h: 52px;
+    --topbar-h: calc(52px + env(safe-area-inset-top));
     --tabbar-h: calc(56px + env(safe-area-inset-bottom));
   }
 }

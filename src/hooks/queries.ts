@@ -7,6 +7,7 @@
  */
 import { keepPreviousData, useInfiniteQuery, useQuery, type QueryClient } from "@tanstack/react-query";
 import { getJson } from "@/lib/api/http";
+import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { fetchAirGrid, fetchAirQuality, fetchForecast, type GridVariable } from "@/lib/api/open-meteo";
 import type {
   AlertsResponse,
@@ -190,6 +191,7 @@ export function useSession() {
   return useQuery({
     queryKey: qk.session,
     queryFn: ({ signal }) => getJson<{ user: SessionUser | null }>("/api/auth/me", { signal }).then((r) => r.user),
+    enabled: COMMUNITY_ENABLED,
     staleTime: 5 * 60_000,
   });
 }
@@ -203,6 +205,7 @@ export function useFeed(params: Record<string, string>) {
       }),
     initialPageParam: "" as string,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
+    enabled: COMMUNITY_ENABLED,
     staleTime: 30_000,
   });
 }
@@ -215,7 +218,7 @@ export function useReportsInView(bbox: BBox | null, enabled: boolean) {
         `/api/posts?sort=bbox&hours=6&bbox=${[bbox!.west, bbox!.south, bbox!.east, bbox!.north].map((v) => v.toFixed(3)).join(",")}`,
         { signal },
       ).then((r) => r.posts),
-    enabled: enabled && !!bbox,
+    enabled: COMMUNITY_ENABLED && enabled && !!bbox,
     refetchInterval: 2 * 60_000,
     staleTime: 60_000,
     placeholderData: keepPreviousData,

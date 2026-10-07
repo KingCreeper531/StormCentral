@@ -1,9 +1,11 @@
 import { ChevronDown } from "lucide-react";
 import type { Metadata } from "next";
+import { CommunityUnavailable } from "@/components/community/community-unavailable";
 import { Feed } from "@/components/community/feed";
 import { SubpageShell } from "@/components/shell/subpage-shell";
 import { Panel } from "@/components/ui/panel";
 import { TIERS } from "@/lib/community";
+import { COMMUNITY_ENABLED } from "@/lib/platform";
 
 export const metadata: Metadata = {
   title: "Spotter network",
@@ -67,6 +69,12 @@ const ABOUT = [
 ] as const;
 
 export default function CommunityPage() {
+  if (!COMMUNITY_ENABLED)
+    return (
+      <SubpageShell>
+        <CommunityUnavailable />
+      </SubpageShell>
+    );
   return (
     <SubpageShell width="max-w-5xl">
       <header className="mb-5 sm:mb-6">

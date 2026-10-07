@@ -2,6 +2,7 @@
 
 import { useAirQuality, useForecast } from "@/hooks/queries";
 import { useNow } from "@/hooks/use-now";
+import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { NearbyReports } from "../community/nearby-reports";
 import { CurrentHero } from "../daily/current-hero";
 import { DailyOutlook } from "../daily/daily-outlook";
@@ -57,9 +58,11 @@ export function DailyMode() {
         <DailyOutlook f={f} now={now} className="lg:col-span-5 lg:col-start-8 lg:row-span-2 lg:row-start-1" />
         <SunMoonPanel f={f} now={now} className="lg:col-span-7" />
       </div>
-      <div className="min-w-0 lg:col-span-12">
-        <NearbyReports now={now} />
-      </div>
+      {COMMUNITY_ENABLED && (
+        <div className="min-w-0 lg:col-span-12">
+          <NearbyReports now={now} />
+        </div>
+      )}
     </div>
   );
 }

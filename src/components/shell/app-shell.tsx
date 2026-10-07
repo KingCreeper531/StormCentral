@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useForecast, useLocalAlerts, useNationalAlerts } from "@/hooks/queries";
 import { useNow } from "@/hooks/use-now";
 import { useUrlSync } from "@/hooks/use-url-sync";
+import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { currentHourIndex } from "@/lib/weather/view";
 import { MODES, type ModeId } from "@/modes/registry";
@@ -13,6 +14,7 @@ import { WeatherBackground } from "../background/weather-background";
 import { Composer } from "../community/composer";
 import { Skeleton } from "../ui/misc";
 import { AlertBanner } from "./alert-banner";
+import { AppUpdateNotice } from "./app-update-notice";
 import { GUTTER, PAGE_PAD } from "./chrome";
 import { CommandPalette } from "./command-palette";
 import { TabBar } from "./tab-bar";
@@ -72,7 +74,8 @@ export function AppShell() {
       />
       <TopBar />
       <CommandPalette />
-      <Composer />
+      {COMMUNITY_ENABLED && <Composer />}
+      <AppUpdateNotice />
 
       <main
         className={

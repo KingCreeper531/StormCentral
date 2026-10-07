@@ -1,6 +1,6 @@
 /**
  * GNSS visibility & DOP from CelesTrak OMM element sets, propagated with SGP4
- * (satellite.js). Lets drone pilots see satellite count and geometry *before*
+ * (satellite.js, see ./sgp4). Lets drone pilots see satellite count and geometry *before*
  * they drive to the field — a key predictor of GPS-hold quality.
  */
 import {
@@ -12,7 +12,7 @@ import {
   propagate,
   type OMMJsonObject,
   type SatRec,
-} from "satellite.js";
+} from "./sgp4";
 import { computeDop, type Dop } from "./dop";
 
 export const CONSTELLATIONS = ["GPS", "GLONASS", "Galileo", "BeiDou"] as const;

@@ -3,6 +3,7 @@
 import { MapPin, Megaphone, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
 import { Button } from "../ui/button";
@@ -24,7 +25,7 @@ export function TopBar() {
   const onCommunity = pathname.startsWith("/community");
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 h-[var(--topbar-h)] border-b border-line bg-canvas">
+    <header className="fixed inset-x-0 top-0 z-40 h-[var(--topbar-h)] border-b border-line bg-canvas pt-[env(safe-area-inset-top)]">
       <div className={cn("mx-auto flex h-full max-w-[1600px] items-center gap-2 md:gap-3 lg:gap-4", GUTTER)}>
         <Link
           href="/"
@@ -52,29 +53,33 @@ export function TopBar() {
 
         <div className="ml-auto flex shrink-0 items-center gap-1 self-stretch sm:gap-2">
           {/* Same current-page treatment as the mode tabs: an accent rule on the bar's bottom edge. */}
-          <Link
-            href="/community"
-            aria-current={onCommunity ? "page" : undefined}
-            className={cn(
-              "relative -mb-px hidden items-center self-stretch px-2.5 text-[13px] font-medium whitespace-nowrap transition-colors lg:flex",
-              onCommunity ? "text-ink" : "text-ink-2 hover:text-ink",
-            )}
-          >
-            Spotter network
-            {onCommunity && <span aria-hidden className="absolute inset-x-2.5 bottom-0 h-0.5 bg-accent" />}
-          </Link>
+          {COMMUNITY_ENABLED && (
+            <Link
+              href="/community"
+              aria-current={onCommunity ? "page" : undefined}
+              className={cn(
+                "relative -mb-px hidden items-center self-stretch px-2.5 text-[13px] font-medium whitespace-nowrap transition-colors lg:flex",
+                onCommunity ? "text-ink" : "text-ink-2 hover:text-ink",
+              )}
+            >
+              Spotter network
+              {onCommunity && <span aria-hidden className="absolute inset-x-2.5 bottom-0 h-0.5 bg-accent" />}
+            </Link>
+          )}
           <UnitsToggle className="hidden lg:inline-flex" />
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setComposerOpen(true)}
-            aria-label="Report weather"
-            title="Report weather"
-            className="w-8 px-0 pointer-coarse:min-w-11 lg:w-auto lg:px-2.5"
-          >
-            <Megaphone className="size-4" aria-hidden />
-            <span className="hidden lg:inline">Report</span>
-          </Button>
+          {COMMUNITY_ENABLED && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setComposerOpen(true)}
+              aria-label="Report weather"
+              title="Report weather"
+              className="w-8 px-0 pointer-coarse:min-w-11 lg:w-auto lg:px-2.5"
+            >
+              <Megaphone className="size-4" aria-hidden />
+              <span className="hidden lg:inline">Report</span>
+            </Button>
+          )}
           <UserMenu />
         </div>
       </div>

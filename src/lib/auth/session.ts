@@ -13,9 +13,11 @@ import { sessions, users } from "../db/schema";
  */
 const SESSION_DAYS = 30;
 const DAY = 86_400_000;
-const isProd = process.env.NODE_ENV === "production";
+// Secure (HTTPS-only) in production. The desktop app's server listens on plain
+// http://127.0.0.1 and opts out with SESSION_COOKIE_SECURE=false.
+const secureCookie = process.env.NODE_ENV === "production" && process.env.SESSION_COOKIE_SECURE !== "false";
 // `__Host-` binds the cookie to this exact origin, HTTPS-only, path=/.
-export const SESSION_COOKIE = isProd ? "__Host-sc_session" : "sc_session";
+export const SESSION_COOKIE = secureCookie ? "__Host-sc_session" : "sc_session";
 
 export interface SessionUser {
   id: string;
@@ -29,7 +31,7 @@ const hashToken = (token: string) => createHash("sha256").update(token).digest("
 async function setCookie(token: string, expiresAt: number) {
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
-    secure: isProd,
+    secure: secureCookie,
     sameSite: "lax",
     path: "/",
     expires: new Date(expiresAt),

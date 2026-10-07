@@ -23,6 +23,12 @@ export function withTimeout(signal: AbortSignal | null | undefined, timeoutMs: n
 
 /** fetch → JSON with timeout, abort propagation and typed errors. */
 export async function getJson<T>(url: string, { timeoutMs = 15_000, signal, ...init }: GetJsonOptions = {}): Promise<T> {
+  // The Android app is a static bundle with no server: its /api routes run in-process.
+  // (Inline env check so web builds drop this branch and the lazy chunk entirely.)
+  if (process.env.NEXT_PUBLIC_BUILD_TARGET === "mobile" && url.startsWith("/api/")) {
+    const { localApi } = await import("../native/local-api");
+    return localApi<T>(url, withTimeout(signal, timeoutMs));
+  }
   const res = await fetch(url, { ...init, signal: withTimeout(signal, timeoutMs) });
   if (!res.ok) {
     let detail = "";

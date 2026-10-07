@@ -8,6 +8,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { searchPlaces, type Place } from "@/lib/api/open-meteo";
 import { useGeolocate } from "@/hooks/use-geolocate";
 import { useHotkeys } from "@/hooks/use-hotkeys";
+import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { MODE_IDS, MODES } from "@/modes/registry";
 import { useAppStore } from "@/store/app-store";
@@ -87,7 +88,9 @@ export function CommandPalette() {
         Icon: Thermometer,
         run: () => setUnits(units.temp === "F" ? "metric" : "imperial"),
       },
-      { kind: "action", id: "community", label: "Open spotter network", Icon: Users, run: () => router.push("/community") },
+      ...(COMMUNITY_ENABLED
+        ? [{ kind: "action", id: "community", label: "Open spotter network", Icon: Users, run: () => router.push("/community") } satisfies Item]
+        : []),
     ];
     const t = term.trim().toLowerCase();
     const filtered = t ? actions.filter((a) => a.kind === "action" && a.label.toLowerCase().includes(t)) : actions;

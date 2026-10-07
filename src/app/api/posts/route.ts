@@ -4,7 +4,7 @@ import { createPost, listPosts, type FeedQuery } from "@/lib/server/community-re
 import { forbidden, sameOrigin, tooMany, unauthorized } from "@/lib/server/guard";
 import { imageSize, sniffImage, stripMetadata } from "@/lib/server/image";
 import { rateLimit } from "@/lib/server/rate-limit";
-import { badRequest } from "@/lib/server/upstream";
+import { badRequest } from "@/lib/server/respond";
 
 const noStore = { "Cache-Control": "private, no-store" };
 

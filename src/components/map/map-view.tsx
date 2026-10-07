@@ -2,7 +2,7 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 import { AttributionControl, getVersion, Map as MlMap, NavigationControl, setWorkerUrl, type StyleSpecification } from "maplibre-gl";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { BBox } from "@/lib/geo";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +46,26 @@ export const useMapContext = () => useContext(Ctx);
 
 let workerConfigured = false;
 
+/**
+ * MapLibre needs WebGL 2. Some machines don't have it (blocklisted GPU drivers,
+ * VMs, remote desktop sessions) and the map constructor throws there, so probe
+ * once and show a notice instead of taking the whole page down.
+ */
+let webgl2: boolean | undefined;
+function hasWebGL2() {
+  if (webgl2 === undefined) {
+    try {
+      const gl = document.createElement("canvas").getContext("webgl2");
+      webgl2 = !!gl;
+      gl?.getExtension("WEBGL_lose_context")?.loseContext(); // release the probe's context
+    } catch {
+      webgl2 = false;
+    }
+  }
+  return webgl2;
+}
+const noSubscribe = () => () => {};
+
 interface Props {
   center: { lat: number; lon: number };
   zoom?: number;
@@ -61,6 +81,7 @@ interface Props {
 export function MapView({ center, zoom = 6.5, interactive = true, follow = true, className, children, onViewChange, onReady }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const [ctx, setCtx] = useState<MapCtx>({ map: null, font: [] });
+  const supported = useSyncExternalStore(noSubscribe, hasWebGL2, () => true);
   const viewCb = useRef(onViewChange);
   const readyCb = useRef(onReady);
   useEffect(() => {
@@ -69,29 +90,36 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
   });
 
   useEffect(() => {
-    if (!container.current) return;
+    if (!container.current || !supported) return;
     if (!workerConfigured) {
       // MapLibre v6 resolves its worker relative to import.meta.url, which
       // bundlers rewrite; serve the vendored copy instead (see scripts/).
       setWorkerUrl(`/vendor/maplibre-gl-worker.mjs?v=${getVersion()}`);
       workerConfigured = true;
     }
-    const map = new MlMap({
-      container: container.current,
-      style: STYLE_URL,
-      center: [center.lon, center.lat],
-      zoom,
-      interactive,
-      attributionControl: false,
-      dragRotate: false,
-      touchPitch: false,
-      maxPitch: 0,
-      // Bounded per-source tile cache: with one source per radar frame this is
-      // what keeps GPU memory flat during long loops.
-      maxTileCacheSize: 48,
-      fadeDuration: 0,
-      cancelPendingTileRequestsWhileZooming: true,
-    });
+    let map: MlMap;
+    try {
+      map = new MlMap({
+        container: container.current,
+        style: STYLE_URL,
+        center: [center.lon, center.lat],
+        zoom,
+        interactive,
+        attributionControl: false,
+        dragRotate: false,
+        touchPitch: false,
+        maxPitch: 0,
+        // Bounded per-source tile cache: with one source per radar frame this is
+        // what keeps GPU memory flat during long loops.
+        maxTileCacheSize: 48,
+        fadeDuration: 0,
+        cancelPendingTileRequestsWhileZooming: true,
+      });
+    } catch (err) {
+      // The probe passed but context creation still failed (e.g. GPU process crash).
+      console.error("[map] could not start:", err);
+      return;
+    }
     // Attribution is always the compact (i) button. A non-interactive preview
     // runs its own transport along the bottom edge, so its button sits top-right.
     // Added before the zoom buttons so those stack above it.
@@ -151,7 +179,7 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
     };
     // The map is created once; centre/zoom changes are applied imperatively below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interactive]);
+  }, [interactive, supported]);
 
   useEffect(() => {
     const map = ctx.map;
@@ -166,6 +194,11 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
       {/* MapLibre forces `position: relative` on its container, so size it via a wrapper. */}
       <div className={cn("absolute inset-0", className)}>
         <div ref={container} className="h-full w-full" />
+        {!supported && (
+          <p className="absolute inset-0 grid place-items-center p-4 text-center text-[13px] text-ink-3">
+            The map needs WebGL 2, which isn&apos;t available on this device. Forecasts and warnings still work.
+          </p>
+        )}
       </div>
       {ctx.map && children}
     </Ctx.Provider>

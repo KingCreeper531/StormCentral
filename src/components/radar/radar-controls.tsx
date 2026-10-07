@@ -2,6 +2,7 @@
 
 import { familiesAvailable, FAMILIES, FAMILY_ORDER, resolveTilts, type ProductFamily, type TiltPrefix } from "@/lib/radar/products";
 import { nearestSites, type RadarSite } from "@/lib/radar/site-utils";
+import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import type { RadarSettings } from "@/store/app-store";
 import { Toggle } from "../ui/misc";
@@ -169,7 +170,9 @@ export function RadarControls({
           <Toggle label="NWS warnings" checked={settings.showWarnings} onChange={(showWarnings) => onChange({ showWarnings })} />
           <Toggle label="Projected storm tracks" checked={settings.showTracks} onChange={(showTracks) => onChange({ showTracks })} />
           <Toggle label="SPC Day 1 outlook" checked={settings.showOutlook} onChange={(showOutlook) => onChange({ showOutlook })} />
-          <Toggle label="Spotter reports (6 h)" checked={settings.showReports} onChange={(showReports) => onChange({ showReports })} />
+          {COMMUNITY_ENABLED && (
+            <Toggle label="Spotter reports (6 h)" checked={settings.showReports} onChange={(showReports) => onChange({ showReports })} />
+          )}
           <Toggle label="Radar sites" checked={settings.showSites} onChange={(showSites) => onChange({ showSites })} />
         </div>
       </Group>

@@ -16,6 +16,7 @@ import { useHotkeys } from "@/hooks/use-hotkeys";
 import { useIsDesktop, useMediaQuery } from "@/hooks/use-media-query";
 import { useNow } from "@/hooks/use-now";
 import { useRadarLoop } from "@/hooks/use-radar-loop";
+import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
 import { PostCard } from "../community/post-card";
@@ -463,7 +464,7 @@ export function SevereMode() {
         )}
         {radar.showWarnings && radar.showTracks && <TracksLayer alerts={national.data?.alerts ?? []} now={now} />}
         {radar.showSites && <SitesLayer selected={site?.icao ?? null} onSelect={(icao) => setRadar({ source: "site", site: icao })} />}
-        {radar.showReports && <ReportsLayer posts={(reports.data ?? []) as PostDto[]} now={now} onSelect={selectReport} />}
+        {COMMUNITY_ENABLED && radar.showReports && <ReportsLayer posts={(reports.data ?? []) as PostDto[]} now={now} onSelect={selectReport} />}
         <UserMarker lat={loc.lat} lon={loc.lon} />
       </MapView>
 

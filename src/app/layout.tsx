@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
+import { IS_STATIC_BUNDLE } from "@/lib/platform";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -12,7 +13,8 @@ export const metadata: Metadata = {
   description:
     "Immersive forecasts, live NEXRAD radar, severe-weather warnings, drone & angler modes, air quality, and a community spotter network — built entirely on open data.",
   applicationName: "StormCentral",
-  manifest: "/manifest.webmanifest",
+  // The Android app bundle has no manifest route (and doesn't need one).
+  manifest: IS_STATIC_BUNDLE ? undefined : "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {

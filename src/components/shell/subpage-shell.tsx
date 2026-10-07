@@ -1,6 +1,7 @@
 "use client";
 
 import { useForecast } from "@/hooks/queries";
+import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
 import { WeatherBackground } from "../background/weather-background";
@@ -27,7 +28,7 @@ export function SubpageShell({ children, width = "max-w-2xl" }: { children: Reac
       />
       <TopBar />
       <CommandPalette />
-      <Composer />
+      {COMMUNITY_ENABLED && <Composer />}
       <main className={cn("relative mx-auto w-full", GUTTER, PAGE_PAD, width)}>{children}</main>
       <TabBar />
     </>

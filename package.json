@@ -4,6 +4,10 @@
   "private": true,
   "description": "Next-generation open-data weather platform: immersive forecasts, NEXRAD radar, drone, angler and air-quality modes, plus a community spotter network.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KingCreeper531/StormCentral.git"
+  },
   "engines": {
     "node": ">=20.9.0"
   },
@@ -17,9 +21,16 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run typecheck && npm run lint && npm run test",
-    "icons:sync": "node scripts/sync-weather-icons.mjs"
+    "icons:sync": "node scripts/sync-weather-icons.mjs",
+    "desktop:build": "node scripts/build-native.mjs desktop",
+    "desktop:start": "npm run desktop:build && electron desktop",
+    "desktop:dist": "npm run desktop:build && electron-builder --config electron-builder.config.mjs --publish never",
+    "android:build": "node scripts/build-native.mjs android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.5.3",
     "@libsql/client": "^0.18.0",
     "@tanstack/query-sync-storage-persister": "^5.104.1",
     "@tanstack/react-query": "^5.104.1",
@@ -40,11 +51,14 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/geojson": "^7946.0.16",
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "electron": "^44.6.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.0",
     "tailwindcss": "^4.3.3",

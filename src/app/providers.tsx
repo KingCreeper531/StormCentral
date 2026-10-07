@@ -6,6 +6,7 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { MotionConfig } from "motion/react";
 import { useEffect, useState } from "react";
 import { HttpError } from "@/lib/api/http";
+import { IS_STATIC_BUNDLE } from "@/lib/platform";
 import { useAppStore } from "@/store/app-store";
 
 /** Only small, location-scoped feeds are persisted for instant cold starts. */
@@ -37,7 +38,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     void useAppStore.persist.rehydrate();
-    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
+    // Not in the Android bundle: its assets come from the app's local file server.
+    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production" && !IS_STATIC_BUNDLE) {
       navigator.serviceWorker.register("/sw.js").catch(() => {
         /* radar still works, just without the persistent tile cache */
       });

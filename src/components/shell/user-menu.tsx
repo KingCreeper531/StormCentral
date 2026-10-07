@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { qk, useSession } from "@/hooks/queries";
+import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { buttonClass } from "../ui/button";
 import { Avatar } from "../ui/misc";
@@ -23,6 +24,7 @@ const DIVIDER = "my-1 border-t border-line";
  * - Signed out, below lg: an account icon that opens the same menu with Sign in,
  *   Create account, Spotter network and units, which have no other entry point there.
  * The menu is a disclosure panel (links plus a units radio group), not role="menu".
+ * Without the server (the Android app's bundled build) it only holds the units switch.
  */
 export function UserMenu() {
   const { data: user, isLoading } = useSession();
@@ -97,7 +99,7 @@ export function UserMenu() {
 
   return (
     <>
-      {!user && !onLogin && !onRegister && (
+      {COMMUNITY_ENABLED && !user && !onLogin && !onRegister && (
         <Link href={`/login${next}`} className={buttonClass("ghost", "sm", "hidden lg:inline-flex")}>
           Sign in
         </Link>
@@ -147,18 +149,22 @@ export function UserMenu() {
               </>
             ) : (
               <>
-                {!onLogin && (
+                {COMMUNITY_ENABLED && !onLogin && (
                   <Link href={`/login${next}`} onClick={close} className={ITEM}>
                     <LogIn className="size-4 shrink-0" aria-hidden /> Sign in
                   </Link>
                 )}
-                {!onRegister && (
+                {COMMUNITY_ENABLED && !onRegister && (
                   <Link href={`/register${next}`} onClick={close} className={ITEM}>
                     <UserPlus className="size-4 shrink-0" aria-hidden /> Create account
                   </Link>
                 )}
-                {spotterLink}
-                <div className={DIVIDER} />
+                {COMMUNITY_ENABLED && (
+                  <>
+                    {spotterLink}
+                    <div className={DIVIDER} />
+                  </>
+                )}
                 {units}
               </>
             )}
