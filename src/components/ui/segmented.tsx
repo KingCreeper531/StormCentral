@@ -1,7 +1,5 @@
 "use client";
 
-import { motion } from "motion/react";
-import { useId } from "react";
 import { cn } from "@/lib/utils";
 
 export interface SegmentOption<T extends string | number> {
@@ -11,7 +9,7 @@ export interface SegmentOption<T extends string | number> {
   disabled?: boolean;
 }
 
-/** Segmented control with a spring-animated selection pill. */
+/** Rectangular segmented control (radio group). No animated pill. */
 export function Segmented<T extends string | number>({
   options,
   value,
@@ -19,6 +17,7 @@ export function Segmented<T extends string | number>({
   size = "md",
   className,
   ariaLabel,
+  stretch = false,
 }: {
   options: SegmentOption<T>[];
   value: T;
@@ -26,10 +25,15 @@ export function Segmented<T extends string | number>({
   size?: "sm" | "md";
   className?: string;
   ariaLabel: string;
+  /** Fill the container width with equal segments. */
+  stretch?: boolean;
 }) {
-  const id = useId();
   return (
-    <div role="radiogroup" aria-label={ariaLabel} className={cn("inline-flex rounded-full bg-white/[0.05] p-0.5 ring-1 ring-white/10", className)}>
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel}
+      className={cn("inline-flex rounded-[var(--radius-control)] border border-line bg-surface-2 p-0.5", stretch && "flex w-full", className)}
+    >
       {options.map((o) => {
         const active = o.value === value;
         return (
@@ -42,19 +46,13 @@ export function Segmented<T extends string | number>({
             disabled={o.disabled}
             onClick={() => onChange(o.value)}
             className={cn(
-              "relative rounded-full font-medium transition-colors disabled:opacity-35",
-              size === "sm" ? "px-2.5 py-1 text-[11px]" : "px-3.5 py-1.5 text-xs",
-              active ? "text-black" : "text-ink-2 hover:text-ink",
+              "rounded-[4px] font-medium whitespace-nowrap transition-colors disabled:opacity-35 pointer-coarse:min-h-10 pointer-coarse:min-w-11",
+              size === "sm" ? "h-7 px-2.5 text-xs" : "h-8 px-3 text-[13px]",
+              stretch && "flex-1",
+              active ? "bg-surface-3 text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)]" : "text-ink-3 hover:text-ink",
             )}
           >
-            {active && (
-              <motion.span
-                layoutId={`seg-${id}`}
-                className="absolute inset-0 rounded-full bg-white"
-                transition={{ type: "spring", stiffness: 500, damping: 38 }}
-              />
-            )}
-            <span className="relative z-10 whitespace-nowrap">{o.label}</span>
+            {o.label}
           </button>
         );
       })}

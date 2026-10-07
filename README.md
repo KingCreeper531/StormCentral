@@ -1,6 +1,6 @@
 # StormCentral
 
-**Open-data weather for people who actually watch the sky.** StormCentral pairs an animated, OLED-first interface with professional meteorological tooling: live NEXRAD radar with storm-track projections, a drone pilot's go/no-go board, an angler's solunar and river dashboard, air-quality heatmaps, and a community **Spotter Network** where people post and verify ground-truth reports.
+**Open-data weather for people who actually watch the sky.** StormCentral pairs a quiet, instrument-style interface (with a live, weather-reactive sky behind it) with professional meteorological tooling: live NEXRAD radar with storm-track projections, a drone pilot's go/no-go board, an angler's solunar and river dashboard, air-quality heatmaps, and a community **Spotter Network** where people post and verify ground-truth reports.
 
 Every data source is free and open. No paid weather API keys are required.
 
@@ -10,7 +10,7 @@ Every data source is free and open. No paid weather API keys are required.
 
 ## Modes
 
-Press **1–5** to switch modes and **⌘K / Ctrl-K** to search any place. Hovering a mode tab prefetches its data.
+Press **1–5** to switch modes and **⌘K / Ctrl-K** to search any place. Hovering a mode tab prefetches its data. On phones the modes live in a bottom tab bar, and Severe mode's warnings and layer controls sit in a draggable bottom sheet (peek / half / full).
 
 | Mode | What you get |
 |---|---|
@@ -35,7 +35,7 @@ Press **1–5** to switch modes and **⌘K / Ctrl-K** to search any place. Hover
 | Layer | Choice |
 |---|---|
 | Framework | **Next.js 16** (App Router, Turbopack), **React 19**, TypeScript (strict) |
-| Styling and motion | **Tailwind CSS v4** with design tokens, **Motion** (formerly Framer Motion), Canvas2D particle engine |
+| Styling and motion | **Tailwind CSS v4** design tokens ([docs/DESIGN.md](docs/DESIGN.md)), **Motion** (formerly Framer Motion), Canvas2D particle engine |
 | Maps | **MapLibre GL JS v6** (WebGL); CARTO Dark Matter basemap, or MapTiler with a key |
 | State | **Zustand** (persisted UI state and URL sync) + **TanStack Query** (server state, persisted cache) |
 | Data and auth | **Drizzle ORM** on **libSQL/SQLite** (Turso-ready), Node `crypto` scrypt, opaque DB sessions, **Zod** validation |
@@ -92,6 +92,7 @@ On Vercel (or any Node host), set `DATABASE_URL` and `DATABASE_AUTH_TOKEN` to a 
 ```
 StormCentral/
 ├─ ARCHITECTURE.md              ← state, polling, caching & radar pipeline in depth
+├─ docs/DESIGN.md               ← design system: tokens, banned patterns, recipes, mobile rules
 ├─ next.config.ts               ← CSP & security headers, cache headers
 ├─ public/
 │  ├─ sw.js                     ← bounded cache-first radar tile service worker
@@ -108,7 +109,7 @@ StormCentral/
    │     ├─ auth/{register,login,logout,me}/
    │     └─ posts/[id]/{verify,comments}/  media/[id]/
    ├─ components/
-   │  ├─ shell/                 ← AppShell, TopBar, ModeSwitcher, CommandPalette, AlertBanner
+   │  ├─ shell/                 ← AppShell, TopBar, ModeSwitcher, mobile TabBar, CommandPalette, AlertBanner
    │  ├─ background/            ← sky gradients, Canvas2D precipitation, lightning
    │  ├─ modes/                 ← daily, severe, drone, angler, air (lazy-loaded)
    │  ├─ map/                   ← MapView (z-order slots) + layers/: radar, warnings,
@@ -117,7 +118,7 @@ StormCentral/
    │  ├─ daily/  drone/         ← mode-specific panels
    │  ├─ community/             ← composer, feed, post card, auth form
    │  ├─ charts/                ← accessible SVG time-series (crosshair + tooltip)
-   │  └─ ui/                    ← glass card, segmented, score ring, dials, status
+   │  └─ ui/                    ← Panel, Button, Segmented, Tabs, Sheet, StatusText, Meter, dials
    ├─ hooks/                    ← queries (per-mode polling), radar loop, hotkeys, URL sync
    ├─ modes/registry.ts         ← mode definitions + polling policy
    ├─ store/app-store.ts        ← Zustand store (persisted, hydration-safe)

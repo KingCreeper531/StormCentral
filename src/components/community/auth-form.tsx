@@ -4,13 +4,36 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { qk } from "@/hooks/queries";
-import { WeatherIcon } from "../ui/weather-icon";
+import { Button } from "../ui/button";
 
 /** Only same-site relative paths are allowed as post-login redirects. */
 function safeNext(next: string | null) {
   return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/";
+}
+
+/** DESIGN.md input recipe; 16 px text on touch devices so iOS doesn't zoom on focus. */
+const INPUT =
+  "h-9 w-full rounded-[var(--radius-control)] border border-line bg-surface-2 px-3 text-sm text-ink outline-none placeholder:text-ink-3 focus:border-accent pointer-coarse:h-11 pointer-coarse:text-base";
+
+function Field({ id, label, hint, optional, children }: { id: string; label: string; hint?: string; optional?: boolean; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-1.5 flex items-baseline justify-between gap-3">
+        <label htmlFor={id} className="text-[13px] font-medium text-ink-2">
+          {label}
+        </label>
+        {optional && <span className="label">Optional</span>}
+      </div>
+      {children}
+      {hint && (
+        <p id={`${id}-hint`} className="label mt-1.5">
+          {hint}
+        </p>
+      )}
+    </div>
+  );
 }
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
@@ -20,6 +43,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const next = safeNext(params.get("next"));
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const uid = useId();
+  const id = (name: string) => `${uid}-${name}`;
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -45,53 +70,95 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     }
   };
 
-  const input = "w-full rounded-2xl bg-white/[0.05] px-4 py-3 text-sm outline-none ring-1 ring-white/10 placeholder:text-ink-3 focus:ring-accent";
+  const login = mode === "login";
 
   return (
-    <div className="glass mx-auto w-full max-w-md rounded-[2rem] p-7">
-      <div className="mb-6 text-center">
-        <WeatherIcon name={mode === "login" ? "clear-night" : "isolated-thunderstorms-day"} size={84} className="mx-auto" />
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">{mode === "login" ? "Welcome back, spotter" : "Join the Spotter Network"}</h1>
-        <p className="mt-1 text-sm text-ink-3">
-          {mode === "login" ? "Sign in to report weather and verify observations." : "Share ground truth, verify reports and build your reputation."}
-        </p>
-      </div>
-      <form onSubmit={onSubmit} className="space-y-3" noValidate>
+    <div className="surface mx-auto w-full max-w-[400px] p-5 sm:mt-6 sm:p-6">
+      <h1 className="text-xl font-semibold text-ink">{login ? "Sign in" : "Create an account"}</h1>
+      <p className="mt-1 text-sm text-ink-2">
+        {login ? "Post weather reports and confirm observations from other spotters." : "An account lets you post weather reports and confirm other spotters' observations."}
+      </p>
+
+      <form onSubmit={onSubmit} className="mt-5 space-y-4" noValidate>
         {mode === "register" ? (
           <>
-            <input name="username" required minLength={3} maxLength={24} pattern="[A-Za-z0-9_]+" autoComplete="username" placeholder="Username" aria-label="Username" className={input} />
-            <input name="displayName" maxLength={40} autoComplete="nickname" placeholder="Display name (optional)" aria-label="Display name" className={input} />
-            <input name="email" type="email" required autoComplete="email" placeholder="Email" aria-label="Email" className={input} />
-            <input name="password" type="password" required minLength={10} autoComplete="new-password" placeholder="Password (10+ characters)" aria-label="Password" className={input} />
+            <Field id={id("username")} label="Username" hint="3 to 24 letters, numbers or underscores.">
+              <input
+                id={id("username")}
+                name="username"
+                required
+                minLength={3}
+                maxLength={24}
+                pattern="[A-Za-z0-9_]+"
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                aria-describedby={`${id("username")}-hint`}
+                className={INPUT}
+              />
+            </Field>
+            <Field id={id("displayName")} label="Display name" optional>
+              <input id={id("displayName")} name="displayName" maxLength={40} autoComplete="nickname" className={INPUT} />
+            </Field>
+            <Field id={id("email")} label="Email">
+              <input id={id("email")} name="email" type="email" required autoComplete="email" inputMode="email" className={INPUT} />
+            </Field>
+            <Field id={id("password")} label="Password" hint="At least 10 characters.">
+              <input
+                id={id("password")}
+                name="password"
+                type="password"
+                required
+                minLength={10}
+                autoComplete="new-password"
+                aria-describedby={`${id("password")}-hint`}
+                className={INPUT}
+              />
+            </Field>
           </>
         ) : (
           <>
-            <input name="identifier" required autoComplete="username" placeholder="Username or email" aria-label="Username or email" className={input} />
-            <input name="password" type="password" required autoComplete="current-password" placeholder="Password" aria-label="Password" className={input} />
+            <Field id={id("identifier")} label="Username or email">
+              <input
+                id={id("identifier")}
+                name="identifier"
+                required
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                className={INPUT}
+              />
+            </Field>
+            <Field id={id("password")} label="Password">
+              <input id={id("password")} name="password" type="password" required autoComplete="current-password" className={INPUT} />
+            </Field>
           </>
         )}
         {error && (
-          <p role="alert" className="rounded-xl bg-nogo/10 px-3 py-2 text-xs text-ink ring-1 ring-nogo/30">
+          <p role="alert" className="rounded-[var(--radius-control)] border border-nogo/30 bg-nogo/10 px-3 py-2 text-xs text-ink-2">
             {error}
           </p>
         )}
-        <button type="submit" disabled={pending} className="flex w-full items-center justify-center gap-2 rounded-full bg-white py-3 text-sm font-semibold text-black transition hover:scale-[1.01] disabled:opacity-50">
-          {pending && <Loader2 className="size-4 animate-spin" />}
-          {mode === "login" ? "Sign in" : "Create account"}
-        </button>
+        <Button type="submit" variant="primary" disabled={pending} className="w-full">
+          {pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
+          {login ? "Sign in" : "Create account"}
+        </Button>
       </form>
-      <p className="mt-5 text-center text-xs text-ink-3">
-        {mode === "login" ? (
+
+      <p className="mt-5 border-t border-line pt-4 text-[13px] text-ink-3">
+        {login ? (
           <>
-            New here?{" "}
-            <Link href={`/register?next=${encodeURIComponent(next)}`} className="font-semibold text-accent hover:underline">
+            No account yet?{" "}
+            <Link href={`/register?next=${encodeURIComponent(next)}`} className="font-medium text-accent hover:underline">
               Create an account
             </Link>
           </>
         ) : (
           <>
-            Already a spotter?{" "}
-            <Link href={`/login?next=${encodeURIComponent(next)}`} className="font-semibold text-accent hover:underline">
+            Already have an account?{" "}
+            <Link href={`/login?next=${encodeURIComponent(next)}`} className="font-medium text-accent hover:underline">
               Sign in
             </Link>
           </>

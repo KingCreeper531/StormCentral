@@ -123,7 +123,12 @@ export function droneFlyability(c: DroneConditions, p: DroneProfile): ScoreResul
       key: "kp",
       label: "Geomagnetic (Kp)",
       status: c.kp >= 7 ? "no-go" : c.kp >= 5 ? "caution" : "go",
-      detail: c.kp >= 5 ? `G${Math.min(5, Math.floor(c.kp) - 4)} storm — GNSS & compass degraded` : "Quiet to unsettled",
+      detail:
+        c.kp >= 5
+          ? `G${Math.min(5, Math.floor(c.kp) - 4)} storm — GNSS & compass degraded`
+          : c.kp >= 4
+            ? "Active — minor GNSS position scatter possible"
+            : "Quiet to unsettled",
     });
   }
   const night = c.skyPhase === "night" || c.skyPhase === "astronomical" || c.skyPhase === "nautical";

@@ -40,6 +40,22 @@ export const HAZARD_COLORS: Record<string, string> = {
   "Air Quality Alert": "#808080",
 };
 
+/**
+ * Display labels for the impact tags `normalizeAlert` emits as NWS constants
+ * (kept as constants in data so tests and logic can match on them).
+ */
+export const TAG_LABEL: Record<string, string> = {
+  PDS: "PDS",
+  OBSERVED: "Tornado observed",
+  "TORNADO POSSIBLE": "Tornado possible",
+  CONSIDERABLE: "Considerable",
+  DESTRUCTIVE: "Destructive",
+  "TORNADO EMERGENCY": "Tornado emergency",
+  "FLASH FLOOD EMERGENCY": "Flash flood emergency",
+};
+
+export const tagLabel = (tag: string) => TAG_LABEL[tag] ?? tag;
+
 /** Storm-based (polygon) products worth drawing on the national map. */
 export const POLYGON_EVENTS = [
   "Tornado Warning",

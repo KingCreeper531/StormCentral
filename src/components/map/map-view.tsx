@@ -1,7 +1,7 @@
 "use client";
 
 import "maplibre-gl/dist/maplibre-gl.css";
-import { getVersion, Map as MlMap, NavigationControl, setWorkerUrl, type StyleSpecification } from "maplibre-gl";
+import { AttributionControl, getVersion, Map as MlMap, NavigationControl, setWorkerUrl, type StyleSpecification } from "maplibre-gl";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { BBox } from "@/lib/geo";
 import { cn } from "@/lib/utils";
@@ -82,7 +82,7 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
       center: [center.lon, center.lat],
       zoom,
       interactive,
-      attributionControl: { compact: true },
+      attributionControl: false,
       dragRotate: false,
       touchPitch: false,
       maxPitch: 0,
@@ -92,7 +92,32 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
       fadeDuration: 0,
       cancelPendingTileRequestsWhileZooming: true,
     });
-    if (interactive) map.addControl(new NavigationControl({ showCompass: false }), "bottom-right");
+    // Attribution is always the compact (i) button. A non-interactive preview
+    // runs its own transport along the bottom edge, so its button sits top-right.
+    // Added before the zoom buttons so those stack above it.
+    map.addControl(new AttributionControl({ compact: true }), interactive ? "bottom-right" : "top-right");
+    // Zoom buttons are for mouse users; touch devices pinch, and on phones the
+    // control would only collide with the bottom sheet and tab bar.
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    if (interactive && !coarse) map.addControl(new NavigationControl({ showCompass: false }), "bottom-right");
+
+    // MapLibre switches the control to compact mode, expanded, the first time an
+    // attributed source appears. For the basemap that can be before 'load'; for
+    // the radar it's well after. Collapse it at that moment (one time only), so
+    // it never covers overlays. Later taps on the (i) button are left alone.
+    const attrib = map.getContainer().querySelector<HTMLElement>(".maplibregl-ctrl-attrib");
+    let attribWatch: MutationObserver | null = null;
+    const collapseAttrib = () => {
+      if (!attrib?.classList.contains("maplibregl-compact")) return false;
+      attrib.classList.remove("maplibregl-compact-show");
+      return true;
+    };
+    if (attrib && !collapseAttrib()) {
+      attribWatch = new MutationObserver(() => {
+        if (collapseAttrib()) attribWatch?.disconnect();
+      });
+      attribWatch.observe(attrib, { attributes: true, attributeFilter: ["class"] });
+    }
 
     const emitView = () => {
       const b = map.getBounds();
@@ -112,9 +137,6 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
       const marker = (id: string) => ({ id, type: "background" as const, layout: { visibility: "none" as const }, paint: { "background-opacity": 0 } });
       for (const id of BELOW_LABELS) map.addLayer(marker(id), firstSymbol?.id);
       for (const id of ABOVE_LABELS) map.addLayer(marker(id));
-      // Compact attribution starts expanded; collapse it so it never covers
-      // overlays (it stays one tap away behind the ⓘ button).
-      map.getContainer().querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show");
       setCtx({ map, font });
       readyCb.current?.(map);
       emitView();
@@ -123,6 +145,7 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
     map.on("resize", emitView);
 
     return () => {
+      attribWatch?.disconnect();
       setCtx({ map: null, font: [] });
       map.remove();
     };

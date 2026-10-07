@@ -9,7 +9,10 @@ import { useGeoJsonLayers } from "./use-geojson-source";
 
 const SRC = "spotter-reports";
 
-/** Community ground-truth reports, sized by severity and faded by age. */
+/**
+ * Community ground-truth reports, sized by severity and faded by age. Recent
+ * reports carry a thin ring that fades out over six hours.
+ */
 export function ReportsLayer({ posts, now, onSelect }: { posts: PostDto[]; now: number; onSelect: (id: string) => void }) {
   const data = useMemo<FeatureCollection>(
     () => ({
@@ -37,10 +40,11 @@ export function ReportsLayer({ posts, now, onSelect }: { posts: PostDto[]; now: 
         type: "circle",
         source: SRC,
         paint: {
-          "circle-radius": ["+", 9, ["*", 3, ["get", "severity"]]],
-          "circle-color": ["get", "color"],
-          "circle-opacity": ["interpolate", ["linear"], ["get", "ageMin"], 0, 0.28, 360, 0.04],
-          "circle-blur": 0.6,
+          "circle-radius": ["+", 9, ["*", 1.5, ["get", "severity"]]],
+          "circle-opacity": 0,
+          "circle-stroke-color": ["get", "color"],
+          "circle-stroke-width": 1.25,
+          "circle-stroke-opacity": ["interpolate", ["linear"], ["get", "ageMin"], 0, 0.7, 360, 0],
         },
       },
       {

@@ -80,30 +80,31 @@ function fmt(v: number, digits: 0 | 1 | 2) {
   return (digits === 0 ? NF0 : digits === 1 ? NF1 : NF2).format(Object.is(r, -0) ? 0 : r);
 }
 
+// Number and unit are joined with a no-break space so "43 mph" never wraps apart.
 export const formatters = (u: UnitPrefs) => ({
   temp: (c: number | null | undefined, withUnit = false) =>
     c == null ? "—" : `${fmt(convertTemp(c, u.temp), 0)}°${withUnit ? u.temp : ""}`,
   wind: (ms: number | null | undefined, withUnit = true) =>
-    ms == null ? "—" : `${fmt(convertWind(ms, u.wind), u.wind === "ms" ? 1 : 0)}${withUnit ? ` ${WIND_LABEL[u.wind]}` : ""}`,
+    ms == null ? "—" : `${fmt(convertWind(ms, u.wind), u.wind === "ms" ? 1 : 0)}${withUnit ? `\u00a0${WIND_LABEL[u.wind]}` : ""}`,
   pressure: (hPa: number | null | undefined, withUnit = true) =>
-    hPa == null ? "—" : `${fmt(convertPressure(hPa, u.pressure), u.pressure === "inHg" ? 2 : 0)}${withUnit ? ` ${u.pressure}` : ""}`,
+    hPa == null ? "—" : `${fmt(convertPressure(hPa, u.pressure), u.pressure === "inHg" ? 2 : 0)}${withUnit ? `\u00a0${u.pressure}` : ""}`,
   /** Pressure change (hPa) — more precision than absolute pressure. */
   pressureDelta: (hPa: number | null | undefined) => {
     if (hPa == null || !Number.isFinite(hPa)) return "—";
     const v = convertPressure(hPa, u.pressure);
     const s = fmt(Math.abs(v), u.pressure === "inHg" ? 2 : 1);
-    return `${v > 0 ? "+" : v < 0 ? "−" : "±"}${s} ${u.pressure}`;
+    return `${v > 0 ? "+" : v < 0 ? "−" : "±"}${s}\u00a0${u.pressure}`;
   },
   distanceKm: (km: number | null | undefined, withUnit = true) =>
-    km == null ? "—" : `${fmt(convertDistanceKm(km, u.distance), km < 10 ? 1 : 0)}${withUnit ? ` ${u.distance}` : ""}`,
+    km == null ? "—" : `${fmt(convertDistanceKm(km, u.distance), km < 10 ? 1 : 0)}${withUnit ? `\u00a0${u.distance}` : ""}`,
   precip: (mm: number | null | undefined, withUnit = true) =>
-    mm == null ? "—" : `${fmt(convertPrecip(mm, u.precip), u.precip === "in" ? 2 : 1)}${withUnit ? ` ${u.precip}` : ""}`,
+    mm == null ? "—" : `${fmt(convertPrecip(mm, u.precip), u.precip === "in" ? 2 : 1)}${withUnit ? `\u00a0${u.precip}` : ""}`,
   height: (m: number | null | undefined, withUnit = true) =>
-    m == null ? "—" : `${fmt(convertHeight(m, u.height), 0)}${withUnit ? ` ${u.height}` : ""}`,
+    m == null ? "—" : `${fmt(convertHeight(m, u.height), 0)}${withUnit ? `\u00a0${u.height}` : ""}`,
   visibility: (m: number | null | undefined) => {
     if (m == null) return "—";
     const km = m / 1000;
-    return u.distance === "mi" ? `${fmt(Math.min(km * 0.621371, 10), 1)} mi` : `${fmt(Math.min(km, 16), 1)} km`;
+    return u.distance === "mi" ? `${fmt(Math.min(km * 0.621371, 10), 1)}\u00a0mi` : `${fmt(Math.min(km, 16), 1)}\u00a0km`;
   },
   percent: (p: number | null | undefined) => (p == null ? "—" : `${fmt(p, 0)}%`),
 });

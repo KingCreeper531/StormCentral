@@ -1,8 +1,12 @@
 "use client";
 
+import { CircleAlert } from "lucide-react";
+import { useFormat } from "@/hooks/use-format";
+import { tagLabel } from "@/lib/alerts";
 import type { WeatherAlert } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
-import { useFormat } from "@/hooks/use-format";
+import { EmptyState } from "../ui/misc";
+import { sentenceCase } from "./radar-legend";
 
 export interface RankedAlert {
   alert: WeatherAlert;
@@ -10,37 +14,67 @@ export interface RankedAlert {
   inside: boolean;
 }
 
+/** Local clock time the alert ends ("5:45 PM"). */
+export const alertUntil = (a: WeatherAlert) => new Date(a.ends ?? a.expires).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+/** Hazard colour as the 8 px square swatch (the one hazard-colour encoding in lists, peek and details). */
+export function HazardSwatch({ color, className }: { color: string; className?: string }) {
+  return <span aria-hidden className={cn("size-2 shrink-0 rounded-[2px]", className)} style={{ background: color }} />;
+}
+
+/**
+ * NWS impact tag as a small outlined chip. NWS sends tags in capitals
+ * ("TORNADO EMERGENCY"); they are shown in sentence case, except acronyms.
+ * Life-threatening emergencies get an icon rather than relying on caps.
+ */
+export function AlertTag({ children }: { children: React.ReactNode }) {
+  const raw = typeof children === "string" ? children : null;
+  const emergency = !!raw && /EMERGENCY/i.test(raw);
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-[4px] border border-line px-1.5 py-px text-[11px] leading-4 font-medium text-ink-2">
+      {emergency && <CircleAlert className="size-3 text-nogo" aria-hidden />}
+      {raw ? (raw === "PDS" ? raw : sentenceCase(raw)) : children}
+    </span>
+  );
+}
+
+/** Dense warning rows: hazard swatch, event, tags, area, distance and expiry. */
 export function AlertList({ items, selectedId, onSelect }: { items: RankedAlert[]; selectedId: string | null; onSelect: (a: WeatherAlert) => void }) {
   const fmt = useFormat();
-  if (!items.length) return <p className="rounded-2xl bg-white/[0.03] px-3 py-4 text-center text-xs text-ink-3">No active warnings within 500 km.</p>;
+  if (!items.length) return <EmptyState title="No active warnings within 500 km" />;
   return (
-    <ul className="space-y-1.5">
-      {items.map(({ alert: a, distanceKm, inside }) => (
-        <li key={a.id}>
-          <button
-            type="button"
-            onClick={() => onSelect(a)}
-            className={cn("flex w-full gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-white/[0.06]", selectedId === a.id && "bg-white/[0.08]")}
-          >
-            <span className="mt-0.5 w-1 shrink-0 self-stretch rounded-full" style={{ background: a.color }} />
-            <span className="min-w-0 flex-1">
-              <span className="flex flex-wrap items-center gap-1 text-[13px] font-semibold text-ink">
-                {a.event}
-                {a.tags.slice(0, 2).map((t) => (
-                  <span key={t} className="rounded bg-white/10 px-1 text-[9px] font-bold tracking-wide">
-                    {t}
-                  </span>
-                ))}
+    <ul className="divide-y divide-line">
+      {items.map(({ alert: a, distanceKm, inside }) => {
+        const selected = selectedId === a.id;
+        return (
+          <li key={a.id}>
+            <button
+              type="button"
+              onClick={() => onSelect(a)}
+              aria-current={selected ? "true" : undefined}
+              className={cn(
+                "flex w-full gap-2.5 border-l-2 py-2.5 pr-4 pl-3.5 text-left transition-colors",
+                selected ? "border-accent bg-surface-2" : "border-transparent hover:bg-surface-2",
+              )}
+            >
+              <HazardSwatch color={a.color} className="mt-1.5" />
+              <span className="min-w-0 flex-1">
+                <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+                  <span className="min-w-0 text-[13px] leading-5 font-semibold text-ink">{a.event}</span>
+                  {a.tags.slice(0, 2).map((t) => (
+                    <AlertTag key={t}>{tagLabel(t)}</AlertTag>
+                  ))}
+                </span>
+                <span className="mt-0.5 block truncate text-xs text-ink-3">{a.areaDesc}</span>
+                <span className="mt-0.5 flex items-baseline justify-between gap-3 text-xs tabular">
+                  <span className={inside ? "font-medium text-ink-2" : "text-ink-3"}>{inside ? "Over your location" : `${fmt.distanceKm(distanceKm)} away`}</span>
+                  <span className="shrink-0 text-ink-3">Until {alertUntil(a)}</span>
+                </span>
               </span>
-              <span className="block truncate text-[11px] text-ink-3">{a.areaDesc}</span>
-              <span className="text-[11px] text-ink-2">
-                {inside ? "Over your location" : `${fmt.distanceKm(distanceKm)} away`} · until{" "}
-                {new Date(a.ends ?? a.expires).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-              </span>
-            </span>
-          </button>
-        </li>
-      ))}
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }

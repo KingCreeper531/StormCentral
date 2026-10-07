@@ -3,10 +3,10 @@
 import type { Forecast } from "@/lib/api/open-meteo";
 import { useFormat } from "@/hooks/use-format";
 import { TimeSeriesChart } from "../charts/time-series";
-import { GlassCard } from "../ui/glass-card";
+import { Panel } from "../ui/panel";
 
 /** Next 3 hours of 15-minute precipitation with a plain-language summary. */
-export function NowcastCard({ f, now }: { f: Forecast; now: number }) {
+export function NowcastCard({ f, now, className }: { f: Forecast; now: number; className?: string }) {
   const fmt = useFormat();
   const m = f.minutely15;
   if (!m || !m.time.length) return null;
@@ -26,16 +26,22 @@ export function NowcastCard({ f, now }: { f: Forecast; now: number }) {
       : "No precipitation expected in the next 3 hours";
 
   return (
-    <GlassCard eyebrow="Nowcast · 15-min" title={summary}>
+    <Panel
+      className={className}
+      // The summary is a sentence: let it wrap on narrow screens instead of truncating.
+      title={<span className="whitespace-normal">{summary}</span>}
+      // The y-axis ticks are bare numbers, so the unit lives here.
+      subtitle={`Next 3 hours, ${fmt.units.precip === "in" ? "inches" : "mm"} per 15 minutes`}
+    >
       <TimeSeriesChart
         ariaLabel="Precipitation over the next three hours"
         times={times}
         height={90}
         timeZone={f.timezone}
         yDomain={[0, Math.max(1, ...vals.map((v) => v ?? 0))]}
-        series={[{ key: "p", label: "Precipitation", color: "var(--color-series-1)", values: vals, kind: "bar", format: (v) => fmt.precip(v), axisFormat: (v) => fmt.precip(v, false) }]}
+        series={[{ key: "p", label: "Precipitation", color: "var(--color-series-1)", values: vals, kind: "bar", format: (v) => fmt.precip(v), axisFormat: (v) => (v === 0 ? "0" : fmt.precip(v, false)) }]}
         tickEvery={4}
       />
-    </GlassCard>
+    </Panel>
   );
 }

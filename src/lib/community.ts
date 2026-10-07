@@ -10,7 +10,7 @@ export const CATEGORIES = {
   hail: { label: "Hail", icon: "hail", color: "#a5f3fc" },
   wind: { label: "Wind damage", icon: "wind", color: "#fbbf24" },
   tornado: { label: "Tornado / funnel", icon: "tornado", color: "#f43f5e" },
-  flooding: { label: "Flooding", icon: "rainy-3", color: "#3b82f6" },
+  flooding: { label: "Flooding", icon: "rainy-3", color: "#0f9d8a" },
   lightning: { label: "Lightning", icon: "thunderstorms", color: "#c084fc" },
   fog: { label: "Fog / visibility", icon: "fog", color: "#cbd5e1" },
   sky: { label: "Sky photo", icon: "clear-day", color: "#fde68a" },

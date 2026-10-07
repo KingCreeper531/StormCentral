@@ -1,3 +1,5 @@
+import { CloudSun, Drone, Fish, Leaf, Radar, type LucideIcon } from "lucide-react";
+
 /**
  * Mode registry — the single source of truth for what each operating mode
  * is, how it looks, and how aggressively it polls. Modes are *projections*
@@ -9,62 +11,22 @@ export type ModeId = (typeof MODE_IDS)[number];
 export interface ModeDef {
   id: ModeId;
   label: string;
+  /** Label for the mobile tab bar (fits 5 across at 360 px). */
+  short: string;
   tagline: string;
-  /** Makin-Things icon used in the switcher. */
-  icon: string;
-  /** Accent colour used for focus rings, active pills and glows. */
-  accent: string;
+  /** Line icon for navigation (weather illustrations are for data, not chrome). */
+  Icon: LucideIcon;
   hotkey: string;
   /** Map-first modes hide the sky background and go edge-to-edge. */
   immersiveMap: boolean;
 }
 
 export const MODES: Record<ModeId, ModeDef> = {
-  daily: {
-    id: "daily",
-    label: "Daily",
-    tagline: "Conditions, hourly & 10-day outlook",
-    icon: "clear-day",
-    accent: "#38bdf8",
-    hotkey: "1",
-    immersiveMap: false,
-  },
-  severe: {
-    id: "severe",
-    label: "Severe",
-    tagline: "NEXRAD radar, warnings & storm tracks",
-    icon: "severe-thunderstorm",
-    accent: "#f43f5e",
-    hotkey: "2",
-    immersiveMap: true,
-  },
-  drone: {
-    id: "drone",
-    label: "UAV Pilot",
-    tagline: "Winds aloft, shear, Kp, ceiling & GNSS",
-    icon: "wind",
-    accent: "#a78bfa",
-    hotkey: "3",
-    immersiveMap: false,
-  },
-  angler: {
-    id: "angler",
-    label: "Angler",
-    tagline: "River gauges, pressure trend & solunar",
-    icon: "rainy-1-day",
-    accent: "#2dd4bf",
-    hotkey: "4",
-    immersiveMap: false,
-  },
-  air: {
-    id: "air",
-    label: "Air & Allergy",
-    tagline: "AQI heatmap, PM2.5, ozone & pollen",
-    icon: "haze-day",
-    accent: "#a3e635",
-    hotkey: "5",
-    immersiveMap: false,
-  },
+  daily: { id: "daily", label: "Daily", short: "Daily", tagline: "Conditions, hourly and 10-day forecast", Icon: CloudSun, hotkey: "1", immersiveMap: false },
+  severe: { id: "severe", label: "Severe", short: "Severe", tagline: "NEXRAD radar, warnings and storm tracks", Icon: Radar, hotkey: "2", immersiveMap: true },
+  drone: { id: "drone", label: "UAV pilot", short: "UAV", tagline: "Winds aloft, shear, Kp, ceiling and GNSS", Icon: Drone, hotkey: "3", immersiveMap: false },
+  angler: { id: "angler", label: "Angler", short: "Angler", tagline: "River gauges, pressure trend and solunar", Icon: Fish, hotkey: "4", immersiveMap: false },
+  air: { id: "air", label: "Air quality", short: "Air", tagline: "AQI map, particulates, ozone and pollen", Icon: Leaf, hotkey: "5", immersiveMap: false },
 };
 
 export const isModeId = (v: unknown): v is ModeId => typeof v === "string" && (MODE_IDS as readonly string[]).includes(v);

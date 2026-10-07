@@ -28,7 +28,7 @@ export function TracksLayer({ alerts, now }: { alerts: WeatherAlert[]; now: numb
           features.push({
             type: "Feature",
             geometry: { type: "Point", coordinates: [s.points[pi]!.lon, s.points[pi]!.lat] },
-            properties: { color: a.color, label: `${s.minutes}′` },
+            properties: { color: a.color, label: `${s.minutes} min` },
           }),
         );
       });
@@ -63,7 +63,7 @@ export function TracksLayer({ alerts, now }: { alerts: WeatherAlert[]; now: numb
         filter: ["==", ["geometry-type"], "Point"],
         minzoom: 7,
         layout: { "text-field": ["get", "label"], "text-font": font, "text-size": 10, "text-offset": [0, 1.1], "text-allow-overlap": false },
-        paint: { "text-color": "#e5e7eb", "text-halo-color": "#000", "text-halo-width": 1.2 },
+        paint: { "text-color": "#ececed", "text-halo-color": "#000", "text-halo-width": 1.2 },
       },
     ],
     SLOTS.tracks,

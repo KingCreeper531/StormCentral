@@ -24,10 +24,14 @@ interface Props {
   paused: boolean;
 }
 
+/** Share of the viewport height that holds the sky; the scrim fades the rest to black. */
+const FIELD = 0.6;
+
 /**
  * Canvas2D precipitation engine. One draw call batch per frame (a single
- * path for rain streaks), DPR capped at 1.5, particle budget scaled to
- * screen area, and the loop parks itself when the tab is hidden.
+ * path for rain streaks), DPR capped at 1.5, particle budget scaled to the
+ * visible sky band, and the loop parks itself when the tab is hidden.
+ * Lightning is a brief, low-opacity sky flash (no blend-mode white-out).
  */
 export function PrecipCanvas({ kind, intensity, wind, lightning, paused }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -48,13 +52,14 @@ export function PrecipCanvas({ kind, intensity, wind, lightning, paused }: Props
     let particles: Particle[] = [];
     let raf = 0;
     let last = performance.now();
-    let nextFlash = last + 3000 + Math.random() * 6000;
+    let nextFlash = last + 6000 + Math.random() * 10_000;
     let bolt: { pts: [number, number][]; until: number } | null = null;
 
     const resize = () => {
       dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       w = window.innerWidth;
-      h = window.innerHeight;
+      // Only the sky band is drawn: below it the scene is black anyway.
+      h = Math.ceil(window.innerHeight * FIELD);
       canvas.width = Math.floor(w * dpr);
       canvas.height = Math.floor(h * dpr);
       canvas.style.width = `${w}px`;
@@ -79,7 +84,7 @@ export function PrecipCanvas({ kind, intensity, wind, lightning, paused }: Props
       const pts: [number, number][] = [];
       let x = w * (0.15 + Math.random() * 0.7);
       let y = 0;
-      while (y < h * (0.45 + Math.random() * 0.3)) {
+      while (y < h * (0.55 + Math.random() * 0.3)) {
         pts.push([x, y]);
         x += (Math.random() - 0.5) * 60;
         y += 18 + Math.random() * 30;
@@ -106,7 +111,7 @@ export function PrecipCanvas({ kind, intensity, wind, lightning, paused }: Props
       const windPx = c.wind * (k === "snow" ? 60 : 260);
 
       if (k === "rain" || k === "drizzle" || k === "sleet") {
-        ctx.strokeStyle = k === "drizzle" ? "rgba(190,210,235,0.28)" : "rgba(175,200,235,0.42)";
+        ctx.strokeStyle = k === "drizzle" ? "rgba(190,205,225,0.2)" : "rgba(180,198,225,0.3)";
         ctx.lineWidth = k === "drizzle" ? 0.8 : 1.1;
         ctx.lineCap = "round";
         ctx.beginPath();
@@ -124,14 +129,14 @@ export function PrecipCanvas({ kind, intensity, wind, lightning, paused }: Props
         }
         ctx.stroke();
       } else if (k === "snow" || k === "hail") {
-        ctx.fillStyle = k === "hail" ? "rgba(235,245,255,0.85)" : "rgba(255,255,255,0.78)";
+        ctx.fillStyle = k === "hail" ? "rgba(230,238,248,0.65)" : "rgba(240,244,250,0.6)";
         for (const p of particles) {
           p.phase += dt * (0.8 + p.z);
           const sway = k === "snow" ? Math.sin(p.phase) * 22 * p.z : 0;
           p.y += (k === "hail" ? 820 : 55 + 70 * p.z) * p.z * dt;
           p.x += (windPx * p.z + sway) * dt;
           const r = k === "hail" ? 1.4 + p.z * 1.6 : 0.8 + p.z * 2.2;
-          ctx.globalAlpha = 0.35 + p.z * 0.6;
+          ctx.globalAlpha = 0.3 + p.z * 0.5;
           ctx.beginPath();
           ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
           ctx.fill();
@@ -140,24 +145,24 @@ export function PrecipCanvas({ kind, intensity, wind, lightning, paused }: Props
         ctx.globalAlpha = 1;
       }
 
-      // Lightning: a jagged bolt + a sky flash on the overlay div.
+      // Lightning: an occasional faint bolt + a low-opacity sky flash (peak 0.16).
       if (c.lightning && !reduced && now > nextFlash) {
-        nextFlash = now + 4000 + Math.random() * 9000;
-        bolt = Math.random() < 0.55 ? { pts: makeBolt(), until: now + 160 } : null;
+        nextFlash = now + 10_000 + Math.random() * 16_000;
+        bolt = Math.random() < 0.4 ? { pts: makeBolt(), until: now + 140 } : null;
         const el = flashRef.current;
         if (el) {
           el.animate(
-            [{ opacity: 0 }, { opacity: 0.55 }, { opacity: 0.1 }, { opacity: 0.4 }, { opacity: 0 }],
-            { duration: 650, easing: "ease-out" },
+            [{ opacity: 0 }, { opacity: 0.16 }, { opacity: 0.04 }, { opacity: 0.1 }, { opacity: 0 }],
+            { duration: 700, easing: "ease-out" },
           );
         }
       }
       if (bolt && now < bolt.until) {
         ctx.save();
-        ctx.strokeStyle = "rgba(225,235,255,0.95)";
-        ctx.shadowColor = "rgba(170,190,255,0.9)";
-        ctx.shadowBlur = 18;
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = "rgba(220,228,245,0.7)";
+        ctx.shadowColor = "rgba(200,210,240,0.4)";
+        ctx.shadowBlur = 6;
+        ctx.lineWidth = 1.4;
         ctx.beginPath();
         bolt.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
         ctx.stroke();
@@ -193,8 +198,8 @@ export function PrecipCanvas({ kind, intensity, wind, lightning, paused }: Props
 
   return (
     <>
-      <canvas ref={canvasRef} className="pointer-events-none fixed inset-0" aria-hidden />
-      <div ref={flashRef} className="pointer-events-none fixed inset-0 bg-[#dfe7ff] opacity-0 mix-blend-screen" aria-hidden />
+      <canvas ref={canvasRef} className="pointer-events-none fixed inset-x-0 top-0" aria-hidden />
+      <div ref={flashRef} className="pointer-events-none fixed inset-0 bg-[#c9d3e6] opacity-0" aria-hidden />
     </>
   );
 }

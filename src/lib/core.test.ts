@@ -85,7 +85,8 @@ describe("units", () => {
     const f = formatters(UNIT_PRESETS.metric);
     expect(f.temp(-0.2)).toBe("0°");
     expect(f.temp(null)).toBe("—");
-    expect(f.pressureDelta(-1.26)).toBe("−1.3 hPa");
+    expect(f.pressureDelta(-1.26)).toBe("−1.3\u00a0hPa");
+    expect(f.wind(19.2)).toBe("69\u00a0km/h");
   });
 });
 

@@ -25,3 +25,6 @@ next-env.d.ts
 *.pem
 npm-debug.log*
 .vercel
+
+# written by `next dev` (Next.js 16 agent hints)
+/AGENTS.md
