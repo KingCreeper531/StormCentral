@@ -15,7 +15,7 @@ export const outlookFeed: Feed<OutlookResponse> = {
       const raw = await upstreamJson(`https://www.spc.noaa.gov/products/outlook/day${d}otlk_cat.lyr.geojson`, {
         headers: { Accept: "application/geo+json, application/json" },
       });
-      return { day: d, ...parseSpcOutlook(raw) };
+      return { day: d, kind: "categorical" as const, ...parseSpcOutlook(raw) };
     });
   },
 };

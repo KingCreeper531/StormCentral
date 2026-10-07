@@ -35,7 +35,19 @@ export const isModeId = (v: unknown): v is ModeId => typeof v === "string" && (M
  * Polling policy per data feed per mode (ms). `false` = don't fetch at all in
  * that mode. Feeds a mode depends on poll hard; everything else idles.
  */
-export type Feed = "forecast" | "air" | "localAlerts" | "nationalAlerts" | "radar" | "kp" | "rivers" | "gnss" | "outlook";
+export type Feed =
+  | "forecast"
+  | "air"
+  | "localAlerts"
+  | "nationalAlerts"
+  | "radar"
+  | "kp"
+  | "rivers"
+  | "gnss"
+  | "outlook"
+  | "stormReports"
+  | "stormCells"
+  | "tropical";
 
 const MIN = 60_000;
 
@@ -48,7 +60,10 @@ export const POLLING: Record<Feed, Partial<Record<ModeId, number | false>> & { d
   kp: { default: false, drone: 15 * MIN },
   rivers: { default: false, angler: 10 * MIN },
   gnss: { default: false, drone: 10 * MIN },
-  outlook: { default: false, severe: 10 * MIN },
+  outlook: { default: false, daily: 30 * MIN, severe: 10 * MIN },
+  stormReports: { default: false, severe: 2 * MIN },
+  stormCells: { default: false, severe: 2 * MIN },
+  tropical: { default: false, daily: 30 * MIN, severe: 15 * MIN },
 };
 
 export function pollFor(feed: Feed, mode: ModeId): number | false {

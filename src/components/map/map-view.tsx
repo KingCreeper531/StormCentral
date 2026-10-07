@@ -13,16 +13,20 @@ import { cn } from "@/lib/utils";
  * interactive markers sit on top of everything.
  */
 export const SLOTS = {
+  satellite: "slot-satellite",
   outlook: "slot-outlook",
   heat: "slot-heat",
   radar: "slot-radar",
+  tropical: "slot-tropical",
   warnings: "slot-warnings",
   tracks: "slot-tracks",
   sites: "slot-sites",
+  cells: "slot-cells",
+  stormReports: "slot-storm-reports",
   reports: "slot-reports",
 } as const;
-const BELOW_LABELS = [SLOTS.outlook, SLOTS.heat, SLOTS.radar, SLOTS.warnings] as const;
-const ABOVE_LABELS = [SLOTS.tracks, SLOTS.sites, SLOTS.reports] as const;
+const BELOW_LABELS = [SLOTS.satellite, SLOTS.outlook, SLOTS.heat, SLOTS.radar, SLOTS.tropical, SLOTS.warnings] as const;
+const ABOVE_LABELS = [SLOTS.tracks, SLOTS.sites, SLOTS.cells, SLOTS.stormReports, SLOTS.reports] as const;
 
 const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY;
 const STYLE_URL = MAPTILER_KEY

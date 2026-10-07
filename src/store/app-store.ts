@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import type { OutlookKind } from "@/lib/api/types";
 import type { LatLon } from "@/lib/geo";
 import type { ProductFamily, TiltPrefix } from "@/lib/radar/products";
 import type { Speed } from "@/lib/radar/playback";
@@ -25,10 +26,24 @@ export interface RadarSettings {
   crossfade: boolean;
   showWarnings: boolean;
   showOutlook: boolean;
+  /** Which SPC Day 1 outlook the outlook overlay shows. */
+  outlookKind: OutlookKind;
+  /** Community spotter reports. */
   showReports: boolean;
+  /** Official NWS local storm reports. */
+  showStormReports: boolean;
+  /** NEXRAD storm-cell attributes: hail size, rotation, motion. */
+  showCells: boolean;
+  /** GOES satellite imagery under the radar. */
+  satellite: SatelliteBand;
+  /** Active tropical cyclones: NHC cone, track and forecast points. */
+  showTropical: boolean;
   showSites: boolean;
   showTracks: boolean;
 }
+
+export type { OutlookKind };
+export type SatelliteBand = "off" | "infrared" | "visible";
 
 export interface DroneSettings {
   profileId: string;
@@ -71,7 +86,12 @@ export const DEFAULT_RADAR: RadarSettings = {
   crossfade: true,
   showWarnings: true,
   showOutlook: false,
+  outlookKind: "categorical",
   showReports: true,
+  showStormReports: true,
+  showCells: true,
+  satellite: "off",
+  showTropical: true,
   showSites: true,
   showTracks: true,
 };

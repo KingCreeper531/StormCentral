@@ -118,14 +118,29 @@ export interface GnssResponse {
   timeline: { time: number; count: number; pdop: number | null }[];
 }
 
+/** SPC Day 1 outlook: categorical risk, or the tornado / hail / wind probabilities. */
+export type OutlookKind = "categorical" | "tornado" | "hail" | "wind";
+
 export interface OutlookFeature {
   type: "Feature";
   geometry: PolygonalGeometry;
-  properties: { label: string; name: string; fill: string; stroke: string; rank: number };
+  properties: {
+    /** SPC code: "TSTM"…"HIGH" (categorical) or "0.05"…"0.60" (probabilistic). */
+    label: string;
+    /** Readable name: "Slight risk", "10% tornado". */
+    name: string;
+    fill: string;
+    stroke: string;
+    /** Ordering within the outlook; higher is more severe. */
+    rank: number;
+    /** Probabilistic only: the hatched "significant severe" (≥EF2 / ≥2" / ≥75 mph) area. */
+    significant?: boolean;
+  };
 }
 
 export interface OutlookResponse {
   day: 1 | 2 | 3;
+  kind: OutlookKind;
   features: OutlookFeature[];
   valid: string | null;
 }

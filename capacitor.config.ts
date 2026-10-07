@@ -1,4 +1,13 @@
+/// <reference types="@capacitor/background-runner" />
+/// <reference types="@capacitor/local-notifications" />
 import type { CapacitorConfig } from "@capacitor/cli";
+
+/**
+ * The background runner's label also names the Android SharedPreferences
+ * file its key-value store writes, which the home-screen widget reads
+ * (WeatherWidgetProvider.java). Keep them in sync.
+ */
+export const RUNNER_LABEL = "io.github.kingcreeper531.stormcentral.alerts";
 
 /**
  * StormCentral for Android.
@@ -25,6 +34,21 @@ const config: CapacitorConfig = {
       initialViewportFitValueHint: "cover",
       // Light icons on the app's black background.
       style: "DARK",
+    },
+    // Warnings and custom alerts while the app is closed: a headless JS runner
+    // that Android wakes about every 15 minutes (src/native/runner, bundled to
+    // out/runners/background.js by scripts/build-native.mjs).
+    BackgroundRunner: {
+      label: RUNNER_LABEL,
+      src: "runners/background.js",
+      event: "check",
+      repeat: true,
+      interval: 15,
+      autoStart: true,
+    },
+    LocalNotifications: {
+      smallIcon: "ic_stat_stormcentral",
+      iconColor: "#5b9cf6",
     },
   },
 };

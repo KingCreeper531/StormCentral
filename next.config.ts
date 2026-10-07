@@ -25,6 +25,8 @@ const CONNECT = [
   "https://air-quality-api.open-meteo.com",
   "https://geocoding-api.open-meteo.com",
   "https://mesonet.agron.iastate.edu",
+  // GOES satellite imagery (NASA GIBS).
+  "https://gibs.earthdata.nasa.gov",
   "https://*.cartocdn.com",
   "https://api.maptiler.com",
   "https://api.bigdatacloud.net",
@@ -37,7 +39,9 @@ const csp = [
   // Next.js injects inline bootstrap scripts; dev mode additionally needs eval for HMR.
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://mesonet.agron.iastate.edu https://*.cartocdn.com https://api.maptiler.com",
+  "img-src 'self' data: blob: https://mesonet.agron.iastate.edu https://gibs.earthdata.nasa.gov https://*.cartocdn.com https://api.maptiler.com",
+  // Radar loop exports preview as blob: video.
+  "media-src 'self' blob:",
   "font-src 'self' data:",
   `connect-src ${CONNECT.join(" ")}${isDev ? " ws:" : ""}`,
   "worker-src 'self' blob:",

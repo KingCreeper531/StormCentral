@@ -12,6 +12,7 @@ import { fetchAirGrid, fetchAirQuality, fetchForecast, type GridVariable } from 
 import type {
   AlertsResponse,
   GnssResponse,
+  OutlookKind,
   OutlookResponse,
   ProductsResponse,
   RiversResponse,
@@ -19,6 +20,9 @@ import type {
   SpaceWeatherResponse,
 } from "@/lib/api/types";
 import type { FeedResponse, PostDto } from "@/lib/community";
+import type { StormCellsResponse } from "@/lib/feeds/storm-cells";
+import type { StormReportsResponse } from "@/lib/feeds/storm-reports";
+import type { TropicalResponse } from "@/lib/feeds/tropical";
 import type { BBox, LatLon } from "@/lib/geo";
 import { useAppStore } from "@/store/app-store";
 import { pollFor, type Feed, type ModeId } from "@/modes/registry";
@@ -36,7 +40,10 @@ export const qk = {
   kp: ["kp"] as const,
   rivers: (p: LatLon) => ["rivers", r2(p.lat), r2(p.lon)] as const,
   gnss: (p: LatLon) => ["gnss", Math.round(p.lat * 4) / 4, Math.round(p.lon * 4) / 4] as const,
-  outlook: (day: number) => ["outlook", day] as const,
+  outlook: (day: number, kind: OutlookKind) => ["outlook", day, kind] as const,
+  stormReports: (hours: number) => ["stormReports", hours] as const,
+  stormCells: ["stormCells"] as const,
+  tropical: ["tropical"] as const,
   session: ["session"] as const,
   posts: (params: Record<string, string>) => ["posts", params] as const,
 };
@@ -171,11 +178,52 @@ export function useGnss() {
   });
 }
 
-export function useOutlook(enabled: boolean) {
+export function useOutlook(enabled: boolean, kind: OutlookKind = "categorical") {
+  const { enabled: polling, refetchInterval } = usePoll("outlook");
   return useQuery({
-    queryKey: qk.outlook(1),
-    queryFn: ({ signal }) => getJson<OutlookResponse>("/api/outlook?day=1", { signal }),
-    enabled,
+    queryKey: qk.outlook(1, kind),
+    queryFn: ({ signal }) => getJson<OutlookResponse>(`/api/outlook?day=1&kind=${kind}`, { signal }),
+    enabled: enabled && polling,
+    refetchInterval,
+    staleTime: 10 * 60_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Official NWS local storm reports over the last `hours`. */
+export function useStormReports(enabled: boolean, hours = 6) {
+  const { enabled: polling, refetchInterval } = usePoll("stormReports");
+  return useQuery({
+    queryKey: qk.stormReports(hours),
+    queryFn: ({ signal }) => getJson<StormReportsResponse>(`/api/storm-reports?hours=${hours}`, { signal, timeoutMs: 25_000 }),
+    enabled: enabled && polling,
+    refetchInterval,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Latest NEXRAD storm-cell attributes (hail, rotation, motion). */
+export function useStormCells(enabled: boolean) {
+  const { enabled: polling, refetchInterval } = usePoll("stormCells");
+  return useQuery({
+    queryKey: qk.stormCells,
+    queryFn: ({ signal }) => getJson<StormCellsResponse>("/api/storm-cells", { signal, timeoutMs: 25_000 }),
+    enabled: enabled && polling,
+    refetchInterval,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Active tropical cyclones (NHC). */
+export function useTropical(enabled: boolean) {
+  const { enabled: polling, refetchInterval } = usePoll("tropical");
+  return useQuery({
+    queryKey: qk.tropical,
+    queryFn: ({ signal }) => getJson<TropicalResponse>("/api/tropical", { signal, timeoutMs: 30_000 }),
+    enabled: enabled && polling,
+    refetchInterval,
     staleTime: 10 * 60_000,
   });
 }
