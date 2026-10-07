@@ -1,0 +1,54 @@
+{
+  "name": "stormcentral",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Next-generation open-data weather platform: immersive forecasts, NEXRAD radar, drone, angler and air-quality modes, plus a community spotter network.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "postinstall": "node scripts/vendor-maplibre-worker.mjs",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm run lint && npm run test",
+    "icons:sync": "node scripts/sync-weather-icons.mjs"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.18.0",
+    "@tanstack/query-sync-storage-persister": "^5.104.1",
+    "@tanstack/react-query": "^5.104.1",
+    "@tanstack/react-query-persist-client": "^5.104.1",
+    "clsx": "^2.1.1",
+    "drizzle-orm": "^0.45.3",
+    "geist": "^1.7.2",
+    "lucide-react": "^1.52.0",
+    "maplibre-gl": "^6.13.0",
+    "motion": "^14.0.0",
+    "next": "^16.4.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "satellite.js": "^7.1.0",
+    "server-only": "^0.0.1",
+    "tailwind-merge": "^3.7.0",
+    "zod": "^4.6.5",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.3"
+  }
+}
