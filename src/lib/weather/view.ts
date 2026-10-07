@@ -33,3 +33,32 @@ export function todayIndex(f: Forecast, nowMs: number) {
 }
 
 export const fmtIn = (tz: string | undefined, opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(undefined, { ...opts, timeZone: tz });
+
+/** Clock formatters by zone (`""` = the device's); lists render many rows per tick. */
+const clocks = new Map<string, Intl.DateTimeFormat>();
+function clockFmt(tz: string | undefined, withZone: boolean) {
+  const key = `${tz ?? ""}|${withZone}`;
+  let f = clocks.get(key);
+  if (!f) {
+    try {
+      f = fmtIn(tz, { hour: "numeric", minute: "2-digit", ...(withZone && { timeZoneName: "short" }) });
+    } catch {
+      f = fmtIn(undefined, { hour: "numeric", minute: "2-digit" }); // unknown zone name: device clock
+    }
+    clocks.set(key, f);
+  }
+  return f;
+}
+
+/**
+ * Clock time ("5:45 PM") in the selected location's zone, so it agrees with
+ * the forecast and every other time on screen. When that zone's clock reads
+ * differently from the device's at that instant (viewing a place elsewhere),
+ * the zone is named ("5:45 PM CDT"), so the time can't be misread.
+ */
+export function clockIn(tz: string | undefined, at: Date | number | string): string {
+  const d = at instanceof Date ? at : new Date(at);
+  const there = clockFmt(tz, false).format(d);
+  if (!tz || clockFmt(undefined, false).format(d) === there) return there;
+  return clockFmt(tz, true).format(d);
+}

@@ -6,6 +6,7 @@ import { tagLabel } from "@/lib/alerts";
 import type { WeatherAlert } from "@/lib/api/types";
 import { stormEta } from "@/lib/science/storm-motion";
 import { cn } from "@/lib/utils";
+import { clockIn } from "@/lib/weather/view";
 import { useAppStore } from "@/store/app-store";
 import { IconButton } from "../ui/button";
 import { AlertTag, HazardSwatch } from "./alert-list";
@@ -31,9 +32,12 @@ export function AlertDetail({
   onClose,
   hideTitle = false,
   className,
+  timeZone,
 }: {
   alert: WeatherAlert;
   now: number;
+  /** IANA zone of the selected location; times use the device's zone when omitted. */
+  timeZone: string | undefined;
   onClose?: () => void;
   hideTitle?: boolean;
   className?: string;
@@ -42,7 +46,7 @@ export function AlertDetail({
   const [expanded, setExpanded] = useState(false);
   const textId = useId();
   const eta = a.motion ? stormEta(a.motion, loc, 15, now) : null;
-  const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const time = (iso: string) => clockIn(timeZone, iso);
   const hasFacts = !!(a.hazards.maxHail || a.hazards.maxWind || a.hazards.tornado || a.motion);
   // "Observed" repeats the Tornado fact below.
   const tags = a.hazards.tornado ? a.tags.filter((t) => t !== "OBSERVED") : a.tags;

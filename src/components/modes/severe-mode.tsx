@@ -10,7 +10,7 @@ import { distanceToGeometryKm, geometryContains, type BBox } from "@/lib/geo";
 import { FAMILIES, resolveTilts } from "@/lib/radar/products";
 import { iemSiteId } from "@/lib/radar/frames";
 import { getSite, nearestSites } from "@/lib/radar/site-utils";
-import { useLocalAlerts, useNationalAlerts, useOutlook, useRadarProducts, useReportsInView } from "@/hooks/queries";
+import { useForecast, useLocalAlerts, useNationalAlerts, useOutlook, useRadarProducts, useReportsInView } from "@/hooks/queries";
 import { useFormat } from "@/hooks/use-format";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import { useIsDesktop, useMediaQuery } from "@/hooks/use-media-query";
@@ -112,6 +112,8 @@ export function SevereMode() {
   const setRadar = useAppStore((s) => s.setRadar);
   const now = useNow(30_000);
   const fmt = useFormat();
+  // Times (warning expiry, radar frames) read in the selected location's zone, like the rest of the app.
+  const timeZone = useForecast().data?.timezone;
   const desktop = useIsDesktop();
   const wide = useMediaQuery("(min-width: 1024px)");
   /** Selection details float beside the panel only where they fit; elsewhere they replace the list. */
@@ -238,7 +240,7 @@ export function SevereMode() {
     );
 
   // ── Sheet header ──────────────────────────────────────────────────────────
-  const where = (r: RankedAlert) => `${r.inside ? "Over your location" : `${fmt.distanceKm(r.distanceKm)} away`}, until ${alertUntil(r.alert)}`;
+  const where = (r: RankedAlert) => `${r.inside ? "Over your location" : `${fmt.distanceKm(r.distanceKm)} away`}, until ${alertUntil(r.alert, timeZone)}`;
   const top = ranked[0];
   const hasSelection = !!(activeAlert || activeReport);
   /** The selection replaces the warnings list (and the tabs) in the panel/sheet. */
@@ -290,7 +292,7 @@ export function SevereMode() {
   let peek: { color: string | null; title: string; sub: string };
   if (activeAlert) {
     const r = ranked.find((x) => x.alert.id === activeAlert.id);
-    peek = { color: activeAlert.color, title: activeAlert.event, sub: r ? where(r) : `Until ${alertUntil(activeAlert)}` };
+    peek = { color: activeAlert.color, title: activeAlert.event, sub: r ? where(r) : `Until ${alertUntil(activeAlert, timeZone)}` };
   } else if (activeReport) {
     const cat = CATEGORIES[activeReport.category] ?? CATEGORIES.observation;
     peek = { color: null, title: "Spotter report", sub: activeReport.place ? `${cat.label}, ${activeReport.place}` : cat.label };
@@ -328,7 +330,7 @@ export function SevereMode() {
 
   // Phones at the full detent: the transport on top of the sheet is off-screen,
   // so the header keeps play/pause and the frame time.
-  const frameTime = frameTimeLabel(loop);
+  const frameTime = frameTimeLabel(loop, timeZone);
   const headerTransport = !desktop && detent === "full" && (
     <div className="flex shrink-0 items-center gap-1">
       {frameTime && <span className="font-mono text-xs text-ink-3">{frameTime}</span>}
@@ -380,14 +382,14 @@ export function SevereMode() {
           <ErrorNote error={national.error} what="NWS warnings" />
         </div>
       ) : null}
-      {!listPending && <AlertList items={ranked} selectedId={selectedAlert} onSelect={focusAlert} />}
+      {!listPending && <AlertList items={ranked} selectedId={selectedAlert} onSelect={focusAlert} timeZone={timeZone} />}
       {ranked.length > 0 && <p className="label border-t border-line px-4 py-3">Within 500 km of {loc.name}</p>}
     </>
   );
 
   // Without the floating column, a selection replaces the list (its header shows the title).
   const selectionBody = activeAlert ? (
-    <AlertDetail alert={activeAlert} now={now} hideTitle className="p-4" />
+    <AlertDetail alert={activeAlert} now={now} timeZone={timeZone} hideTitle className="p-4" />
   ) : activeReport ? (
     <div className={EMBED_POST}>
       <PostCard post={activeReport} now={now} />
@@ -427,6 +429,7 @@ export function SevereMode() {
           speed={radar.speed}
           onSpeed={(speed) => setRadar({ speed })}
           now={now}
+          timeZone={timeZone}
           compact={short}
           showSpeed
           legend={!desktop ? <RadarLegend variant="strip" family={family} code={legendCode} /> : short ? <RadarLegend variant="inline" family={family} code={legendCode} /> : undefined}
@@ -497,7 +500,7 @@ export function SevereMode() {
           <AnimatePresence mode="wait">
             {activeAlert && (
               <motion.div key={activeAlert.id} {...appear} className="overlay pointer-events-auto max-h-full overflow-y-auto overscroll-contain p-4">
-                <AlertDetail alert={activeAlert} now={now} onClose={() => setSelectedAlert(null)} />
+                <AlertDetail alert={activeAlert} now={now} timeZone={timeZone} onClose={() => setSelectedAlert(null)} />
               </motion.div>
             )}
             {activeReport && (

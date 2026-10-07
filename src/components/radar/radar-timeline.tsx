@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import type { RadarLoop } from "@/hooks/use-radar-loop";
 import { SPEEDS, type Speed } from "@/lib/radar/playback";
 import { cn } from "@/lib/utils";
+import { clockIn } from "@/lib/weather/view";
 import { IconButton } from "../ui/button";
 import { Segmented } from "../ui/segmented";
 
@@ -14,10 +15,14 @@ function ago(t: number, now: number) {
 
 const clock = (timeZone?: string) => new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", timeZone });
 
-/** Clock time of the current frame ("~4:12 PM" when the scan time is estimated), or null without frames. */
+/**
+ * Clock time of the current frame in the location's zone ("~4:12 PM" when the
+ * scan time is estimated; the zone is named when it differs from the device's),
+ * or null without frames.
+ */
 export function frameTimeLabel(loop: RadarLoop, timeZone?: string): string | null {
   const frame = loop.frames[loop.index];
-  return frame ? `${frame.approximate ? "~" : ""}${clock(timeZone).format(frame.time)}` : null;
+  return frame ? `${frame.approximate ? "~" : ""}${clockIn(timeZone, frame.time)}` : null;
 }
 
 /**

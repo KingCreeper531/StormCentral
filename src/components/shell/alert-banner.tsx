@@ -7,7 +7,7 @@ import { tagLabel } from "@/lib/alerts";
 import type { WeatherAlert } from "@/lib/api/types";
 import { geometryContains } from "@/lib/geo";
 import { stormEta } from "@/lib/science/storm-motion";
-import { fmtIn } from "@/lib/weather/view";
+import { clockIn } from "@/lib/weather/view";
 import { useAppStore } from "@/store/app-store";
 
 /** Tag chip recipe from DESIGN.md §5. */
@@ -47,7 +47,7 @@ export function AlertBanner({
 
   const a = top.alert;
   const subject = a ?? top.approaching?.a;
-  const until = a ? fmtIn(timeZone, { hour: "numeric", minute: "2-digit" }).format(new Date(a.ends ?? a.expires)) : "";
+  const until = a ? clockIn(timeZone, a.ends ?? a.expires) : "";
   const eta = top.approaching ? Math.round(top.approaching.eta) : null;
 
   return (

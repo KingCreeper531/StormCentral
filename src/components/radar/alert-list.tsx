@@ -5,6 +5,7 @@ import { useFormat } from "@/hooks/use-format";
 import { tagLabel } from "@/lib/alerts";
 import type { WeatherAlert } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import { clockIn } from "@/lib/weather/view";
 import { EmptyState } from "../ui/misc";
 import { sentenceCase } from "./radar-legend";
 
@@ -14,8 +15,8 @@ export interface RankedAlert {
   inside: boolean;
 }
 
-/** Local clock time the alert ends ("5:45 PM"). */
-export const alertUntil = (a: WeatherAlert) => new Date(a.ends ?? a.expires).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+/** Clock time the alert ends ("5:45 PM") in the selected location's zone. */
+export const alertUntil = (a: WeatherAlert, timeZone: string | undefined) => clockIn(timeZone, a.ends ?? a.expires);
 
 /** Hazard colour as the 8 px square swatch (the one hazard-colour encoding in lists, peek and details). */
 export function HazardSwatch({ color, className }: { color: string; className?: string }) {
@@ -39,7 +40,18 @@ export function AlertTag({ children }: { children: React.ReactNode }) {
 }
 
 /** Dense warning rows: hazard swatch, event, tags, area, distance and expiry. */
-export function AlertList({ items, selectedId, onSelect }: { items: RankedAlert[]; selectedId: string | null; onSelect: (a: WeatherAlert) => void }) {
+export function AlertList({
+  items,
+  selectedId,
+  onSelect,
+  timeZone,
+}: {
+  items: RankedAlert[];
+  selectedId: string | null;
+  onSelect: (a: WeatherAlert) => void;
+  /** IANA zone of the selected location; times use the device's zone when omitted. */
+  timeZone: string | undefined;
+}) {
   const fmt = useFormat();
   if (!items.length) return <EmptyState title="No active warnings within 500 km" />;
   return (
@@ -68,7 +80,7 @@ export function AlertList({ items, selectedId, onSelect }: { items: RankedAlert[
                 <span className="mt-0.5 block truncate text-xs text-ink-3">{a.areaDesc}</span>
                 <span className="mt-0.5 flex items-baseline justify-between gap-3 text-xs tabular">
                   <span className={inside ? "font-medium text-ink-2" : "text-ink-3"}>{inside ? "Over your location" : `${fmt.distanceKm(distanceKm)} away`}</span>
-                  <span className="shrink-0 text-ink-3">Until {alertUntil(a)}</span>
+                  <span className="shrink-0 text-ink-3">Until {alertUntil(a, timeZone)}</span>
                 </span>
               </span>
             </button>
