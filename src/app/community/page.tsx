@@ -57,7 +57,7 @@ function Ranks() {
 function Privacy() {
   return (
     <p className={PROSE}>
-      Report locations are rounded to about 1 km unless you choose to share precise GPS. Photo metadata, including GPS, is removed on your device and
+      Report locations are rounded to about 1 km (half a mile) unless you choose to share precise GPS. Photo metadata, including GPS, is removed on your device and
       again on the server.
     </p>
   );

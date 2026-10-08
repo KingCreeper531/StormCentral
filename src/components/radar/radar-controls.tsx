@@ -2,6 +2,7 @@
 
 import { familiesAvailable, FAMILIES, FAMILY_ORDER, resolveTilts, type ProductFamily, type TiltPrefix } from "@/lib/radar/products";
 import { nearestSites, type RadarSite } from "@/lib/radar/site-utils";
+import { useFormat } from "@/hooks/use-format";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import type { RadarSettings } from "@/store/app-store";
@@ -49,6 +50,7 @@ export function RadarControls({
   available: ReadonlySet<string> | null;
   location: { lat: number; lon: number };
 }) {
+  const fmt = useFormat();
   const isSite = settings.source === "site";
   const families = isSite ? familiesAvailable(available) : (["reflectivity"] as ProductFamily[]);
   const tilts = isSite ? resolveTilts(settings.family, available) : [];
@@ -83,7 +85,7 @@ export function RadarControls({
               <option value="">Nearest to location</option>
               {nearby.map((s) => (
                 <option key={s.icao} value={s.icao}>
-                  {s.icao} — {s.place}, {s.state} ({Math.round(s.distanceKm)} km)
+                  {s.icao} — {s.place}, {s.state} ({fmt.distanceKm(s.distanceKm)})
                 </option>
               ))}
               {site && !nearby.some((n) => n.icao === site.icao) && (
