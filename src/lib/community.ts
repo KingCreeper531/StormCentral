@@ -63,6 +63,15 @@ export const changePasswordSchema = z.object({
   password: newPassword,
 });
 
+export const profileSchema = z.object({
+  displayName: z.string().trim().min(1, "Enter a display name").max(40, "Keep it under 40 characters"),
+  bio: z.string().trim().max(300, "Keep your bio under 300 characters").optional(),
+});
+
+export const deleteAccountSchema = z.object({
+  password: z.string().min(1, "Enter your password").max(200),
+});
+
 export const loginSchema = z.object({
   identifier: z.string().trim().min(1, "Enter your username or email").max(254),
   password: z.string().min(1, "Enter your password").max(200),
@@ -102,10 +111,17 @@ export const commentSchema = z.object({
 
 export const MAX_IMAGE_BYTES = 2.5 * 1024 * 1024;
 
+/** Placeholder names that say nothing about where a report is ("My location"). */
+export const isGenericPlace = (p: string | null | undefined) => !p || /^(my|current|your)( current)? location$/i.test(p.trim());
+
+/** Public URL of a profile picture stored in `media`. */
+export const avatarUrl = (mediaId: string | null | undefined) => (mediaId ? `/api/media/${mediaId}` : null);
+
 export interface PostAuthor {
   username: string;
   displayName: string;
   avatarHue: number;
+  avatarUrl: string | null;
   reputation: number;
 }
 

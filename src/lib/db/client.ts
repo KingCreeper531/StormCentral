@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createClient, type Client } from "@libsql/client";
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
-import { SCHEMA_SQL, schema } from "./schema";
+import { COLUMN_MIGRATIONS, SCHEMA_SQL, schema } from "./schema";
 
 export type Db = LibSQLDatabase<typeof schema>;
 
@@ -26,7 +26,13 @@ export function openDb(url: string, authToken?: string): Promise<DbHandle> {
     if (file && !file.startsWith(":memory:")) mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
   }
   const client = createClient({ url, authToken });
-  return client.executeMultiple(SCHEMA_SQL).then(() => ({ client, db: drizzle(client, { schema }) }));
+  return client.executeMultiple(SCHEMA_SQL).then(async () => {
+    for (const m of COLUMN_MIGRATIONS) {
+      const cols = await client.execute(`PRAGMA table_info(${m.table})`);
+      if (!cols.rows.some((r) => r.name === m.column)) await client.execute(m.sql);
+    }
+    return { client, db: drizzle(client, { schema }) };
+  });
 }
 
 /**
