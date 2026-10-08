@@ -25,6 +25,13 @@ export interface TrayStatus {
   iconDataUrl?: string;
 }
 
+export interface DesktopUpdateStatus {
+  /** current: up to date. downloading: a newer version is on its way. ready: restart to install. */
+  state: "current" | "downloading" | "ready" | "error" | "unsupported";
+  current: string;
+  latest: string | null;
+}
+
 export interface DesktopBridge {
   readonly platform: DesktopPlatform;
   setTrayStatus(status: TrayStatus): void;
@@ -33,6 +40,9 @@ export interface DesktopBridge {
   getSettings(): Promise<DesktopSettings>;
   /** Resolves with the settings as applied. */
   setSettings(partial: Partial<DesktopSettings>): Promise<DesktopSettings>;
+  /** Missing in app builds older than 0.1.2. */
+  checkForUpdates?(): Promise<DesktopUpdateStatus>;
+  installUpdate?(): Promise<boolean>;
 }
 
 function isBridge(value: unknown): value is DesktopBridge {
