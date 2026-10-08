@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen weather widget (WeatherWidgetProvider.java). -->
+<resources>
+    <string name="widget_label">Weather</string>
+    <string name="widget_description">Current conditions and active warnings for your saved place</string>
+
+    <string name="widget_setup">Open StormCentral to set up</string>
+    <string name="widget_no_data">No data yet</string>
+
+    <string name="widget_temp">%1$d°</string>
+    <string name="widget_temp_unknown" translatable="false">--°</string>
+    <string name="widget_hilo">H %1$d° L %2$d°</string>
+    <string name="widget_alert_until">%1$s until %2$s</string>
+    <string name="widget_updated">Updated %1$s</string>
+    <!-- A time on another day than today, e.g. "Thu 6:00 AM". -->
+    <string name="widget_day_time">%1$s %2$s</string>
+
+    <!-- WMO weather codes, shortened. -->
+    <string name="widget_cond_clear">Clear</string>
+    <string name="widget_cond_mostly_clear">Mostly clear</string>
+    <string name="widget_cond_partly_cloudy">Partly cloudy</string>
+    <string name="widget_cond_overcast">Overcast</string>
+    <string name="widget_cond_fog">Fog</string>
+    <string name="widget_cond_drizzle">Drizzle</string>
+    <string name="widget_cond_rain">Rain</string>
+    <string name="widget_cond_freezing_rain">Freezing rain</string>
+    <string name="widget_cond_snow">Snow</string>
+    <string name="widget_cond_showers">Showers</string>
+    <string name="widget_cond_thunderstorm">Thunderstorm</string>
+
+    <!-- Sample values for the widget picker preview (Android 12+). -->
+    <string name="widget_preview_place" translatable="false">Norman, OK</string>
+    <string name="widget_preview_temp" translatable="false">75°</string>
+    <string name="widget_preview_condition">Partly cloudy</string>
+    <string name="widget_preview_hilo" translatable="false">H 82° L 63°</string>
+    <string name="widget_preview_updated">Updated 2:05 PM</string>
+</resources>

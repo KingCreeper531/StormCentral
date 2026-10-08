@@ -1,0 +1,226 @@
+# Builds the Windows installer and the Android APK, and publishes them as a
+# GitHub release. Installed apps update from the latest release:
+#   - Windows: electron-updater reads latest.yml and installs in the background.
+#   - Android: the app checks the latest release and offers the new APK.
+#
+# Release:  bump "version" in package.json, commit, then push a matching tag
+#           (git tag v0.2.0 && git push origin v0.2.0), or run this workflow
+#           from the Actions tab with "publish" ticked.
+# Verify:   any push that touches the packaging builds both apps without publishing.
+name: Release apps
+
+on:
+  push:
+    tags: ["v*"]
+    branches: ["**"]
+    paths:
+      - ".github/workflows/release.yml"
+      - "android/**"
+      - "capacitor.config.ts"
+      - "desktop/**"
+      - "electron-builder.config.mjs"
+      - "next.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/build-native.mjs"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish a release for the version in package.json
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  # Optional repository variable: a hosted StormCentral (https://…) for both
+  # apps to load instead of running standalone, so every user shares one
+  # spotter network. Leave unset for fully self-contained apps.
+  STORMCENTRAL_URL: ${{ vars.STORMCENTRAL_URL }}
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      publish: ${{ steps.version.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - name: Resolve version
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          PUBLISH_INPUT: ${{ inputs.publish }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          publish=false
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            if [[ "${GITHUB_REF#refs/tags/v}" != "$version" ]]; then
+              echo "::error::Tag $GITHUB_REF_NAME doesn't match package.json version $version. Bump package.json first."
+              exit 1
+            fi
+            publish=true
+          elif [[ "$EVENT" == "workflow_dispatch" && "$PUBLISH_INPUT" == "true" ]]; then
+            publish=true
+          fi
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "StormCentral $version (publish: $publish)" >> "$GITHUB_STEP_SUMMARY"
+
+  windows:
+    name: Windows installer
+    needs: check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix desktop
+      - run: node scripts/build-native.mjs desktop
+      - name: Smoke-test the bundled server
+        # Registering an account loads the native libSQL module, so a packaging
+        # mistake fails here instead of on users' machines.
+        shell: bash
+        run: |
+          cd build/desktop/server
+          export PORT=47613 HOSTNAME=127.0.0.1 NODE_ENV=production SESSION_COOKIE_SECURE=false
+          export DATABASE_URL="file:$(cygpath -m "$RUNNER_TEMP")/smoke/stormcentral.db"
+          node server.js > "$RUNNER_TEMP/server.log" 2>&1 &
+          server_pid=$!
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:47613/api/auth/me > /dev/null && break; sleep 1; done
+          curl -sf -H "Origin: http://127.0.0.1:47613" -H "Content-Type: application/json" \
+            -d '{"username":"ci_smoke","email":"ci@example.test","password":"correct horse battery","displayName":"CI"}' \
+            http://127.0.0.1:47613/api/auth/register || { cat "$RUNNER_TEMP/server.log"; exit 1; }
+          echo
+          curl -sf -o /dev/null http://127.0.0.1:47613/ || { cat "$RUNNER_TEMP/server.log"; exit 1; }
+          kill "$server_pid" 2>/dev/null || true
+      - name: Package
+        run: npx electron-builder --config electron-builder.config.mjs --win --x64 --publish never
+        env:
+          # Code signing is optional: add a certificate (base64 .pfx) and its
+          # password as secrets and electron-builder signs the installer.
+          CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          if-no-files-found: error
+          path: |
+            dist/desktop/StormCentral-Setup-*.exe
+            dist/desktop/StormCentral-Setup-*.exe.blockmap
+            dist/desktop/latest.yml
+
+  android:
+    name: Android APK
+    needs: check
+    runs-on: ubuntu-latest
+    outputs:
+      signing: ${{ steps.key.outputs.signing }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - run: npm ci
+      - run: node scripts/build-native.mjs android
+      - name: Signing key
+        id: key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+            echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "signing=release" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::ANDROID_KEYSTORE_BASE64 isn't set, so the APK is signed with the shared development key. See README → Releases."
+            echo "signing=shared" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+      - name: Name APK
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          mkdir -p dist/android
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/android/StormCentral-$VERSION.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          if-no-files-found: error
+          path: dist/android/*.apk
+
+  release:
+    name: Publish release
+    needs: [check, windows, android]
+    if: needs.check.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+          SIGNING: ${{ needs.android.outputs.signing }}
+        run: |
+          tag="v$VERSION"
+          {
+            echo "## Download"
+            echo
+            echo "| Device | File |"
+            echo "|---|---|"
+            echo "| Windows 10 or 11 (64-bit) | \`StormCentral-Setup-$VERSION.exe\`: run it to install. The app updates itself from new releases. |"
+            echo "| Android 7.0 or newer | \`StormCentral-$VERSION.apk\`: open it on your phone and allow installs from your browser when asked. The app tells you when a new version is out. |"
+            echo
+            echo "The Windows installer isn't code-signed yet, so Windows may say \"Windows protected your PC\". Choose **More info → Run anyway**."
+            if [ "$SIGNING" = "shared" ]; then
+              echo
+              echo "This APK is signed with the project's shared development key."
+            fi
+            echo
+          } > notes.md
+          ls -la assets
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$tag" assets/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$tag" assets/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "StormCentral $VERSION" --notes-file notes.md --generate-notes --latest
+          fi
