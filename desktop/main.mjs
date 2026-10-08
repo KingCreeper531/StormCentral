@@ -416,6 +416,8 @@ async function start() {
 }
 
 if (process.platform === "win32") app.setAppUserModelId(APP_ID);
+// stormcentral:// opens the app (the installer registers it too; this covers portable runs).
+if (app.isPackaged) app.setAsDefaultProtocolClient("stormcentral");
 // Let Chromium fall back to software WebGL when the GPU is missing or blocklisted
 // (VMs, remote desktop), so the radar map still renders. Chrome gates this for the
 // open web; it's fine here because the window only ever shows the app's own UI.

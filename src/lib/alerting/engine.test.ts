@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WeatherAlert } from "../api/types";
-import { alertMatchesLevel, checkRules, checkWarnings, widgetSnapshot, type EngineIO } from "./engine";
+import { alertCategory, alertMatchesLevel, checkRules, checkWarnings, widgetSnapshot, type EngineIO } from "./engine";
 import { clockAt, clockFromIso, dayKeyAt, hashId } from "./format";
 import { describeRule, firstHit, fromDisplay, toDisplay } from "./metrics";
 import type { AppNotification, WatchConfig } from "./types";
@@ -101,6 +101,24 @@ describe("checkWarnings", () => {
     expect((await checkWarnings(cfg(), io)).sent).toHaveLength(5);
     // The rest were marked seen, not queued for the next check.
     expect((await checkWarnings(cfg(), io)).sent).toHaveLength(0);
+  });
+});
+
+describe("warning types", () => {
+  it("groups NWS events", () => {
+    expect(alertCategory("Tornado Warning")).toBe("tornado");
+    expect(alertCategory("Flash Flood Warning")).toBe("flood");
+    expect(alertCategory("Hurricane Warning")).toBe("tropical");
+    expect(alertCategory("Winter Storm Warning")).toBe("winter");
+    expect(alertCategory("Red Flag Warning")).toBe("fire");
+    expect(alertCategory("High Wind Warning")).toBe("wind");
+    expect(alertCategory("Dense Fog Advisory")).toBe("other");
+  });
+
+  it("skips muted types", async () => {
+    const { io } = fakeIO({ "35.22": [alert("tor", "Tornado Warning"), alert("ff", "Flash Flood Warning")] });
+    const c = cfg({ categories: { flood: false } });
+    expect((await checkWarnings(c, io)).sent.map((n) => n.title)).toEqual(["Tornado Warning: Norman, OK"]);
   });
 });
 
