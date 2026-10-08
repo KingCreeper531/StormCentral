@@ -23,9 +23,19 @@ export const UNIT_PRESETS = {
   metric: { temp: "C", wind: "kmh", pressure: "hPa", distance: "km", precip: "mm", height: "m" },
 } as const satisfies Record<string, UnitPrefs>;
 
-export function defaultUnitsForLocale(locale: string | undefined): UnitPrefs {
-  const region = locale?.split("-")[1]?.toUpperCase();
-  return region && ["US", "LR", "MM"].includes(region) ? { ...UNIT_PRESETS.imperial } : { ...UNIT_PRESETS.metric };
+const IMPERIAL_REGIONS = new Set(["US", "LR", "MM", "PR", "GU", "VI", "AS", "MP", "UM"]);
+/** US time zones, for browsers that report a language without a region ("en"). */
+const US_ZONE = /^(America\/(New_York|Detroit|Chicago|Denver|Boise|Phoenix|Los_Angeles|Anchorage|Juneau|Sitka|Nome|Yakutat|Metlakatla|Adak|Menominee|Indiana\/.+|Kentucky\/.+|North_Dakota\/.+)|Pacific\/Honolulu|US\/.+)$/;
+
+/**
+ * First-run units: imperial in the US (and Liberia, Myanmar), metric elsewhere.
+ * Takes the first locale that names a region; with none, falls back to the time zone.
+ */
+export function defaultUnitsForLocale(locales: string | readonly string[] | undefined, timeZone?: string): UnitPrefs {
+  const list = typeof locales === "string" ? [locales] : (locales ?? []);
+  const region = list.map((l) => l.split(/[-_]/)[1]?.toUpperCase()).find((r) => r && /^[A-Z]{2}$/.test(r));
+  const imperial = region ? IMPERIAL_REGIONS.has(region) : !!timeZone && US_ZONE.test(timeZone);
+  return { ...(imperial ? UNIT_PRESETS.imperial : UNIT_PRESETS.metric) };
 }
 
 export const cToF = (c: number) => (c * 9) / 5 + 32;

@@ -46,7 +46,7 @@ export function RiversPanel({
       ) : loading ? (
         <Skeleton className="h-40" />
       ) : !sites.length ? (
-        <EmptyState title="No active stream gauges within 60 km">USGS gauges cover the United States. Try a location near a river.</EmptyState>
+        <EmptyState title={`No active stream gauges within ${fmt.distanceKm(60)}`}>USGS gauges cover the United States. Try a location near a river.</EmptyState>
       ) : (
         <div className="-mx-4 -mb-4 grid grid-cols-1 border-t border-line sm:-mx-5 sm:-mb-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <ul aria-label="Stream gauges" className="divide-y divide-line lg:border-r lg:border-line">

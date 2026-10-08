@@ -29,6 +29,7 @@ const FIELD_LABEL = "mb-2 block text-[13px] font-medium text-ink-2";
 export function Composer() {
   const open = useAppStore((s) => s.composerOpen);
   const setOpen = useAppStore((s) => s.setComposerOpen);
+  const imperial = useAppStore((s) => s.units.distance === "mi");
   const loc = useAppStore((s) => s.location);
   const { data: user, isLoading } = useSession();
   const qc = useQueryClient();
@@ -299,9 +300,9 @@ export function Composer() {
                       className="mt-0.5 size-4 shrink-0 accent-[var(--color-accent)]"
                     />
                     <span className="min-w-0">
-                      <span className="block text-[13px] font-medium text-ink">Share precise GPS position (about 100 m)</span>
+                      <span className="block text-[13px] font-medium text-ink">Share precise GPS position (about {imperial ? "300 ft" : "100 m"})</span>
                       <span className="label mt-0.5 block">
-                        Otherwise the report is placed at <span className="text-ink-2">{loc.name}</span>, rounded to about 1 km.
+                        Otherwise the report is placed at <span className="text-ink-2">{loc.name}</span>, rounded to about {imperial ? "half a mile" : "1 km"}.
                       </span>
                     </span>
                   </label>

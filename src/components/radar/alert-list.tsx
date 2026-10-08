@@ -53,7 +53,7 @@ export function AlertList({
   timeZone: string | undefined;
 }) {
   const fmt = useFormat();
-  if (!items.length) return <EmptyState title="No active warnings within 500 km" />;
+  if (!items.length) return <EmptyState title={`No active warnings within ${fmt.distanceKm(500)}`} />;
   return (
     <ul className="divide-y divide-line">
       {items.map(({ alert: a, distanceKm, inside }) => {

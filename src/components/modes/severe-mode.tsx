@@ -340,7 +340,7 @@ export function SevereMode() {
   } else if (national.error) {
     peek = { color: null, title: "Warnings unavailable", sub: "NWS alerts could not be loaded" };
   } else {
-    peek = { color: null, title: "No warnings nearby", sub: `Within 500 km of ${loc.name}` };
+    peek = { color: null, title: "No warnings nearby", sub: `Within ${fmt.distanceKm(500)} of ${loc.name}` };
   }
   // Tapping the peek opens what it shows: the top warning's details, or the sheet.
   const onPeek = () => {
@@ -422,7 +422,7 @@ export function SevereMode() {
         </div>
       ) : null}
       {!listPending && <AlertList items={ranked} selectedId={selectedAlert} onSelect={focusAlert} timeZone={timeZone} />}
-      {ranked.length > 0 && <p className="label border-t border-line px-4 py-3">Within 500 km of {loc.name}</p>}
+      {ranked.length > 0 && <p className="label border-t border-line px-4 py-3">Within {fmt.distanceKm(500)} of {loc.name}</p>}
     </>
   );
 
