@@ -9,7 +9,6 @@ import { useAppStore } from "@/store/app-store";
 import { Button } from "../ui/button";
 import { EmptyState, ErrorNote, Skeleton } from "../ui/misc";
 import { Tabs } from "../ui/tabs";
-import { NEARBY_RADIUS_KM } from "./constants";
 import { PostCard } from "./post-card";
 
 type Tab = "latest" | "nearby" | "top";
@@ -44,11 +43,12 @@ export function Feed({ user }: { user?: string }) {
   const [tab, setTab] = useState<Tab>("latest");
   const now = useNow(60_000);
   const fmt = useFormat();
-  const radius = fmt.distanceKm(NEARBY_RADIUS_KM);
+  const nearbyKm = Math.round(useAppStore((s) => s.radiusKm));
+  const radius = fmt.distanceKm(nearbyKm);
   const params: Record<string, string> = user
     ? { user }
     : tab === "nearby"
-      ? { sort: "nearby", lat: loc.lat.toFixed(3), lon: loc.lon.toFixed(3), radiusKm: String(NEARBY_RADIUS_KM) }
+      ? { sort: "nearby", lat: loc.lat.toFixed(3), lon: loc.lon.toFixed(3), radiusKm: String(nearbyKm) }
       : tab === "top"
         ? { sort: "top", hours: "24" }
         : { sort: "latest" };

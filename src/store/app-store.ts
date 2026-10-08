@@ -67,6 +67,8 @@ export interface AppState {
   radar: RadarSettings;
   drone: DroneSettings;
   airLayer: "us_aqi" | "pm2_5";
+  /** How far to look for warnings, spotter reports and river gauges. */
+  radiusKm: number;
   composerOpen: boolean;
   paletteOpen: boolean;
   setMode: (mode: ModeId) => void;
@@ -76,11 +78,20 @@ export interface AppState {
   setRadar: (r: Partial<RadarSettings>) => void;
   setDrone: (d: Partial<DroneSettings>) => void;
   setAirLayer: (l: AppState["airLayer"]) => void;
+  setRadiusKm: (km: number) => void;
   setComposerOpen: (open: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
 }
 
 /** Norman, OK — home of the Storm Prediction Center. */
+/** Search radius choices: whole miles or kilometres, stored in km. */
+export const RADIUS_MI = [25, 50, 100, 200, 300] as const;
+export const RADIUS_KM = [50, 100, 150, 300, 500] as const;
+export const DEFAULT_RADIUS_KM = 100 * 1.609344;
+export const MAX_RADIUS_KM = 500;
+/** River gauge searches stop here (USGS limits the area of one request). */
+export const MAX_GAUGE_RADIUS_KM = 150;
+
 export const DEFAULT_LOCATION: AppLocation = { lat: 35.2226, lon: -97.4395, name: "Norman, OK", source: "default" };
 
 export const DEFAULT_RADAR: RadarSettings = {
@@ -118,6 +129,7 @@ export const useAppStore = create<AppState>()(
       radar: DEFAULT_RADAR,
       drone: { profileId: "sub250", altitudeM: 120 },
       airLayer: "us_aqi",
+      radiusKm: DEFAULT_RADIUS_KM,
       composerOpen: false,
       paletteOpen: false,
       setMode: (mode) => {
@@ -131,6 +143,7 @@ export const useAppStore = create<AppState>()(
       setRadar: (r) => set((s) => ({ radar: { ...s.radar, ...r } })),
       setDrone: (d) => set((s) => ({ drone: { ...s.drone, ...d } })),
       setAirLayer: (airLayer) => set({ airLayer }),
+      setRadiusKm: (radiusKm) => set({ radiusKm: Math.min(MAX_RADIUS_KM, Math.max(10, radiusKm)) }),
       setComposerOpen: (composerOpen) => set({ composerOpen }),
       setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
     }),
@@ -140,7 +153,7 @@ export const useAppStore = create<AppState>()(
       // Rehydrated from a client effect so SSR markup and first client render match.
       skipHydration: true,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ mode: s.mode, location: s.location, units: s.units, theme: s.theme, radar: s.radar, drone: s.drone, airLayer: s.airLayer }),
+      partialize: (s) => ({ mode: s.mode, location: s.location, units: s.units, theme: s.theme, radar: s.radar, drone: s.drone, airLayer: s.airLayer, radiusKm: s.radiusKm }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<AppState>;
         return {
@@ -150,6 +163,7 @@ export const useAppStore = create<AppState>()(
           radar: { ...current.radar, ...p.radar },
           drone: { ...current.drone, ...p.drone },
           units: { ...current.units, ...p.units },
+          radiusKm: typeof p.radiusKm === "number" && p.radiusKm > 0 ? Math.min(MAX_RADIUS_KM, p.radiusKm) : current.radiusKm,
           theme: p.theme === "light" || p.theme === "dark" || p.theme === "system" ? p.theme : current.theme,
         };
       },

@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import type { RiverSite } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
+import { MAX_GAUGE_RADIUS_KM, useAppStore } from "@/store/app-store";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { TimeSeriesChart } from "../charts/time-series";
 import { EmptyState, ErrorNote, Skeleton, Stat } from "../ui/misc";
@@ -37,6 +38,7 @@ export function RiversPanel({
   className?: string;
 }) {
   const fmt = useFormat();
+  const radiusKm = useAppStore((s) => s.radiusKm);
   const wide = useMediaQuery("(min-width: 1024px)");
 
   return (
@@ -46,7 +48,7 @@ export function RiversPanel({
       ) : loading ? (
         <Skeleton className="h-40" />
       ) : !sites.length ? (
-        <EmptyState title={`No active stream gauges within ${fmt.distanceKm(60)}`}>USGS gauges cover the United States. Try a location near a river.</EmptyState>
+        <EmptyState title={`No active stream gauges within ${fmt.distanceKm(Math.min(MAX_GAUGE_RADIUS_KM, radiusKm))}`}>USGS gauges cover the United States. Try a location near a river.</EmptyState>
       ) : (
         <div className="-mx-4 -mb-4 grid grid-cols-1 border-t border-line sm:-mx-5 sm:-mb-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <ul aria-label="Stream gauges" className="divide-y divide-line lg:border-r lg:border-line">

@@ -8,7 +8,7 @@ import { desktopBridge, type DesktopUpdateStatus } from "@/lib/native/desktop";
 import { GITHUB_REPO, isNativeApp } from "@/lib/platform";
 import type { ThemePref } from "@/lib/theme";
 import { UNIT_PRESETS, type DistanceUnit, type HeightUnit, type PrecipUnit, type PressureUnit, type TempUnit, type UnitPrefs, type WindUnit } from "@/lib/weather/units";
-import { useAppStore } from "@/store/app-store";
+import { MAX_GAUGE_RADIUS_KM, RADIUS_KM, RADIUS_MI, useAppStore } from "@/store/app-store";
 import { Button, buttonClass } from "../ui/button";
 import { Skeleton } from "../ui/misc";
 import { Panel } from "../ui/panel";
@@ -244,6 +244,25 @@ function UpdatesPanel() {
   );
 }
 
+/** How far to look for warnings, spotter reports and river gauges. */
+function RadiusPanel() {
+  const radiusKm = useAppStore((s) => s.radiusKm);
+  const setRadiusKm = useAppStore((s) => s.setRadiusKm);
+  const miles = useAppStore((s) => s.units.distance === "mi");
+  const options = miles
+    ? RADIUS_MI.map((mi) => ({ value: Math.round(mi * 1.609344), label: `${mi} mi` }))
+    : RADIUS_KM.map((km) => ({ value: km, label: `${km} km` }));
+  // The stored value may come from the other unit system: highlight the nearest choice.
+  const current = options.reduce((best, o) => (Math.abs(o.value - radiusKm) < Math.abs(best.value - radiusKm) ? o : best)).value;
+  const gaugeCap = miles ? `${Math.round(MAX_GAUGE_RADIUS_KM / 1.609344)} mi` : `${MAX_GAUGE_RADIUS_KM} km`;
+  return (
+    <Panel title="Search radius" subtitle="How far to look for warnings, spotter reports and river gauges">
+      <Segmented<number> ariaLabel="Search radius" stretch size="sm" value={current} onChange={setRadiusKm} options={options} />
+      <p className="label mt-2">River gauges stop at {gaugeCap}.</p>
+    </Panel>
+  );
+}
+
 function LinkRow({ href, icon, title, sub }: { href: string; icon: React.ReactNode; title: string; sub: string }) {
   return (
     <Link href={href} className="surface flex items-center gap-3 p-4 transition-colors hover:border-line-strong sm:px-5">
@@ -265,6 +284,7 @@ export function AppSettings() {
     <div className="space-y-4">
       <AppearancePanel />
       <UnitsPanel />
+      <RadiusPanel />
       <LinkRow href="/alerts" icon={<Bell className="size-4" aria-hidden />} title="Alerts and places" sub="Warning notifications, saved places and custom alerts" />
       <AccountSection />
       <UpdatesPanel />

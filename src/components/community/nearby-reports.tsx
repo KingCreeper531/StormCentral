@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
 import { EmptyState } from "../ui/misc";
 import { Panel } from "../ui/panel";
-import { NEARBY_RADIUS_KM } from "./constants";
 import { PostCard } from "./post-card";
 
 /** Track count follows the number of posts so one or two reports still fill the row on desktop. */
@@ -16,8 +15,9 @@ const LG_COLS = ["", "", "lg:grid-cols-2", "lg:grid-cols-3"];
 
 export function NearbyReports({ now }: { now: number }) {
   const loc = useAppStore((s) => s.location);
-  const radius = useFormat().distanceKm(NEARBY_RADIUS_KM);
-  const feed = useFeed({ sort: "nearby", lat: loc.lat.toFixed(2), lon: loc.lon.toFixed(2), radiusKm: String(NEARBY_RADIUS_KM) });
+  const nearbyKm = Math.round(useAppStore((s) => s.radiusKm));
+  const radius = useFormat().distanceKm(nearbyKm);
+  const feed = useFeed({ sort: "nearby", lat: loc.lat.toFixed(2), lon: loc.lon.toFixed(2), radiusKm: String(nearbyKm) });
   const posts = (feed.data?.pages[0]?.posts ?? []).slice(0, 3);
   return (
     <Panel
