@@ -23,7 +23,7 @@ export interface ModeDef {
 
 export const MODES: Record<ModeId, ModeDef> = {
   daily: { id: "daily", label: "Daily", short: "Daily", tagline: "Conditions, hourly and 10-day forecast", Icon: CloudSun, hotkey: "1", immersiveMap: false },
-  severe: { id: "severe", label: "Severe", short: "Severe", tagline: "NEXRAD radar, warnings and storm tracks", Icon: Radar, hotkey: "2", immersiveMap: true },
+  severe: { id: "severe", label: "Radar", short: "Radar", tagline: "NEXRAD radar, warnings and storm tracks", Icon: Radar, hotkey: "2", immersiveMap: true },
   drone: { id: "drone", label: "UAV pilot", short: "UAV", tagline: "Winds aloft, shear, Kp, ceiling and GNSS", Icon: Drone, hotkey: "3", immersiveMap: false },
   angler: { id: "angler", label: "Angler", short: "Angler", tagline: "River gauges, pressure trend and solunar", Icon: Fish, hotkey: "4", immersiveMap: false },
   air: { id: "air", label: "Air quality", short: "Air", tagline: "AQI map, particulates, ozone and pollen", Icon: Leaf, hotkey: "5", immersiveMap: false },
