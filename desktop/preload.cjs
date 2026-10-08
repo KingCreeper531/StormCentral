@@ -15,6 +15,8 @@ const CHANNEL = {
   showWindow: "stormcentral:show-window",
   getSettings: "stormcentral:get-settings",
   setSettings: "stormcentral:set-settings",
+  checkUpdates: "stormcentral:check-updates",
+  installUpdate: "stormcentral:install-update",
 };
 
 /** @param {unknown} v */
@@ -34,6 +36,16 @@ contextBridge.exposeInMainWorld("stormcentralDesktop", {
 
   showWindow() {
     ipcRenderer.send(CHANNEL.showWindow);
+  },
+
+  /** Checks GitHub Releases now. @returns {Promise<{ state: string, current: string, latest: string | null }>} */
+  checkForUpdates() {
+    return ipcRenderer.invoke(CHANNEL.checkUpdates);
+  },
+
+  /** Restarts into a downloaded update. @returns {Promise<boolean>} */
+  installUpdate() {
+    return ipcRenderer.invoke(CHANNEL.installUpdate);
   },
 
   /** @returns {Promise<{ closeToTray: boolean, launchAtLogin: boolean }>} */

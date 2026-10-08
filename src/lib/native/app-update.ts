@@ -59,11 +59,23 @@ async function fetchLatest(): Promise<AvailableUpdate | null> {
   return { version: rel.tag_name.replace(/^v/, ""), apkUrl: apk.browser_download_url, releaseUrl: rel.html_url ?? apk.browser_download_url };
 }
 
-export async function checkForUpdate(): Promise<AvailableUpdate | null> {
+/** The installed Android app's version. */
+export async function installedVersion(): Promise<string> {
   const { App } = await import("@capacitor/app");
-  const installed = (await App.getInfo()).version;
+  return (await App.getInfo()).version;
+}
+
+/** `force` skips the 6-hour cache and a dismissal (the Settings "Check for updates" button). */
+export async function checkForUpdate({ force = false }: { force?: boolean } = {}): Promise<AvailableUpdate | null> {
+  const installed = await installedVersion();
 
   let state = readState();
+  if (force) {
+    const latest = await fetchLatest();
+    state = { checkedAt: Date.now(), latest, dismissed: state?.dismissed };
+    writeState(state);
+    return latest && compareVersions(latest.version, installed) > 0 ? latest : null;
+  }
   if (!state || Date.now() - state.checkedAt > CHECK_EVERY_MS) {
     const latest = await fetchLatest().catch(() => state?.latest ?? null);
     state = { checkedAt: Date.now(), latest, dismissed: state?.dismissed };

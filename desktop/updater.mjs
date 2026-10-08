@@ -16,6 +16,9 @@ let log = () => {};
 /** Set while a check started from the menu is running, so its result is reported. */
 let manualCheck = false;
 let promptedFor = "";
+/** Newest version seen, and whether it has finished downloading (for the Settings page). */
+/** @type {{ latest: string | null, ready: boolean, downloading: boolean }} */
+const state = { latest: null, ready: false, downloading: false };
 
 const parent = () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
 
@@ -45,22 +48,29 @@ export function initAutoUpdates(opts) {
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on("update-available", (info) => {
+    state.latest = info.version;
+    state.downloading = true;
     if (!manualCheck) return;
     manualCheck = false;
     void show({ type: "info", message: `Downloading StormCentral ${info.version}`, detail: "You'll be asked to restart when it's ready." });
   });
-  autoUpdater.on("update-not-available", () => {
+  autoUpdater.on("update-not-available", (info) => {
+    state.latest = info?.version ?? app.getVersion();
     if (!manualCheck) return;
     manualCheck = false;
     void show({ type: "info", message: "StormCentral is up to date", detail: `Version ${app.getVersion()} is the latest release.` });
   });
   autoUpdater.on("error", (err) => {
+    state.downloading = false;
     log(`updates: ${err.message}`);
     if (!manualCheck) return;
     manualCheck = false;
     void show({ type: "warning", message: "Couldn't check for updates", detail: "Check your internet connection and try again." });
   });
   autoUpdater.on("update-downloaded", async (info) => {
+    state.latest = info.version;
+    state.ready = true;
+    state.downloading = false;
     if (promptedFor === info.version) return;
     promptedFor = info.version;
     const { response } = await show({
@@ -86,4 +96,42 @@ export function checkForUpdatesFromMenu() {
   }
   manualCheck = true;
   void check();
+}
+
+/**
+ * @typedef {{ state: "current" | "downloading" | "ready" | "error" | "unsupported", current: string, latest: string | null }} UpdateStatus
+ */
+
+/** @returns {UpdateStatus} */
+function status() {
+  const current = app.getVersion();
+  if (!app.isPackaged) return { state: "unsupported", current, latest: null };
+  if (state.ready) return { state: "ready", current, latest: state.latest };
+  if (state.downloading) return { state: "downloading", current, latest: state.latest };
+  return { state: "current", current, latest: state.latest ?? current };
+}
+
+/**
+ * Settings → Check for updates: checks now and reports the result to the page
+ * (no dialog). A newer version starts downloading; "ready" means restart to install.
+ * @returns {Promise<UpdateStatus>}
+ */
+export async function checkForUpdatesFromPage() {
+  if (!app.isPackaged || state.ready) return status();
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    const latest = result?.updateInfo?.version ?? null;
+    if (latest) state.latest = latest;
+  } catch (err) {
+    log(`updates: check failed: ${err instanceof Error ? err.message : err}`);
+    return { state: "error", current: app.getVersion(), latest: state.latest };
+  }
+  return status();
+}
+
+/** Restart into a downloaded update. Returns false when none is ready. */
+export function installUpdateFromPage() {
+  if (!state.ready) return false;
+  setImmediate(() => autoUpdater.quitAndInstall());
+  return true;
 }

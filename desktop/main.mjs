@@ -20,7 +20,7 @@ import { createLog } from "./log.mjs";
 import { startLocalServer } from "./server.mjs";
 import { openSettings, parseSettingsPatch, publicSettings } from "./settings.mjs";
 import { appIcon, createTray, parseTrayStatus } from "./tray.mjs";
-import { checkForUpdatesFromMenu, initAutoUpdates } from "./updater.mjs";
+import { checkForUpdatesFromMenu, checkForUpdatesFromPage, initAutoUpdates, installUpdateFromPage } from "./updater.mjs";
 import { loadWindowState, trackWindowState } from "./window-state.mjs";
 
 const require = createRequire(import.meta.url);
@@ -43,6 +43,8 @@ const IPC = {
   showWindow: "stormcentral:show-window",
   getSettings: "stormcentral:get-settings",
   setSettings: "stormcentral:set-settings",
+  checkUpdates: "stormcentral:check-updates",
+  installUpdate: "stormcentral:install-update",
 };
 
 const log = createLog(path.join(app.getPath("logs"), "main.log"));
@@ -283,6 +285,14 @@ function registerIpc() {
     const patch = parseSettingsPatch(payload);
     if (!patch) throw new Error("Invalid settings");
     return applySettings(patch);
+  });
+  ipcMain.handle(IPC.checkUpdates, (event) => {
+    if (!fromApp(event)) throw new Error("Not allowed");
+    return checkForUpdatesFromPage();
+  });
+  ipcMain.handle(IPC.installUpdate, (event) => {
+    if (!fromApp(event)) throw new Error("Not allowed");
+    return installUpdateFromPage();
   });
 }
 
