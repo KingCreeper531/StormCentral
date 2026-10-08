@@ -9,6 +9,7 @@ import { AlertWatcher } from "@/components/alerts/alert-watcher";
 import { DesktopTraySync } from "@/components/shell/desktop-tray-sync";
 import { HttpError } from "@/lib/api/http";
 import { IS_STATIC_BUNDLE } from "@/lib/platform";
+import { applyTheme, resolveTheme } from "@/lib/theme";
 import { useAlertsStore } from "@/store/alerts-store";
 import { useAppStore } from "@/store/app-store";
 
@@ -49,6 +50,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
       });
     }
   }, []);
+
+  // Keep the document's theme in step with the setting (and the OS, for "system").
+  const themePref = useAppStore((s) => s.theme);
+  const hydrated = useAppStore((s) => s.hydrated);
+  useEffect(() => {
+    if (!hydrated) return;
+    applyTheme(resolveTheme(themePref));
+    if (themePref !== "system") return;
+    const mq = window.matchMedia("(prefers-color-scheme: light)");
+    const onChange = () => applyTheme(resolveTheme("system"));
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [themePref, hydrated]);
 
   return (
     <PersistQueryClientProvider

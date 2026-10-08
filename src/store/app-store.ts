@@ -6,6 +6,7 @@ import type { OutlookKind } from "@/lib/api/types";
 import type { LatLon } from "@/lib/geo";
 import type { ProductFamily, TiltPrefix } from "@/lib/radar/products";
 import type { Speed } from "@/lib/radar/playback";
+import type { ThemePref } from "@/lib/theme";
 import { defaultUnitsForLocale, UNIT_PRESETS, type UnitPrefs } from "@/lib/weather/units";
 import { isModeId, type ModeId } from "@/modes/registry";
 
@@ -57,6 +58,8 @@ export interface AppState {
   previousMode: ModeId | null;
   location: AppLocation;
   units: UnitPrefs;
+  /** Light, dark, or follow the system. */
+  theme: ThemePref;
   radar: RadarSettings;
   drone: DroneSettings;
   airLayer: "us_aqi" | "pm2_5";
@@ -65,6 +68,7 @@ export interface AppState {
   setMode: (mode: ModeId) => void;
   setLocation: (loc: AppLocation) => void;
   setUnits: (u: Partial<UnitPrefs> | "imperial" | "metric") => void;
+  setTheme: (t: ThemePref) => void;
   setRadar: (r: Partial<RadarSettings>) => void;
   setDrone: (d: Partial<DroneSettings>) => void;
   setAirLayer: (l: AppState["airLayer"]) => void;
@@ -104,6 +108,7 @@ export const useAppStore = create<AppState>()(
       previousMode: null,
       location: DEFAULT_LOCATION,
       units: { ...UNIT_PRESETS.imperial },
+      theme: "system",
       radar: DEFAULT_RADAR,
       drone: { profileId: "sub250", altitudeM: 120 },
       airLayer: "us_aqi",
@@ -116,6 +121,7 @@ export const useAppStore = create<AppState>()(
       setLocation: (location) => set({ location }),
       setUnits: (u) =>
         set((s) => ({ units: typeof u === "string" ? { ...UNIT_PRESETS[u] } : { ...s.units, ...u } })),
+      setTheme: (theme) => set({ theme }),
       setRadar: (r) => set((s) => ({ radar: { ...s.radar, ...r } })),
       setDrone: (d) => set((s) => ({ drone: { ...s.drone, ...d } })),
       setAirLayer: (airLayer) => set({ airLayer }),
@@ -128,7 +134,7 @@ export const useAppStore = create<AppState>()(
       // Rehydrated from a client effect so SSR markup and first client render match.
       skipHydration: true,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ mode: s.mode, location: s.location, units: s.units, radar: s.radar, drone: s.drone, airLayer: s.airLayer }),
+      partialize: (s) => ({ mode: s.mode, location: s.location, units: s.units, theme: s.theme, radar: s.radar, drone: s.drone, airLayer: s.airLayer }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<AppState>;
         return {
@@ -138,6 +144,7 @@ export const useAppStore = create<AppState>()(
           radar: { ...current.radar, ...p.radar },
           drone: { ...current.drone, ...p.drone },
           units: { ...current.units, ...p.units },
+          theme: p.theme === "light" || p.theme === "dark" || p.theme === "system" ? p.theme : current.theme,
         };
       },
       onRehydrateStorage: () => (state) => {

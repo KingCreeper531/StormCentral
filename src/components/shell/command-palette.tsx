@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Crosshair, MapPin, Search, Thermometer, Users, type LucideIcon } from "lucide-react";
+import { Bell, Crosshair, MapPin, Search, Settings, Thermometer, Users, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
@@ -98,6 +98,7 @@ export function CommandPalette() {
         run: () => setLocation({ lat: p.lat, lon: p.lon, name: p.name, source: "search" }),
       })),
       { kind: "action", id: "alerts", label: "Alerts and places", Icon: Bell, run: () => router.push("/alerts") },
+      { kind: "action", id: "settings", label: "Settings (theme, units)", Icon: Settings, run: () => router.push("/settings") },
       ...(COMMUNITY_ENABLED
         ? [{ kind: "action", id: "community", label: "Open spotter network", Icon: Users, run: () => router.push("/community") } satisfies Item]
         : []),

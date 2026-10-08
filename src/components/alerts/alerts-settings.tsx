@@ -11,7 +11,6 @@ import { runnerPermission, runnerTestNotification } from "@/lib/native/runner-br
 import { isNativeApp } from "@/lib/platform";
 import { MAX_PLACES, MAX_RULES, useAlertsStore } from "@/store/alerts-store";
 import { useAppStore } from "@/store/app-store";
-import { DesktopSettings } from "../settings/desktop-settings";
 import { Button, IconButton } from "../ui/button";
 import { EmptyState, Skeleton, Toggle } from "../ui/misc";
 import { Panel } from "../ui/panel";
@@ -325,7 +324,6 @@ export function AlertsSettings() {
       <NotificationsPanel />
       <PlacesPanel />
       <RulesPanel />
-      <DesktopSettings />
       <p className="text-xs text-ink-3">Places and alerts are stored on this device only. Notifications can be late or missed; always follow official warnings.</p>
     </div>
   );

@@ -4,6 +4,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { AttributionControl, getVersion, Map as MlMap, NavigationControl, setWorkerUrl, type StyleSpecification } from "maplibre-gl";
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { BBox } from "@/lib/geo";
+import { useResolvedTheme } from "@/hooks/use-resolved-theme";
+import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 /**
@@ -29,9 +31,10 @@ const BELOW_LABELS = [SLOTS.satellite, SLOTS.outlook, SLOTS.heat, SLOTS.radar, S
 const ABOVE_LABELS = [SLOTS.tracks, SLOTS.sites, SLOTS.cells, SLOTS.stormReports, SLOTS.reports] as const;
 
 const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY;
-const STYLE_URL = MAPTILER_KEY
-  ? `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`
-  : "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+const styleUrl = (theme: Theme) =>
+  MAPTILER_KEY
+    ? `https://api.maptiler.com/maps/dataviz-${theme}/style.json?key=${MAPTILER_KEY}`
+    : `https://basemaps.cartocdn.com/gl/${theme === "light" ? "positron" : "dark-matter"}-gl-style/style.json`;
 
 interface MapCtx {
   map: MlMap | null;
@@ -86,6 +89,8 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
   const container = useRef<HTMLDivElement>(null);
   const [ctx, setCtx] = useState<MapCtx>({ map: null, font: [] });
   const supported = useSyncExternalStore(noSubscribe, hasWebGL2, () => true);
+  // A theme switch rebuilds the map on the matching basemap; layers re-add themselves.
+  const theme = useResolvedTheme();
   const viewCb = useRef(onViewChange);
   const readyCb = useRef(onReady);
   useEffect(() => {
@@ -105,7 +110,7 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
     try {
       map = new MlMap({
         container: container.current,
-        style: STYLE_URL,
+        style: styleUrl(theme),
         center: [center.lon, center.lat],
         zoom,
         interactive,
@@ -158,8 +163,8 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
 
     map.on("load", () => {
       const style = map.getStyle() as StyleSpecification;
-      // OLED pass: pull the basemap's background and water to near-black.
-      for (const layer of style.layers) {
+      // OLED pass (dark theme): pull the basemap's background and water to near-black.
+      for (const layer of theme === "dark" ? style.layers : []) {
         if (layer.type === "background") map.setPaintProperty(layer.id, "background-color", "#030406");
         else if (layer.type === "fill" && /water|ocean|lake/i.test(layer.id)) map.setPaintProperty(layer.id, "fill-color", "#070b12");
       }
@@ -183,7 +188,7 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
     };
     // The map is created once; centre/zoom changes are applied imperatively below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interactive, supported]);
+  }, [interactive, supported, theme]);
 
   useEffect(() => {
     const map = ctx.map;

@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Megaphone, Search } from "lucide-react";
+import { MapPin, Megaphone, Search, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
@@ -80,6 +80,18 @@ export function TopBar() {
               <span className="hidden lg:inline">Report</span>
             </Button>
           )}
+          <Link
+            href="/settings"
+            aria-label="Settings"
+            title="Settings"
+            aria-current={pathname.startsWith("/settings") ? "page" : undefined}
+            className={cn(
+              "grid size-9 shrink-0 place-items-center rounded-[var(--radius-control)] transition-colors hover:bg-surface-2 hover:text-ink pointer-coarse:size-11",
+              pathname.startsWith("/settings") ? "bg-surface-2 text-ink" : "text-ink-2",
+            )}
+          >
+            <Settings className="size-5" aria-hidden />
+          </Link>
           <UserMenu />
         </div>
       </div>
