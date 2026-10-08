@@ -1,4 +1,5 @@
 import type { ProductsResponse, ScansResponse } from "../api/types";
+import { alternateProducts } from "../radar/products";
 import { parseIemProducts, parseIemScans } from "./parse";
 import { cached } from "./cache";
 import type { Feed } from "./types";
@@ -7,7 +8,11 @@ import { badParams, upstreamJson } from "./upstream";
 const IEM_RADAR = "https://mesonet.agron.iastate.edu/json/radar.py";
 const isoMinute = (t: number) => new Date(t).toISOString().slice(0, 16) + "Z";
 
-/** `site=LOT&product=N0B&minutes=90`: volume-scan index from IEM. */
+/**
+ * `site=LOT&product=N0B&minutes=90`: volume-scan index from IEM. When the site
+ * has no scans of that code, tries the same moment's other codes (N0G → N0U …)
+ * and reports which one it found in `product`.
+ */
 export const radarScansFeed: Feed<ScansResponse> = {
   path: "/api/radar/scans",
   maxAge: 30,
@@ -20,9 +25,16 @@ export const radarScansFeed: Feed<ScansResponse> = {
     // Round the window to the minute so concurrent clients share a cache key.
     const end = Math.floor(Date.now() / 60_000) * 60_000 + 60_000;
     const start = end - minutes * 60_000;
+    const list = async (code: string) =>
+      parseIemScans(await upstreamJson(`${IEM_RADAR}?operation=list&radar=${site}&product=${code}&start=${isoMinute(start)}&end=${isoMinute(end)}`));
     return cached(`scans:${site}:${product}:${minutes}:${end}`, 30_000, async () => {
-      const url = `${IEM_RADAR}?operation=list&radar=${site}&product=${product}&start=${isoMinute(start)}&end=${isoMinute(end)}`;
-      return { site, product, scans: parseIemScans(await upstreamJson(url)) };
+      const scans = await list(product);
+      if (scans.length) return { site, product, scans };
+      for (const alt of alternateProducts(product)) {
+        const altScans = await list(alt).catch(() => []);
+        if (altScans.length) return { site, product: alt, scans: altScans };
+      }
+      return { site, product, scans };
     });
   },
 };
@@ -36,8 +48,11 @@ export const radarProductsFeed: Feed<ProductsResponse> = {
     if (!/^[A-Z]{3,6}$/.test(site)) throw badParams("invalid site");
     const start = new Date(Math.floor(Date.now() / 600_000) * 600_000 - 3_600_000).toISOString().slice(0, 16) + "Z";
     return cached(`products:${site}:${start}`, 10 * 60_000, async () => {
-      const raw = await upstreamJson(`${IEM_RADAR}?operation=products&radar=${site}&start=${start}`);
-      return { site, products: parseIemProducts(raw) };
+      // IEM documents `available`; `products` is the older name, kept as a fallback.
+      const ask = (op: string) => upstreamJson(`${IEM_RADAR}?operation=${op}&radar=${site}&start=${start}`).then(parseIemProducts);
+      let products = await ask("available").catch(() => [] as string[]);
+      if (!products.length) products = await ask("products").catch(() => [] as string[]);
+      return { site, products };
     });
   },
 };

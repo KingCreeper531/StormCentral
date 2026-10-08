@@ -59,11 +59,12 @@ export function useRadarLoop({ site, product, frameCount, speed, crossfade, auto
   const scanList = scans.data?.scans;
   const usingFallback = isMosaic && (scans.isError || (scans.isSuccess && !scanList?.length));
   const live = useMemo(() => {
-    if (scanList?.length) return framesFromScans(scanList, iemSite, iemProduct, count);
+    // The feed may answer with a related code (N0U for N0G) when the preferred one has no scans.
+    if (scanList?.length) return framesFromScans(scanList, iemSite, scans.data?.product ?? iemProduct, count);
     // Rolling-offset mosaic needs no index — always available as a fallback.
     if (usingFallback) return mosaicOffsetFrames(new Date(), Math.min(count, 12));
     return [];
-  }, [scanList, iemSite, iemProduct, count, usingFallback]);
+  }, [scanList, iemSite, iemProduct, count, usingFallback, scans.data?.product]);
   // Future frames follow the newest scan (which stands in for "now"); each new scan rebuilds them.
   const lastLive = live.at(-1)?.time ?? 0;
   const future = useMemo(

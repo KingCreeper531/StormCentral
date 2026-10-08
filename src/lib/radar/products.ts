@@ -196,3 +196,16 @@ export function legendGradient(stops: readonly LegendStop[]) {
   const parts = stops.map((s) => `${s.color} ${(((s.value - min) / (max - min)) * 100).toFixed(1)}%`);
   return `linear-gradient(90deg, ${parts.join(", ")})`;
 }
+
+/**
+ * Other codes for the same moment and tilt, in preference order: N0G (super-res
+ * velocity) → N0U → N0V, N0B → N0Q → N0R. Used when a site isn't sending the
+ * preferred code, so the loop still has scans.
+ */
+export function alternateProducts(code: string): string[] {
+  const c = code.toUpperCase();
+  if (c.length !== 3) return [];
+  const prefix = c.slice(0, 2);
+  const fam = FAMILY_ORDER.map((f) => FAMILIES[f]).find((f) => (f.letters as readonly string[]).includes(c[2]!));
+  return fam ? fam.letters.filter((l) => l !== c[2]).map((l) => `${prefix}${l}`) : [];
+}

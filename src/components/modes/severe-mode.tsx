@@ -529,6 +529,18 @@ export function SevereMode() {
             Radar index unavailable for <span className="font-mono">{site?.icao ?? "mosaic"} {productCode}</span>. Try another product or site.
           </span>
         </p>
+      ) : isSite && site && !loop.isLoading && loop.frames.length === 0 ? (
+        <p role="status" className="overlay flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 text-xs text-ink-2">
+          <span className="flex min-w-0 items-start gap-2">
+            <CircleAlert className="mt-px size-3.5 shrink-0 text-caution" aria-hidden />
+            <span>
+              No recent scans from <span className="font-mono">{site.icao}</span>. The radar may be down for maintenance.
+            </span>
+          </span>
+          <Button size="sm" onClick={() => setRadar({ source: "mosaic", family: "reflectivity" })}>
+            Show national mosaic
+          </Button>
+        </p>
       ) : null}
       <div className="w-full">
         <RadarTimeline
