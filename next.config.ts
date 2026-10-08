@@ -39,7 +39,7 @@ const csp = [
   // Next.js injects inline bootstrap scripts; dev mode additionally needs eval for HMR.
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://mesonet.agron.iastate.edu https://gibs.earthdata.nasa.gov https://*.cartocdn.com https://api.maptiler.com",
+  "img-src 'self' data: blob: https://mesonet.agron.iastate.edu https://gibs.earthdata.nasa.gov https://nowcoast.noaa.gov https://*.cartocdn.com https://api.maptiler.com",
   // Radar loop exports preview as blob: video.
   "media-src 'self' blob:",
   "font-src 'self' data:",

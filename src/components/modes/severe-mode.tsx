@@ -23,6 +23,7 @@ import { useAppStore } from "@/store/app-store";
 import { PostCard } from "../community/post-card";
 import { MapView } from "../map/map-view";
 import { OutlookLayer } from "../map/layers/outlook-layer";
+import { LightningLayer } from "../map/layers/lightning-layer";
 import { RadarLayer } from "../map/layers/radar-layer";
 import { SatelliteLayer, type SatelliteImage } from "../map/layers/satellite-layer";
 import { StormCellsLayer } from "../map/layers/storm-cells-layer";
@@ -159,7 +160,15 @@ export function SevereMode() {
   const tilt = tilts.find((t) => t.prefix === radar.tilt) ?? tilts[0];
   const productCode = isSite ? (tilt?.code ?? `N0${FAMILIES[radar.family].letters[0]}`) : "N0Q";
 
-  const loop = useRadarLoop({ site: site?.icao ?? null, product: productCode, frameCount: radar.frames, speed: radar.speed, crossfade: radar.crossfade });
+  const loop = useRadarLoop({
+    site: site?.icao ?? null,
+    product: productCode,
+    frameCount: radar.frames,
+    speed: radar.speed,
+    crossfade: radar.crossfade,
+    futureHours: radar.future && !isSite ? 6 : 0,
+  });
+  const showingForecast = !!loop.frames[loop.index]?.forecast;
 
   // ── Overlays ──────────────────────────────────────────────────────────────
   const national = useNationalAlerts(true);
@@ -257,8 +266,8 @@ export function SevereMode() {
       </>
     ) : (
       <>
-        <span className="shrink-0 font-mono">N0Q</span>
-        <span className="min-w-0 truncate">{loop.usingFallback ? "Mosaic (rolling)" : "National mosaic"}</span>
+        <span className="shrink-0 font-mono">{showingForecast ? "HRRR" : "N0Q"}</span>
+        <span className="min-w-0 truncate">{showingForecast ? "Model forecast, not observed" : loop.usingFallback ? "Mosaic (rolling)" : "National mosaic"}</span>
       </>
     );
 
@@ -504,7 +513,7 @@ export function SevereMode() {
   // Desktop: legend card above the transport. Short screens: one row with an
   // inline legend. Phones: a legend strip inside the transport box, all of it
   // riding on top of the sheet.
-  const legendCode = isSite && site ? `${site.icao} ${productCode}` : "N0Q";
+  const legendCode = isSite && site ? `${site.icao} ${productCode}` : showingForecast ? "HRRR forecast" : "N0Q";
   const sentenceCaseFamily = FAMILIES[family].label.toLowerCase();
   const dock = (
     <div ref={dockRef} className="pointer-events-none flex flex-col items-start gap-2 [&>*]:pointer-events-auto">
@@ -567,6 +576,7 @@ export function SevereMode() {
         )}
         {radar.showOutlook && <OutlookLayer features={outlook.data?.features ?? []} kind={outlook.data?.kind ?? radar.outlookKind} />}
         {radar.showTropical && <TropicalLayer storms={storms} selectedId={selectedId("storm")} onSelect={(id) => select("storm", id)} />}
+        {radar.showLightning && <LightningLayer />}
         <RadarLayer frames={loop.frames} index={loop.index} opacity={radar.opacity} crisp={FAMILIES[family].crisp && isSite} crossfadeMs={loop.crossfadeMs} onStatus={loop.onStatus} />
         {radar.showWarnings && (
           <WarningsLayer

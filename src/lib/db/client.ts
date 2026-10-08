@@ -29,13 +29,28 @@ export function openDb(url: string, authToken?: string): Promise<DbHandle> {
   return client.executeMultiple(SCHEMA_SQL).then(() => ({ client, db: drizzle(client, { schema }) }));
 }
 
+/**
+ * DATABASE_URL / DATABASE_AUTH_TOKEN, or the TURSO_* names that Vercel's Turso
+ * integration sets, so connecting a database in the Vercel dashboard is enough.
+ */
+function dbConfig(): { url: string; authToken?: string } {
+  const url = process.env.DATABASE_URL || process.env.TURSO_DATABASE_URL;
+  const authToken = process.env.DATABASE_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || undefined;
+  if (url) return { url, authToken };
+  // Serverless hosts have no writable disk for the local SQLite fallback.
+  if (process.env.VERCEL) throw new Error("No database configured: connect a Turso database to this Vercel project (Storage tab), then redeploy.");
+  return { url: "file:./data/stormcentral.db" };
+}
+
 export async function getDb(): Promise<Db> {
-  g.__stormcentralDb ??= openDb(
-    process.env.DATABASE_URL ?? "file:./data/stormcentral.db",
-    process.env.DATABASE_AUTH_TOKEN,
-  ).catch((err) => {
-    g.__stormcentralDb = undefined; // allow a retry on the next request
-    throw err;
-  });
+  g.__stormcentralDb ??= Promise.resolve()
+    .then(() => {
+      const { url, authToken } = dbConfig();
+      return openDb(url, authToken);
+    })
+    .catch((err) => {
+      g.__stormcentralDb = undefined; // allow a retry on the next request
+      throw err;
+    });
   return (await g.__stormcentralDb).db;
 }

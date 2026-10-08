@@ -10,6 +10,10 @@ import { Segmented } from "../ui/segmented";
 
 function ago(t: number, now: number) {
   const m = Math.round((now - t) / 60_000);
+  if (m < -1) {
+    const ahead = -m;
+    return ahead < 60 ? `In ${ahead} min` : `In ${Math.floor(ahead / 60)} h${ahead % 60 ? ` ${ahead % 60} min` : ""}`;
+  }
   return m <= 0 ? "Now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)} h ${m % 60} min ago`;
 }
 
@@ -22,7 +26,8 @@ const clock = (timeZone?: string) => new Intl.DateTimeFormat(undefined, { hour: 
  */
 export function frameTimeLabel(loop: RadarLoop, timeZone?: string): string | null {
   const frame = loop.frames[loop.index];
-  return frame ? `${frame.approximate ? "~" : ""}${clockIn(timeZone, frame.time)}` : null;
+  if (!frame) return null;
+  return `${frame.forecast ? "Forecast " : frame.approximate ? "~" : ""}${clockIn(timeZone, frame.time)}`;
 }
 
 /**
@@ -149,12 +154,14 @@ export function RadarTimeline({
               {loop.frames.map((f, i) => {
                 const current = i === loop.index;
                 const ready = loop.ready[i];
+                // Model forecast frames (future radar) read as a distinct, dimmer run after "now".
+                const forecast = f.forecast;
                 return (
                   <button
                     key={f.id}
                     type="button"
                     onClick={() => loop.setIndex(i)}
-                    className="group relative h-full min-w-0 flex-1"
+                    className={cn("group relative h-full min-w-0 flex-1", forecast && i === loop.liveCount && "ml-1.5")}
                     aria-label={`Frame ${fmt.format(f.time)}`}
                     tabIndex={-1}
                   >
@@ -166,7 +173,7 @@ export function RadarTimeline({
                         current
                           ? "h-4 bg-accent"
                           : ready
-                            ? cn("h-1.5 group-hover:bg-ink", i === n - 1 ? "bg-ink-2" : "bg-ink-3")
+                            ? cn("h-1.5 group-hover:bg-ink", forecast ? "bg-series-2/70" : i === loop.liveCount - 1 ? "bg-ink-2" : "bg-ink-3")
                             : "h-1.5 border border-line-strong transition-[border-color] duration-100 group-hover:border-ink-3",
                       )}
                     />
