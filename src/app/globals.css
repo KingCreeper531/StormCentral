@@ -48,8 +48,42 @@
   }
 }
 
+/*
+ * Light theme: the same roles, re-tuned for a white surface. Status and accent
+ * colours are darkened so they keep 4.5:1 as text on surface-1.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-canvas: #f3f4f6;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #f5f6f8;
+  --color-surface-3: #e8eaee;
+  --color-line: #dfe2e6;
+  --color-line-strong: #c9cdd3;
+
+  --color-ink: #111316;
+  --color-ink-2: #474c54;
+  --color-ink-3: #61666e;
+
+  --color-accent: #2563d4;
+
+  --color-go: #0a7a0a;
+  --color-caution: #a66a00;
+  --color-nogo: #c62a2f;
+
+  --color-series-1: #2563d4;
+  --color-series-2: #c2410c;
+  --color-series-3: #0f7f58;
+  --color-grid: #eceef1;
+
+  --overlay-bg: rgb(255 255 255 / 0.94);
+  --map-icon-filter: none;
+}
+
 :root {
   color-scheme: dark;
+  --overlay-bg: rgb(14 15 17 / 0.92);
+  --map-icon-filter: invert(1) opacity(0.8);
   /* Legacy alias — the accent is a single constant now (no per-mode theming). */
   --accent: var(--color-accent);
   /* Heights of fixed chrome, consumed by layouts and sheets. They include the
@@ -100,7 +134,7 @@ body {
 
 /* Map overlays: near-opaque so text reads over radar; light blur only. */
 @utility overlay {
-  background: rgb(14 15 17 / 0.92);
+  background: var(--overlay-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-panel);
   backdrop-filter: blur(8px);
@@ -134,7 +168,7 @@ body {
 
 /* MapLibre chrome, restyled to the panel language. */
 .maplibregl-ctrl-group {
-  background: rgb(14 15 17 / 0.92) !important;
+  background: var(--overlay-bg) !important;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-control) !important;
   box-shadow: none !important;
@@ -156,10 +190,10 @@ body {
   margin: 0 12px 12px 0;
 }
 .maplibregl-ctrl-icon {
-  filter: invert(1) opacity(0.8);
+  filter: var(--map-icon-filter);
 }
 .maplibregl-ctrl-attrib {
-  background: rgb(0 0 0 / 0.6) !important;
+  background: color-mix(in srgb, var(--color-canvas) 70%, transparent) !important;
   color: var(--color-ink-3) !important;
   font-size: 10px;
 }
@@ -167,7 +201,7 @@ body {
   color: var(--color-ink-2) !important;
 }
 .maplibregl-ctrl-attrib-button {
-  filter: invert(1);
+  filter: var(--map-icon-filter);
 }
 
 @media (prefers-reduced-motion: reduce) {

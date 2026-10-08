@@ -6,6 +6,7 @@ import { skyPhase, sunPosition } from "@/lib/astro/sun";
 import { describeCode } from "@/lib/weather/wmo";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useNow } from "@/hooks/use-now";
+import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import { luminaryGlow, skyGradient } from "./sky";
 import { PrecipCanvas, type PrecipKind } from "./precip-canvas";
 
@@ -46,6 +47,12 @@ const SCRIM = [
   "radial-gradient(130% 75% at 50% 0%, transparent 55%, rgba(0,0,0,0.5) 100%)",
   "linear-gradient(180deg, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.12) 12%, rgba(0,0,0,0.45) 30%, rgba(0,0,0,0.82) 42%, #000 55%)",
 ].join(",");
+/**
+ * Light theme: a pale wash keeps the real sky colour as a tint behind the hero
+ * (dark text stays ≥ 4.5:1 even over the night sky) and reaches the solid
+ * canvas sooner.
+ */
+const SCRIM_LIGHT = "linear-gradient(180deg, rgb(243 244 246 / 0.62) 0%, rgb(243 244 246 / 0.7) 18%, rgb(243 244 246 / 0.9) 32%, #f3f4f6 44%)";
 
 /**
  * Real-time sky: gradient from the true solar altitude at the location
@@ -58,6 +65,7 @@ export function WeatherBackground({ lat, lon, code, cloudPct, windMs, windDirDeg
   const now = useNow(5 * 60_000);
   // Hydration-safe (false on the server); animated nodes are keyed on it so they remount cleanly.
   const reduced = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const light = useResolvedTheme() === "light";
   const sun = useMemo(() => sunPosition(new Date(now), lat, lon), [now, lat, lon]);
   const phase = skyPhase(sun.altitude);
   const info = describeCode(code);
@@ -164,7 +172,7 @@ export function WeatherBackground({ lat, lon, code, cloudPct, windMs, windDirDeg
 
       <PrecipCanvas kind={kind} intensity={intensity} wind={windPush} lightning={scene === "storm" || scene === "hail"} paused={!!hidden} />
 
-      <div className="absolute inset-0" style={{ background: SCRIM }} />
+      <div className="absolute inset-0" style={{ background: light ? SCRIM_LIGHT : SCRIM }} />
     </div>
   );
 }

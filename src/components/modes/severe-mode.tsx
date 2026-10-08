@@ -551,7 +551,7 @@ export function SevereMode() {
   return (
     <div
       className={cn(
-        "absolute inset-0 bg-black",
+        "absolute inset-0 bg-canvas",
         // Overlay insets that respect a landscape notch, and the side-panel width (keep in sync with `panelW`).
         "[--sl:max(12px,env(safe-area-inset-left))] [--sr:max(12px,env(safe-area-inset-right))]",
         short ? "[--panel-w:280px]" : "[--panel-w:300px] lg:[--panel-w:340px]",
