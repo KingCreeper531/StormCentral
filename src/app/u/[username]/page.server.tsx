@@ -29,7 +29,7 @@ export default async function ProfilePage({ params }: Params) {
     <SubpageShell>
       <Panel as="section" aria-labelledby="profile-name" className="mb-6">
         <div className="flex items-center gap-4">
-          <Avatar name={profile.displayName} hue={profile.avatarHue} size={56} />
+          <Avatar name={profile.displayName} hue={profile.avatarHue} src={profile.avatarUrl} size={56} />
           <div className="min-w-0 flex-1">
             <h1 id="profile-name" className="truncate text-xl font-semibold text-ink">
               {profile.displayName}

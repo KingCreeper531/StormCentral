@@ -124,7 +124,7 @@ export function UserMenu() {
             !user && (open ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink"),
           )}
         >
-          {user ? <Avatar name={user.displayName} hue={user.avatarHue} size={28} /> : <CircleUser className="size-5" aria-hidden />}
+          {user ? <Avatar name={user.displayName} hue={user.avatarHue} src={user.avatarUrl} size={28} /> : <CircleUser className="size-5" aria-hidden />}
         </button>
 
         {open && (

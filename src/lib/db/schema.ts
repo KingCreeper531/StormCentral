@@ -14,6 +14,8 @@ export const users = sqliteTable("users", {
   displayName: text("display_name").notNull(),
   avatarHue: integer("avatar_hue").notNull(),
   bio: text("bio"),
+  /** Profile picture (a row in `media`), or null for the initial-letter avatar. */
+  avatarMediaId: text("avatar_media_id"),
   createdAt: integer("created_at").notNull(),
 });
 
@@ -118,7 +120,8 @@ CREATE TABLE IF NOT EXISTS users (
   display_name TEXT NOT NULL,
   avatar_hue INTEGER NOT NULL,
   bio TEXT,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  avatar_media_id TEXT
 );
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
@@ -176,3 +179,11 @@ CREATE INDEX IF NOT EXISTS comments_post_idx ON comments(post_id, created_at);
 `;
 
 export const schema = { users, sessions, passwordResets, media, posts, verifications, comments };
+
+/**
+ * Columns added after a table first shipped. CREATE TABLE IF NOT EXISTS
+ * won't touch an existing table, so these are added when missing.
+ */
+export const COLUMN_MIGRATIONS: readonly { table: string; column: string; sql: string }[] = [
+  { table: "users", column: "avatar_media_id", sql: "ALTER TABLE users ADD COLUMN avatar_media_id TEXT" },
+];

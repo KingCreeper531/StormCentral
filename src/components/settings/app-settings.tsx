@@ -3,7 +3,6 @@
 import { Bell, ChevronRight, Download, Monitor, Moon, RefreshCw, Sun } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { useSession } from "@/hooks/queries";
 import { checkForUpdate, installedVersion, type AvailableUpdate } from "@/lib/native/app-update";
 import { desktopBridge, type DesktopUpdateStatus } from "@/lib/native/desktop";
 import { GITHUB_REPO, isNativeApp } from "@/lib/platform";
@@ -11,10 +10,10 @@ import type { ThemePref } from "@/lib/theme";
 import { UNIT_PRESETS, type DistanceUnit, type HeightUnit, type PrecipUnit, type PressureUnit, type TempUnit, type UnitPrefs, type WindUnit } from "@/lib/weather/units";
 import { useAppStore } from "@/store/app-store";
 import { Button, buttonClass } from "../ui/button";
-import { ChangePasswordPanel } from "../community/password-forms";
 import { Skeleton } from "../ui/misc";
 import { Panel } from "../ui/panel";
 import { Segmented } from "../ui/segmented";
+import { AccountSection } from "./account-panel";
 import { DesktopSettings } from "./desktop-settings";
 
 type Preset = "imperial" | "metric" | "custom";
@@ -245,12 +244,6 @@ function UpdatesPanel() {
   );
 }
 
-/** Shown only when signed in to the spotter network. */
-function AccountPanels() {
-  const session = useSession();
-  return session.data ? <ChangePasswordPanel /> : null;
-}
-
 function LinkRow({ href, icon, title, sub }: { href: string; icon: React.ReactNode; title: string; sub: string }) {
   return (
     <Link href={href} className="surface flex items-center gap-3 p-4 transition-colors hover:border-line-strong sm:px-5">
@@ -273,7 +266,7 @@ export function AppSettings() {
       <AppearancePanel />
       <UnitsPanel />
       <LinkRow href="/alerts" icon={<Bell className="size-4" aria-hidden />} title="Alerts and places" sub="Warning notifications, saved places and custom alerts" />
-      <AccountPanels />
+      <AccountSection />
       <UpdatesPanel />
       <DesktopSettings />
       <p className="text-xs text-ink-3">

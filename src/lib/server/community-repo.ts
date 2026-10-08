@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, gte, inArray, lt, lte, or, sql } from "drizzle-orm";
 import type { CommentDto, ConditionsSnapshot, FeedResponse, PostDto } from "../community";
-import { conditionsSchema } from "../community";
+import { avatarUrl, conditionsSchema } from "../community";
 import { getDb } from "../db/client";
 import { comments, media, posts, users, verifications } from "../db/schema";
 import { haversineKm, type BBox, type LatLon } from "../geo";
@@ -63,6 +63,7 @@ export async function listPosts(q: FeedQuery, viewerId: string | null): Promise<
       username: users.username,
       displayName: users.displayName,
       avatarHue: users.avatarHue,
+      avatarMediaId: users.avatarMediaId,
       reputation: reputationSql,
       verifications: verifyCount,
       comments: commentCount,
@@ -100,7 +101,7 @@ export async function listPosts(q: FeedQuery, viewerId: string | null): Promise<
     createdAt: r.post.createdAt,
     image: r.post.mediaId ? { url: `/api/media/${r.post.mediaId}`, width: r.mediaWidth, height: r.mediaHeight } : null,
     conditions: parseConditions(r.post.conditions),
-    author: { username: r.username, displayName: r.displayName, avatarHue: r.avatarHue, reputation: Number(r.reputation) },
+    author: { username: r.username, displayName: r.displayName, avatarHue: r.avatarHue, avatarUrl: avatarUrl(r.avatarMediaId), reputation: Number(r.reputation) },
     verifications: Number(r.verifications),
     comments: Number(r.comments),
     viewerVerified: mine.has(r.post.id),
@@ -215,7 +216,7 @@ export async function toggleVerification(postId: string, userId: string) {
 export async function listComments(postId: string, viewerId: string | null): Promise<CommentDto[]> {
   const db = await getDb();
   const rows = await db
-    .select({ c: comments, username: users.username, displayName: users.displayName, avatarHue: users.avatarHue })
+    .select({ c: comments, username: users.username, displayName: users.displayName, avatarHue: users.avatarHue, avatarMediaId: users.avatarMediaId })
     .from(comments)
     .innerJoin(users, eq(comments.userId, users.id))
     .where(eq(comments.postId, postId))
@@ -225,7 +226,7 @@ export async function listComments(postId: string, viewerId: string | null): Pro
     id: r.c.id,
     body: r.c.body,
     createdAt: r.c.createdAt,
-    author: { username: r.username, displayName: r.displayName, avatarHue: r.avatarHue },
+    author: { username: r.username, displayName: r.displayName, avatarHue: r.avatarHue, avatarUrl: avatarUrl(r.avatarMediaId) },
     isOwn: r.c.userId === viewerId,
   }));
 }
@@ -251,6 +252,7 @@ export async function getProfile(username: string) {
       username: users.username,
       displayName: users.displayName,
       avatarHue: users.avatarHue,
+      avatarMediaId: users.avatarMediaId,
       bio: users.bio,
       createdAt: users.createdAt,
       reputation: reputationSql,
@@ -258,5 +260,5 @@ export async function getProfile(username: string) {
     })
     .from(users)
     .where(eq(users.username, username));
-  return row ? { ...row, reputation: Number(row.reputation), posts: Number(row.posts) } : null;
+  return row ? { ...row, avatarUrl: avatarUrl(row.avatarMediaId), reputation: Number(row.reputation), posts: Number(row.posts) } : null;
 }

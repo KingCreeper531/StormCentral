@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/auth/session";
-import { conditionsSchema, firstIssue, MAX_IMAGE_BYTES, postSchema } from "@/lib/community";
+import { conditionsSchema, firstIssue, isGenericPlace, MAX_IMAGE_BYTES, postSchema } from "@/lib/community";
+import { placeNameAt } from "@/lib/server/reverse-geocode";
 import { createPost, listPosts, type FeedQuery } from "@/lib/server/community-repo";
 import { forbidden, sameOrigin, tooMany, unauthorized } from "@/lib/server/guard";
 import { imageSize, sniffImage, stripMetadata } from "@/lib/server/image";
@@ -76,6 +77,8 @@ export async function POST(req: Request) {
     image = { bytes, mime, width: size?.width ?? null, height: size?.height ?? null };
   }
 
-  const id = await createPost({ userId: user.id, ...parsed.data, conditions, image });
+  // A GPS fix without a town name ("My location") gets one from the coordinates.
+  const place = isGenericPlace(parsed.data.place) ? ((await placeNameAt(parsed.data.lat, parsed.data.lon)) ?? undefined) : parsed.data.place;
+  const id = await createPost({ userId: user.id, ...parsed.data, place, conditions, image });
   return Response.json({ id }, { status: 201, headers: noStore });
 }
