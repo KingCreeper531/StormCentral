@@ -224,3 +224,15 @@ jobs:
             gh release create "$tag" assets/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
               --title "StormCentral $VERSION" --notes-file notes.md --generate-notes --latest
           fi
+      # Only the newest release stays on the Releases page; the apps update from it.
+      - name: Remove older releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName --jq '.[].tagName' | while read -r old; do
+            if [ -n "$old" ] && [ "$old" != "v$VERSION" ]; then
+              echo "Deleting release $old"
+              gh release delete "$old" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag
+            fi
+          done
