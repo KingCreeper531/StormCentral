@@ -277,8 +277,17 @@ export async function fetchAirGrid(
   rows = 9,
   signal?: AbortSignal,
 ): Promise<ValueGrid> {
-  const yN = mercatorY(Math.min(bbox.north, 84));
-  const yS = mercatorY(Math.max(bbox.south, -84));
+  // Zoomed far out, the view runs past ±180° longitude and the Mercator limit:
+  // the API rejects those points, and an overlay placed there breaks map rendering.
+  bbox = {
+    west: Math.max(-180, Math.min(180, bbox.west)),
+    east: Math.max(-180, Math.min(180, bbox.east)),
+    north: Math.max(-84, Math.min(84, bbox.north)),
+    south: Math.max(-84, Math.min(84, bbox.south)),
+  };
+  if (bbox.east <= bbox.west || bbox.north <= bbox.south) bbox = { west: -180, east: 180, north: 84, south: -84 };
+  const yN = mercatorY(bbox.north);
+  const yS = mercatorY(bbox.south);
   const lats: number[] = [];
   const lons: number[] = [];
   for (let r = 0; r < rows; r++) {
