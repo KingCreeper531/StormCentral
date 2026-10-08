@@ -30,8 +30,8 @@ const meta = require("./package.json");
 const APP_ID = "io.github.kingcreeper531.stormcentral";
 const REPO = meta.stormcentral?.repo || "KingCreeper531/StormCentral";
 const REMOTE_URL = httpsUrl(meta.stormcentral?.remoteUrl);
-/** Permissions the UI may use: "Use my location", copying share links, map fullscreen. */
-const ALLOWED_PERMISSIONS = new Set(["geolocation", "clipboard-sanitized-write", "fullscreen"]);
+/** Permissions the UI may use: "Use my location", copying share links, map fullscreen, warning notifications. */
+const ALLOWED_PERMISSIONS = new Set(["geolocation", "clipboard-sanitized-write", "fullscreen", "notifications"]);
 const PRELOAD = fileURLToPath(new URL("./preload.cjs", import.meta.url));
 /** Passed by the sign-in login item: start in the tray, without a window. */
 const START_HIDDEN = process.argv.includes("--hidden");
