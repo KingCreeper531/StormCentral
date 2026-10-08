@@ -1,0 +1,34 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+*.tsbuildinfo
+
+# production
+/build
+
+# native app packages (electron-builder output; desktop shell deps)
+/dist/
+/desktop/node_modules/
+
+# local database
+/data/
+
+# generated at install time (copied from node_modules/maplibre-gl)
+/public/vendor/
+
+# env files
+.env*
+!.env.example
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+.vercel
+
+# written by `next dev` (Next.js 16 agent hints)
+/AGENTS.md

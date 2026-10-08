@@ -1,0 +1,186 @@
+@import "tailwindcss";
+
+/*
+ * StormCentral design tokens — see docs/DESIGN.md.
+ * Instrument-panel aesthetic: true-black canvas, solid neutral surfaces with
+ * hairline borders, one interactive accent, colour reserved for data and
+ * status. All text tokens are checked ≥ 4.5:1 on surface-1/2.
+ */
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
+
+  --color-canvas: #000000;
+  --color-surface-1: #0e0f11;
+  --color-surface-2: #16181b;
+  --color-surface-3: #1f2226;
+  --color-line: #25282d;
+  --color-line-strong: #33373d;
+
+  --color-ink: #ececed;
+  --color-ink-2: #a8acb3;
+  --color-ink-3: #80858d;
+
+  --color-accent: #5b9cf6;
+
+  /* Status — always paired with an icon + label, never colour alone. */
+  --color-go: #0ca30c;
+  --color-caution: #fab219;
+  --color-nogo: #e5484d;
+
+  /* Chart series (validated for CVD + contrast on surface-1). */
+  --color-series-1: #3987e5;
+  --color-series-2: #d95926;
+  --color-series-3: #199e70;
+  --color-grid: #1c1f23;
+
+  --radius-control: 6px;
+  --radius-panel: 10px;
+  --radius-sheet: 14px;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-shimmer: shimmer 1.8s linear infinite;
+
+  @keyframes shimmer {
+    from { background-position: -200% 0; }
+    to { background-position: 200% 0; }
+  }
+}
+
+:root {
+  color-scheme: dark;
+  /* Legacy alias — the accent is a single constant now (no per-mode theming). */
+  --accent: var(--color-accent);
+  /* Heights of fixed chrome, consumed by layouts and sheets. They include the
+     safe-area insets, which are non-zero in the edge-to-edge Android app. */
+  --topbar-h: calc(56px + env(safe-area-inset-top));
+  --tabbar-h: 0px;
+}
+
+@media (max-width: 767px) {
+  :root {
+    --topbar-h: calc(52px + env(safe-area-inset-top));
+    --tabbar-h: calc(56px + env(safe-area-inset-bottom));
+  }
+}
+
+html,
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100dvh;
+  overflow-x: hidden;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-accent) 40%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Solid panel — the base surface for every content block. */
+@utility surface {
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+}
+
+/* Map overlays: near-opaque so text reads over radar; light blur only. */
+@utility overlay {
+  background: rgb(14 15 17 / 0.92);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility skeleton {
+  background: linear-gradient(90deg, var(--color-surface-1) 25%, var(--color-surface-2) 50%, var(--color-surface-1) 75%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+  border-radius: var(--radius-panel);
+}
+
+/* Small caption label (sentence case — no letter-spaced uppercase). */
+@utility label {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-ink-3);
+}
+
+/* MapLibre chrome, restyled to the panel language. */
+.maplibregl-ctrl-group {
+  background: rgb(14 15 17 / 0.92) !important;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control) !important;
+  box-shadow: none !important;
+  overflow: hidden;
+}
+.maplibregl-ctrl-group button {
+  width: 36px !important;
+  height: 36px !important;
+}
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--color-line) !important;
+}
+/* Match the 12 px inset used by our map overlays. */
+.maplibregl-ctrl-top-right .maplibregl-ctrl,
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl {
+  margin: 12px 12px 0 0;
+}
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl {
+  margin: 0 12px 12px 0;
+}
+.maplibregl-ctrl-icon {
+  filter: invert(1) opacity(0.8);
+}
+.maplibregl-ctrl-attrib {
+  background: rgb(0 0 0 / 0.6) !important;
+  color: var(--color-ink-3) !important;
+  font-size: 10px;
+}
+.maplibregl-ctrl-attrib a {
+  color: var(--color-ink-2) !important;
+}
+.maplibregl-ctrl-attrib-button {
+  filter: invert(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@keyframes twinkle {
+  from { opacity: 0.15; transform: scale(0.85); }
+  to { opacity: 0.95; transform: scale(1.1); }
+}

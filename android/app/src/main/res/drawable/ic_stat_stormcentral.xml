@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Notification status-bar icon (LocalNotifications.smallIcon in
+    capacitor.config.ts). Android draws only the alpha channel, so it is a
+    plain white silhouette: the app icon's lightning bolt
+    (M35 14 L26 34 h7 l-4 16 L41 28 h-7 z in a 64-unit box), rescaled to
+    20 units tall and centred in a 24-unit viewport.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12.833,2L7.833,13.111L11.722,13.111L9.5,22L16.167,9.778L12.278,9.778Z" />
+</vector>

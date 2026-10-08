@@ -1,0 +1,15 @@
+{
+  "name": "stormcentral-desktop",
+  "productName": "StormCentral",
+  "version": "0.0.0-dev",
+  "description": "StormCentral for Windows: open-data weather, NEXRAD radar and a spotter network.",
+  "private": true,
+  "type": "module",
+  "main": "main.mjs",
+  "author": "KingCreeper531",
+  "license": "MIT",
+  "homepage": "https://github.com/KingCreeper531/StormCentral",
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  }
+}
