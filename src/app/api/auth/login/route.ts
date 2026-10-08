@@ -27,7 +27,12 @@ export async function POST(req: Request) {
     .limit(1);
 
   const ok = user ? await verifyPassword(password, user.passwordHash) : await verifyAgainstDummy(password);
-  if (!user || !ok) return Response.json({ error: "Incorrect username or password" }, { status: 401 });
+  if (!user || !ok) {
+    // Private (Vercel logs only) and without the identifier or password: tells a wrong
+    // password apart from an account this server doesn't have.
+    console.warn(`[login] failed: ${user ? "account found, password did not match" : "no account with that username/email"} (${identifier.includes("@") ? "email" : "username"} given)`);
+    return Response.json({ error: "Incorrect username or password" }, { status: 401 });
+  }
 
   await createSession(user.id);
   return Response.json({ user: { id: user.id, username: user.username, displayName: user.displayName } });
