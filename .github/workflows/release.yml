@@ -218,11 +218,13 @@ jobs:
             echo
           } > notes.md
           ls -la assets
+          # Notes are only the download table: no auto-generated PR list or contributor names.
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release upload "$tag" assets/* --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file notes.md
           else
             gh release create "$tag" assets/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-              --title "StormCentral $VERSION" --notes-file notes.md --generate-notes --latest
+              --title "StormCentral $VERSION" --notes-file notes.md --latest
           fi
       # Only the newest release stays on the Releases page; the apps update from it.
       - name: Remove older releases
