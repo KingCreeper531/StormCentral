@@ -24,7 +24,7 @@ import type { StormCellsResponse } from "@/lib/feeds/storm-cells";
 import type { StormReportsResponse } from "@/lib/feeds/storm-reports";
 import type { TropicalResponse } from "@/lib/feeds/tropical";
 import type { BBox, LatLon } from "@/lib/geo";
-import { useAppStore } from "@/store/app-store";
+import { MAX_GAUGE_RADIUS_KM, useAppStore } from "@/store/app-store";
 import { pollFor, type Feed, type ModeId } from "@/modes/registry";
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
@@ -156,10 +156,11 @@ export function useSpaceWeather() {
 
 export function useRivers() {
   const loc = useAppStore((s) => s.location);
+  const radiusKm = Math.round(Math.min(MAX_GAUGE_RADIUS_KM, useAppStore((s) => s.radiusKm)));
   const { enabled, refetchInterval } = usePoll("rivers");
   return useQuery({
-    queryKey: qk.rivers(loc),
-    queryFn: ({ signal }) => getJson<RiversResponse>(`/api/rivers?lat=${loc.lat}&lon=${loc.lon}`, { signal, timeoutMs: 25_000 }),
+    queryKey: [...qk.rivers(loc), radiusKm],
+    queryFn: ({ signal }) => getJson<RiversResponse>(`/api/rivers?lat=${loc.lat}&lon=${loc.lon}&radiusKm=${radiusKm}`, { signal, timeoutMs: 25_000 }),
     enabled,
     refetchInterval,
     staleTime: 5 * 60_000,
