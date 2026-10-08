@@ -41,6 +41,10 @@ export interface RadarSettings {
   showTropical: boolean;
   showSites: boolean;
   showTracks: boolean;
+  /** HRRR model forecast frames after the live loop (national mosaic). */
+  future: boolean;
+  /** NOAA lightning strike density. */
+  showLightning: boolean;
 }
 
 export type { OutlookKind };
@@ -98,6 +102,8 @@ export const DEFAULT_RADAR: RadarSettings = {
   showTropical: true,
   showSites: true,
   showTracks: true,
+  future: true,
+  showLightning: true,
 };
 
 export const useAppStore = create<AppState>()(

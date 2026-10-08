@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { hrrrFrames } from "@/lib/radar/hrrr";
 import { frameBudget, framesFromScans, iemSiteId, MOSAIC_SITE, mosaicOffsetFrames, type RadarFrame } from "@/lib/radar/frames";
 import type { BufferStatus } from "@/lib/radar/layer-manager";
 import { crossfadeFor, frameDelayMs, nextPlayableIndex, stepIndex, type Speed } from "@/lib/radar/playback";
@@ -14,6 +15,8 @@ export interface RadarLoopOptions {
   speed: Speed;
   crossfade: boolean;
   autoplay?: boolean;
+  /** Append this many hours of HRRR model forecast (national mosaic only). */
+  futureHours?: number;
 }
 
 export interface RadarLoop {
@@ -26,6 +29,8 @@ export interface RadarLoop {
   isLoading: boolean;
   error: unknown;
   usingFallback: boolean;
+  /** Frames before this index are observed scans; the rest are model forecast. */
+  liveCount: number;
   setIndex: (i: number) => void;
   toggle: () => void;
   play: () => void;
@@ -39,7 +44,7 @@ export interface RadarLoop {
  * The clock only advances onto frames whose tiles are buffered, so the
  * viewer never sees a half-loaded frame.
  */
-export function useRadarLoop({ site, product, frameCount, speed, crossfade, autoplay = true }: RadarLoopOptions): RadarLoop {
+export function useRadarLoop({ site, product, frameCount, speed, crossfade, autoplay = true, futureHours = 0 }: RadarLoopOptions): RadarLoop {
   const isMosaic = site === null;
   const iemSite = isMosaic ? MOSAIC_SITE : iemSiteId(site);
   const iemProduct = isMosaic ? "N0Q" : product;
@@ -53,12 +58,20 @@ export function useRadarLoop({ site, product, frameCount, speed, crossfade, auto
 
   const scanList = scans.data?.scans;
   const usingFallback = isMosaic && (scans.isError || (scans.isSuccess && !scanList?.length));
-  const frames = useMemo(() => {
+  const live = useMemo(() => {
     if (scanList?.length) return framesFromScans(scanList, iemSite, iemProduct, count);
     // Rolling-offset mosaic needs no index — always available as a fallback.
     if (usingFallback) return mosaicOffsetFrames(new Date(), Math.min(count, 12));
     return [];
   }, [scanList, iemSite, iemProduct, count, usingFallback]);
+  // Future frames follow the newest scan (which stands in for "now"); each new scan rebuilds them.
+  const lastLive = live.at(-1)?.time ?? 0;
+  const future = useMemo(
+    () => (isMosaic && futureHours > 0 && lastLive ? hrrrFrames(lastLive, lastLive, futureHours) : []),
+    [isMosaic, futureHours, lastLive],
+  );
+  const frames = useMemo(() => (future.length ? [...live, ...future] : live), [live, future]);
+  const liveCount = live.length;
 
   const [index, setIndexState] = useState(0);
   const [playing, setPlaying] = useState(autoplay);
@@ -72,7 +85,9 @@ export function useRadarLoop({ site, product, frameCount, speed, crossfade, auto
     const prevId = framesRef.current[indexRef.current]?.id;
     framesRef.current = frames;
     const keep = prevId ? frames.findIndex((f) => f.id === prevId) : -1;
-    const next = keep >= 0 ? keep : Math.max(0, frames.length - 1);
+    // Otherwise the newest observed scan, not the end of the forecast.
+    const firstForecast = frames.findIndex((f) => f.forecast);
+    const next = keep >= 0 ? keep : Math.max(0, (firstForecast < 0 ? frames.length : firstForecast) - 1);
     indexRef.current = next;
     setIndexState(next);
   }, [frames]);
@@ -119,6 +134,7 @@ export function useRadarLoop({ site, product, frameCount, speed, crossfade, auto
     isLoading: scans.isLoading,
     error: usingFallback ? null : scans.error,
     usingFallback,
+    liveCount,
     setIndex: (i) => {
       setPlaying(false);
       setIndex(i);
