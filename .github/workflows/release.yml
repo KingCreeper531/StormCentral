@@ -39,10 +39,9 @@ concurrency:
 
 env:
   NEXT_TELEMETRY_DISABLED: "1"
-  # Optional repository variable: a hosted StormCentral (https://…) for both
-  # apps to load instead of running standalone, so every user shares one
-  # spotter network. Leave unset for fully self-contained apps.
-  STORMCENTRAL_URL: ${{ vars.STORMCENTRAL_URL }}
+  # The hosted StormCentral (Vercel) both apps load, so every user shares one
+  # spotter network. A repository variable STORMCENTRAL_URL overrides it.
+  STORMCENTRAL_URL: ${{ vars.STORMCENTRAL_URL || 'https://storm-central-pi.vercel.app' }}
 
 jobs:
   check:
