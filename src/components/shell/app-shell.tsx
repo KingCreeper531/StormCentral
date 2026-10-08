@@ -15,6 +15,7 @@ import { Composer } from "../community/composer";
 import { Skeleton } from "../ui/misc";
 import { AlertBanner } from "./alert-banner";
 import { AppUpdateNotice } from "./app-update-notice";
+import { OpenInApp } from "./open-in-app";
 import { GUTTER, PAGE_PAD } from "./chrome";
 import { CommandPalette } from "./command-palette";
 import { TabBar } from "./tab-bar";
@@ -76,6 +77,7 @@ export function AppShell() {
       <CommandPalette />
       {COMMUNITY_ENABLED && <Composer />}
       <AppUpdateNotice />
+      <OpenInApp />
 
       <main
         className={

@@ -6,7 +6,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { searchPlaces } from "@/lib/api/open-meteo";
 import { fromDisplay, METRICS, metricDef, toDisplay, unitLabel, describeRule, type MetricGroup } from "@/lib/alerting/metrics";
 import { requestWebPermission, showWebNotification, webPermission } from "@/lib/alerting/notify-web";
-import { CURRENT_PLACE_ID, type RuleMetric, type RuleOp } from "@/lib/alerting/types";
+import { ALERT_CATEGORIES, CURRENT_PLACE_ID, type RuleMetric, type RuleOp } from "@/lib/alerting/types";
 import { runnerPermission, runnerTestNotification } from "@/lib/native/runner-bridge";
 import { isNativeApp } from "@/lib/platform";
 import { MAX_PLACES, MAX_RULES, useAlertsStore } from "@/store/alerts-store";
@@ -92,6 +92,20 @@ function NotificationsPanel() {
             { value: "all", label: "Also watches and advisories" },
           ]}
         />
+      </div>
+      <div className="mt-4">
+        <p className="label mb-1">Notify me about</p>
+        <div className="divide-y divide-line">
+          {ALERT_CATEGORIES.map((c) => (
+            <Toggle
+              key={c.id}
+              label={c.label}
+              checked={settings.categories?.[c.id] !== false}
+              onChange={(on) => setSettings({ categories: { ...settings.categories, [c.id]: on } })}
+            />
+          ))}
+          <Toggle label="My custom alerts" checked={settings.custom !== false} onChange={(custom) => setSettings({ custom })} />
+        </div>
       </div>
       <p className="mt-3 text-xs text-ink-3">{status}</p>
       <Button size="sm" className="mt-3" onClick={() => void test()} disabled={perm === "unsupported" || perm === "denied"}>

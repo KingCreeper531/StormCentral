@@ -13,7 +13,7 @@ import { describeCode } from "../weather/wmo";
 import { currentHourIndex, todayIndex } from "../weather/view";
 import { clockAt, clockFromIso, dayKeyAt, formatTemp, hashId } from "./format";
 import { describeRule, firstHit, formatMetric, metricDef, metricSeries } from "./metrics";
-import type { AlertRule, AppNotification, SavedPlace, WatchConfig } from "./types";
+import type { AlertCategory, AlertRule, AppNotification, SavedPlace, WatchConfig } from "./types";
 import { CURRENT_PLACE_ID } from "./types";
 
 export interface EngineIO {
@@ -41,6 +41,20 @@ function readJson<T>(io: EngineIO, key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+/** Which muteable group an NWS event belongs to (first match wins). */
+export function alertCategory(event: string): AlertCategory {
+  const e = event.toLowerCase();
+  if (e.includes("tornado")) return "tornado";
+  if (/hurricane|tropical|typhoon|storm surge/.test(e)) return "tropical";
+  if (e.includes("severe thunderstorm")) return "severe";
+  if (e.includes("flood")) return "flood";
+  if (/fire|red flag/.test(e)) return "fire";
+  if (/winter|blizzard|ice storm|snow|sleet|freez|frost|wind chill|cold/.test(e)) return "winter";
+  if (e.includes("heat")) return "heat";
+  if (/wind|gale|dust storm/.test(e)) return "wind";
+  return "other";
 }
 
 /** Warnings and emergencies; with level "all", watches, advisories and statements too. */
@@ -89,7 +103,7 @@ export async function checkWarnings(cfg: WatchConfig, io: EngineIO): Promise<War
     if (!cfg.settings.enabled) continue;
     for (const a of list) {
       const key = `${a.id}@${place.id}`;
-      if (seen[key] || !alertMatchesLevel(a, cfg.settings.level)) continue;
+      if (seen[key] || !alertMatchesLevel(a, cfg.settings.level) || cfg.settings.categories?.[alertCategory(a.event)] === false) continue;
       const ends = Date.parse(a.ends ?? a.expires);
       seen[key] = Number.isFinite(ends) ? ends : now + 6 * 3_600_000;
       if (!Number.isFinite(ends) || ends > now) fresh.push({ a, place });
@@ -138,7 +152,7 @@ export async function checkRules(cfg: WatchConfig, io: EngineIO, cache: Forecast
 
   for (const rule of rules) {
     const place = cfg.places.find((p) => p.id === rule.placeId);
-    if (!place || !cfg.settings.enabled) continue;
+    if (!place || !cfg.settings.enabled || cfg.settings.custom === false) continue;
     try {
       let f = cache.forecasts.get(place.id);
       if (!f) {

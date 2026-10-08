@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "io.github.kingcreeper531.stormcentral",
+      "sha256_cert_fingerprints": ["29:C5:76:3D:D1:20:4F:E2:E2:7A:A1:F6:95:73:97:B5:0B:5E:67:31:C4:A0:D4:2F:E1:02:EF:3E:59:57:03:AF"]
+    }
+  }
+]

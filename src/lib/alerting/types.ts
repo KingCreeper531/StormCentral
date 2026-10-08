@@ -31,12 +31,31 @@ export interface AlertRule {
 /** "warnings": warnings and emergencies only. "all": watches and advisories too. */
 export type WarningLevel = "warnings" | "all";
 
+/** Warning types the user can mute one by one. */
+export type AlertCategory = "tornado" | "severe" | "flood" | "tropical" | "winter" | "heat" | "wind" | "fire" | "other";
+
+export const ALERT_CATEGORIES: readonly { id: AlertCategory; label: string }[] = [
+  { id: "tornado", label: "Tornado" },
+  { id: "severe", label: "Severe thunderstorm" },
+  { id: "flood", label: "Flood and flash flood" },
+  { id: "tropical", label: "Hurricane and tropical storm" },
+  { id: "winter", label: "Winter storm, ice and cold" },
+  { id: "heat", label: "Heat" },
+  { id: "wind", label: "High wind" },
+  { id: "fire", label: "Fire weather" },
+  { id: "other", label: "Everything else (fog, air quality, marine…)" },
+];
+
 export interface AlertSettings {
   /** Master switch for notifications. */
   enabled: boolean;
   level: WarningLevel;
   /** Also watch the app's selected location. */
   watchCurrent: boolean;
+  /** Muted warning types are `false`; missing means on (older saved settings). */
+  categories?: Partial<Record<AlertCategory, boolean>>;
+  /** Custom alerts (forecast thresholds); missing means on. */
+  custom?: boolean;
 }
 
 /**
