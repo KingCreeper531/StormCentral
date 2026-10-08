@@ -207,3 +207,12 @@ describe("SPC", () => {
     expect(parseSpcOutlook("<html>")).toEqual({ features: [], valid: null, expires: null });
   });
 });
+
+describe("alternate radar product codes", async () => {
+  const { alternateProducts } = await import("../radar/products");
+  it("falls back within the same family and tilt", () => {
+    expect(alternateProducts("N0G")).toEqual(["N0U", "N0V"]);
+    expect(alternateProducts("N1B")).toEqual(["N1Q", "N1R"]);
+    expect(alternateProducts("N0C")).toEqual([]);
+  });
+});
