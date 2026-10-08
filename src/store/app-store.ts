@@ -143,7 +143,15 @@ export const useAppStore = create<AppState>()(
       onRehydrateStorage: () => (state) => {
         if (!state) return;
         // First visit: pick units from the browser locale.
-        if (!localStorage.getItem("stormcentral:v1")) state.setUnits(defaultUnitsForLocale(navigator.language));
+        if (!localStorage.getItem("stormcentral:v1")) {
+          let zone: string | undefined;
+          try {
+            zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          } catch {
+            /* no Intl time zone support */
+          }
+          state.setUnits(defaultUnitsForLocale(navigator.languages?.length ? navigator.languages : [navigator.language], zone));
+        }
         useAppStore.setState({ hydrated: true });
       },
     },

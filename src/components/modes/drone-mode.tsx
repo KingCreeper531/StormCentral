@@ -86,13 +86,21 @@ export function DroneMode() {
       });
       // Describe Kp with the same words as the Kp panel (the status already agrees:
       // both use the 5 / 7 thresholds on the rounded value).
-      const result =
-        kpHour == null
-          ? scored
-          : { ...scored, factors: scored.factors.map((fa) => (fa.key === "kp" ? { ...fa, detail: `${kpLevel(kpHour).label} (Kp ${kpHour.toFixed(1)})` } : fa)) };
+      // Cloud clearance in the user's height unit (the scorer works in metres).
+      const clearance = ceiling.baseM != null ? ceiling.baseM - altitudeM : null;
+      const result = {
+        ...scored,
+        factors: scored.factors.map((fa) =>
+          fa.key === "kp" && kpHour != null
+            ? { ...fa, detail: `${kpLevel(kpHour).label} (Kp ${kpHour.toFixed(1)})` }
+            : fa.key === "ceiling" && clearance != null && fa.status !== "no-go"
+              ? { ...fa, detail: `${fmt.height(clearance)} below base` }
+              : fa,
+        ),
+      };
       return { i, t, prof, atAlt, gustAtAlt, ceiling, result };
     });
-  }, [f, now, altitudeM, profile, kpSeries, kpCurrent, skyTimeline, loc.lat, loc.lon]);
+  }, [f, now, altitudeM, profile, kpSeries, kpCurrent, skyTimeline, loc.lat, loc.lon, fmt]);
 
   if (forecast.error && !f) return <ErrorNote error={forecast.error} what="the forecast" />;
   if (!f || !hours.length)
@@ -268,8 +276,12 @@ export function DroneMode() {
         </p>
         {shear && (
           <div className="mt-4 grid grid-cols-3 gap-3 border-t border-line pt-4">
-            <Stat label="Bulk shear" value={fmt.wind(shear.deltaMs)} sub="10–120 m" />
-            <Stat label="Per 100 m" value={fmt.wind(shear.per100m)} sub={sentence(shear.classification)} />
+            <Stat label="Bulk shear" value={fmt.wind(shear.deltaMs)} sub={`${fmt.height(10, false)}–${fmt.height(120)}`} />
+            {fmt.units.height === "ft" ? (
+              <Stat label="Per 100 ft" value={fmt.wind(shear.per100m * 0.3048)} sub={sentence(shear.classification)} />
+            ) : (
+              <Stat label="Per 100 m" value={fmt.wind(shear.per100m)} sub={sentence(shear.classification)} />
+            )}
             <Stat label="Veer" value={`${shear.veerDeg > 0 ? "+" : ""}${Math.round(shear.veerDeg)}°`} sub={shear.veerDeg >= 0 ? "Veering" : "Backing"} />
           </div>
         )}

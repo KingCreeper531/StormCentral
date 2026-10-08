@@ -79,6 +79,13 @@ describe("units", () => {
     expect(defaultUnitsForLocale("en-US").temp).toBe("F");
     expect(defaultUnitsForLocale("de-DE").temp).toBe("C");
     expect(defaultUnitsForLocale(undefined).temp).toBe("C");
+    // No region in the language: the first locale with one wins, else the time zone decides.
+    expect(defaultUnitsForLocale(["en", "en-US"]).height).toBe("ft");
+    expect(defaultUnitsForLocale(["en"], "America/Chicago").distance).toBe("mi");
+    expect(defaultUnitsForLocale(["en"], "America/Indiana/Indianapolis").temp).toBe("F");
+    expect(defaultUnitsForLocale(["en"], "America/Toronto").temp).toBe("C");
+    expect(defaultUnitsForLocale(["en"], "Europe/London").temp).toBe("C");
+    expect(defaultUnitsForLocale(["en-GB"], "America/New_York").temp).toBe("C");
   });
 
   it("formats without negative zero", () => {
