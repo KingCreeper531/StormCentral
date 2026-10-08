@@ -5,7 +5,7 @@ import { createClient } from "@libsql/client";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { afterAll, describe, expect, it } from "vitest";
-import { comments, media, posts, SCHEMA_SQL, schema, sessions, users, verifications } from "./schema";
+import { comments, media, passwordResets, posts, SCHEMA_SQL, schema, sessions, users, verifications } from "./schema";
 
 const dir = mkdtempSync(path.join(tmpdir(), "sc-db-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -24,6 +24,7 @@ describe("schema drift", () => {
     ).rejects.toThrow(); // usernames are case-insensitively unique
 
     await db.insert(sessions).values({ id: "s1", userId: "u1", expiresAt: now + 1000, createdAt: now });
+    await db.insert(passwordResets).values({ id: "r1", userId: "u1", expiresAt: now + 1000, createdAt: now });
     await db.insert(media).values({ id: "m1", userId: "u1", mime: "image/webp", width: 10, height: 10, size: 3, bytes: Buffer.from([1, 2, 3]), createdAt: now });
     await db.insert(posts).values({ id: "p1", userId: "u1", body: "Hail!", category: "hail", severity: 2, lat: 35.2, lon: -97.4, mediaId: "m1", createdAt: now });
     await db.insert(verifications).values({ postId: "p1", userId: "u1", createdAt: now });

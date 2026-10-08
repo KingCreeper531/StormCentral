@@ -118,6 +118,8 @@ The shared spotter network needs one hosted copy of the web app. Vercel's free p
 2. In the project, open **Storage → Create Database → Turso**, create it and connect it to the project. Vercel adds `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` itself (`DATABASE_URL` / `DATABASE_AUTH_TOKEN` also work). Then **Deployments → Redeploy**.
 3. Point the apps at it: put the site's `https://` address in `STORMCENTRAL_URL` in `.github/workflows/release.yml` (or set a repository variable of that name) and publish a release.
 
+**Password reset emails.** Add `SMTP_URL` in the project's environment variables. A Gmail app password works: `smtps://you%40gmail.com:APPPASSWORD@smtp.gmail.com:465` (optionally `MAIL_FROM`, e.g. `StormCentral <you@gmail.com>`). Without it, signed-in users can still change their password in Settings, but "Forgot your password?" says email isn't set up.
+
 The schema is applied automatically on first request. Every proxy route sends `s-maxage` / `stale-while-revalidate`, so a CDN absorbs most traffic. Rate limiting is per instance; swap `src/lib/server/rate-limit.ts` for Redis/Upstash when you scale horizontally.
 
 ## Desktop and Android apps

@@ -14,10 +14,10 @@ function safeNext(next: string | null) {
 }
 
 /** DESIGN.md input recipe; 16 px text on touch devices so iOS doesn't zoom on focus. */
-const INPUT =
+export const INPUT =
   "h-9 w-full rounded-[var(--radius-control)] border border-line bg-surface-2 px-3 text-sm text-ink outline-none placeholder:text-ink-3 focus:border-accent pointer-coarse:h-11 pointer-coarse:text-base";
 
-function Field({ id, label, hint, optional, children }: { id: string; label: string; hint?: string; optional?: boolean; children: React.ReactNode }) {
+export function Field({ id, label, hint, optional, children }: { id: string; label: string; hint?: string; optional?: boolean; children: React.ReactNode }) {
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between gap-3">
@@ -134,6 +134,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             <Field id={id("password")} label="Password">
               <input id={id("password")} name="password" type="password" required autoComplete="current-password" className={INPUT} />
             </Field>
+            <p className="-mt-2 text-right text-[13px]">
+              <Link href="/forgot-password" className="text-ink-2 hover:text-ink hover:underline">
+                Forgot your password?
+              </Link>
+            </p>
           </>
         )}
         {error && (

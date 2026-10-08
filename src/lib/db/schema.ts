@@ -31,6 +31,20 @@ export const sessions = sqliteTable(
   (t) => [index("sessions_user_idx").on(t.userId)],
 );
 
+/** One-time password-reset links. Like sessions, only the token's SHA-256 is stored. */
+export const passwordResets = sqliteTable(
+  "password_resets",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: integer("expires_at").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("password_resets_user_idx").on(t.userId)],
+);
+
 export const media = sqliteTable("media", {
   id: text("id").primaryKey(),
   userId: text("user_id")
@@ -113,6 +127,13 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id);
+CREATE TABLE IF NOT EXISTS password_resets (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS password_resets_user_idx ON password_resets(user_id);
 CREATE TABLE IF NOT EXISTS media (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -154,4 +175,4 @@ CREATE TABLE IF NOT EXISTS comments (
 CREATE INDEX IF NOT EXISTS comments_post_idx ON comments(post_id, created_at);
 `;
 
-export const schema = { users, sessions, media, posts, verifications, comments };
+export const schema = { users, sessions, passwordResets, media, posts, verifications, comments };

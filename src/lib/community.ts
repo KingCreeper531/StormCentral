@@ -47,6 +47,22 @@ export const registerSchema = z.object({
   displayName: z.string().trim().max(40).optional(),
 });
 
+const newPassword = z.string().min(10, "Use at least 10 characters").max(200, "Password is too long");
+
+export const forgotSchema = z.object({
+  email: z.string().trim().toLowerCase().pipe(z.email("Enter a valid email")).pipe(z.string().max(254)),
+});
+
+export const resetSchema = z.object({
+  token: z.string().min(16).max(128),
+  password: newPassword,
+});
+
+export const changePasswordSchema = z.object({
+  current: z.string().min(1, "Enter your current password").max(200),
+  password: newPassword,
+});
+
 export const loginSchema = z.object({
   identifier: z.string().trim().min(1, "Enter your username or email").max(254),
   password: z.string().min(1, "Enter your password").max(200),
