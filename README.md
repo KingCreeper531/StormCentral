@@ -116,7 +116,7 @@ The shared spotter network needs one hosted copy of the web app. Vercel's free p
 
 1. On [vercel.com](https://vercel.com), choose **Continue with GitHub**, then **Add New → Project**, import this repository and click **Deploy**.
 2. In the project, open **Storage → Create Database → Turso**, create it and connect it to the project. Vercel adds `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` itself (`DATABASE_URL` / `DATABASE_AUTH_TOKEN` also work). Then **Deployments → Redeploy**.
-3. Point the apps at it: set the repository variable `STORMCENTRAL_URL` to the site's `https://` address and publish a release.
+3. Point the apps at it: put the site's `https://` address in `STORMCENTRAL_URL` in `.github/workflows/release.yml` (or set a repository variable of that name) and publish a release.
 
 The schema is applied automatically on first request. Every proxy route sends `s-maxage` / `stale-while-revalidate`, so a CDN absorbs most traffic. Rate limiting is per instance; swap `src/lib/server/rate-limit.ts` for Redis/Upstash when you scale horizontally.
 
