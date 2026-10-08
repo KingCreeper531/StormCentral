@@ -9,8 +9,9 @@ import { CATEGORIES, type PostDto } from "@/lib/community";
 import { distanceToGeometryKm, geometryContains, type BBox } from "@/lib/geo";
 import { FAMILIES, resolveTilts } from "@/lib/radar/products";
 import { iemSiteId } from "@/lib/radar/frames";
+import { satelliteLabel } from "@/lib/radar/satellite";
 import { getSite, nearestSites } from "@/lib/radar/site-utils";
-import { useForecast, useLocalAlerts, useNationalAlerts, useOutlook, useRadarProducts, useReportsInView } from "@/hooks/queries";
+import { useForecast, useLocalAlerts, useNationalAlerts, useOutlook, useRadarProducts, useReportsInView, useStormCells, useStormReports, useTropical } from "@/hooks/queries";
 import { useFormat } from "@/hooks/use-format";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import { useIsDesktop, useMediaQuery } from "@/hooks/use-media-query";
@@ -23,6 +24,10 @@ import { PostCard } from "../community/post-card";
 import { MapView } from "../map/map-view";
 import { OutlookLayer } from "../map/layers/outlook-layer";
 import { RadarLayer } from "../map/layers/radar-layer";
+import { SatelliteLayer, type SatelliteImage } from "../map/layers/satellite-layer";
+import { StormCellsLayer } from "../map/layers/storm-cells-layer";
+import { StormReportsLayer } from "../map/layers/storm-reports-layer";
+import { TropicalLayer } from "../map/layers/tropical-layer";
 import { ReportsLayer } from "../map/layers/reports-layer";
 import { SitesLayer } from "../map/layers/sites-layer";
 import { TracksLayer } from "../map/layers/tracks-layer";
@@ -30,15 +35,24 @@ import { UserMarker } from "../map/layers/user-marker";
 import { WarningsLayer } from "../map/layers/warnings-layer";
 import { AlertDetail } from "../radar/alert-detail";
 import { AlertList, alertUntil, HazardSwatch, type RankedAlert } from "../radar/alert-list";
+import { ExportLoopButton } from "../radar/export-loop-dialog";
+import { OutlookLegend } from "../radar/outlook-legend";
 import { RadarControls } from "../radar/radar-controls";
 import { RadarLegend } from "../radar/radar-legend";
 import { frameTimeLabel, RadarTimeline } from "../radar/radar-timeline";
+import { StormCellDetail, StormCellList, StormReportDetail, StormReportsList } from "../radar/storm-detail";
+import { TropicalDetail } from "../radar/tropical-detail";
+import { TropicalList } from "../radar/tropical-list";
 import { Button, IconButton } from "../ui/button";
 import { ErrorNote } from "../ui/misc";
 import { Sheet, type Detent } from "../ui/sheet";
 import { Tabs } from "../ui/tabs";
 
-type PanelTab = "alerts" | "radar";
+type PanelTab = "alerts" | "storms" | "radar";
+/** What's selected on the map: a warning, a spotter post, an NWS storm report, a radar cell or a tropical cyclone. */
+type Selection = { kind: "alert" | "post" | "lsr" | "cell" | "storm"; id: string };
+/** Hours of NWS storm reports on the map. */
+const LSR_HOURS = 6;
 type Padding = { top: number; right: number; bottom: number; left: number };
 type Bounds = [[number, number], [number, number]];
 
@@ -125,8 +139,10 @@ export function SevereMode() {
   const [tab, setTab] = useState<PanelTab>("alerts");
   const [detent, setDetent] = useState<Detent>("peek");
   const [sheetHeights, setSheetHeights] = useState<Record<Detent, number> | null>(null);
-  const [selectedAlert, setSelectedAlert] = useState<string | null>(null);
-  const [selectedReport, setSelectedReport] = useState<string | null>(null);
+  const [sel, setSel] = useState<Selection | null>(null);
+  const selectedId = (kind: Selection["kind"]) => (sel?.kind === kind ? sel.id : null);
+  const selectedAlert = selectedId("alert");
+  const [satImage, setSatImage] = useState<SatelliteImage | null>(null);
   const [bbox, setBbox] = useState<BBox | null>(null);
   /** A request to frame bounds; `n` makes repeat requests for the same bounds distinct. */
   const [fitRequest, setFitRequest] = useState<{ bounds: Bounds; n: number } | null>(null);
@@ -148,8 +164,14 @@ export function SevereMode() {
   // ── Overlays ──────────────────────────────────────────────────────────────
   const national = useNationalAlerts(true);
   const local = useLocalAlerts();
-  const outlook = useOutlook(radar.showOutlook);
+  const outlook = useOutlook(radar.showOutlook, radar.outlookKind);
   const reports = useReportsInView(bbox, radar.showReports);
+  const lsr = useStormReports(radar.showStormReports, LSR_HOURS);
+  const cells = useStormCells(radar.showCells);
+  const tropical = useTropical(radar.showTropical);
+  const lsrList = useMemo(() => lsr.data?.reports ?? [], [lsr.data]);
+  const cellList = useMemo(() => cells.data?.cells ?? [], [cells.data]);
+  const storms = useMemo(() => tropical.data?.storms ?? [], [tropical.data]);
 
   const ranked = useMemo<RankedAlert[]>(() => {
     const out = new Map<string, RankedAlert>();
@@ -166,13 +188,16 @@ export function SevereMode() {
   const allAlerts = useMemo(() => [...(national.data?.alerts ?? []), ...(local.data?.alerts ?? [])], [national.data, local.data]);
   const alertById = (id: string | null) => (id ? allAlerts.find((a) => a.id === id) : undefined);
   const activeAlert = alertById(selectedAlert);
-  const activeReport = (reports.data ?? []).find((p) => p.id === selectedReport);
+  const activeReport = (reports.data ?? []).find((p) => p.id === selectedId("post"));
+  const activeLsr = lsrList.find((r) => r.id === selectedId("lsr"));
+  const activeCell = cellList.find((c) => c.id === selectedId("cell"));
+  const activeStorm = storms.find((t) => t.id === selectedId("storm"));
 
   // ── Selection ─────────────────────────────────────────────────────────────
   /** Without the floating column, details show in the panel/sheet: switch to warnings and reveal it. */
-  const revealSelection = () => {
+  const revealSelection = (t: PanelTab) => {
     if (floatDetail) return;
-    setTab("alerts");
+    setTab(t);
     if (desktop) setPanelOpen(true);
     else setDetent((d) => (d === "full" ? "full" : "half"));
   };
@@ -180,19 +205,17 @@ export function SevereMode() {
     setTab(t);
     setDetent((d) => (d === "peek" ? "half" : d));
   };
-  const selectAlert = (id: string) => {
-    setSelectedAlert(id);
-    setSelectedReport(null);
-    revealSelection();
+  const select = (kind: Selection["kind"], id: string) => {
+    setSel({ kind, id });
+    revealSelection(kind === "alert" || kind === "post" ? "alerts" : "storms");
   };
-  const selectReport = (id: string) => {
-    setSelectedReport(id);
-    setSelectedAlert(null);
-    revealSelection();
-  };
-  const clearSelection = () => {
-    setSelectedAlert(null);
-    setSelectedReport(null);
+  const selectAlert = (id: string) => select("alert", id);
+  const clearSelection = () => setSel(null);
+  /** Select something on the map and centre it. */
+  const focusPoint = (kind: Selection["kind"], id: string, lon: number, lat: number) => {
+    select(kind, id);
+    const d = 0.6;
+    setFitRequest((r) => ({ bounds: [[lon - d, lat - d], [lon + d, lat + d]], n: (r?.n ?? 0) + 1 }));
   };
 
   /** Select a warning and frame its polygon (the camera effect below applies it once the layout settles). */
@@ -239,12 +262,14 @@ export function SevereMode() {
       </>
     );
 
+  const satCaption = radar.satellite !== "off" && satImage ? satelliteLabel(satImage.band, satImage.slotMs, timeZone, satImage.sat) : null;
+
   // ── Sheet header ──────────────────────────────────────────────────────────
   const where = (r: RankedAlert) => `${r.inside ? "Over your location" : `${fmt.distanceKm(r.distanceKm)} away`}, until ${alertUntil(r.alert, timeZone)}`;
   const top = ranked[0];
-  const hasSelection = !!(activeAlert || activeReport);
-  /** The selection replaces the warnings list (and the tabs) in the panel/sheet. */
-  const inlineSelection = !floatDetail && hasSelection && tab === "alerts";
+  const hasSelection = !!(activeAlert || activeReport || activeLsr || activeCell || activeStorm);
+  /** The selection replaces the list (and the tabs) in the panel/sheet. */
+  const inlineSelection = !floatDetail && hasSelection && tab !== "radar";
 
   // ── Camera: keep MapLibre's padding in sync with the overlays ─────────────
   // Centring (initial view, location changes) and framing then use the part
@@ -288,6 +313,16 @@ export function SevereMode() {
     return () => cancelAnimationFrame(id);
   }, [map, padding, fitRequest]);
 
+  const selectionTitle = activeAlert
+    ? activeAlert.event
+    : activeLsr
+      ? "Storm report"
+      : activeCell
+        ? "Radar storm cell"
+        : activeStorm
+          ? activeStorm.title
+          : "Spotter report";
+
   // Phone peek: one useful line — the selection, else the highest-ranked warning nearby.
   let peek: { color: string | null; title: string; sub: string };
   if (activeAlert) {
@@ -296,6 +331,8 @@ export function SevereMode() {
   } else if (activeReport) {
     const cat = CATEGORIES[activeReport.category] ?? CATEGORIES.observation;
     peek = { color: null, title: "Spotter report", sub: activeReport.place ? `${cat.label}, ${activeReport.place}` : cat.label };
+  } else if (activeLsr || activeCell || activeStorm) {
+    peek = { color: null, title: selectionTitle, sub: "Tap for details" };
   } else if (top) {
     peek = { color: top.alert.color, title: top.alert.event, sub: where(top) };
   } else if (national.isLoading) {
@@ -345,6 +382,7 @@ export function SevereMode() {
     </IconButton>
   );
 
+  const stormsTab = radar.showStormReports || radar.showCells || radar.showTropical;
   const tabsHeader = (
     <div className="flex items-center justify-between gap-2 pr-1.5 pl-4">
       <Tabs<PanelTab>
@@ -353,7 +391,8 @@ export function SevereMode() {
         onChange={setTab}
         items={[
           { value: "alerts", label: "Warnings", count: ranked.length },
-          { value: "radar", label: "Radar & layers" },
+          ...(stormsTab ? [{ value: "storms" as const, label: "Storms" }] : []),
+          { value: "radar", label: "Layers" },
         ]}
       />
       {hidePanel || headerTransport}
@@ -363,11 +402,11 @@ export function SevereMode() {
   // A single warning or report: back to the list, swatch and title. Replaces the tabs.
   const selectionHeader = (
     <div className="flex min-h-10 items-center gap-2 py-0.5 pr-1.5 pl-1">
-      <IconButton label="Back to warnings" onClick={clearSelection}>
+      <IconButton label="Back to list" onClick={clearSelection}>
         <ChevronLeft className="size-5" aria-hidden />
       </IconButton>
       {activeAlert && <HazardSwatch color={activeAlert.color} />}
-      <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{activeAlert ? activeAlert.event : "Spotter report"}</h2>
+      <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{selectionTitle}</h2>
       {hidePanel || headerTransport}
     </div>
   );
@@ -394,7 +433,59 @@ export function SevereMode() {
     <div className={EMBED_POST}>
       <PostCard post={activeReport} now={now} />
     </div>
+  ) : activeLsr ? (
+    <StormReportDetail report={activeLsr} now={now} timeZone={timeZone} hideTitle className="p-4" />
+  ) : activeCell ? (
+    <StormCellDetail cell={activeCell} now={now} timeZone={timeZone} location={loc} hideTitle className="p-4" />
+  ) : activeStorm ? (
+    <TropicalDetail storm={activeStorm} timeZone={timeZone} className="p-4" />
   ) : null;
+
+  const section = (title: string, pending: boolean, error: unknown, what: string, children: React.ReactNode) => (
+    <section className="border-b border-line last:border-b-0">
+      <h3 className="label px-4 pt-3 pb-1">{title}</h3>
+      {error ? (
+        <div className="px-4 pb-3">
+          <ErrorNote error={error} what={what} />
+        </div>
+      ) : pending ? (
+        <p className="px-4 pb-3 text-xs text-ink-3">Loading</p>
+      ) : (
+        children
+      )}
+    </section>
+  );
+  const stormsBody = (
+    <>
+      {radar.showTropical &&
+        section(
+          "Tropical cyclones",
+          tropical.isLoading,
+          tropical.error,
+          "NHC storms",
+          <TropicalList storms={storms} timeZone={timeZone} selectedId={selectedId("storm")} onSelect={(id) => {
+            const t = storms.find((x) => x.id === id);
+            if (t) focusPoint("storm", id, t.lon, t.lat);
+          }} />,
+        )}
+      {radar.showCells &&
+        section(
+          "Radar storm cells",
+          cells.isLoading,
+          cells.error,
+          "NEXRAD storm cells",
+          <StormCellList cells={cellList} now={now} location={loc} selectedId={selectedId("cell")} onSelect={(c) => focusPoint("cell", c.id, c.lon, c.lat)} />,
+        )}
+      {radar.showStormReports &&
+        section(
+          `Storm reports, last ${LSR_HOURS} h`,
+          lsr.isLoading,
+          lsr.error,
+          "NWS storm reports",
+          <StormReportsList reports={lsrList} hours={LSR_HOURS} now={now} timeZone={timeZone} selectedId={selectedId("lsr")} onSelect={(r) => focusPoint("lsr", r.id, r.lon, r.lat)} />,
+        )}
+    </>
+  );
 
   const sheetBody =
     tab === "radar" ? (
@@ -403,6 +494,8 @@ export function SevereMode() {
       </div>
     ) : inlineSelection ? (
       selectionBody
+    ) : tab === "storms" && stormsTab ? (
+      stormsBody
     ) : (
       warningsBody
     );
@@ -412,9 +505,14 @@ export function SevereMode() {
   // inline legend. Phones: a legend strip inside the transport box, all of it
   // riding on top of the sheet.
   const legendCode = isSite && site ? `${site.icao} ${productCode}` : "N0Q";
+  const sentenceCaseFamily = FAMILIES[family].label.toLowerCase();
   const dock = (
     <div ref={dockRef} className="pointer-events-none flex flex-col items-start gap-2 [&>*]:pointer-events-auto">
+      {desktop && !short && radar.showOutlook && (outlook.data?.features.length ?? 0) > 0 && (
+        <OutlookLegend kind={radar.outlookKind} features={outlook.data?.features ?? []} />
+      )}
       {desktop && !short && <RadarLegend family={family} caption={caption} />}
+      {satCaption && <p className="overlay px-2.5 py-1 text-[11px] text-ink-3 tabular">{satCaption}</p>}
       {loop.error ? (
         <p role="status" className="overlay flex items-start gap-2 px-3 py-2 text-xs text-ink-2">
           <CircleAlert className="mt-px size-3.5 shrink-0 text-nogo" aria-hidden />
@@ -434,6 +532,17 @@ export function SevereMode() {
           showSpeed
           legend={!desktop ? <RadarLegend variant="strip" family={family} code={legendCode} /> : short ? <RadarLegend variant="inline" family={family} code={legendCode} /> : undefined}
           legendPosition={desktop ? "end" : "top"}
+          actions={
+            <ExportLoopButton
+              size="sm"
+              map={map}
+              loop={loop}
+              speed={radar.speed}
+              title={isSite && site ? `${site.icao} ${sentenceCaseFamily}` : "NEXRAD mosaic, reflectivity"}
+              subtitle={loc.name}
+              timeZone={timeZone}
+            />
+          }
         />
       </div>
     </div>
@@ -453,7 +562,11 @@ export function SevereMode() {
       )}
     >
       <MapView center={loc} zoom={isSite ? 7.5 : 6} onViewChange={(b) => setBbox(b)} onReady={setMap}>
-        {radar.showOutlook && <OutlookLayer features={outlook.data?.features ?? []} />}
+        {radar.satellite !== "off" && (
+          <SatelliteLayer band={radar.satellite} times={loop.frames.map((f) => f.time)} current={loop.frames[loop.index]?.time ?? now} onImage={setSatImage} />
+        )}
+        {radar.showOutlook && <OutlookLayer features={outlook.data?.features ?? []} kind={outlook.data?.kind ?? radar.outlookKind} />}
+        {radar.showTropical && <TropicalLayer storms={storms} selectedId={selectedId("storm")} onSelect={(id) => select("storm", id)} />}
         <RadarLayer frames={loop.frames} index={loop.index} opacity={radar.opacity} crisp={FAMILIES[family].crisp && isSite} crossfadeMs={loop.crossfadeMs} onStatus={loop.onStatus} />
         {radar.showWarnings && (
           <WarningsLayer
@@ -467,7 +580,9 @@ export function SevereMode() {
         )}
         {radar.showWarnings && radar.showTracks && <TracksLayer alerts={national.data?.alerts ?? []} now={now} />}
         {radar.showSites && <SitesLayer selected={site?.icao ?? null} onSelect={(icao) => setRadar({ source: "site", site: icao })} />}
-        {COMMUNITY_ENABLED && radar.showReports && <ReportsLayer posts={(reports.data ?? []) as PostDto[]} now={now} onSelect={selectReport} />}
+        {radar.showCells && <StormCellsLayer cells={cellList} selectedId={selectedId("cell")} onSelect={(id) => select("cell", id)} />}
+        {radar.showStormReports && <StormReportsLayer reports={lsrList} now={now} hours={LSR_HOURS} selectedId={selectedId("lsr")} onSelect={(id) => select("lsr", id)} />}
+        {COMMUNITY_ENABLED && radar.showReports && <ReportsLayer posts={(reports.data ?? []) as PostDto[]} now={now} onSelect={(id) => select("post", id)} />}
         <UserMarker lat={loc.lat} lon={loc.lon} />
       </MapView>
 
@@ -500,20 +615,27 @@ export function SevereMode() {
           <AnimatePresence mode="wait">
             {activeAlert && (
               <motion.div key={activeAlert.id} {...appear} className="overlay pointer-events-auto max-h-full overflow-y-auto overscroll-contain p-4">
-                <AlertDetail alert={activeAlert} now={now} timeZone={timeZone} onClose={() => setSelectedAlert(null)} />
+                <AlertDetail alert={activeAlert} now={now} timeZone={timeZone} onClose={clearSelection} />
               </motion.div>
             )}
             {activeReport && (
               <motion.div key={activeReport.id} {...appear} className="overlay pointer-events-auto flex max-h-full flex-col overflow-hidden">
                 <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line py-1.5 pr-1.5 pl-4">
                   <h3 className="text-sm font-semibold text-ink">Spotter report</h3>
-                  <IconButton label="Close report" size="sm" onClick={() => setSelectedReport(null)}>
+                  <IconButton label="Close report" size="sm" onClick={clearSelection}>
                     <X className="size-4" aria-hidden />
                   </IconButton>
                 </div>
                 <div className={cn("min-h-0 overflow-y-auto overscroll-contain", EMBED_POST)}>
                   <PostCard post={activeReport} now={now} />
                 </div>
+              </motion.div>
+            )}
+            {(activeLsr || activeCell || activeStorm) && (
+              <motion.div key={sel?.id} {...appear} className="overlay pointer-events-auto max-h-full overflow-y-auto overscroll-contain p-4">
+                {activeLsr && <StormReportDetail report={activeLsr} now={now} timeZone={timeZone} onClose={clearSelection} />}
+                {activeCell && <StormCellDetail cell={activeCell} now={now} timeZone={timeZone} location={loc} onClose={clearSelection} />}
+                {activeStorm && <TropicalDetail storm={activeStorm} timeZone={timeZone} onClose={clearSelection} />}
               </motion.div>
             )}
           </AnimatePresence>

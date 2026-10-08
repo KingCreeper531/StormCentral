@@ -56,6 +56,9 @@ if (target === "desktop") {
   if (!existsSync(path.join(out, "server.js"))) throw new Error("standalone build is missing server.js");
   console.log(`✓ desktop server staged in ${path.relative(root, out)}/`);
 } else {
+  // The background runner (alert checks and the widget while the app is closed) is a separate,
+  // self-contained script; Capacitor copies it from out/ into the APK's assets.
+  npx(["esbuild", "src/native/runner/background.ts", "--bundle", "--format=iife", "--target=es2019", "--platform=neutral", "--main-fields=module,main", "--minify", "--outfile=out/runners/background.js"]);
   npx(["cap", "sync", "android"]);
   console.log("✓ static bundle synced to android/ (build it with: cd android && ./gradlew assembleRelease)");
 }

@@ -49,6 +49,7 @@ export function RadarTimeline({
   showSpeed = !compact,
   legend,
   legendPosition = "top",
+  actions,
 }: {
   loop: RadarLoop;
   speed: Speed;
@@ -59,6 +60,8 @@ export function RadarTimeline({
   showSpeed?: boolean;
   legend?: React.ReactNode;
   legendPosition?: "top" | "end";
+  /** Extra buttons at the end of the row (e.g. export). */
+  actions?: React.ReactNode;
 }) {
   const frame = loop.frames[loop.index];
   const fmt = clock(timeZone);
@@ -201,6 +204,7 @@ export function RadarTimeline({
               </button>
             </>
           )}
+          {actions && <div className="flex shrink-0 items-center">{actions}</div>}
         </div>
       </div>
     </div>

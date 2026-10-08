@@ -163,13 +163,48 @@ export function RadarControls({
           </Field>
         </div>
         <Toggle label="Smooth cross-fade" checked={settings.crossfade} onChange={(crossfade) => onChange({ crossfade })} />
+        <Field label="GOES satellite">
+          <Segmented
+            ariaLabel="Satellite imagery"
+            size="sm"
+            stretch
+            value={settings.satellite}
+            onChange={(satellite) => onChange({ satellite })}
+            options={[
+              { value: "off", label: "Off" },
+              { value: "infrared", label: "Infrared" },
+              { value: "visible", label: "Visible" },
+            ]}
+          />
+          {settings.satellite === "visible" && <p className="label mt-1.5">Visible imagery is dark at night; infrared works around the clock.</p>}
+        </Field>
       </Group>
 
       <Group title="Overlays">
         <div className="-mt-1 divide-y divide-line">
           <Toggle label="NWS warnings" checked={settings.showWarnings} onChange={(showWarnings) => onChange({ showWarnings })} />
           <Toggle label="Projected storm tracks" checked={settings.showTracks} onChange={(showTracks) => onChange({ showTracks })} />
+          <Toggle label="Radar storm cells" checked={settings.showCells} onChange={(showCells) => onChange({ showCells })} />
+          <Toggle label="NWS storm reports" checked={settings.showStormReports} onChange={(showStormReports) => onChange({ showStormReports })} />
+          <Toggle label="Hurricanes and tropical storms" checked={settings.showTropical} onChange={(showTropical) => onChange({ showTropical })} />
           <Toggle label="SPC Day 1 outlook" checked={settings.showOutlook} onChange={(showOutlook) => onChange({ showOutlook })} />
+          {settings.showOutlook && (
+            <div className="py-2.5">
+              <Segmented
+                ariaLabel="Outlook hazard"
+                size="sm"
+                stretch
+                value={settings.outlookKind}
+                onChange={(outlookKind) => onChange({ outlookKind })}
+                options={[
+                  { value: "categorical", label: "Risk" },
+                  { value: "tornado", label: "Tornado" },
+                  { value: "hail", label: "Hail" },
+                  { value: "wind", label: "Wind" },
+                ]}
+              />
+            </div>
+          )}
           {COMMUNITY_ENABLED && (
             <Toggle label="Spotter reports (6 h)" checked={settings.showReports} onChange={(showReports) => onChange({ showReports })} />
           )}

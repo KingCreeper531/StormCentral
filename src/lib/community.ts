@@ -58,6 +58,9 @@ export const conditionsSchema = z
     code: z.number().int().min(0).max(99).nullable(),
     windMs: z.number().min(0).max(150).nullable(),
     gustMs: z.number().min(0).max(150).nullable(),
+    /** Model precipitation this hour (mm) and its probability (%); scored by the forecast scorecard. */
+    precipMm: z.number().min(0).max(500).nullable().optional(),
+    precipProb: z.number().min(0).max(100).nullable().optional(),
   })
   .strict();
 

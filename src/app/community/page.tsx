@@ -1,5 +1,6 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { CommunityUnavailable } from "@/components/community/community-unavailable";
 import { Feed } from "@/components/community/feed";
 import { SubpageShell } from "@/components/shell/subpage-shell";
@@ -82,6 +83,13 @@ export default function CommunityPage() {
         <p className="mt-1 max-w-2xl text-sm text-ink-2">
           Reports from people on the ground: hail size, flooding, funnel clouds and sky photos. Reports also appear on the radar map.
         </p>
+        <Link
+          href="/community/scorecard"
+          className="mt-2 inline-flex min-h-8 items-center gap-0.5 text-[13px] font-medium text-accent hover:underline pointer-coarse:min-h-11"
+        >
+          Forecast scorecard
+          <ChevronRight className="size-4" aria-hidden />
+        </Link>
       </header>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-6">

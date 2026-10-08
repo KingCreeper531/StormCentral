@@ -138,7 +138,11 @@ function remap<K extends string>(block: RawBlock | undefined, vars: Record<strin
   return out;
 }
 
-export async function fetchForecast(lat: number, lon: number, signal?: AbortSignal): Promise<Forecast> {
+/**
+ * Forecast request URL. `core` asks only for variables every model has
+ * (the retry after a 400 for an unsupported variable).
+ */
+export function forecastUrl(lat: number, lon: number, variant: "full" | "core" = "full") {
   const base = {
     latitude: lat.toFixed(4),
     longitude: lon.toFixed(4),
@@ -150,25 +154,14 @@ export async function fetchForecast(lat: number, lon: number, signal?: AbortSign
     current: Object.keys(CURRENT_VARS),
     daily: Object.keys(DAILY_VARS),
   };
-  let raw: RawForecast;
-  try {
-    raw = await getJson<RawForecast>(
-      `${FORECAST_URL}?${qs({
-        ...base,
-        hourly: Object.keys(HOURLY_VARS),
-        minutely_15: "precipitation",
-        forecast_minutely_15: 12,
-        past_minutely_15: 0,
-      })}`,
-      { signal },
-    );
-  } catch (err) {
-    // A 400 means a variable/parameter isn't supported for this point —
-    // degrade to the universally available core set instead of failing.
-    if (!(err instanceof HttpError) || err.status !== 400) throw err;
-    raw = await getJson<RawForecast>(`${FORECAST_URL}?${qs({ ...base, hourly: CORE_HOURLY })}`, { signal });
-  }
+  return variant === "core"
+    ? `${FORECAST_URL}?${qs({ ...base, hourly: CORE_HOURLY })}`
+    : `${FORECAST_URL}?${qs({ ...base, hourly: Object.keys(HOURLY_VARS), minutely_15: "precipitation", forecast_minutely_15: 12, past_minutely_15: 0 })}`;
+}
 
+/** Normalise a raw Open-Meteo forecast response (pure; also used by the Android background runner). */
+export function parseForecast(input: unknown, fetchedAt = Date.now()): Forecast {
+  const raw = input as RawForecast;
   const hTime = (raw.hourly?.time as number[]) ?? [];
   const dTime = (raw.daily?.time as number[]) ?? [];
   const current = {} as Forecast["current"];
@@ -176,7 +169,7 @@ export async function fetchForecast(lat: number, lon: number, signal?: AbortSign
     const v = raw.current?.[api];
     current[key] = typeof v === "number" ? v : null;
   }
-  current.time = (raw.current?.time as number) ?? Math.floor(Date.now() / 1000);
+  current.time = (raw.current?.time as number) ?? Math.floor(fetchedAt / 1000);
 
   const m = raw.minutely_15;
   return {
@@ -185,7 +178,7 @@ export async function fetchForecast(lat: number, lon: number, signal?: AbortSign
     elevation: raw.elevation,
     timezone: raw.timezone,
     utcOffsetSeconds: raw.utc_offset_seconds,
-    fetchedAt: Date.now(),
+    fetchedAt,
     current,
     hourly: { time: hTime, ...remap(raw.hourly, HOURLY_VARS, hTime.length) },
     daily: { time: dTime, ...remap(raw.daily, DAILY_VARS, dTime.length) },
@@ -194,6 +187,19 @@ export async function fetchForecast(lat: number, lon: number, signal?: AbortSign
         ? { time: m.time as number[], precip: m.precipitation as Series }
         : null,
   };
+}
+
+export async function fetchForecast(lat: number, lon: number, signal?: AbortSignal): Promise<Forecast> {
+  let raw: RawForecast;
+  try {
+    raw = await getJson<RawForecast>(forecastUrl(lat, lon), { signal });
+  } catch (err) {
+    // A 400 means a variable/parameter isn't supported for this point —
+    // degrade to the universally available core set instead of failing.
+    if (!(err instanceof HttpError) || err.status !== 400) throw err;
+    raw = await getJson<RawForecast>(forecastUrl(lat, lon, "core"), { signal });
+  }
+  return parseForecast(raw);
 }
 
 // ─── Air quality ────────────────────────────────────────────────────────────
@@ -225,21 +231,27 @@ export interface AirQuality {
   hourly: Record<AirKey, Series> & { time: number[] };
 }
 
-export async function fetchAirQuality(lat: number, lon: number, signal?: AbortSignal): Promise<AirQuality> {
-  const raw = await getJson<{ timezone: string; hourly?: RawBlock }>(
-    `${AIR_URL}?${qs({
-      latitude: lat.toFixed(4),
-      longitude: lon.toFixed(4),
-      timezone: "auto",
-      timeformat: "unixtime",
-      past_days: 1,
-      forecast_days: 5,
-      hourly: Object.keys(AIR_HOURLY),
-    })}`,
-    { signal },
-  );
+export function airQualityUrl(lat: number, lon: number) {
+  return `${AIR_URL}?${qs({
+    latitude: lat.toFixed(4),
+    longitude: lon.toFixed(4),
+    timezone: "auto",
+    timeformat: "unixtime",
+    past_days: 1,
+    forecast_days: 5,
+    hourly: Object.keys(AIR_HOURLY),
+  })}`;
+}
+
+/** Normalise a raw air-quality response (pure; also used by the Android background runner). */
+export function parseAirQuality(input: unknown, fetchedAt = Date.now()): AirQuality {
+  const raw = input as { timezone: string; hourly?: RawBlock };
   const time = (raw.hourly?.time as number[]) ?? [];
-  return { timezone: raw.timezone, fetchedAt: Date.now(), hourly: { time, ...remap(raw.hourly, AIR_HOURLY, time.length) } };
+  return { timezone: raw.timezone, fetchedAt, hourly: { time, ...remap(raw.hourly, AIR_HOURLY, time.length) } };
+}
+
+export async function fetchAirQuality(lat: number, lon: number, signal?: AbortSignal): Promise<AirQuality> {
+  return parseAirQuality(await getJson(airQualityUrl(lat, lon), { signal }));
 }
 
 export type GridVariable = "us_aqi" | "pm2_5";

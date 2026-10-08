@@ -43,11 +43,16 @@ export async function getJson<T>(url: string, { timeoutMs = 15_000, signal, ...i
   return (await res.json()) as T;
 }
 
+/**
+ * Query string from a flat record (arrays become comma lists). Built by hand
+ * rather than with URLSearchParams, which the Android background runner's
+ * JavaScript engine doesn't provide.
+ */
 export function qs(params: Record<string, string | number | boolean | undefined | null | readonly (string | number)[]>) {
-  const sp = new URLSearchParams();
+  const parts: string[] = [];
   for (const [k, v] of Object.entries(params)) {
     if (v == null) continue;
-    sp.set(k, Array.isArray(v) ? v.join(",") : String(v));
+    parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(Array.isArray(v) ? v.join(",") : String(v))}`);
   }
-  return sp.toString();
+  return parts.join("&");
 }

@@ -10,6 +10,7 @@ import { ConditionsPanel, SunMoonPanel } from "../daily/details-grid";
 import { HourlyPanel } from "../daily/hourly-panel";
 import { NowcastCard } from "../daily/nowcast-card";
 import { RadarPreview } from "../daily/radar-preview";
+import { SevereRiskPanel } from "../daily/severe-risk-panel";
 import { ErrorNote, Skeleton } from "../ui/misc";
 
 /** Conditions + 10-day + sun and moon (see below). */
@@ -53,6 +54,8 @@ export function DailyMode() {
       <NowcastCard f={f} now={now} className="lg:col-span-5 lg:self-end" />
       <HourlyPanel f={f} now={now} className="lg:col-span-7" />
       <RadarPreview now={now} timeZone={f.timezone} className="lg:col-span-5" />
+      {/* Only renders inside an SPC thunderstorm area. */}
+      <SevereRiskPanel timeZone={f.timezone} className="lg:col-span-12" />
       <div className={DETAILS_GRID}>
         <ConditionsPanel f={f} air={air.data} now={now} className="lg:col-span-7" />
         <DailyOutlook f={f} now={now} className="lg:col-span-5 lg:col-start-8 lg:row-span-2 lg:row-start-1" />

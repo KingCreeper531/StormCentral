@@ -85,7 +85,14 @@ export function Composer() {
         const i = currentHourIndex(f, Date.now());
         fd.set(
           "conditions",
-          JSON.stringify({ tempC: f.current.temp, code: f.current.code, windMs: f.current.windSpeed, gustMs: f.hourly.gust10[i] ?? f.current.windGust }),
+          JSON.stringify({
+            tempC: f.current.temp,
+            code: f.current.code,
+            windMs: f.current.windSpeed,
+            gustMs: f.hourly.gust10[i] ?? f.current.windGust,
+            precipMm: f.hourly.precip[i] ?? null,
+            precipProb: f.hourly.precipProb[i] ?? null,
+          }),
         );
       }
       if (photo) fd.set("image", new File([photo.blob], photo.blob.type === "image/webp" ? "photo.webp" : "photo.jpg", { type: photo.blob.type }));

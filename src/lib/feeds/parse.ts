@@ -204,30 +204,188 @@ export function trimOmm(raw: unknown, constellation: GnssElements["sets"][number
 
 // ─── SPC convective outlook ─────────────────────────────────────────────────
 
-const SPC_ORDER: Record<string, number> = { TSTM: 1, MRGL: 2, SLGT: 3, ENH: 4, MDT: 5, HIGH: 6 };
+type SpcProps = Record<string, unknown>;
 
-export function parseSpcOutlook(raw: unknown): { features: OutlookFeature[]; valid: string | null } {
-  const features = (raw as { features?: unknown[] })?.features;
-  if (!Array.isArray(features)) return { features: [], valid: null };
-  let valid: string | null = null;
-  const out: OutlookFeature[] = [];
-  for (const f of features as { geometry?: PolygonalGeometry | null; properties?: Record<string, unknown> }[]) {
-    const g = f.geometry;
-    const p = f.properties ?? {};
-    const label = String(p.LABEL ?? "");
-    if (!g || (g.type !== "Polygon" && g.type !== "MultiPolygon") || !(label in SPC_ORDER)) continue;
-    valid ??= typeof p.VALID === "string" ? p.VALID : null;
-    out.push({
-      type: "Feature",
-      geometry: g,
-      properties: {
-        label,
-        name: String(p.LABEL2 ?? label),
-        fill: String(p.fill ?? "#888888"),
-        stroke: String(p.stroke ?? "#888888"),
-        rank: SPC_ORDER[label]!,
-      },
-    });
+export interface SpcParsed {
+  features: OutlookFeature[];
+  /** Start of the outlook period (ISO), from `VALID_ISO` or `VALID` ("202610071300"). */
+  valid: string | null;
+  /** End of the outlook period (ISO), from `EXPIRE_ISO` or `EXPIRE`. */
+  expires: string | null;
+}
+
+/** Categorical levels, lowest first. Fills and strokes are SPC's own, used when a file omits them. */
+export const SPC_CATEGORICAL = {
+  TSTM: { rank: 1, name: "General thunderstorms", fill: "#c1e9c1", stroke: "#55bb55" },
+  MRGL: { rank: 2, name: "Marginal risk", fill: "#66a366", stroke: "#005500" },
+  SLGT: { rank: 3, name: "Slight risk", fill: "#ffe066", stroke: "#ddaa00" },
+  ENH: { rank: 4, name: "Enhanced risk", fill: "#ffa366", stroke: "#ff6600" },
+  MDT: { rank: 5, name: "Moderate risk", fill: "#e06666", stroke: "#cc0000" },
+  HIGH: { rank: 6, name: "High risk", fill: "#ee99ee", stroke: "#cc00cc" },
+} as const;
+export type SpcCategory = keyof typeof SPC_CATEGORICAL;
+
+export type SpcHazard = "tornado" | "hail" | "wind";
+
+/** SPC probability colours ([fill, stroke]) by hazard. The scales differ: 15% is red for tornadoes, yellow for hail and wind. */
+const SPC_PROB_COLORS: Record<SpcHazard, Record<number, readonly [string, string]>> = {
+  tornado: {
+    2: ["#008b00", "#005900"],
+    5: ["#8b4726", "#5c2f19"],
+    10: ["#ffc800", "#c89600"],
+    15: ["#ff0000", "#b40000"],
+    30: ["#ff00ff", "#b400b4"],
+    45: ["#912cee", "#5f1d9c"],
+    60: ["#104e8b", "#0a3159"],
+  },
+  hail: {
+    5: ["#8b4726", "#5c2f19"],
+    15: ["#ffc800", "#c89600"],
+    30: ["#ff0000", "#b40000"],
+    45: ["#ff00ff", "#b400b4"],
+    60: ["#912cee", "#5f1d9c"],
+  },
+  wind: {
+    5: ["#8b4726", "#5c2f19"],
+    15: ["#ffc800", "#c89600"],
+    30: ["#ff0000", "#b40000"],
+    45: ["#ff00ff", "#b400b4"],
+    60: ["#912cee", "#5f1d9c"],
+  },
+};
+
+/** The probability contours SPC draws for each hazard, lowest first. */
+export const SPC_PROB_STEPS: Record<SpcHazard, readonly number[]> = {
+  tornado: [2, 5, 10, 15, 30, 45, 60],
+  hail: [5, 15, 30, 45, 60],
+  wind: [5, 15, 30, 45, 60],
+};
+
+/** SPC's colours for a probability; an unknown step takes the colour of the step below it. */
+export function spcProbColors(hazard: SpcHazard, pct: number): { fill: string; stroke: string } {
+  const steps = SPC_PROB_STEPS[hazard];
+  const step = [...steps].reverse().find((s) => s <= pct) ?? steps[0]!;
+  const [fill, stroke] = SPC_PROB_COLORS[hazard][step]!;
+  return { fill, stroke };
+}
+
+const SPC_SIG_NAME: Record<SpcHazard, string> = {
+  tornado: "Significant tornado (EF2 or stronger)",
+  hail: "Significant hail (2 in. or larger)",
+  wind: "Significant wind (75 mph or stronger)",
+};
+
+/** Rank offset that keeps hatched significant areas above every probability. */
+export const SPC_SIG_RANK = 100;
+
+const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+const color = (v: unknown, fallback: string) => (typeof v === "string" && HEX.test(v.trim()) ? v.trim() : fallback);
+
+/** "202610071300" (SPC's UTC stamp), or the newer `*_ISO` fields. */
+function spcTime(p: SpcProps, key: "VALID" | "EXPIRE"): string | null {
+  const iso = p[`${key}_ISO`];
+  if (typeof iso === "string" && Number.isFinite(Date.parse(iso))) return new Date(iso).toISOString();
+  const raw = typeof p[key] === "number" ? String(p[key]) : p[key];
+  if (typeof raw !== "string") return null;
+  const m = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(raw.trim());
+  if (m) return new Date(Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!, +m[4]!, +m[5]!)).toISOString();
+  const t = Date.parse(raw);
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+}
+
+/**
+ * Walks an SPC .lyr GeoJSON file. Times are read from every feature, including
+ * the geometry-less placeholder SPC publishes when there is no risk; only
+ * non-empty Polygon/MultiPolygon features are handed to `each`.
+ */
+function walkSpc(raw: unknown, each: (geometry: PolygonalGeometry, p: SpcProps) => OutlookFeature | null): SpcParsed {
+  const features = (raw as { features?: unknown } | null)?.features;
+  const result: SpcParsed = { features: [], valid: null, expires: null };
+  if (!Array.isArray(features)) return result;
+  for (const f of features as ({ geometry?: PolygonalGeometry | null; properties?: SpcProps | null } | null)[]) {
+    const p = f?.properties ?? {};
+    result.valid ??= spcTime(p, "VALID");
+    result.expires ??= spcTime(p, "EXPIRE");
+    const g = f?.geometry;
+    if (!g || (g.type !== "Polygon" && g.type !== "MultiPolygon") || !Array.isArray(g.coordinates) || g.coordinates.length === 0) continue;
+    const out = each(g, p);
+    if (out) result.features.push(out);
   }
-  return { features: out.sort((a, b) => a.properties.rank - b.properties.rank), valid };
+  // Stable sort, lowest first, so higher risk paints on top.
+  result.features.sort((a, b) => a.properties.rank - b.properties.rank);
+  return result;
+}
+
+/** Categorical outlook (`day{1,2,3}otlk_cat.lyr.geojson`): TSTM through HIGH. */
+export function parseSpcOutlook(raw: unknown): SpcParsed {
+  return walkSpc(raw, (geometry, p) => {
+    const label = String(p.LABEL ?? "").trim().toUpperCase();
+    if (!(label in SPC_CATEGORICAL)) return null;
+    const def = SPC_CATEGORICAL[label as SpcCategory];
+    return {
+      type: "Feature",
+      geometry,
+      properties: { label, name: def.name, fill: color(p.fill, def.fill), stroke: color(p.stroke, def.stroke), rank: def.rank },
+    };
+  });
+}
+
+/** "0.10", "10%", "10", 0.1 → 10. Null when it isn't a probability. */
+function percentOf(v: unknown): number | null {
+  let pct: number | null = null;
+  if (typeof v === "number") pct = v > 0 && v < 1 ? v * 100 : v;
+  else if (typeof v === "string") {
+    const m = /(\d+(?:\.\d+)?)\s*(%)?/.exec(v);
+    if (m) {
+      const n = Number(m[1]);
+      pct = m[2] || !m[1]!.includes(".") || n > 1 ? n : n * 100;
+    }
+  }
+  return pct != null && Number.isFinite(pct) && pct > 0 && pct <= 100 ? Math.round(pct) : null;
+}
+
+/**
+ * Day 1 probabilistic outlook for one hazard (`day1otlk_{torn,hail,wind}.lyr.geojson`),
+ * or, with `significant`, its hatched significant-severe file
+ * (`day1otlk_sig{torn,hail,wind}.lyr.geojson`).
+ *
+ * Probability features get `label` "0.02"…"0.60", `rank` = the percentage and
+ * a name like "10% tornado". Significant features get `label` "SIGN" (or SPC's
+ * "CIG1"…"CIG3" intensity codes), `significant: true` and a rank above every
+ * probability, so they draw last.
+ */
+export function parseSpcProbOutlook(raw: unknown, hazard: SpcHazard, { significant = false }: { significant?: boolean } = {}): SpcParsed {
+  return walkSpc(raw, (geometry, p) => {
+    const rawLabel = String(p.LABEL ?? "").trim().toUpperCase();
+    const sig = significant || rawLabel === "SIGN" || /^CIG\d$/.test(rawLabel) || /signific/i.test(String(p.LABEL2 ?? ""));
+    if (sig) {
+      const level = /^CIG(\d)$/.exec(rawLabel)?.[1];
+      return {
+        type: "Feature",
+        geometry,
+        properties: {
+          label: level ? rawLabel : "SIGN",
+          name: SPC_SIG_NAME[hazard],
+          fill: color(p.fill, "#000000"),
+          stroke: color(p.stroke, "#000000"),
+          rank: SPC_SIG_RANK + (level ? Number(level) : (percentOf(rawLabel) ?? 0)),
+          significant: true,
+        },
+      };
+    }
+    const pct = percentOf(p.LABEL) ?? percentOf(p.LABEL2) ?? percentOf(p.DN);
+    if (pct == null) return null;
+    const fallback = spcProbColors(hazard, pct);
+    return {
+      type: "Feature",
+      geometry,
+      properties: {
+        label: (pct / 100).toFixed(2),
+        name: `${pct}% ${hazard}`,
+        fill: color(p.fill, fallback.fill),
+        stroke: color(p.stroke, fallback.stroke),
+        rank: pct,
+      },
+    };
+  });
 }

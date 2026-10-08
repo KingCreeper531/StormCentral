@@ -27,8 +27,8 @@ Press **1–5** to switch modes and **⌘K / Ctrl-K** to search any place. Hover
 
 | Mode | What you get |
 |---|---|
-| **Daily** | Conditions hero with an animated sky that tracks the real sun position; 15-minute nowcast; 24 h temperature and precipitation charts; 10-day range bars; wind compass, pressure tendency, UV, visibility, AQI, sun arc and moon phase; live radar preview; spotter reports near you. |
-| **Severe** (fullscreen) | NEXRAD national mosaic or any single WSR-88D site. Products: reflectivity, velocity, storm-relative velocity, CC, ZDR and hydrometeor classification. Tilt selection is driven by what the radar is actually producing. Buffer-aware loop playback (play/pause/step, 0.5–4×, cross-fade). NWS warning polygons in official hazard colors with PDS/emergency tags, **projected storm tracks with ETA to your location**, SPC Day 1 outlook, radar-site picker and spotter reports on the map. |
+| **Daily** | Conditions hero with an animated sky that tracks the real sun position; 15-minute nowcast; 24 h temperature and precipitation charts; 10-day range bars; wind compass, pressure tendency, UV, visibility, AQI, sun arc and moon phase; live radar preview; **SPC tornado / hail / wind probabilities** when you're in a risk area; spotter reports near you. |
+| **Severe** (fullscreen) | NEXRAD national mosaic or any single WSR-88D site. Products: reflectivity, velocity, storm-relative velocity, CC, ZDR and hydrometeor classification. Tilt selection is driven by what the radar is actually producing. Buffer-aware loop playback (play/pause/step, 0.5–4×, cross-fade). NWS warning polygons in official hazard colors with PDS/emergency tags, **projected storm tracks with ETA to your location**, SPC Day 1 outlook (categorical or **tornado / hail / wind probabilities**, hatched where significant), **official NWS storm reports** (hail size, wind speed, tornadoes, fading with age), **NEXRAD storm cells** (TVS, mesocyclone, max hail size, 15–60 min forecast track and arrival time at your location), the **NHC hurricane tracker** (cone, track, intensity forecast), **GOES infrared / visible satellite** looping with the radar, and **export the loop as a GIF or video**. |
 | **UAV Pilot** | Flyability score with a factor breakdown per airframe class, an hourly go/no-go strip, wind at flight altitude vs. the airframe limit, a 10/80/120/180 m wind profile with **bulk shear and veer**, NOAA Kp index, **GNSS sky plot with satellite count and PDOP/HDOP** (SGP4 from CelesTrak), an estimated cloud ceiling against the Part 107 500-ft clearance, visibility and density altitude. |
 | **Angler** | Bite Index with explained reasons, an hourly bite timeline with solunar bands, moon phase and solunar major/minor periods, a 48 h barometer with Met Office tendency terms, **USGS real-time river gauges** (discharge, stage, 24 h change, water temperature), and an estimated water temperature where no gauge reports one. |
 | **Air & Allergy** | A **model-derived AQI / PM2.5 heatmap** sampled across the visible map, current US AQI with health guidance, pollutant breakdown, 48 h AQI and UV forecast, the cleanest 2-hour outdoor window, and NAB-scaled pollen (CAMS covers Europe). |
@@ -40,6 +40,10 @@ Press **1–5** to switch modes and **⌘K / Ctrl-K** to search any place. Hover
 - **Privacy by default**: report locations are rounded to about 1 km unless you opt in to precise GPS. Photo EXIF/GPS is stripped on your device *and* again on the server.
 - **Storm ETA**: the machine-readable storm-motion line in each NWS warning is parsed into a projected track and a live arrival estimate for your location.
 - **Warning polygon test**: the alert banner tells you when you're *inside* a storm-based warning, not just inside the county.
+- **Saved places and notifications**: save up to 10 places and get a notification when a warning is issued for any of them. Windows keeps checking from the tray; Android checks about every 15 minutes in the background, even with the app closed.
+- **Custom alerts**: "wind at 120 m below 15 mph", "bite index above 70", "US AQI above 100", "temperature below freezing": any mode's numbers, for any saved place, notified once a day when the forecast crosses your line.
+- **Forecast vs. reality scorecard**: how often the model matched what spotters reported (temperature, wind, rain), by category ([/community/scorecard](src/app/community/scorecard/page.tsx)).
+- **Home-screen widget and tray**: an Android widget with the temperature, conditions and the top active warning; the Windows tray icon shows the current temperature.
 - **Shareable views**: mode and location live in the URL.
 - **Offline-first cold start**: the last forecast renders instantly from the persisted query cache, and radar tiles come from a bounded service-worker cache.
 
@@ -55,7 +59,7 @@ Press **1–5** to switch modes and **⌘K / Ctrl-K** to search any place. Hover
 | Science | Custom ephemerides, wind and thermodynamics, DOP; **satellite.js** (SGP4) on the server |
 | Icons | [Makin-Things/weather-icons](https://github.com/Makin-Things/weather-icons) (animated SVG, MIT) + Lucide for UI chrome |
 | Apps | **Electron 44** + **electron-updater** (Windows), **Capacitor 8** (Android), released by GitHub Actions |
-| Tests | **Vitest**: 74 unit tests across science, radar, parsers, feeds, security and the DB schema |
+| Tests | **Vitest**: 189 unit tests across science, radar, parsers, feeds, alerting, security and the DB schema |
 
 ## Data sources
 
@@ -64,7 +68,10 @@ Press **1–5** to switch modes and **⌘K / Ctrl-K** to search any place. Hover
 | Forecast, nowcast, air quality, pollen, geocoding | [Open-Meteo](https://open-meteo.com) (CC BY 4.0) | Browser (CORS) |
 | NEXRAD radar tiles and scan index | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) | Browser (tiles) + `/api/radar/*` |
 | Watches, warnings, storm motion | [api.weather.gov](https://www.weather.gov/documentation/services-web-api) | `/api/alerts` |
-| Convective outlook | [Storm Prediction Center](https://www.spc.noaa.gov) | `/api/outlook` |
+| Convective outlook and hazard probabilities | [Storm Prediction Center](https://www.spc.noaa.gov) | `/api/outlook` |
+| Local storm reports, NEXRAD storm-cell attributes | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) | `/api/storm-reports`, `/api/storm-cells` |
+| Tropical cyclones (positions, cone, track) | [National Hurricane Center](https://www.nhc.noaa.gov) + NOAA map services | `/api/tropical` |
+| GOES-East/West satellite imagery | [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api) | Browser (WMS tiles) |
 | Planetary Kp | [NOAA SWPC](https://www.swpc.noaa.gov) | `/api/space-weather` |
 | River discharge, stage, water temperature | [USGS Water Services](https://waterservices.usgs.gov) (OGC API fallback) | `/api/rivers` |
 | GNSS orbital elements | [CelesTrak](https://celestrak.org) | `/api/gnss` |
@@ -113,6 +120,8 @@ One codebase, three packages. `BUILD_TARGET` in `next.config.ts` picks the outpu
 | **Web** | `next build` | Any Node host or Vercel. |
 | **Windows** | `standalone` server + Electron (`desktop/`) | The app starts StormCentral's own Next.js server on `127.0.0.1` in a background process and shows it in a window. The database lives in `%APPDATA%\StormCentral`, so updates never touch accounts or reports. |
 | **Android** | static export + Capacitor (`android/`) | No server. The weather routes (`/api/alerts`, `/api/gnss`, …) run on the phone: the same feed code as the server (`src/lib/feeds/`), with native HTTP so government APIs that don't send CORS headers still work. |
+
+**Notifications.** One alert engine (`src/lib/alerting/`) runs in two places. On the web and in the Windows app it runs in the page (one tab at a time); the Windows window hides to the tray on close so checks continue (switchable in Alerts and places). On Android it also runs in a Capacitor background runner (`src/native/runner/background.ts`, bundled to `out/runners/background.js` by `npm run android:build`), which checks warnings and custom alerts about every 15 minutes and refreshes the home-screen widget.
 
 **Sharing one spotter network.** Accounts and reports need one shared server. Deploy the web app (Vercel plus a free [Turso](https://turso.tech) database works), then add a repository variable **`STORMCENTRAL_URL`** (Settings → Secrets and variables → Actions → Variables) set to its `https://` address. The next release builds both apps to load that server, with everything enabled for every user.
 

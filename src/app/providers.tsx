@@ -5,8 +5,11 @@ import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persist
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { MotionConfig } from "motion/react";
 import { useEffect, useState } from "react";
+import { AlertWatcher } from "@/components/alerts/alert-watcher";
+import { DesktopTraySync } from "@/components/shell/desktop-tray-sync";
 import { HttpError } from "@/lib/api/http";
 import { IS_STATIC_BUNDLE } from "@/lib/platform";
+import { useAlertsStore } from "@/store/alerts-store";
 import { useAppStore } from "@/store/app-store";
 
 /** Only small, location-scoped feeds are persisted for instant cold starts. */
@@ -38,6 +41,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     void useAppStore.persist.rehydrate();
+    void useAlertsStore.persist.rehydrate();
     // Not in the Android bundle: its assets come from the app's local file server.
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production" && !IS_STATIC_BUNDLE) {
       navigator.serviceWorker.register("/sw.js").catch(() => {
@@ -58,7 +62,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       }}
     >
-      <MotionConfig reducedMotion="user">{children}</MotionConfig>
+      <MotionConfig reducedMotion="user">
+        {children}
+        {/* Headless: warning/custom-alert checks and the Windows tray temperature. */}
+        <AlertWatcher />
+        <DesktopTraySync />
+      </MotionConfig>
     </PersistQueryClientProvider>
   );
 }

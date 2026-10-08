@@ -2,14 +2,13 @@
 
 import { ArrowUp, ChevronDown } from "lucide-react";
 import { useId, useMemo } from "react";
-import { skyPhase, sunPosition } from "@/lib/astro/sun";
-import { densityAltitudeM, estimateCeiling } from "@/lib/science/atmosphere";
-import { DRONE_PROFILES, droneFlyability } from "@/lib/science/scores";
-import { bulkShear, windAtHeight, type WindSample } from "@/lib/science/wind";
+import { densityAltitudeM } from "@/lib/science/atmosphere";
+import { DRONE_PROFILES } from "@/lib/science/scores";
+import { bulkShear } from "@/lib/science/wind";
 import { convertWind } from "@/lib/weather/units";
+import { flyabilityAt, WIND_LEVELS } from "@/lib/weather/hourly-scores";
 import { fmtIn, hourRange } from "@/lib/weather/view";
 import { compassPoint } from "@/lib/geo";
-import type { Forecast } from "@/lib/api/open-meteo";
 import { useForecast, useGnss, useSpaceWeather } from "@/hooks/queries";
 import { useFormat } from "@/hooks/use-format";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -25,7 +24,7 @@ import { Panel } from "../ui/panel";
 import { Segmented } from "../ui/segmented";
 import { StatusText, statusColor } from "../ui/status";
 
-const LEVELS = [10, 80, 120, 180] as const;
+const LEVELS = WIND_LEVELS;
 const LEVEL_COLORS = ["#9ec5f4", "#6da7ec", "#3987e5", "#256abf"]; // validated ordinal ramp
 
 // 100–400 ft (Part 107 ceiling) or 30–120 m (EU Open category); stored in metres
@@ -36,15 +35,6 @@ const snap = (options: readonly number[], v: number) => options.reduce((a, b) =>
 
 const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-function profileAt(f: Forecast, i: number): WindSample[] {
-  const speeds = [f.hourly.wind10, f.hourly.wind80, f.hourly.wind120, f.hourly.wind180];
-  const dirs = [f.hourly.dir10, f.hourly.dir80, f.hourly.dir120, f.hourly.dir180];
-  return LEVELS.flatMap((h, k) => {
-    const s = speeds[k]![i];
-    const d = dirs[k]![i];
-    return s != null && d != null ? [{ heightM: h, speedMs: s, dirDeg: d }] : [];
-  });
-}
 
 /**
  * Phones: one column in reading order (verdict, factors, hourly windows,
@@ -85,35 +75,15 @@ export function DroneMode() {
       // Hour 0 uses the same current reading the Kp panel shows, rounded like the display.
       const kpRaw = k === 0 && kpCurrent != null ? kpCurrent : kpAt(t);
       const kpHour = kpRaw != null ? roundKp(kpRaw) : null;
-      const prof = profileAt(f, i);
-      const atAlt = windAtHeight(prof, altitudeM);
-      const gust = f.hourly.gust10[i] ?? 0;
-      // Gusts scale up with height roughly like the mean wind does.
-      const gustAtAlt = atAlt && prof[0] ? gust * Math.max(1, atAlt.speedMs / Math.max(0.5, prof[0].speedMs)) : gust;
-      const ceiling = estimateCeiling({
-        tempC: f.hourly.temp[i] ?? 15,
-        dewPointC: f.hourly.dewPoint[i] ?? 5,
-        lowPct: f.hourly.cloudLow[i] ?? 0,
-        midPct: f.hourly.cloudMid[i] ?? 0,
-        highPct: f.hourly.cloudHigh[i] ?? 0,
-      });
       const tl = skyTimeline?.find((s) => Math.abs(s.time - t) < 1_800_000);
-      const scored = droneFlyability(
-        {
-          windAtAltitudeMs: atAlt?.speedMs ?? f.hourly.wind10[i] ?? 0,
-          gustMs: gustAtAlt,
-          precipProbPct: f.hourly.precipProb[i] ?? 0,
-          precipMm: f.hourly.precip[i] ?? 0,
-          visibilityM: f.hourly.visibility[i] ?? null,
-          ceilingM: ceiling.baseM,
-          flightAltitudeM: altitudeM,
-          tempC: f.hourly.temp[i] ?? 15,
-          kp: kpHour,
-          skyPhase: skyPhase(sunPosition(new Date(t + 1_800_000), loc.lat, loc.lon).altitude),
-          satellitesVisible: tl?.count ?? null,
-        },
+      const { prof, atAlt, gustAtAlt, ceiling, result: scored } = flyabilityAt(f, i, {
+        altitudeM,
         profile,
-      );
+        lat: loc.lat,
+        lon: loc.lon,
+        kp: kpHour,
+        satellitesVisible: tl?.count ?? null,
+      });
       // Describe Kp with the same words as the Kp panel (the status already agrees:
       // both use the 5 / 7 thresholds on the rounded value).
       const result =

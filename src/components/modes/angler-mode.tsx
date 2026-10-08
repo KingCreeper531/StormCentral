@@ -4,14 +4,13 @@ import { ArrowDown, ArrowUp, Minus, Sunrise, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Forecast } from "@/lib/api/open-meteo";
 import { moonIllumination } from "@/lib/astro/moon";
-import { solunarForecast, type SolunarForecast, type SolunarPeriod } from "@/lib/astro/solunar";
-import { sunCrossings } from "@/lib/astro/sun";
-import { estimateWaterTempC } from "@/lib/science/atmosphere";
+import type { SolunarForecast, SolunarPeriod } from "@/lib/astro/solunar";
 import { tendencyAt } from "@/lib/science/pressure";
-import { biteIndex, type BiteIndex } from "@/lib/science/scores";
+import type { BiteIndex } from "@/lib/science/scores";
 import { convertPressure } from "@/lib/weather/units";
-import { currentHourIndex, fmtIn, hourRange } from "@/lib/weather/view";
-import { cn, mean } from "@/lib/utils";
+import { anglerModel } from "@/lib/weather/hourly-scores";
+import { currentHourIndex, fmtIn } from "@/lib/weather/view";
+import { cn } from "@/lib/utils";
 import { useForecast, useRivers } from "@/hooks/queries";
 import { useFormat } from "@/hooks/use-format";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -41,10 +40,6 @@ const EVENT_LABEL: Record<SolunarPeriod["event"], string> = {
 
 const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 
-function hoursFromSunEvent(t: number, events: number[]) {
-  return events.length ? Math.min(...events.map((e) => Math.abs(e - t))) / 3_600_000 : 99;
-}
-
 /**
  * Phones: one column in reading order (bite index, hourly outlook, moon,
  * barometer, water, rivers). Desktop: a 12-column grid.
@@ -63,34 +58,13 @@ export function AnglerMode() {
   const sites = rivers.data?.sites ?? [];
   const site = sites.find((s) => s.id === siteId) ?? sites[0] ?? null;
 
-  const model = useMemo(() => {
-    if (!f) return null;
-    const solunar = solunarForecast(new Date(now - 2 * 3_600_000), 30, loc.lat, loc.lon);
-    const sunEvents = sunCrossings(new Date(now - 3_600_000), 30, loc.lat, loc.lon, -0.833).map((c) => c.time.getTime());
-    const i0 = currentHourIndex(f, now);
-    const airMean = mean(f.hourly.temp.slice(Math.max(0, i0 - 24), i0 + 1));
-    const gaugeTemp = site?.waterTemp?.latest ?? null;
-    const waterTemp = gaugeTemp ?? (Number.isFinite(airMean) ? estimateWaterTempC(airMean) : null);
-    const inPeriod = (t: number, kind: SolunarPeriod["kind"]) => solunar.periods.some((p) => p.kind === kind && t >= p.start.getTime() && t <= p.end.getTime());
-
-    const hours = hourRange(f, now, 24).idx.map((i) => {
-      const t = f.hourly.time[i]! * 1000;
-      const bite = biteIndex({
-        tendency: tendencyAt(f.hourly.pressureMsl, i),
-        inMajorPeriod: inPeriod(t + 1_800_000, "major"),
-        inMinorPeriod: inPeriod(t + 1_800_000, "minor"),
-        solunarDayRating: solunar.dayRating,
-        hoursFromSunEvent: hoursFromSunEvent(t + 1_800_000, sunEvents),
-        cloudPct: f.hourly.cloud[i] ?? 0,
-        windMs: f.hourly.wind10[i] ?? 0,
-        waterTempC: waterTemp,
-        weatherCode: f.hourly.code[i] ?? 0,
-        flowChange24h: site?.discharge?.change24h ?? null,
-      });
-      return { i, t, bite };
-    });
-    return { solunar, hours, waterTemp, waterTempIsEstimate: gaugeTemp == null };
-  }, [f, now, loc.lat, loc.lon, site]);
+  const model = useMemo(
+    () =>
+      f
+        ? anglerModel(f, now, loc.lat, loc.lon, { gaugeWaterTempC: site?.waterTemp?.latest ?? null, flowChange24h: site?.discharge?.change24h ?? null })
+        : null,
+    [f, now, loc.lat, loc.lon, site],
+  );
 
   if (forecast.error && !f) return <ErrorNote error={forecast.error} what="the forecast" />;
   if (!f || !model)

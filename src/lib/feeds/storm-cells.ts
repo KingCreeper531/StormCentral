@@ -1,5 +1,8 @@
 import { HttpError } from "../api/http";
+import { cached } from "./cache";
+import { parseNexradAttr } from "./storm-parse";
 import type { Feed } from "./types";
+import { upstreamJson } from "./upstream";
 
 /** One NEXRAD storm cell (SCIT/hail/meso attributes) from the latest volume scan. */
 export interface StormCell {
@@ -30,6 +33,11 @@ export interface StormCell {
   topKft: number | null;
   /** Cell motion; `fromDeg` uses the meteorological convention (direction it comes from). */
   motion: { fromDeg: number; speedKt: number } | null;
+  /** Height of `maxDbz`, thousands of feet. */
+  maxDbzHeightKft?: number | null;
+  /** Position relative to the radar: azimuth (degrees) and range (nautical miles, as NEXRAD reports it). */
+  azimuthDeg?: number | null;
+  rangeNm?: number | null;
 }
 
 export interface StormCellsResponse {
@@ -37,11 +45,24 @@ export interface StormCellsResponse {
   updated: string;
 }
 
+const IEM = "https://mesonet.agron.iastate.edu/geojson";
+const REQ = { headers: { Accept: "application/geo+json, application/json" }, timeoutMs: 20_000 };
+
 /** Latest storm-cell attributes from every NEXRAD (Iowa Environmental Mesonet). */
 export const stormCellsFeed: Feed<StormCellsResponse> = {
   path: "/api/storm-cells",
   maxAge: 120,
   async load() {
-    throw new HttpError("Storm cells aren't implemented yet", 501);
+    return cached("nexrad-attr", 120_000, async (): Promise<StormCellsResponse> => {
+      let raw: unknown;
+      try {
+        raw = await upstreamJson(`${IEM}/nexrad_attr.geojson`, REQ);
+      } catch (err) {
+        // IEM also serves the same service under its script name.
+        if (!(err instanceof HttpError && err.status === 404)) throw err;
+        raw = await upstreamJson(`${IEM}/nexrad_attr.py`, REQ);
+      }
+      return { cells: parseNexradAttr(raw, { now: Date.now() }), updated: new Date().toISOString() };
+    });
   },
 };

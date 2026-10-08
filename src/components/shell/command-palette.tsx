@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Crosshair, Search, Thermometer, Users, type LucideIcon } from "lucide-react";
+import { Bell, Crosshair, MapPin, Search, Thermometer, Users, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
@@ -11,6 +11,7 @@ import { useHotkeys } from "@/hooks/use-hotkeys";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { MODE_IDS, MODES } from "@/modes/registry";
+import { useAlertsStore } from "@/store/alerts-store";
 import { useAppStore } from "@/store/app-store";
 
 type Item =
@@ -40,6 +41,7 @@ export function CommandPalette() {
   const units = useAppStore((s) => s.units);
   const setUnits = useAppStore((s) => s.setUnits);
   const router = useRouter();
+  const saved = useAlertsStore((s) => s.places);
   const { locate } = useGeolocate();
   const [term, setTerm] = useState("");
   const [cursor, setCursor] = useState(0);
@@ -88,6 +90,14 @@ export function CommandPalette() {
         Icon: Thermometer,
         run: () => setUnits(units.temp === "F" ? "metric" : "imperial"),
       },
+      ...saved.map<Item>((p) => ({
+        kind: "action",
+        id: `saved-${p.id}`,
+        label: `Go to ${p.name}`,
+        Icon: MapPin,
+        run: () => setLocation({ lat: p.lat, lon: p.lon, name: p.name, source: "search" }),
+      })),
+      { kind: "action", id: "alerts", label: "Alerts and places", Icon: Bell, run: () => router.push("/alerts") },
       ...(COMMUNITY_ENABLED
         ? [{ kind: "action", id: "community", label: "Open spotter network", Icon: Users, run: () => router.push("/community") } satisfies Item]
         : []),
@@ -95,7 +105,7 @@ export function CommandPalette() {
     const t = term.trim().toLowerCase();
     const filtered = t ? actions.filter((a) => a.kind === "action" && a.label.toLowerCase().includes(t)) : actions;
     return [...(places.data ?? []).map<Item>((place) => ({ kind: "place", place })), ...filtered];
-  }, [places.data, term, locate, setMode, setUnits, units.temp, router]);
+  }, [places.data, term, locate, setMode, setUnits, units.temp, router, saved, setLocation]);
 
   const choose = (item: Item | undefined) => {
     if (!item) return;

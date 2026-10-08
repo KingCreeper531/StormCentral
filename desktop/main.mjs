@@ -7,12 +7,19 @@
  * A build can instead point at a hosted StormCentral (STORMCENTRAL_URL at
  * build time, baked into package.json by electron-builder.config.mjs), so all
  * users share one spotter network. Updates come from GitHub Releases.
+ *
+ * A tray icon shows the current temperature. Closing the window can hide it
+ * to the tray instead of quitting, so the page keeps watching for warnings,
+ * and the app can start hidden at sign-in (settings.mjs, tray.mjs).
  */
-import { app, BrowserWindow, dialog, Menu, session, shell } from "electron";
+import { app, autoUpdater as nativeUpdater, BrowserWindow, dialog, ipcMain, Menu, Notification, session, shell } from "electron";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createLog } from "./log.mjs";
 import { startLocalServer } from "./server.mjs";
+import { openSettings, parseSettingsPatch, publicSettings } from "./settings.mjs";
+import { appIcon, createTray, parseTrayStatus } from "./tray.mjs";
 import { checkForUpdatesFromMenu, initAutoUpdates } from "./updater.mjs";
 import { loadWindowState, trackWindowState } from "./window-state.mjs";
 
@@ -25,12 +32,33 @@ const REPO = meta.stormcentral?.repo || "KingCreeper531/StormCentral";
 const REMOTE_URL = httpsUrl(meta.stormcentral?.remoteUrl);
 /** Permissions the UI may use: "Use my location", copying share links, map fullscreen. */
 const ALLOWED_PERMISSIONS = new Set(["geolocation", "clipboard-sanitized-write", "fullscreen"]);
+const PRELOAD = fileURLToPath(new URL("./preload.cjs", import.meta.url));
+/** Passed by the sign-in login item: start in the tray, without a window. */
+const START_HIDDEN = process.argv.includes("--hidden");
+/** Must match between set- and getLoginItemSettings for `openAtLogin` to read back correctly. */
+const LOGIN_ITEM = { args: ["--hidden"] };
+/** IPC channels, mirrored in preload.cjs. */
+const IPC = {
+  trayStatus: "stormcentral:tray-status",
+  showWindow: "stormcentral:show-window",
+  getSettings: "stormcentral:get-settings",
+  setSettings: "stormcentral:set-settings",
+};
 
 const log = createLog(path.join(app.getPath("logs"), "main.log"));
+const settings = openSettings(path.join(app.getPath("userData"), "settings.json"), { log });
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
+/** @type {ReturnType<typeof createTray> | null} */
+let tray = null;
+/** Set once a real quit starts (tray Quit, File → Quit, an update install, sign-out), so closing isn't turned into hiding. */
+let isQuitting = false;
 /** Origin the UI is served from; anything else opens in the default browser. */
 let appOrigin = "";
+/** The UI's URL, once the server is up. */
+let appUrl = "";
+/** The first window exists; later launches just show it. */
+let started = false;
 
 /** @param {unknown} value */
 function httpsUrl(value) {
@@ -87,7 +115,8 @@ const offlinePage = (url, reason) =>
 
 // ─── Window, menu and security ──────────────────────────────────────────────
 
-function createWindow() {
+/** @param {{ hidden: boolean }} opts */
+function createWindow({ hidden }) {
   const stateFile = path.join(app.getPath("userData"), "window-state.json");
   const { bounds, maximized } = loadWindowState(stateFile);
   const win = new BrowserWindow({
@@ -98,11 +127,36 @@ function createWindow() {
     backgroundColor: "#000000",
     title: "StormCentral",
     autoHideMenuBar: true,
-    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false },
+    webPreferences: {
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      spellcheck: false,
+      preload: PRELOAD,
+      // The page's alert watcher must keep its timers running while the window is hidden in the tray.
+      backgroundThrottling: false,
+    },
   });
-  if (maximized) win.maximize();
-  trackWindowState(win, stateFile);
-  win.once("ready-to-show", () => win.show());
+  if (hidden) {
+    // maximize() would show the window, and an unseen window's bounds aren't worth saving.
+    win.once("show", () => {
+      if (maximized) win.maximize();
+      trackWindowState(win, stateFile);
+    });
+  } else {
+    if (maximized) win.maximize();
+    trackWindowState(win, stateFile);
+    win.once("ready-to-show", () => win.show());
+  }
+  win.on("close", (event) => {
+    if (isQuitting || !keepsRunningInTray()) return;
+    event.preventDefault();
+    win.hide();
+    showTrayHintOnce();
+  });
+  // Windows sign-out or shutdown: let the window close, or it would hold up the session ending.
+  win.on("query-session-end", () => (isQuitting = true));
+  win.on("session-end", () => (isQuitting = true));
   win.webContents.on("did-fail-load", (_e, code, description, url, isMainFrame) => {
     // -3 is ERR_ABORTED: a navigation replaced by another, not a failure.
     if (isMainFrame && code !== -3 && isAppUrl(url)) void win.loadURL(offlinePage(url, description));
@@ -113,6 +167,123 @@ function createWindow() {
   });
   void win.loadURL(SPLASH);
   return win;
+}
+
+/** Shows and focuses the window, recreating it if it was ever really closed. */
+function showWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = openMainWindow({ hidden: false });
+    if (appUrl) loadApp(mainWindow, appUrl);
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+/** @param {{ hidden: boolean }} opts */
+function openMainWindow(opts) {
+  const win = createWindow(opts);
+  win.on("closed", () => {
+    if (mainWindow === win) mainWindow = null;
+  });
+  return win;
+}
+
+/** @param {BrowserWindow} win @param {string} url */
+function loadApp(win, url) {
+  // A failed load shows the offline page (did-fail-load), so it isn't fatal here.
+  win.loadURL(url).catch((err) => log(`load failed: ${err instanceof Error ? err.message : err}`));
+}
+
+// ─── Tray, close to tray, sign-in launch ────────────────────────────────────
+
+function keepsRunningInTray() {
+  return tray !== null && settings.get().closeToTray;
+}
+
+/** @type {Notification | null} Held so its click handler outlives the call. */
+let trayHint = null;
+
+function showTrayHintOnce() {
+  if (settings.get().trayHintShown) return;
+  settings.update({ trayHintShown: true });
+  if (!Notification.isSupported()) return;
+  trayHint = new Notification({
+    title: "StormCentral is still running",
+    body: "It keeps checking for warnings. Quit from the tray icon.",
+    icon: appIcon(),
+    silent: true,
+  });
+  trayHint.on("click", showWindow);
+  trayHint.show();
+}
+
+function quitFromTray() {
+  isQuitting = true;
+  app.quit();
+}
+
+/** Packaged Windows/macOS builds only: a dev build would register the bare Electron binary. */
+const loginItemSupported = () => app.isPackaged && (process.platform === "win32" || process.platform === "darwin");
+
+function currentSettings() {
+  const s = publicSettings(settings.get());
+  // Windows owns the truth: the user may have removed the entry in Task Manager or Settings.
+  if (loginItemSupported()) s.launchAtLogin = app.getLoginItemSettings(LOGIN_ITEM).openAtLogin;
+  return s;
+}
+
+/** @param {Partial<import("./settings.mjs").PublicSettings>} patch */
+function applySettings(patch) {
+  if (patch.launchAtLogin !== undefined) {
+    if (loginItemSupported()) app.setLoginItemSettings({ openAtLogin: patch.launchAtLogin, ...LOGIN_ITEM });
+    else log("settings: launch at sign-in only applies to installed Windows builds");
+  }
+  settings.update(patch);
+  log(`settings: ${JSON.stringify(patch)}`);
+  return currentSettings();
+}
+
+// ─── Bridge to the page (preload.cjs) ───────────────────────────────────────
+
+/**
+ * Only the app's own page, in the main window's top frame, may use the
+ * bridge. The splash and offline pages share the preload but not the origin.
+ * @param {import("electron").IpcMainEvent | import("electron").IpcMainInvokeEvent} event
+ */
+function fromApp(event) {
+  const frame = event.senderFrame;
+  return (
+    mainWindow !== null &&
+    !mainWindow.isDestroyed() &&
+    event.sender === mainWindow.webContents &&
+    frame !== null &&
+    frame.parent === null &&
+    isAppUrl(frame.url)
+  );
+}
+
+function registerIpc() {
+  ipcMain.on(IPC.trayStatus, (event, payload) => {
+    if (!fromApp(event)) return;
+    const status = parseTrayStatus(payload);
+    if (status) tray?.setStatus(status);
+    else log("ipc: ignored an invalid tray status");
+  });
+  ipcMain.on(IPC.showWindow, (event) => {
+    if (fromApp(event)) showWindow();
+  });
+  ipcMain.handle(IPC.getSettings, (event) => {
+    if (!fromApp(event)) throw new Error("Not allowed");
+    return currentSettings();
+  });
+  ipcMain.handle(IPC.setSettings, (event, payload) => {
+    if (!fromApp(event)) throw new Error("Not allowed");
+    const patch = parseSettingsPatch(payload);
+    if (!patch) throw new Error("Invalid settings");
+    return applySettings(patch);
+  });
 }
 
 function hardenSessions() {
@@ -190,9 +361,11 @@ function onServerCrash(code) {
     message: "StormCentral stopped unexpectedly",
     detail: `The local server exited (code ${code}). Details are in ${app.getPath("logs")}.`,
   });
-  const ask = mainWindow ? dialog.showMessageBox(mainWindow, opts) : dialog.showMessageBox(opts);
+  // A dialog parented to a window hidden in the tray could go unseen.
+  const ask = mainWindow?.isVisible() ? dialog.showMessageBox(mainWindow, opts) : dialog.showMessageBox(opts);
   void ask.then(({ response }) => {
-    if (response === 0) app.relaunch();
+    // The user asked for it, so come back with a window even after a hidden sign-in launch.
+    if (response === 0) app.relaunch({ args: process.argv.slice(1).filter((a) => a !== "--hidden") });
     app.exit(0);
   });
 }
@@ -202,9 +375,17 @@ function onServerCrash(code) {
 async function start() {
   log(`StormCentral ${app.getVersion()} starting (${REMOTE_URL ? `remote ${REMOTE_URL}` : "local server"})`);
   hardenSessions();
+  registerIpc();
   Menu.setApplicationMenu(buildMenu());
-  mainWindow = createWindow();
-  mainWindow.on("closed", () => (mainWindow = null));
+  mainWindow = openMainWindow({ hidden: START_HIDDEN });
+  try {
+    tray = createTray({ onOpen: showWindow, onCheckForUpdates: checkForUpdatesFromMenu, onQuit: quitFromTray, log });
+  } catch (err) {
+    // No tray (some Linux desktops): closing quits, and a hidden start would leave no way back in.
+    log(`tray unavailable: ${err instanceof Error ? err.message : err}`);
+    if (START_HIDDEN) mainWindow.show();
+  }
+  started = true;
 
   let url = REMOTE_URL;
   if (!url) {
@@ -219,8 +400,8 @@ async function start() {
     }
   }
   appOrigin = new URL(url).origin;
-  // A failed load shows the offline page (did-fail-load), so it isn't fatal here.
-  mainWindow?.loadURL(url).catch((err) => log(`initial load failed: ${err instanceof Error ? err.message : err}`));
+  appUrl = url;
+  if (mainWindow) loadApp(mainWindow, url);
   initAutoUpdates({ log });
 }
 
@@ -233,11 +414,17 @@ app.commandLine.appendSwitch("enable-unsafe-swiftshader");
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on("second-instance", () => {
-    if (!mainWindow) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
+  // Launching again (Start menu, desktop shortcut) brings back a window hidden in the tray.
+  app.on("second-instance", (_e, argv) => {
+    if (started && !argv.includes("--hidden")) showWindow();
   });
-  app.on("window-all-closed", () => app.quit());
+  // Every quit path ends here first (tray, File → Quit, electron-updater's quitAndInstall), so closing isn't turned into hiding.
+  app.on("before-quit", () => (isQuitting = true));
+  nativeUpdater.on("before-quit-for-update", () => (isQuitting = true));
+  app.on("window-all-closed", () => {
+    // A window hidden to the tray isn't closed, so this only runs once it's really gone.
+    if (isQuitting || !keepsRunningInTray()) app.quit();
+  });
+  app.on("will-quit", () => tray?.destroy());
   void app.whenReady().then(start);
 }

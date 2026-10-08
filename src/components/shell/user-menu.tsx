@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { CircleUser, LogIn, LogOut, User, UserPlus, Users } from "lucide-react";
+import { Bell, CircleUser, LogIn, LogOut, User, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
@@ -97,6 +97,12 @@ export function UserMenu() {
     </Link>
   );
 
+  const alertsLink = (
+    <Link href="/alerts" onClick={close} aria-current={pathname.startsWith("/alerts") ? "page" : undefined} className={ITEM}>
+      <Bell className="size-4 shrink-0" aria-hidden /> Alerts and places
+    </Link>
+  );
+
   return (
     <>
       {COMMUNITY_ENABLED && !user && !onLogin && !onRegister && (
@@ -105,7 +111,7 @@ export function UserMenu() {
         </Link>
       )}
 
-      <div ref={rootRef} className={cn("relative", !user && "lg:hidden")}>
+      <div ref={rootRef} className="relative">
         <button
           ref={triggerRef}
           type="button"
@@ -137,6 +143,7 @@ export function UserMenu() {
                   <User className="size-4 shrink-0" aria-hidden /> Profile
                 </Link>
                 {spotterLink}
+                {alertsLink}
                 {/* lg+ has the units switch inline in the bar. */}
                 <div className="lg:hidden">
                   <div className={DIVIDER} />
@@ -159,13 +166,13 @@ export function UserMenu() {
                     <UserPlus className="size-4 shrink-0" aria-hidden /> Create account
                   </Link>
                 )}
-                {COMMUNITY_ENABLED && (
-                  <>
-                    {spotterLink}
-                    <div className={DIVIDER} />
-                  </>
-                )}
-                {units}
+                {COMMUNITY_ENABLED && spotterLink}
+                {alertsLink}
+                {/* lg+ has the units switch inline in the bar. */}
+                <div className="lg:hidden">
+                  <div className={DIVIDER} />
+                  {units}
+                </div>
               </>
             )}
           </div>
