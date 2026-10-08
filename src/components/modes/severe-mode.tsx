@@ -125,6 +125,7 @@ export function SevereMode() {
   const loc = useAppStore((s) => s.location);
   const radar = useAppStore((s) => s.radar);
   const setRadar = useAppStore((s) => s.setRadar);
+  const radiusKm = useAppStore((s) => s.radiusKm);
   const now = useNow(30_000);
   const fmt = useFormat();
   // Times (warning expiry, radar frames) read in the selected location's zone, like the rest of the app.
@@ -188,11 +189,11 @@ export function SevereMode() {
       if (!a.geometry) continue;
       const inside = geometryContains(a.geometry, loc);
       const d = inside ? 0 : distanceToGeometryKm(a.geometry, loc);
-      if (d <= 500) out.set(a.id, { alert: a, distanceKm: d, inside });
+      if (d <= radiusKm) out.set(a.id, { alert: a, distanceKm: d, inside });
     }
     for (const a of local.data?.alerts ?? []) if (!out.has(a.id)) out.set(a.id, { alert: a, distanceKm: 0, inside: true });
     return [...out.values()].sort((x, y) => Number(y.inside) - Number(x.inside) || y.alert.rank - x.alert.rank || x.distanceKm - y.distanceKm);
-  }, [national.data, local.data, loc]);
+  }, [national.data, local.data, loc, radiusKm]);
 
   const allAlerts = useMemo(() => [...(national.data?.alerts ?? []), ...(local.data?.alerts ?? [])], [national.data, local.data]);
   const alertById = (id: string | null) => (id ? allAlerts.find((a) => a.id === id) : undefined);
@@ -349,7 +350,7 @@ export function SevereMode() {
   } else if (national.error) {
     peek = { color: null, title: "Warnings unavailable", sub: "NWS alerts could not be loaded" };
   } else {
-    peek = { color: null, title: "No warnings nearby", sub: `Within ${fmt.distanceKm(500)} of ${loc.name}` };
+    peek = { color: null, title: "No warnings nearby", sub: `Within ${fmt.distanceKm(radiusKm)} of ${loc.name}` };
   }
   // Tapping the peek opens what it shows: the top warning's details, or the sheet.
   const onPeek = () => {
@@ -431,7 +432,7 @@ export function SevereMode() {
         </div>
       ) : null}
       {!listPending && <AlertList items={ranked} selectedId={selectedAlert} onSelect={focusAlert} timeZone={timeZone} />}
-      {ranked.length > 0 && <p className="label border-t border-line px-4 py-3">Within {fmt.distanceKm(500)} of {loc.name}</p>}
+      {ranked.length > 0 && <p className="label border-t border-line px-4 py-3">Within {fmt.distanceKm(radiusKm)} of {loc.name}</p>}
     </>
   );
 

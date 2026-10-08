@@ -2,6 +2,7 @@
 
 import { CircleAlert } from "lucide-react";
 import { useFormat } from "@/hooks/use-format";
+import { useAppStore } from "@/store/app-store";
 import { tagLabel } from "@/lib/alerts";
 import type { WeatherAlert } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -53,7 +54,8 @@ export function AlertList({
   timeZone: string | undefined;
 }) {
   const fmt = useFormat();
-  if (!items.length) return <EmptyState title={`No active warnings within ${fmt.distanceKm(500)}`} />;
+  const radiusKm = useAppStore((s) => s.radiusKm);
+  if (!items.length) return <EmptyState title={`No active warnings within ${fmt.distanceKm(radiusKm)}`} />;
   return (
     <ul className="divide-y divide-line">
       {items.map(({ alert: a, distanceKm, inside }) => {
