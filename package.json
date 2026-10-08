@@ -1,6 +1,6 @@
 {
   "name": "stormcentral",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "description": "Next-generation open-data weather platform: immersive forecasts, NEXRAD radar, drone, angler and air-quality modes, plus a community spotter network.",
   "license": "MIT",

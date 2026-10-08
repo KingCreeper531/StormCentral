@@ -54,9 +54,10 @@ function NotificationsPanel() {
   const { native, perm, request } = usePermission();
   const [tested, setTested] = useState(false);
 
-  const setEnabled = async (on: boolean) => {
-    if (on && perm !== "granted" && (await request()) !== "granted") return;
+  // The switch always follows the tap; if permission is refused, the status line says so.
+  const setEnabled = (on: boolean) => {
     setSettings({ enabled: on });
+    if (on && perm !== "granted") void request();
   };
   const test = async () => {
     if (perm !== "granted" && (await request()) !== "granted") return;
@@ -70,6 +71,8 @@ function NotificationsPanel() {
       ? "Notifications are blocked. Allow them for StormCentral in your browser or system settings."
       : perm === "unsupported"
         ? "This browser can't show notifications."
+        : settings.enabled && perm !== "granted"
+          ? "Allow notifications when your device asks, or tap Send a test notification."
         : native
           ? "Checked about every 15 minutes, even when the app is closed."
           : "Checked every 2 minutes while StormCentral is open (the Windows app keeps checking from the tray).";
@@ -77,19 +80,19 @@ function NotificationsPanel() {
   return (
     <Panel title="Notifications" subtitle="NWS warnings for your places, and your custom alerts">
       <div className="divide-y divide-line">
-        <Toggle label="Notify me" checked={settings.enabled && perm === "granted"} onChange={(on) => void setEnabled(on)} />
+        <Toggle label="Notify me" checked={settings.enabled} onChange={setEnabled} />
         <Toggle label="Watch my selected location" checked={settings.watchCurrent} onChange={(watchCurrent) => setSettings({ watchCurrent })} />
       </div>
       <div className="mt-3">
-        <p className="label mb-1.5">Which alerts</p>
+        <p className="label mb-1.5">Which alerts: warnings only, or warnings plus watches and advisories</p>
         <Segmented
           ariaLabel="Which alerts"
           stretch
           value={settings.level}
           onChange={(level) => setSettings({ level })}
           options={[
-            { value: "warnings", label: "Warnings only" },
-            { value: "all", label: "Also watches and advisories" },
+            { value: "warnings", label: "Warnings" },
+            { value: "all", label: "+ Watches" },
           ]}
         />
       </div>
