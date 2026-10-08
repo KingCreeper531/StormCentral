@@ -28,7 +28,7 @@ Press **1–5** to switch modes and **⌘K / Ctrl-K** to search any place. Hover
 | Mode | What you get |
 |---|---|
 | **Daily** | Conditions hero with an animated sky that tracks the real sun position; 15-minute nowcast; 24 h temperature and precipitation charts; 10-day range bars; wind compass, pressure tendency, UV, visibility, AQI, sun arc and moon phase; live radar preview; **SPC tornado / hail / wind probabilities** when you're in a risk area; spotter reports near you. |
-| **Severe** (fullscreen) | NEXRAD national mosaic or any single WSR-88D site. Products: reflectivity, velocity, storm-relative velocity, CC, ZDR and hydrometeor classification. Tilt selection is driven by what the radar is actually producing. Buffer-aware loop playback (play/pause/step, 0.5–4×, cross-fade). NWS warning polygons in official hazard colors with PDS/emergency tags, **projected storm tracks with ETA to your location**, SPC Day 1 outlook (categorical or **tornado / hail / wind probabilities**, hatched where significant), **official NWS storm reports** (hail size, wind speed, tornadoes, fading with age), **NEXRAD storm cells** (TVS, mesocyclone, max hail size, 15–60 min forecast track and arrival time at your location), the **NHC hurricane tracker** (cone, track, intensity forecast), **GOES infrared / visible satellite** looping with the radar, and **export the loop as a GIF or video**. |
+| **Severe** (fullscreen) | NEXRAD national mosaic or any single WSR-88D site, with **future radar** (the next 6 hours of HRRR model reflectivity after the live loop) and **lightning** (NOAA strike density, last 15 minutes). Products: reflectivity, velocity, storm-relative velocity, CC, ZDR and hydrometeor classification. Tilt selection is driven by what the radar is actually producing. Buffer-aware loop playback (play/pause/step, 0.5–4×, cross-fade). NWS warning polygons in official hazard colors with PDS/emergency tags, **projected storm tracks with ETA to your location**, SPC Day 1 outlook (categorical or **tornado / hail / wind probabilities**, hatched where significant), **official NWS storm reports** (hail size, wind speed, tornadoes, fading with age), **NEXRAD storm cells** (TVS, mesocyclone, max hail size, 15–60 min forecast track and arrival time at your location), the **NHC hurricane tracker** (cone, track, intensity forecast), **GOES infrared / visible satellite** looping with the radar, and **export the loop as a GIF or video**. |
 | **UAV Pilot** | Flyability score with a factor breakdown per airframe class, an hourly go/no-go strip, wind at flight altitude vs. the airframe limit, a 10/80/120/180 m wind profile with **bulk shear and veer**, NOAA Kp index, **GNSS sky plot with satellite count and PDOP/HDOP** (SGP4 from CelesTrak), an estimated cloud ceiling against the Part 107 500-ft clearance, visibility and density altitude. |
 | **Angler** | Bite Index with explained reasons, an hourly bite timeline with solunar bands, moon phase and solunar major/minor periods, a 48 h barometer with Met Office tendency terms, **USGS real-time river gauges** (discharge, stage, 24 h change, water temperature), and an estimated water temperature where no gauge reports one. |
 | **Air & Allergy** | A **model-derived AQI / PM2.5 heatmap** sampled across the visible map, current US AQI with health guidance, pollutant breakdown, 48 h AQI and UV forecast, the cleanest 2-hour outdoor window, and NAB-scaled pollen (CAMS covers Europe). |
@@ -72,6 +72,8 @@ Press **1–5** to switch modes and **⌘K / Ctrl-K** to search any place. Hover
 | Convective outlook and hazard probabilities | [Storm Prediction Center](https://www.spc.noaa.gov) | `/api/outlook` |
 | Local storm reports, NEXRAD storm-cell attributes | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) | `/api/storm-reports`, `/api/storm-cells` |
 | Tropical cyclones (positions, cone, track) | [National Hurricane Center](https://www.nhc.noaa.gov) + NOAA map services | `/api/tropical` |
+| Lightning strike density | [NOAA nowCOAST](https://nowcoast.noaa.gov) | Browser (WMS tiles) |
+| HRRR forecast reflectivity (future radar) | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/GIS/model.phtml) | Browser (tiles) |
 | GOES-East/West satellite imagery | [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api) | Browser (WMS tiles) |
 | Planetary Kp | [NOAA SWPC](https://www.swpc.noaa.gov) | `/api/space-weather` |
 | River discharge, stage, water temperature | [USGS Water Services](https://waterservices.usgs.gov) (OGC API fallback) | `/api/rivers` |
@@ -110,7 +112,13 @@ That's all you need. A SQLite database is created at `./data/stormcentral.db` on
 
 ### Deploying
 
-On Vercel (or any Node host), set `DATABASE_URL` and `DATABASE_AUTH_TOKEN` to a Turso database. The schema is applied automatically on first request. Every proxy route sends `s-maxage` / `stale-while-revalidate`, so a CDN absorbs most traffic. Rate limiting is per instance; swap `src/lib/server/rate-limit.ts` for Redis/Upstash when you scale horizontally.
+The shared spotter network needs one hosted copy of the web app. Vercel's free plan works, and you only sign in once, with GitHub:
+
+1. On [vercel.com](https://vercel.com), choose **Continue with GitHub**, then **Add New → Project**, import this repository and click **Deploy**.
+2. In the project, open **Storage → Create Database → Turso**, create it and connect it to the project. Vercel adds `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` itself (`DATABASE_URL` / `DATABASE_AUTH_TOKEN` also work). Then **Deployments → Redeploy**.
+3. Point the apps at it: set the repository variable `STORMCENTRAL_URL` to the site's `https://` address and publish a release.
+
+The schema is applied automatically on first request. Every proxy route sends `s-maxage` / `stale-while-revalidate`, so a CDN absorbs most traffic. Rate limiting is per instance; swap `src/lib/server/rate-limit.ts` for Redis/Upstash when you scale horizontally.
 
 ## Desktop and Android apps
 

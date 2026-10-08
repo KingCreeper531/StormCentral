@@ -16,6 +16,8 @@ export interface RadarFrame {
   maxzoom: number;
   /** True if `time` is approximate (offset-based mosaic frames). */
   approximate?: boolean;
+  /** Model forecast (HRRR) rather than an observed scan. */
+  forecast?: boolean;
 }
 
 export const MOSAIC_SITE = "USCOMP";

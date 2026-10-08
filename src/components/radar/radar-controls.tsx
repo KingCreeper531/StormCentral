@@ -165,6 +165,10 @@ export function RadarControls({
           </Field>
         </div>
         <Toggle label="Smooth cross-fade" checked={settings.crossfade} onChange={(crossfade) => onChange({ crossfade })} />
+        <div>
+          <Toggle label="Future radar (next 6 hours)" checked={settings.future} onChange={(future) => onChange({ future })} />
+          <p className="label">{isSite ? "Shown with the national mosaic only." : "HRRR model forecast after the live scans, marked in orange on the timeline."}</p>
+        </div>
         <Field label="GOES satellite">
           <Segmented
             ariaLabel="Satellite imagery"
@@ -186,6 +190,7 @@ export function RadarControls({
         <div className="-mt-1 divide-y divide-line">
           <Toggle label="NWS warnings" checked={settings.showWarnings} onChange={(showWarnings) => onChange({ showWarnings })} />
           <Toggle label="Projected storm tracks" checked={settings.showTracks} onChange={(showTracks) => onChange({ showTracks })} />
+          <Toggle label="Lightning (last 15 min)" checked={settings.showLightning} onChange={(showLightning) => onChange({ showLightning })} />
           <Toggle label="Radar storm cells" checked={settings.showCells} onChange={(showCells) => onChange({ showCells })} />
           <Toggle label="NWS storm reports" checked={settings.showStormReports} onChange={(showStormReports) => onChange({ showStormReports })} />
           <Toggle label="Hurricanes and tropical storms" checked={settings.showTropical} onChange={(showTropical) => onChange({ showTropical })} />
