@@ -13,7 +13,7 @@ import { RadarTimeline } from "../radar/radar-timeline";
 import { Button } from "../ui/button";
 import { Panel } from "../ui/panel";
 
-/** Compact national-mosaic loop; opens the full radar (Severe mode). */
+/** Compact national-mosaic loop; opens the full radar (Radar mode). */
 export function RadarPreview({ now, timeZone, className }: { now: number; timeZone?: string; className?: string }) {
   const loc = useAppStore((s) => s.location);
   const setMode = useAppStore((s) => s.setMode);

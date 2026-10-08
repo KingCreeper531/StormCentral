@@ -16,7 +16,7 @@ const CHIP = "max-w-full truncate rounded-[4px] border border-line px-1.5 py-px 
 /**
  * Highest-priority alert for the selected location. Storm-based polygons are
  * tested point-in-polygon, and an approaching storm gets a live ETA. The
- * whole banner is a button that opens Severe mode. Times are shown in the
+ * whole banner is a button that opens Radar mode. Times are shown in the
  * forecast location's time zone, like the rest of Daily.
  */
 export function AlertBanner({

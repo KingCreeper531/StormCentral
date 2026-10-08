@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useId, useState } from "react";
+import { useId, useState, useSyncExternalStore } from "react";
 import { qk } from "@/hooks/queries";
 import { Button } from "../ui/button";
 
@@ -33,6 +33,23 @@ export function Field({ id, label, hint, optional, children }: { id: string; lab
         </p>
       )}
     </div>
+  );
+}
+
+const noSubscribe = () => () => {};
+
+/**
+ * Which server holds the account. Accounts live on one server: the shared
+ * website, or (older Windows app versions) only on that PC.
+ */
+function ServerNote() {
+  const host = useSyncExternalStore(noSubscribe, () => location.host, () => "");
+  if (!host) return null;
+  const local = /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host);
+  return (
+    <p className="label mt-4">
+      {local ? "Accounts on this server are stored only on this computer. Update the app to use the shared spotter network." : `Account server: ${host}`}
+    </p>
   );
 }
 
@@ -152,6 +169,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         </Button>
       </form>
 
+      <ServerNote />
       <p className="mt-5 border-t border-line pt-4 text-[13px] text-ink-3">
         {login ? (
           <>
