@@ -18,6 +18,8 @@ const [owner, name] = repo.split("/");
 /** @type {import("electron-builder").Configuration} */
 const config = {
   appId: "io.github.kingcreeper531.stormcentral",
+  // stormcentral:// links (the website's "Open in app" button) launch or focus the app.
+  protocols: [{ name: "StormCentral", schemes: ["stormcentral"] }],
   productName: "StormCentral",
   copyright: "© 2026 KingCreeper531 · MIT License",
   directories: { app: "desktop", output: "dist/desktop", buildResources: "desktop/resources" },

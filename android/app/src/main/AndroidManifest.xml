@@ -23,6 +23,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Links to the website open the app (verified by /.well-known/assetlinks.json on the site). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="storm-central-pi.vercel.app" />
+            </intent-filter>
+
             <!-- Tapping a notification from the background runner opens the app. -->
             <intent-filter>
                 <action android:name=".NOTIFICATION_CLICKED" />
