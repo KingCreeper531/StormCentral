@@ -63,8 +63,12 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
   );
 }
 
-/** Initial-letter avatar on a flat, user-specific hue. */
-export function Avatar({ name, hue, size = 32 }: { name: string; hue: number; size?: number }) {
+/** Profile picture, or an initial-letter avatar on a flat, user-specific hue. */
+export function Avatar({ name, hue, size = 32, src }: { name: string; hue: number; size?: number; src?: string | null }) {
+  if (src) {
+    // eslint-disable-next-line @next/next/no-img-element -- tiny same-origin image; next/image adds nothing here
+    return <img src={src} alt="" aria-hidden width={size} height={size} className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />;
+  }
   return (
     <span
       aria-hidden

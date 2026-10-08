@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, lt } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { getDb } from "../db/client";
+import { avatarUrl } from "../community";
 import { sessions, users } from "../db/schema";
 
 /**
@@ -24,6 +25,7 @@ export interface SessionUser {
   username: string;
   displayName: string;
   avatarHue: number;
+  avatarUrl: string | null;
 }
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -65,6 +67,7 @@ export async function getSessionUser(opts: { refresh?: boolean } = {}): Promise<
       username: users.username,
       displayName: users.displayName,
       avatarHue: users.avatarHue,
+      avatarMediaId: users.avatarMediaId,
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
@@ -81,7 +84,7 @@ export async function getSessionUser(opts: { refresh?: boolean } = {}): Promise<
     await db.update(sessions).set({ expiresAt }).where(eq(sessions.id, id));
     await setCookie(token, expiresAt);
   }
-  return { id: row.id, username: row.username, displayName: row.displayName, avatarHue: row.avatarHue };
+  return { id: row.id, username: row.username, displayName: row.displayName, avatarHue: row.avatarHue, avatarUrl: avatarUrl(row.avatarMediaId) };
 }
 
 export async function destroySession() {

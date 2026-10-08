@@ -233,6 +233,7 @@ export interface SessionUser {
   username: string;
   displayName: string;
   avatarHue: number;
+  avatarUrl: string | null;
 }
 
 export function useSession() {

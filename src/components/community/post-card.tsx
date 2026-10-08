@@ -5,7 +5,7 @@ import { BadgeCheck, Loader2, MessageSquare, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { getJson } from "@/lib/api/http";
-import { CATEGORIES, SEVERITY_LABELS, tierFor, type CommentDto, type PostDto } from "@/lib/community";
+import { CATEGORIES, SEVERITY_LABELS, tierFor, type CommentDto, type PostDto, isGenericPlace } from "@/lib/community";
 import { timeAgo } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { describeCode } from "@/lib/weather/wmo";
@@ -81,7 +81,7 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
       <header className="flex items-start gap-3">
         {/* The name link next to it carries the accessible name; this one is a pointer shortcut. */}
         <Link href={profile} tabIndex={-1} aria-hidden className="shrink-0">
-          <Avatar name={post.author.displayName} hue={post.author.avatarHue} size={32} />
+          <Avatar name={post.author.displayName} hue={post.author.avatarHue} src={post.author.avatarUrl} size={32} />
         </Link>
         <div className="min-w-0 flex-1">
           {/* Always one line (name, then meta = two lines), so every header in a list has the same shape. */}
@@ -101,7 +101,7 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
             <time dateTime={new Date(post.createdAt).toISOString()} className="shrink-0 tabular">
               {timeAgo(post.createdAt, now)}
             </time>
-            {post.place && (
+            {!isGenericPlace(post.place) && (
               <>
                 <Sep />
                 <span className="min-w-0 truncate">{post.place}</span>
@@ -229,7 +229,7 @@ function Comments({ postId, now }: { postId: string; now: number }) {
         <ul className="divide-y divide-line" aria-label="Comments">
           {comments.map((c) => (
             <li key={c.id} className="flex gap-2.5 py-2.5">
-              <Avatar name={c.author.displayName} hue={c.author.avatarHue} size={24} />
+              <Avatar name={c.author.displayName} hue={c.author.avatarHue} src={c.author.avatarUrl} size={24} />
               <div className="min-w-0 flex-1">
                 <p className="flex min-w-0 items-baseline gap-2 text-[13px] leading-5">
                   <span className="truncate font-semibold text-ink">{c.author.displayName}</span>

@@ -7,7 +7,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Forecast } from "@/lib/api/open-meteo";
-import { CATEGORIES, CATEGORY_IDS, SEVERITY_LABELS, type Category } from "@/lib/community";
+import { CATEGORIES, CATEGORY_IDS, SEVERITY_LABELS, type Category, isGenericPlace } from "@/lib/community";
 import { preparePhoto } from "@/lib/image-client";
 import { currentHourIndex } from "@/lib/weather/view";
 import { cn } from "@/lib/utils";
@@ -78,7 +78,8 @@ export function Composer() {
       fd.set("severity", String(severity));
       fd.set("lat", String(lat));
       fd.set("lon", String(lon));
-      fd.set("place", loc.name.slice(0, 80));
+      // "My location" (GPS without a town name) is left out; the server names the town from the coordinates.
+      if (!isGenericPlace(loc.name)) fd.set("place", loc.name.slice(0, 80));
       fd.set("precise", String(precise));
       // Ground truth vs. model: snapshot what the forecast said right now.
       const f = qc.getQueryData<Forecast>(qk.forecast(loc));
