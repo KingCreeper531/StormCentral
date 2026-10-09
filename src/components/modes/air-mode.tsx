@@ -1,8 +1,10 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
+import { X } from "lucide-react";
 import type { Map as MlMap } from "maplibre-gl";
 import { useMemo, useState } from "react";
-import type { AirQuality } from "@/lib/api/open-meteo";
+import { fetchAirQuality, reverseGeocode, type AirQuality } from "@/lib/api/open-meteo";
 import type { BBox } from "@/lib/geo";
 import { bestOutdoorWindow, pm25ToAqi, pollenLevel, US_AQI_CATEGORIES, usAqiCategory, type PollenLevel, type PollenType } from "@/lib/science/air";
 import { fmtIn } from "@/lib/weather/view";
@@ -16,6 +18,7 @@ import { MapView } from "../map/map-view";
 import { Meter } from "../ui/meter";
 import { ErrorNote, Row, Skeleton, Stat } from "../ui/misc";
 import { Panel } from "../ui/panel";
+import { IconButton } from "../ui/button";
 import { Segmented } from "../ui/segmented";
 
 const POLLUTANTS = [
@@ -78,6 +81,48 @@ function cooperativeOnTouch(map: MlMap) {
   if (window.matchMedia("(pointer: coarse)").matches) map.cooperativeGestures.enable();
 }
 
+/** The colour map needs this zoom; zoomed further out it covers too much of the globe to sample well. */
+const MIN_HEAT_ZOOM = 3.5;
+
+/** Air quality at a tapped point on the map. */
+function PickedAir({ lat, lon, now, onClose }: { lat: number; lon: number; now: number; onClose: () => void }) {
+  const q = useQuery({ queryKey: ["air-point", lat.toFixed(2), lon.toFixed(2)], queryFn: ({ signal }) => fetchAirQuality(lat, lon, signal), staleTime: 20 * 60_000 });
+  const place = useQuery({ queryKey: ["place-name", lat.toFixed(2), lon.toFixed(2)], queryFn: ({ signal }) => reverseGeocode(lat, lon, signal), staleTime: Infinity, retry: false });
+  const a = q.data;
+  const i = a ? nowIndex(a, now) : 0;
+  const aqi = a?.hourly.usAqi[i] ?? null;
+  const cat = usAqiCategory(aqi);
+  const pm = a?.hourly.pm25[i];
+  const o3 = a?.hourly.o3[i];
+  const name = place.data && place.data !== "My location" ? place.data : `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+  return (
+    <div role="status" className="overlay absolute right-2 bottom-2 left-2 z-10 flex items-start gap-3 p-3 sm:right-auto sm:w-72">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-medium text-ink">{name}</p>
+        {q.isLoading ? (
+          <p className="mt-1 text-xs text-ink-3">Loading air quality…</p>
+        ) : q.error || !a ? (
+          <p className="mt-1 text-xs text-ink-3">Air quality isn&apos;t available here.</p>
+        ) : (
+          <>
+            <p className="mt-1 flex items-center gap-2 text-sm text-ink">
+              {cat && <span className="size-2.5 shrink-0 rounded-[2px]" style={{ background: cat.color }} aria-hidden />}
+              <span className="text-xl font-light tabular">{aqi != null ? Math.round(aqi) : "—"}</span>
+              <span className="text-ink-2">{cat?.label ?? "US AQI"}</span>
+            </p>
+            <p className="mt-0.5 text-xs text-ink-3 tabular">
+              PM2.5 {pm != null ? `${Math.round(pm)} µg/m³` : "—"} · Ozone {o3 != null ? `${Math.round(o3)} µg/m³` : "—"}
+            </p>
+          </>
+        )}
+      </div>
+      <IconButton label="Close" size="sm" onClick={onClose} className="-mt-1 -mr-1">
+        <X className="size-4" aria-hidden />
+      </IconButton>
+    </div>
+  );
+}
+
 /**
  * Phones: current reading first, then the map, forecast and pollen.
  * Desktop: map and current reading side by side, charts and pollen below.
@@ -88,8 +133,10 @@ export function AirMode() {
   const layer = useAppStore((s) => s.airLayer);
   const setLayer = useAppStore((s) => s.setAirLayer);
   const now = useNow(60_000);
-  const [bbox, setBbox] = useState<BBox | null>(null);
-  const grid = useAirGrid(bbox, layer);
+  const [mapState, setMapState] = useState<{ bbox: BBox; zoom: number } | null>(null);
+  const heatOn = !!mapState && mapState.zoom >= MIN_HEAT_ZOOM;
+  const grid = useAirGrid(heatOn ? mapState.bbox : null, layer);
+  const [picked, setPicked] = useState<{ lat: number; lon: number } | null>(null);
   const a = air.data;
 
   const view = useMemo(() => {
@@ -211,11 +258,25 @@ export function AirMode() {
       >
         {/* The map and its legend run edge to edge under the standard header. */}
         <div className="relative -mx-4 h-72 border-y border-line sm:-mx-5 sm:h-[clamp(18rem,60dvh,420px)] lg:h-auto lg:min-h-[420px] lg:flex-1">
-          <MapView center={loc} zoom={6.2} onViewChange={(b) => setBbox(b)} onReady={cooperativeOnTouch}>
-            <HeatLayer grid={grid.data ?? null} />
+          <MapView
+            center={loc}
+            zoom={6.2}
+            onViewChange={(bbox, zoom) => setMapState({ bbox, zoom })}
+            onReady={(m) => {
+              cooperativeOnTouch(m);
+              m.on("click", (e) => setPicked({ lat: e.lngLat.lat, lon: e.lngLat.wrap().lng }));
+            }}
+          >
+            <HeatLayer grid={heatOn ? (grid.data ?? null) : null} />
             <UserMarker lat={loc.lat} lon={loc.lon} />
           </MapView>
-          {grid.isFetching && (
+          {mapState && !heatOn && (
+            <span className="pointer-events-none absolute top-2 left-2 rounded-[var(--radius-control)] border border-line bg-surface-1/90 px-2 py-1 text-[11px] text-ink-2">
+              Zoom in to see the colour map. Tap anywhere for a reading.
+            </span>
+          )}
+          {picked && <PickedAir lat={picked.lat} lon={picked.lon} now={now} onClose={() => setPicked(null)} />}
+          {heatOn && grid.isFetching && (
             <span className="pointer-events-none absolute top-2 left-2 rounded-[var(--radius-control)] border border-line bg-surface-1/90 px-2 py-1 text-[11px] text-ink-2">
               Sampling grid…
             </span>
