@@ -191,6 +191,7 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
         Resources res = context.getResources();
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_weather);
         views.setOnClickPendingIntent(android.R.id.background, openAppIntent(context));
+        applyTheme(context, views);
 
         float density = res.getDisplayMetrics().density;
         float fontScale = res.getConfiguration().fontScale > 0 ? res.getConfiguration().fontScale : 1f;
@@ -340,6 +341,35 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         return PendingIntent.getActivity(context, 0, intent,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    /**
+     * Light or dark colours to match the app's theme setting (saved by the app as
+     * "theme": light, dark or system). System follows the phone's dark mode.
+     */
+    private static void applyTheme(Context context, RemoteViews views) {
+        String pref = WeatherWidgetData.theme(context);
+        boolean light;
+        if ("light".equals(pref)) light = true;
+        else if ("dark".equals(pref)) light = false;
+        else {
+            int night = context.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+            light = night != Configuration.UI_MODE_NIGHT_YES;
+        }
+        int ink = light ? 0xFF111316 : 0xFFECECED;
+        int ink2 = light ? 0xFF474C54 : 0xFFA8ACB3;
+        int ink3 = light ? 0xFF61666E : 0xFF80858D;
+        int alert = light ? 0xFFC62A2F : 0xFFE5484D;
+        views.setInt(android.R.id.background, "setBackgroundResource",
+                light ? R.drawable.widget_background_light : R.drawable.widget_background);
+        for (int id : new int[] {R.id.widget_temp, R.id.widget_condition, R.id.widget_condition_below}) {
+            views.setTextColor(id, ink);
+        }
+        for (int id : new int[] {R.id.widget_place, R.id.widget_hilo, R.id.widget_hilo_below, R.id.widget_message}) {
+            views.setTextColor(id, ink2);
+        }
+        views.setTextColor(R.id.widget_updated, ink3);
+        views.setTextColor(R.id.widget_alert, alert);
     }
 
     private static void show(RemoteViews views, int id, boolean visible) {
