@@ -151,7 +151,10 @@ export function AirMode() {
   // Sample only after the map has settled, not on every step of a pan or zoom.
   const settled = useDebounced(mapState, 700);
   const heatOn = !!mapState && mapState.zoom >= MIN_HEAT_ZOOM;
-  const grid = useAirGrid(heatOn && settled ? settled.bbox : null, layer);
+  const grid = useAirGrid(heatOn && settled ? settled.bbox : null, layer, { pad: 0.5 });
+  // A wide, coarse field around the location, fetched once: zooming out shows it at
+  // once instead of blank edges while the detailed grid for the new view loads.
+  const wide = useAirGrid(heatOn ? { west: loc.lon - 30, east: loc.lon + 30, south: loc.lat - 18, north: loc.lat + 18 } : null, layer);
   const [picked, setPicked] = useState<{ lat: number; lon: number } | null>(null);
   const a = air.data;
 
@@ -283,6 +286,7 @@ export function AirMode() {
               m.on("click", (e) => setPicked({ lat: e.lngLat.lat, lon: e.lngLat.wrap().lng }));
             }}
           >
+            <HeatLayer id="aq-heat-wide" grid={heatOn ? (wide.data ?? null) : null} />
             <HeatLayer grid={heatOn ? (grid.data ?? null) : null} />
             <UserMarker lat={loc.lat} lon={loc.lon} />
           </MapView>

@@ -5,8 +5,6 @@ import type { ValueGrid } from "@/lib/api/open-meteo";
 import { aqiColorRgb, pm25ToAqi } from "@/lib/science/air";
 import { mapAlive, SLOTS, useMapContext } from "../map-view";
 
-const SRC = "aq-heat";
-const LYR = "aq-heat-layer";
 
 /**
  * Model air-quality field drawn as a smooth heatmap: the coarse grid is
@@ -14,7 +12,9 @@ const LYR = "aq-heat-layer";
  * does the interpolation (raster-resampling: linear). Grid rows are spaced
  * in Mercator Y, so the quad drapes without distortion.
  */
-export function HeatLayer({ grid, opacity = 0.62 }: { grid: ValueGrid | null; opacity?: number }) {
+export function HeatLayer({ grid, opacity = 0.62, id = "aq-heat" }: { grid: ValueGrid | null; opacity?: number; /** Unique per layer when several are stacked. */ id?: string }) {
+  const SRC = id;
+  const LYR = `${id}-layer`;
   const { map } = useMapContext();
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export function HeatLayer({ grid, opacity = 0.62 }: { grid: ValueGrid | null; op
       if (map.getLayer(LYR)) map.removeLayer(LYR);
       if (map.getSource(SRC)) map.removeSource(SRC);
     };
-  }, [map, grid, opacity]);
+  }, [map, grid, opacity, SRC, LYR]);
 
   return null;
 }
