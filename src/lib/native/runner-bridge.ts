@@ -16,8 +16,25 @@ async function runner() {
   return (await import("@capacitor/background-runner")).BackgroundRunner;
 }
 
+/**
+ * Writes straight to the runner's storage (SharedPreferences named after
+ * RUNNER_LABEL), which the background runner and the home-screen widget both
+ * read. This doesn't depend on the runner's JavaScript being up.
+ */
+async function writeShared(entries: Record<string, string>) {
+  const { Preferences } = await import("@capacitor/preferences");
+  await Preferences.configure({ group: RUNNER_LABEL });
+  for (const [key, value] of Object.entries(entries)) await Preferences.set({ key, value });
+}
+
 export async function syncRunner(config: WatchConfig, widget: WidgetSnapshot | null) {
-  await (await runner()).dispatchEvent({ label: RUNNER_LABEL, event: "sync", details: { config, widget } });
+  const entries: Record<string, string> = { config: JSON.stringify(config) };
+  if (widget) entries.widget = JSON.stringify(widget);
+  const direct = writeShared(entries);
+  const viaRunner = (await runner()).dispatchEvent({ label: RUNNER_LABEL, event: "sync", details: { config, widget } });
+  // Either path is enough; only fail when both do.
+  const [a, b] = await Promise.allSettled([direct, viaRunner]);
+  if (a.status === "rejected" && b.status === "rejected") throw a.reason;
 }
 
 /** Run a check now (the app is open, so don't wait for the next scheduled run). */
