@@ -15,6 +15,7 @@ import { Panel } from "../ui/panel";
 import { Segmented } from "../ui/segmented";
 import { AccountSection } from "./account-panel";
 import { DesktopSettings } from "./desktop-settings";
+import { WidgetPanel } from "./widget-panel";
 
 type Preset = "imperial" | "metric" | "custom";
 
@@ -288,6 +289,7 @@ export function AppSettings() {
       <LinkRow href="/alerts" icon={<Bell className="size-4" aria-hidden />} title="Alerts and places" sub="Warning notifications, saved places and custom alerts" />
       <AccountSection />
       <UpdatesPanel />
+      <WidgetPanel />
       <DesktopSettings />
       <p className="text-xs text-ink-3">
         Settings are saved on this device.{" "}
