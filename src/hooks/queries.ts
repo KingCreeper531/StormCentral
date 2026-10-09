@@ -87,8 +87,16 @@ export function useAirQuality(force = false) {
  * minute per IP), so the grid is small and snapped outward to whole degrees:
  * small pans reuse the cached grid instead of spending another ~80 calls.
  */
-export function useAirGrid(view: BBox | null, variable: GridVariable) {
-  const bbox = view && { west: Math.floor(view.west), south: Math.floor(view.south), east: Math.ceil(view.east), north: Math.ceil(view.north) };
+export function useAirGrid(view: BBox | null, variable: GridVariable, { pad = 0 }: { pad?: number } = {}) {
+  // `pad` widens the sampled area by that fraction on each side, so small zooms and pans stay covered.
+  const w = view ? (view.east - view.west) * pad : 0;
+  const h = view ? (view.north - view.south) * pad : 0;
+  const bbox = view && {
+    west: Math.floor(view.west - w),
+    south: Math.floor(view.south - h),
+    east: Math.ceil(view.east + w),
+    north: Math.ceil(view.north + h),
+  };
   return useQuery({
     queryKey: bbox ? qk.airGrid(bbox, variable) : ["airGrid", "none"],
     queryFn: ({ signal }) => fetchAirGrid(bbox!, variable, 10, 8, signal),
