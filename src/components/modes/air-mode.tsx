@@ -3,7 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import type { Map as MlMap } from "maplibre-gl";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { HttpError } from "@/lib/api/http";
 import { fetchAirQuality, reverseGeocode, type AirQuality } from "@/lib/api/open-meteo";
 import type { BBox } from "@/lib/geo";
 import { bestOutdoorWindow, pm25ToAqi, pollenLevel, US_AQI_CATEGORIES, usAqiCategory, type PollenLevel, type PollenType } from "@/lib/science/air";
@@ -81,6 +82,15 @@ function cooperativeOnTouch(map: MlMap) {
   if (window.matchMedia("(pointer: coarse)").matches) map.cooperativeGestures.enable();
 }
 
+function useDebounced<T>(value: T, ms: number): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
 /** The colour map needs this zoom; zoomed further out it covers too much of the globe to sample well. */
 const MIN_HEAT_ZOOM = 3.5;
 
@@ -102,7 +112,11 @@ function PickedAir({ lat, lon, now, onClose }: { lat: number; lon: number; now: 
         {q.isLoading ? (
           <p className="mt-1 text-xs text-ink-3">Loading air quality…</p>
         ) : q.error || !a ? (
-          <p className="mt-1 text-xs text-ink-3">Air quality isn&apos;t available here.</p>
+          <p className="mt-1 text-xs text-ink-3">
+            {q.error instanceof HttpError && q.error.status === 429
+              ? "The air quality service is busy. Try again in a minute."
+              : "Couldn't load air quality here. Try again."}
+          </p>
         ) : (
           <>
             <p className="mt-1 flex items-center gap-2 text-sm text-ink">
@@ -134,8 +148,10 @@ export function AirMode() {
   const setLayer = useAppStore((s) => s.setAirLayer);
   const now = useNow(60_000);
   const [mapState, setMapState] = useState<{ bbox: BBox; zoom: number } | null>(null);
+  // Sample only after the map has settled, not on every step of a pan or zoom.
+  const settled = useDebounced(mapState, 700);
   const heatOn = !!mapState && mapState.zoom >= MIN_HEAT_ZOOM;
-  const grid = useAirGrid(heatOn ? mapState.bbox : null, layer);
+  const grid = useAirGrid(heatOn && settled ? settled.bbox : null, layer);
   const [picked, setPicked] = useState<{ lat: number; lon: number } | null>(null);
   const a = air.data;
 
