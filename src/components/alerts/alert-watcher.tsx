@@ -9,7 +9,7 @@ import type { AlertsResponse } from "@/lib/api/types";
 import { checkRules, checkWarnings, widgetSnapshot, type EngineIO } from "@/lib/alerting/engine";
 import { showWebNotification, webPermission } from "@/lib/alerting/notify-web";
 import { CURRENT_PLACE_ID, type WatchConfig } from "@/lib/alerting/types";
-import { runnerCheck, syncRunner } from "@/lib/native/runner-bridge";
+import { runnerCheck, syncRunner, writeShared } from "@/lib/native/runner-bridge";
 import { isNativeApp } from "@/lib/platform";
 import { useAlertsStore } from "@/store/alerts-store";
 import { useAppStore } from "@/store/app-store";
@@ -102,6 +102,12 @@ export function AlertWatcher() {
     }, 800);
     return () => clearTimeout(t);
   }, [cfg, qc, location, unit]);
+
+  // The widget matches the app's light/dark/system setting.
+  const themePref = useAppStore((s) => s.theme);
+  useEffect(() => {
+    if (isNativeApp()) void writeShared({ theme: themePref }).catch(() => {});
+  }, [themePref]);
 
   // Refresh the widget whenever a new forecast lands for the selected location.
   useEffect(() => {
