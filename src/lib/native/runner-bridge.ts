@@ -21,7 +21,7 @@ async function runner() {
  * RUNNER_LABEL), which the background runner and the home-screen widget both
  * read. This doesn't depend on the runner's JavaScript being up.
  */
-async function writeShared(entries: Record<string, string>) {
+export async function writeShared(entries: Record<string, string>) {
   const { Preferences } = await import("@capacitor/preferences");
   await Preferences.configure({ group: RUNNER_LABEL });
   for (const [key, value] of Object.entries(entries)) await Preferences.set({ key, value });
@@ -50,4 +50,11 @@ export async function runnerPermission(request: boolean): Promise<string> {
   const r = await runner();
   const status = request ? await r.requestPermissions({ apis: ["notifications"] }) : await r.checkPermissions();
   return (status as { notifications?: string }).notifications ?? "prompt";
+}
+
+/** Reads one value back from the runner's storage (diagnostics). */
+export async function readShared(key: string): Promise<string | null> {
+  const { Preferences } = await import("@capacitor/preferences");
+  await Preferences.configure({ group: RUNNER_LABEL });
+  return (await Preferences.get({ key })).value;
 }
