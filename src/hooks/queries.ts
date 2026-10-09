@@ -82,10 +82,16 @@ export function useAirQuality(force = false) {
   });
 }
 
-export function useAirGrid(bbox: BBox | null, variable: GridVariable) {
+/**
+ * Open-Meteo counts every grid point as one API call (free limit about 600 a
+ * minute per IP), so the grid is small and snapped outward to whole degrees:
+ * small pans reuse the cached grid instead of spending another ~80 calls.
+ */
+export function useAirGrid(view: BBox | null, variable: GridVariable) {
+  const bbox = view && { west: Math.floor(view.west), south: Math.floor(view.south), east: Math.ceil(view.east), north: Math.ceil(view.north) };
   return useQuery({
     queryKey: bbox ? qk.airGrid(bbox, variable) : ["airGrid", "none"],
-    queryFn: ({ signal }) => fetchAirGrid(bbox!, variable, 14, 10, signal),
+    queryFn: ({ signal }) => fetchAirGrid(bbox!, variable, 10, 8, signal),
     enabled: !!bbox,
     staleTime: 20 * 60_000,
     placeholderData: keepPreviousData,
