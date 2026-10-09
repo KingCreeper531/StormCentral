@@ -67,6 +67,16 @@ final class WeatherWidgetData {
         return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
+    /** The app's theme setting: "light", "dark" or "system" (the default). */
+    static String theme(Context context) {
+        try {
+            String t = prefs(context).getString("theme", null);
+            return t == null ? "system" : t;
+        } catch (RuntimeException e) {
+            return "system";
+        }
+    }
+
     /** The stored snapshot, or null when there is none or it is not a JSON object. */
     static JSONObject read(Context context) {
         String raw;
