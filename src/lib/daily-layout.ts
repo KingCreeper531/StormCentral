@@ -10,7 +10,6 @@ export const DAILY_PANELS = [
   { id: "hourly", label: "Hourly forecast", col: "main" },
   { id: "radar", label: "Radar", col: "side" },
   { id: "severe", label: "Severe weather outlook", col: "full", hint: "Shows when you're in an SPC risk area" },
-  { id: "compare", label: "Forecast comparison", col: "full" },
   { id: "conditions", label: "Conditions", col: "main" },
   { id: "outlook", label: "10-day forecast", col: "side" },
   { id: "sunmoon", label: "Sun and moon", col: "main" },
