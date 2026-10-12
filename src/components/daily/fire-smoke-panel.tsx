@@ -88,7 +88,7 @@ export function FireSmokePanel({ f, air, now, className }: { f: Forecast; air: A
               {FIRE_LEVELS[d.level]}
             </p>
             <p className="mt-0.5 truncate text-[11px] text-ink-3 tabular">
-              RH {fmt.percent(d.minRh)}, gust {fmt.wind(d.maxGust, false)}
+              RH {fmt.percent(d.minRh)}, gust {fmt.wind(d.maxGust)}
             </p>
           </li>
         ))}

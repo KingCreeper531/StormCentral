@@ -150,8 +150,8 @@ export function ClimatePanel({ f, now, className }: { f: Forecast; now: number; 
       <DepartureStrip f={f} c={c} now={now} unit={unit} />
 
       <p className="mt-3 text-xs text-ink-3">
-        Normals {c.normalYears[0]}–{c.normalYears[1]} and records since {c.recordYears[0]} for this ~25 km area, from the ERA5 climate reanalysis. Official
-        station records can differ by a few degrees.
+        Official {c.normalYears[0]}–{c.normalYears[1]} normals and records since {c.recordYears[0]} for {c.station}
+        {c.distanceKm >= 15 ? ` (${fmt.distanceKm(c.distanceKm)} away)` : ""}, from NOAA ACIS.
       </p>
     </Panel>
   );

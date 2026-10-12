@@ -1,37 +1,88 @@
-import { buildClimate, type ClimateTable } from "../climate";
+import { HttpError } from "../api/http";
+import { buildClimate, rankStations, type AcisStation, type ClimateTable } from "../climate";
 import { cached } from "./cache";
 import type { Feed } from "./types";
 import { badParams, parseLatLon, upstreamJson } from "./upstream";
 
-const ARCHIVE = "https://archive-api.open-meteo.com/v1/archive";
-/** Records are searched from here to the end of last year. */
-const RECORDS_FROM = 1951;
+const ACIS = "https://data.rcc-acis.org";
 
 export type ClimateResponse = ClimateTable;
 
+interface AcisReply {
+  error?: string;
+  meta?: { name?: string; valid_daterange?: [string, string][] };
+  smry?: unknown;
+  data?: unknown;
+}
+
+async function acis<T extends AcisReply>(endpoint: "StnMeta" | "StnData", params: object): Promise<T> {
+  const r = await upstreamJson<T>(`${ACIS}/${endpoint}?params=${encodeURIComponent(JSON.stringify(params))}`, { timeoutMs: 20_000 });
+  // ACIS reports bad ids and empty results in a 200 response.
+  if (r?.error) throw new HttpError(`ACIS: ${r.error}`, 404);
+  return r;
+}
+
+const dly = { interval: "dly", duration: "dly", groupby: ["year", "01-01", "12-31"], smry_only: 1 };
+const RECORD_ELEMS = [
+  { name: "maxt", ...dly, smry: { reduce: "max", add: "date" } },
+  { name: "mint", ...dly, smry: { reduce: "min", add: "date" } },
+  { name: "pcpn", ...dly, smry: { reduce: "max", add: "date" } },
+];
+
+/** Stations with a 30-year record that report now, within ~90 km (then ~180 km). */
+async function findStations(lat: number, lon: number): Promise<AcisStation[]> {
+  for (const d of [0.8, 1.6]) {
+    const dLon = d / Math.max(0.3, Math.cos((lat * Math.PI) / 180));
+    const bbox = [lon - dLon, lat - d, lon + dLon, lat + d].map((v) => v.toFixed(2)).join(",");
+    const raw = await acis("StnMeta", { bbox, elems: "maxt", meta: "name,sids,ll,valid_daterange", sdate: "1991-01-01", edate: "2020-12-31" }).catch((err) => {
+      if (err instanceof HttpError && err.status === 404) return { meta: [] };
+      throw err;
+    });
+    const ranked = rankStations(raw, { lat, lon }, Date.now());
+    if (ranked.length) return ranked;
+  }
+  throw new HttpError("No long-record weather station near this location (US only)", 404);
+}
+
 /**
- * `lat` & `lon`: normals and daily records for the ERA5 grid cell (~25 km)
- * containing the point. Built from 75 years of daily data (about 700 kB from
- * the archive), so the compact table is cached for a week per grid cell.
+ * `lat` & `lon`: daily normals and records from the best nearby station (US).
+ * The station for a grid cell is cached for a month, its table for a week.
  */
 export const climateFeed: Feed<ClimateResponse> = {
   path: "/api/climate",
-  maxAge: 86_400,
+  maxAge: 21_600,
   async load(sp) {
     const p = parseLatLon(sp);
     if (!p) throw badParams("lat/lon required");
-    // ERA5's 0.25° grid: everyone in the same cell shares one entry.
-    const lat = (Math.round(p.lat * 4) / 4).toFixed(2);
-    const lon = (Math.round(p.lon * 4) / 4).toFixed(2);
-    const lastYear = new Date().getUTCFullYear() - 1;
+    const lat = Math.round(p.lat * 4) / 4;
+    const lon = Math.round(p.lon * 4) / 4;
+    const stations = await cached(`climate-stations:${lat}:${lon}`, 30 * 86_400_000, () => findStations(lat, lon), { persist: true });
+    const best = stations[0]!;
     return cached(
-      `climate:${lat}:${lon}:${lastYear}`,
+      `climate:${best.sid}`,
       7 * 86_400_000,
       async () => {
-        const url =
-          `${ARCHIVE}?latitude=${lat}&longitude=${lon}&start_date=${RECORDS_FROM}-01-01&end_date=${lastYear}-12-31` +
-          "&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto&timeformat=iso8601";
-        return buildClimate(await upstreamJson(url, { timeoutMs: 45_000 }));
+        // A threaded record ("PITthr") joins a city's old downtown and newer airport stations: records back to the 1800s.
+        let sid = best.sid;
+        let records: AcisReply | null = null;
+        if (best.faa) {
+          records = await acis("StnData", { sid: `${best.faa}thr`, sdate: "por", edate: "por", elems: RECORD_ELEMS, meta: "name,valid_daterange" }).catch(() => null);
+          if (records) sid = `${best.faa}thr`;
+        }
+        records ??= await acis("StnData", { sid, sdate: "por", edate: "por", elems: RECORD_ELEMS, meta: "name,valid_daterange" });
+        // Normals for a leap year give all 366 days.
+        const normals = await acis("StnData", {
+          sid,
+          sdate: "2024-01-01",
+          edate: "2024-12-31",
+          elems: [
+            { name: "maxt", normal: "1" },
+            { name: "mint", normal: "1" },
+            { name: "pcpn", normal: "1" },
+          ],
+        }).catch(() => ({ data: [] }));
+        const name = records.meta?.name;
+        return buildClimate(records, normals, best, sid === best.sid ? undefined : name, records.meta?.valid_daterange?.[0]);
       },
       { persist: true },
     );

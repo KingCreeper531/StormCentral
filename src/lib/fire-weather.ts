@@ -109,8 +109,8 @@ export function smokeOutlook(a: AirQuality, nowMs: number): SmokeOutlook {
         ? ["Very smoky", "Unhealthy air for everyone. Limit time outside."]
         : pm > 35.4
           ? ["Smoky", "Unhealthy for sensitive groups. Consider a mask outside if you have asthma or heart disease."]
-          : pm > 15
-            ? ["Some haze", "Slightly elevated particles; most people won't notice."]
+          : pm > 9
+            ? ["Mostly clear", "Slightly elevated particles; only unusually sensitive people are likely to notice."]
             : (aodNow ?? 0) >= 0.5
               ? ["Hazy sky", "Smoke or dust high overhead: hazy skies and vivid sunsets, but the air at ground level is fine."]
               : ["Clear air", "No smoke or haze to speak of."];

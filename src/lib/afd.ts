@@ -38,9 +38,9 @@ export interface GlossaryEntry {
   meaning: string;
 }
 
-const SPECIALTY = /^(AVIATION|MARINE|FIRE WEATHER|HYDROLOGY|CLIMATE|TIDES|COASTAL|BEACHES|EQUIPMENT|AIR QUALITY|RIP CURRENTS|SURF|PRELIMINARY POINT TEMPS|SHORT TERM TEMPS)/;
-/** Lists the office's active alerts, which the app already shows. */
-const SKIP = /WATCHES\/WARNINGS|WARNINGS\/ADVISORIES|^[A-Z]{3} WATCHES/;
+const SPECIALTY = /^(AVIATION|MARINE|FIRE WEATHER|HYDROLOGY|CLIMATE|TIDES|COASTAL|BEACHES|EQUIPMENT|AIR QUALITY|RIP CURRENTS|SURF|SHORT TERM TEMPS)/;
+/** The office's active-alert list (the app already shows alerts) and point-forecast tables (unreadable unwrapped). */
+const SKIP = /WATCHES\/WARNINGS|WARNINGS\/ADVISORIES|^[A-Z]{3} WATCHES|PRELIMINARY POINT|POINT TEMPS/;
 
 /** Office shorthand → plain words (whole words only; case-insensitive unless all-caps). */
 const SHORTHAND: [RegExp, string][] = [

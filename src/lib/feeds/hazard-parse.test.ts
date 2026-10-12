@@ -63,12 +63,15 @@ describe("NIFC wildfires", () => {
         f("Done", -120.9, 44.5, { PercentContained: 100 }),
         f("Burn", -120.9, 44.5, { IncidentTypeCategory: "RX" }),
         f("Far", -110, 44.5),
+        f("Lac-368088", -120.95, 44.5, { IncidentSize: null }),
+        f("Spot", -120.95, 44.5, { IncidentSize: null, FireDiscoveryDateTime: 1784157600000 + 3 * 86_400_000 }),
       ],
     };
-    const list = parseWildfires(raw, { lat: 44.5, lon: -121 }, 250);
-    expect(list.map((w) => w.name)).toEqual(["Near Fire", "Rowe Creek Complex"]);
-    expect(list[1]).toMatchObject({ kind: "Complex", acres: 1200, contained: 20, cause: "Natural" });
-    expect(list[0]!.discovered).toBe(new Date(1784157600000).toISOString());
+    // Three days on: the old unsized report drops out, the fresh one stays.
+    const list = parseWildfires(raw, { lat: 44.5, lon: -121 }, 250, 1784157600000 + 3 * 86_400_000 + 3_600_000);
+    expect(list.map((w) => w.name)).toEqual(["Spot", "Near Fire", "Rowe Creek Complex"]);
+    expect(list[2]).toMatchObject({ kind: "Complex", acres: 1200, contained: 20, cause: "Natural" });
+    expect(list[1]!.discovered).toBe(new Date(1784157600000).toISOString());
     expect(parseWildfires({ error: { code: 400 } }, { lat: 0, lon: 0 }, 100)).toEqual([]);
   });
 });

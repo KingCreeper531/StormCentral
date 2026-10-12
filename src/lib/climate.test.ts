@@ -1,21 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { buildClimate, climateSlot, isoDateIn, normalPrecipOver, normalPrecipToDate, slotOf } from "./climate";
+import { buildClimate, climateSlot, isoDateIn, normalPrecipOver, normalPrecipToDate, rankStations, slotOf, type AcisStation } from "./climate";
 
-/** Daily archive for `years`, with values from `f(year, month, day)`. */
-function archive(years: [number, number], f: (y: number, m: number, d: number) => [number, number, number]) {
-  const time: string[] = [];
-  const tx: number[] = [];
-  const tn: number[] = [];
-  const pr: number[] = [];
-  for (let t = Date.UTC(years[0], 0, 1); t <= Date.UTC(years[1], 11, 31); t += 86_400_000) {
-    const d = new Date(t);
-    const [h, l, p] = f(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
-    time.push(d.toISOString().slice(0, 10));
-    tx.push(h);
-    tn.push(l);
-    pr.push(p);
-  }
-  return { latitude: 40.5, longitude: -80, daily: { time, temperature_2m_max: tx, temperature_2m_min: tn, precipitation_sum: pr } };
+// Shapes as served by data.rcc-acis.org (sampled October 2026).
+const NOW = Date.UTC(2026, 9, 12);
+const meta = {
+  meta: [
+    { valid_daterange: [["1921-07-01", "2000-03-27"]], ll: [-80.23333, 40.18333], sids: ["369312 2", "USC00369312 6", "WSHP1 7"], name: "WASHINGTON" },
+    { valid_daterange: [["2008-02-05", "2026-10-12"]], ll: [-80.20578, 40.54886], sids: ["363343 2", "USC00363343 6", "GWDP1 7"], name: "GLENWILLARD DASHIELDS LOCK AND DAM" },
+    { valid_daterange: [["1948-01-01", "2026-10-11"]], ll: [-80.21448, 40.48459], sids: ["94823 1", "366993 2", "PIT 3", "72520 4", "KPIT 5", "USW00094823 6", "PIT 7"], name: "PITTSBURGH INTERNATIONAL AIRPORT" },
+    { valid_daterange: [["1977-12-01", "2026-10-09"]], ll: [-79.8594, 40.3916], sids: ["360861 2", "USC00360861 6", "BDDP1 7"], name: "BRADDOCK LOCK 2" },
+  ],
+};
+
+const station: AcisStation = { name: "PITTSBURGH INTERNATIONAL AIRPORT", sid: "94823", faa: "PIT", lat: 40.48, lon: -80.21, distanceKm: 18.5, start: "1948-01-01", end: "2026-10-11" };
+
+function leapYear<T>(f: (iso: string, i: number) => T): T[] {
+  const out: T[] = [];
+  for (let t = Date.UTC(2024, 0, 1), i = 0; t <= Date.UTC(2024, 11, 31); t += 86_400_000, i++) out.push(f(new Date(t).toISOString().slice(0, 10), i));
+  return out;
 }
 
 describe("climateSlot", () => {
@@ -28,47 +30,61 @@ describe("climateSlot", () => {
   });
 });
 
+describe("rankStations", () => {
+  it("keeps current long-record stations, preferring a nearby airport", () => {
+    const r = rankStations(meta, { lat: 40.44, lon: -80.0 }, NOW);
+    // Washington ended in 2000; Glenwillard has under 30 years.
+    expect(r.map((s) => s.name)).toEqual(["PITTSBURGH INTERNATIONAL AIRPORT", "BRADDOCK LOCK 2"]);
+    expect(r[0]).toMatchObject({ faa: "PIT", sid: "94823", start: "1948-01-01" });
+    expect(r[1]!.faa).toBeNull();
+    expect(r[1]!.sid).toBe("360861");
+    expect(rankStations({ meta: [] }, { lat: 0, lon: 0 }, NOW)).toEqual([]);
+  });
+});
+
 describe("buildClimate", () => {
-  it("averages 1991–2020 for normals and finds records over every year", () => {
-    // Constant 20/10 °C and 2 mm a day, except one hot day and one cold day.
-    const c = buildClimate(
-      archive([1951, 2025], (y, m, d) => {
-        if (y === 1988 && m === 7 && d === 4) return [40, 25, 0];
-        if (y === 2024 && m === 1 && d === 15) return [-5, -30, 50];
-        return [20, 10, 2];
-      }),
-    );
-    expect(c.recordYears).toEqual([1951, 2025]);
+  const records = {
+    meta: { name: "Pittsburgh Area", valid_daterange: [["1875-01-01", "2026-10-11"]] },
+    smry: [
+      leapYear((iso) => [iso === "2024-10-12" ? "85" : "70", iso === "2024-10-12" ? "1879-10-12" : "1990-" + iso.slice(5)]),
+      leapYear((iso) => [iso === "2024-10-12" ? "23" : "M", "1988-" + iso.slice(5)]),
+      leapYear(() => ["T", "2001-01-01"]),
+    ],
+  };
+  const normals = { data: leapYear((iso) => [iso, "65", "45", "0.09"]) };
+
+  it("converts records and normals to °C and mm by calendar slot", () => {
+    const c = buildClimate(records, normals, station, records.meta.name, records.meta.valid_daterange[0] as [string, string]);
+    const s = slotOf("2026-10-12");
+    expect(c.station).toBe("Pittsburgh Area");
+    expect(c.recordYears).toEqual([1875, 2026]);
     expect(c.normalYears).toEqual([1991, 2020]);
-    expect(c.hi[slotOf("2026-07-04")]).toBe(20); // 1988 is outside the normals period
-    expect(c.recHi[slotOf("2026-07-04")]).toBe(40);
-    expect(c.recHiYear[slotOf("2026-07-04")]).toBe(1988);
-    expect(c.recLo[slotOf("2026-01-15")]).toBe(-30);
-    expect(c.recLoYear[slotOf("2026-01-15")]).toBe(2024);
-    expect(c.recPrecip[slotOf("2026-01-15")]).toBe(50);
-    // Ties go to the most recent year.
-    expect(c.recHiYear[slotOf("2026-03-10")]).toBe(2025);
-    expect(c.precip[0]).toBe(2);
+    expect(c.recHi[s]).toBe(29.4);
+    expect(c.recHiYear[s]).toBe(1879);
+    expect(c.recLo[s]).toBe(-5);
+    expect(c.recLo[s + 1]).toBeNull(); // "M"
+    expect(c.recPrecip[0]).toBe(0); // trace
+    expect(c.hi[s]).toBe(18.3);
+    expect(c.lo[s]).toBe(7.2);
+    expect(c.precip[s]).toBe(2.29);
     expect(c.hi).toHaveLength(366);
   });
 
-  it("smooths normals over neighbouring days", () => {
-    // Highs rise 1 °C per day of year: the smoothed normal still matches mid-year.
-    const c = buildClimate(archive([1991, 2020], (_y, m, d) => [climateSlot(m, d) / 10, 0, 0]));
-    expect(c.hi[slotOf("2026-06-15")]).toBeCloseTo(climateSlot(6, 15) / 10, 1);
-  });
-
-  it("sums normal rainfall for the month to date and over a window", () => {
-    const c = buildClimate(archive([1991, 2020], () => [10, 0, 3]));
-    expect(normalPrecipToDate(c, "2026-02-10")).toEqual({ toDate: 30, month: 84 });
-    expect(normalPrecipToDate(c, "2028-02-29")?.month).toBeCloseTo(87);
-    expect(normalPrecipOver(c, "2026-10-12", 30)).toBeCloseTo(90);
-  });
-
-  it("handles an empty response", () => {
-    const c = buildClimate({});
+  it("falls back to the station's own name and record", () => {
+    const c = buildClimate({}, {}, station);
+    expect(c.station).toBe("Pittsburgh International Airport");
+    expect(c.recordYears).toEqual([1948, 2026]);
     expect(c.hi.every((v) => v == null)).toBe(true);
     expect(normalPrecipToDate(c, "2026-01-01")).toBeNull();
+  });
+
+  it("sums normal precipitation for the month to date and over a window", () => {
+    const c = buildClimate({}, { data: leapYear((iso) => [iso, "50", "30", "0.10"]) }, station);
+    const day = 2.54;
+    expect(normalPrecipToDate(c, "2026-02-10")?.toDate).toBeCloseTo(10 * day);
+    expect(normalPrecipToDate(c, "2026-02-10")?.month).toBeCloseTo(28 * day);
+    expect(normalPrecipToDate(c, "2028-02-29")?.month).toBeCloseTo(29 * day);
+    expect(normalPrecipOver(c, "2026-10-12", 30)).toBeCloseTo(30 * day);
   });
 });
 

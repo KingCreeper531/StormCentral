@@ -40,8 +40,11 @@ interface RawFeature {
   geometry?: { x?: number; y?: number };
 }
 
-/** Uncontained wildfires within `radiusKm`, nearest first. */
-export function parseWildfires(raw: unknown, p: LatLon, radiusKm: number): Wildfire[] {
+/**
+ * Uncontained wildfires within `radiusKm`, nearest first. Unsized reports
+ * (often quick initial-attack calls that never grow) drop out after two days.
+ */
+export function parseWildfires(raw: unknown, p: LatLon, radiusKm: number, nowMs = Date.now()): Wildfire[] {
   const features = (raw as { features?: RawFeature[] })?.features;
   if (!Array.isArray(features)) return [];
   const out: Wildfire[] = [];
@@ -56,6 +59,9 @@ export function parseWildfires(raw: unknown, p: LatLon, radiusKm: number): Wildf
     const at = { lat: y, lon: x };
     const distanceKm = haversineKm(p, at);
     if (distanceKm > radiusKm) continue;
+    const acres = typeof a.IncidentSize === "number" && a.IncidentSize >= 0 ? a.IncidentSize : null;
+    const found = typeof a.FireDiscoveryDateTime === "number" ? a.FireDiscoveryDateTime : null;
+    if ((acres ?? 0) < 1 && (found == null || nowMs - found > 2 * 86_400_000)) continue;
     const name = (a.IncidentName ?? "").trim();
     out.push({
       // NIFC names are often all caps ("ROWE CREEK COMPLEX").
@@ -64,9 +70,9 @@ export function parseWildfires(raw: unknown, p: LatLon, radiusKm: number): Wildf
       lon: x,
       distanceKm,
       bearingDeg: bearingDeg(p, at),
-      acres: typeof a.IncidentSize === "number" && a.IncidentSize >= 0 ? a.IncidentSize : null,
+      acres,
       contained,
-      discovered: typeof a.FireDiscoveryDateTime === "number" ? new Date(a.FireDiscoveryDateTime).toISOString() : null,
+      discovered: found != null ? new Date(found).toISOString() : null,
       kind: a.IncidentTypeCategory === "CX" ? "Complex" : "Wildfire",
       cause: a.FireCause?.trim() || null,
     });

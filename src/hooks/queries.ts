@@ -312,7 +312,7 @@ export function useForecasterNotes() {
   });
 }
 
-/** Normals and records for the location's ERA5 grid cell. */
+/** Normals and records from the nearest long-record station (US). */
 export function useClimate() {
   const loc = useAppStore((s) => s.location);
   const { enabled } = usePoll("climate");
