@@ -5,7 +5,10 @@ import { hrrrFrames } from "@/lib/radar/hrrr";
 import { frameBudget, framesFromScans, iemSiteId, MOSAIC_SITE, mosaicOffsetFrames, type RadarFrame } from "@/lib/radar/frames";
 import type { BufferStatus } from "@/lib/radar/layer-manager";
 import { crossfadeFor, frameDelayMs, nextPlayableIndex, stepIndex, type Speed } from "@/lib/radar/playback";
-import { useRadarScans } from "./queries";
+import { useNoaaTimes, useRadarScans } from "./queries";
+import { noaaFrames, noaaLayerFor, noaaTilesUsable } from "@/lib/radar/noaa";
+
+export type RadarSource = "noaa" | "iem";
 
 export interface RadarLoopOptions {
   /** ICAO (KTLX) for single-site, or null for the national mosaic. */
@@ -31,6 +34,10 @@ export interface RadarLoop {
   isLoading: boolean;
   error: unknown;
   usingFallback: boolean;
+  /** Where the scans come from: NOAA (MRMS / super-res NEXRAD) or IEM tiles. */
+  source: RadarSource;
+  /** "MRMS" or "KTLX SR" while NOAA is the source. */
+  sourceLabel: string | null;
   /** Frames before this index are observed scans; the rest are model forecast. */
   liveCount: number;
   setIndex: (i: number) => void;
@@ -56,17 +63,38 @@ export function useRadarLoop({ site, product, frameCount, speed, crossfade, auto
   );
   const count = Math.min(frameCount, budget);
   const minutes = historyMinutes > 0 ? Math.min(240, historyMinutes + 10) : Math.min(240, count * (isMosaic ? 5 : 6) + 15);
-  const scans = useRadarScans(iemSite, iemProduct, minutes);
 
-  const scanList = scans.data?.scans;
-  const usingFallback = isMosaic && (scans.isError || (scans.isSuccess && !scanList?.length));
+  // Preferred source: NOAA itself (MRMS mosaic, super-res NEXRAD; lib/radar/noaa).
+  // IEM's tiles cover everything else, and stand in whenever NOAA can't be reached.
+  const noaaLayer = useMemo(() => noaaLayerFor(site, product), [site, product]);
+  const [noaaOk, setNoaaOk] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!noaaLayer) return;
+    let alive = true;
+    void noaaTilesUsable().then((ok) => alive && setNoaaOk(ok));
+    return () => {
+      alive = false;
+    };
+  }, [noaaLayer]);
+  const noaaTimes = useNoaaTimes(noaaLayer, minutes, noaaOk === true);
+  const noaaList = noaaTimes.data?.times;
+  const noaaFailed = noaaOk === false || noaaTimes.isError || (noaaTimes.isSuccess && !noaaList?.length);
+  const useIem = !noaaLayer || noaaFailed;
+  const noaaPending = !useIem && !noaaList?.length;
+  const spanMs = (historyMinutes > 0 ? historyMinutes : count * (isMosaic ? 5 : 6)) * 60_000;
+
+  const scans = useRadarScans(useIem ? iemSite : null, iemProduct, minutes);
+  const scanList = useIem ? scans.data?.scans : undefined;
+  const usingFallback = isMosaic && useIem && (scans.isError || (scans.isSuccess && !scanList?.length));
   const live = useMemo(() => {
+    if (!useIem && noaaLayer && noaaList?.length) return noaaFrames(noaaLayer, noaaList, count, spanMs);
     // The feed may answer with a related code (N0U for N0G) when the preferred one has no scans.
     if (scanList?.length) return framesFromScans(scanList, iemSite, scans.data?.product ?? iemProduct, count, historyMinutes * 60_000);
     // Rolling-offset mosaic needs no index — always available as a fallback.
     if (usingFallback) return mosaicOffsetFrames(new Date(), Math.min(count, 12));
     return [];
-  }, [scanList, iemSite, iemProduct, count, usingFallback, scans.data?.product, historyMinutes]);
+  }, [useIem, noaaLayer, noaaList, spanMs, scanList, iemSite, iemProduct, count, usingFallback, scans.data?.product, historyMinutes]);
+  const source: RadarSource = !useIem && live.length ? "noaa" : "iem";
   // Future frames follow the newest scan (which stands in for "now"); each new scan rebuilds them.
   const lastLive = live.at(-1)?.time ?? 0;
   const future = useMemo(
@@ -134,9 +162,11 @@ export function useRadarLoop({ site, product, frameCount, speed, crossfade, auto
     ready,
     buffered: ready.filter(Boolean).length,
     crossfadeMs: crossfadeFor(speed, crossfade),
-    isLoading: scans.isLoading,
-    error: usingFallback ? null : scans.error,
+    isLoading: noaaPending || (useIem && scans.isLoading),
+    error: usingFallback || !useIem ? null : scans.error,
     usingFallback,
+    source,
+    sourceLabel: source === "noaa" && noaaLayer ? noaaLayer.label : null,
     liveCount,
     setIndex: (i) => {
       setPlaying(false);

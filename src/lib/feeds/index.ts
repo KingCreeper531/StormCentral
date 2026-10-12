@@ -1,7 +1,7 @@
 import { alertsFeed } from "./alerts";
 import { gnssFeed } from "./gnss";
 import { outlookFeed } from "./outlook";
-import { radarProductsFeed, radarScansFeed } from "./radar";
+import { noaaTimesFeed, radarProductsFeed, radarScansFeed } from "./radar";
 import { riversFeed } from "./rivers";
 import { spaceWeatherFeed } from "./space-weather";
 import { stormCellsFeed } from "./storm-cells";
@@ -19,6 +19,7 @@ export const FEEDS: ReadonlyMap<string, Feed> = new Map(
     gnssFeed,
     radarScansFeed,
     radarProductsFeed,
+    noaaTimesFeed,
     stormReportsFeed,
     stormCellsFeed,
     tropicalFeed,

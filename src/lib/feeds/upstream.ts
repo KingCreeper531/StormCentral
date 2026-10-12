@@ -39,6 +39,17 @@ export function upstreamJson<T>(url: string, { headers, timeoutMs = 12_000 }: { 
   }) as Promise<T>;
 }
 
+/** A text body (XML capabilities documents). Plain fetch on every platform. */
+export async function upstreamText(url: string, { timeoutMs = 12_000 }: { timeoutMs?: number } = {}): Promise<string> {
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: typeof window === "undefined" ? { "User-Agent": USER_AGENT } : {},
+    signal: withTimeout(undefined, timeoutMs),
+  });
+  if (!res.ok) throw new HttpError(`Upstream ${res.status} for ${new URL(url).host}`, res.status, url);
+  return res.text();
+}
+
 export function parseLatLon(sp: URLSearchParams): { lat: number; lon: number } | null {
   const rawLat = sp.get("lat")?.trim();
   const rawLon = sp.get("lon")?.trim();
