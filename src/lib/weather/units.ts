@@ -117,6 +117,12 @@ export const formatters = (u: UnitPrefs) => ({
     return u.distance === "mi" ? `${fmt(Math.min(km * 0.621371, 10), 1)}\u00a0mi` : `${fmt(Math.min(km, 16), 1)}\u00a0km`;
   },
   percent: (p: number | null | undefined) => (p == null ? "—" : `${fmt(p, 0)}%`),
+  /** A temperature difference (°C in) in the display unit: "+8°", "−3°", "±0°". */
+  tempDelta: (dC: number | null | undefined) => {
+    if (dC == null || !Number.isFinite(dC)) return "—";
+    const v = Math.round(u.temp === "F" ? (dC * 9) / 5 : dC);
+    return `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v)}°`;
+  },
 });
 
 export type Formatters = ReturnType<typeof formatters>;

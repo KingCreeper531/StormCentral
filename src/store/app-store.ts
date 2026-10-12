@@ -6,6 +6,8 @@ import type { OutlookKind } from "@/lib/api/types";
 import type { LatLon } from "@/lib/geo";
 import type { ProductFamily, TiltPrefix } from "@/lib/radar/products";
 import type { Speed } from "@/lib/radar/playback";
+import { DEFAULT_COMPARE, isCompareSourceId, type CompareSourceId } from "@/lib/compare-sources";
+import { defaultDailyLayout, normalizeDailyLayout, type DailyItem } from "@/lib/daily-layout";
 import { isValidClock, isValidZone, setTimePrefs, type ClockPref, type ZonePref } from "@/lib/clock";
 import type { ThemePref } from "@/lib/theme";
 import { defaultUnitsForLocale, UNIT_PRESETS, type UnitPrefs } from "@/lib/weather/units";
@@ -88,6 +90,12 @@ export interface AppState {
   followLocation: boolean;
   /** Android home-screen widgets: on a solid panel, or transparent over the wallpaper. */
   widgetBackground: WidgetBackground;
+  /** The two forecasts the comparison panel lines up. */
+  compare: { a: CompareSourceId; b: CompareSourceId };
+  /** The person's own Google Weather API key (kept on this device only). */
+  googleKey: string;
+  /** Daily page panels: order, column and visibility. */
+  dailyLayout: DailyItem[];
   composerOpen: boolean;
   paletteOpen: boolean;
   setMode: (mode: ModeId) => void;
@@ -102,6 +110,9 @@ export interface AppState {
   setTimeZoneMode: (z: ZonePref) => void;
   setFollowLocation: (on: boolean) => void;
   setWidgetBackground: (b: WidgetBackground) => void;
+  setCompare: (c: Partial<AppState["compare"]>) => void;
+  setDailyLayout: (layout: DailyItem[]) => void;
+  setGoogleKey: (key: string) => void;
   setComposerOpen: (open: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
 }
@@ -163,6 +174,9 @@ export const useAppStore = create<AppState>()(
       timeZoneMode: "auto",
       followLocation: true,
       widgetBackground: "solid",
+      compare: { ...DEFAULT_COMPARE },
+      dailyLayout: defaultDailyLayout(),
+      googleKey: "",
       composerOpen: false,
       paletteOpen: false,
       setMode: (mode) => {
@@ -187,6 +201,9 @@ export const useAppStore = create<AppState>()(
       },
       setFollowLocation: (followLocation) => set({ followLocation }),
       setWidgetBackground: (widgetBackground) => set({ widgetBackground }),
+      setCompare: (c) => set((s) => ({ compare: { ...s.compare, ...c } })),
+      setDailyLayout: (layout) => set({ dailyLayout: normalizeDailyLayout(layout) }),
+      setGoogleKey: (googleKey) => set({ googleKey: googleKey.trim().slice(0, 200) }),
       setComposerOpen: (composerOpen) => set({ composerOpen }),
       setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
     }),
@@ -196,7 +213,7 @@ export const useAppStore = create<AppState>()(
       // Rehydrated from a client effect so SSR markup and first client render match.
       skipHydration: true,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ mode: s.mode, location: s.location, units: s.units, theme: s.theme, radar: s.radar, drone: s.drone, airLayer: s.airLayer, radiusKm: s.radiusKm, clock: s.clock, timeZoneMode: s.timeZoneMode, followLocation: s.followLocation, widgetBackground: s.widgetBackground }),
+      partialize: (s) => ({ mode: s.mode, location: s.location, units: s.units, theme: s.theme, radar: s.radar, drone: s.drone, airLayer: s.airLayer, radiusKm: s.radiusKm, clock: s.clock, timeZoneMode: s.timeZoneMode, followLocation: s.followLocation, widgetBackground: s.widgetBackground, compare: s.compare, dailyLayout: s.dailyLayout, googleKey: s.googleKey }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<AppState>;
         return {
@@ -212,6 +229,12 @@ export const useAppStore = create<AppState>()(
           timeZoneMode: isValidZone(p.timeZoneMode) ? p.timeZoneMode : current.timeZoneMode,
           followLocation: typeof p.followLocation === "boolean" ? p.followLocation : current.followLocation,
           widgetBackground: p.widgetBackground === "transparent" ? "transparent" : "solid",
+          compare: {
+            a: isCompareSourceId(p.compare?.a) ? p.compare.a : current.compare.a,
+            b: isCompareSourceId(p.compare?.b) ? p.compare.b : current.compare.b,
+          },
+          dailyLayout: normalizeDailyLayout(p.dailyLayout),
+          googleKey: typeof p.googleKey === "string" ? p.googleKey.slice(0, 200) : "",
         };
       },
       onRehydrateStorage: () => (state) => {

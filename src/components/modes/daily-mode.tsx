@@ -1,42 +1,112 @@
 "use client";
 
+import { ArrowDown, ArrowUp, EyeOff, LayoutGrid, Plus, RotateCcw } from "lucide-react";
+import { useState } from "react";
 import { useAirQuality, useForecast } from "@/hooks/queries";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { useNow } from "@/hooks/use-now";
+import type { AirQuality, Forecast } from "@/lib/api/open-meteo";
+import { canMoveDailyItem, dailySections, defaultDailyLayout, moveDailyItem, panelInfo, type DailyColumn, type DailyItem, type DailyPanelId } from "@/lib/daily-layout";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
+import { useAppStore } from "@/store/app-store";
 import { NearbyReports } from "../community/nearby-reports";
 import { ClimatePanel } from "../daily/climate-panel";
 import { CurrentHero } from "../daily/current-hero";
 import { DailyOutlook } from "../daily/daily-outlook";
-import { FireSmokePanel } from "../daily/fire-smoke-panel";
-import { ForecasterNotesPanel } from "../daily/forecaster-notes-panel";
-import { GoogleForecastPanel } from "../daily/google-forecast-panel";
 import { ConditionsPanel, SunMoonPanel } from "../daily/details-grid";
+import { FireSmokePanel } from "../daily/fire-smoke-panel";
+import { ForecastComparePanel } from "../daily/forecast-compare-panel";
+import { ForecasterNotesPanel } from "../daily/forecaster-notes-panel";
 import { HourlyPanel } from "../daily/hourly-panel";
 import { NowcastCard } from "../daily/nowcast-card";
 import { RadarPreview } from "../daily/radar-preview";
 import { RainfallPanel } from "../daily/rainfall-panel";
 import { SevereRiskPanel } from "../daily/severe-risk-panel";
+import { Button } from "../ui/button";
 import { ErrorNote, Skeleton } from "../ui/misc";
 import { PanelBoundary } from "../ui/panel-boundary";
+import { Segmented } from "../ui/segmented";
 
-/** Conditions + 10-day + sun and moon (see below). */
-const DETAILS_GRID = "grid min-w-0 grid-cols-1 gap-4 lg:col-span-12 lg:grid-cols-12 lg:grid-rows-[auto_minmax(0,1fr)]";
+interface Ctx {
+  f: Forecast;
+  air: AirQuality | undefined;
+  now: number;
+}
+
+/** Every Daily panel by id. Panels size to their column; several render nothing when they don't apply. */
+const RENDER: Record<DailyPanelId, (c: Ctx) => React.ReactNode> = {
+  hero: ({ f, now }) => <CurrentHero f={f} now={now} />,
+  nowcast: ({ f, now }) => <NowcastCard f={f} now={now} />,
+  hourly: ({ f, now }) => <HourlyPanel f={f} now={now} />,
+  radar: ({ f, now }) => <RadarPreview now={now} timeZone={f.timezone} />,
+  severe: ({ f }) => <SevereRiskPanel timeZone={f.timezone} />,
+  compare: ({ f, now }) => <ForecastComparePanel f={f} now={now} />,
+  conditions: ({ f, air, now }) => <ConditionsPanel f={f} air={air} now={now} />,
+  outlook: ({ f, now }) => <DailyOutlook f={f} now={now} />,
+  sunmoon: ({ f, now }) => <SunMoonPanel f={f} now={now} />,
+  notes: ({ now }) => <ForecasterNotesPanel now={now} />,
+  climate: ({ f, now }) => <ClimatePanel f={f} now={now} />,
+  rainfall: ({ f, now }) => <RainfallPanel f={f} now={now} />,
+  fire: ({ f, air, now }) => <FireSmokePanel f={f} air={air} now={now} />,
+  reports: ({ now }) => <NearbyReports now={now} />,
+};
+
+/** Panels this build can show at all (the spotter network is off in some builds). */
+const available = (item: DailyItem) => item.id !== "reports" || COMMUNITY_ENABLED;
+
+const COLUMN_OPTIONS: { value: DailyColumn; label: string }[] = [
+  { value: "main", label: "Left" },
+  { value: "side", label: "Right" },
+  { value: "full", label: "Full" },
+];
+
+/** Edit-mode chrome around one panel: its name, move, placement and hide. */
+function EditFrame({ item, columns, children }: { item: DailyItem; columns: boolean; children: React.ReactNode }) {
+  const layout = useAppStore((s) => s.dailyLayout);
+  const setLayout = useAppStore((s) => s.setDailyLayout);
+  const info = panelInfo(item.id);
+  const patch = (p: Partial<DailyItem>) => setLayout(layout.map((x) => (x.id === item.id ? { ...x, ...p } : x)));
+  return (
+    <div className="min-w-0 rounded-[calc(var(--radius-panel,10px)+4px)] border-2 border-dashed border-accent/50 p-1">
+      <div className="flex flex-wrap items-center gap-1.5 px-1.5 pt-0.5 pb-1.5">
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">
+          {info.label}
+          {"hint" in info && <span className="font-normal text-ink-3"> · {info.hint}</span>}
+        </span>
+        <Button size="sm" variant="ghost" aria-label={`Move ${info.label} up`} disabled={!canMoveDailyItem(layout, item.id, -1, columns)} onClick={() => setLayout(moveDailyItem(layout, item.id, -1, columns))}>
+          <ArrowUp className="size-4" aria-hidden />
+        </Button>
+        <Button size="sm" variant="ghost" aria-label={`Move ${info.label} down`} disabled={!canMoveDailyItem(layout, item.id, 1, columns)} onClick={() => setLayout(moveDailyItem(layout, item.id, 1, columns))}>
+          <ArrowDown className="size-4" aria-hidden />
+        </Button>
+        {/* Placement only matters on wide screens. */}
+        <Segmented className="hidden lg:inline-flex" size="sm" ariaLabel={`Where ${info.label} sits`} value={item.col} onChange={(col) => patch({ col })} options={COLUMN_OPTIONS} />
+        <Button size="sm" variant="ghost" aria-label={`Hide ${info.label}`} onClick={() => patch({ hidden: true })}>
+          <EyeOff className="size-4" aria-hidden />
+          <span className="max-sm:sr-only">Hide</span>
+        </Button>
+      </div>
+      {/* The panel itself, untouchable while arranging. */}
+      <div inert className="pointer-events-none select-none">
+        {children}
+      </div>
+    </div>
+  );
+}
 
 /**
- * Phones: one column in reading order (hero, nowcast, hourly, radar,
- * conditions, 10-day, sun and moon, forecaster notes, climate, rain and
- * flooding, fire and smoke, reports). Desktop: a 7/5 split where the
- * 10-day list spans the conditions and sun-and-moon rows.
- *
- * Conditions, 10-day and sun-and-moon share a nested two-row grid
- * (`auto` + `1fr`) so that, whichever column is taller, the slack lands in the
- * sun-and-moon row (which centres its content) or is shared across the 10-day
- * rows, never as an empty block under either column.
+ * Conditions, forecasts and details as panels people can reorder, place in
+ * the left or right column (or full width) on wide screens, hide and bring
+ * back. Phones show the visible panels in order, one column.
  */
 export function DailyMode() {
   const forecast = useForecast();
   const air = useAirQuality();
   const now = useNow(60_000);
+  const layout = useAppStore((s) => s.dailyLayout);
+  const setLayout = useAppStore((s) => s.setDailyLayout);
+  const wide = useMediaQuery("(min-width: 1024px)");
+  const [editing, setEditing] = useState(false);
   const f = forecast.data;
 
   if (forecast.error && !f) return <ErrorNote error={forecast.error} what="the forecast" />;
@@ -47,66 +117,84 @@ export function DailyMode() {
         <Skeleton className="h-44 lg:col-span-5 lg:self-end" />
         <Skeleton className="h-96 lg:col-span-7" />
         <Skeleton className="h-80 lg:col-span-5 lg:h-auto" />
-        <div className={DETAILS_GRID}>
-          <Skeleton className="h-64 lg:col-span-7" />
-          <Skeleton className="h-[30rem] lg:col-span-5 lg:col-start-8 lg:row-span-2 lg:row-start-1 lg:h-auto" />
-          <Skeleton className="h-52 lg:col-span-7" />
-        </div>
       </div>
     );
 
-  // A panel that fails hides itself; the rest of the page keeps working. Each retries on a new place.
+  const ctx: Ctx = { f, air: air.data, now };
+  const usable = layout.filter(available);
+  const visible = usable.filter((x) => !x.hidden);
+  const hidden = usable.filter((x) => x.hidden);
+  // A panel that fails hides itself; the rest keeps working. Each retries on a new place.
   const place = `${f.lat},${f.lon}`;
+
+  const panel = (item: DailyItem) => {
+    const body = (
+      <PanelBoundary name={panelInfo(item.id).label} resetKey={place}>
+        {RENDER[item.id](ctx)}
+      </PanelBoundary>
+    );
+    if (!editing) return <div key={item.id} className="min-w-0 empty:hidden">{body}</div>;
+    return (
+      <EditFrame key={item.id} item={item} columns={wide}>
+        {body}
+      </EditFrame>
+    );
+  };
+
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-      <PanelBoundary name="hero" resetKey={place}>
-        <CurrentHero f={f} now={now} className="lg:col-span-7" />
-      </PanelBoundary>
-      <PanelBoundary name="nowcast" resetKey={place}>
-        <NowcastCard f={f} now={now} className="lg:col-span-5 lg:self-end" />
-      </PanelBoundary>
-      <PanelBoundary name="hourly" resetKey={place}>
-        <HourlyPanel f={f} now={now} className="lg:col-span-7" />
-      </PanelBoundary>
-      <PanelBoundary name="radar preview" resetKey={place}>
-        <RadarPreview now={now} timeZone={f.timezone} className="lg:col-span-5" />
-      </PanelBoundary>
-      {/* Only renders inside an SPC thunderstorm area. */}
-      <PanelBoundary name="severe outlook" resetKey={place}>
-        <SevereRiskPanel timeZone={f.timezone} className="lg:col-span-12" />
-      </PanelBoundary>
-      <PanelBoundary name="Google forecast" resetKey={place}>
-        <GoogleForecastPanel f={f} now={now} className="lg:col-span-12" />
-      </PanelBoundary>
-      <div className={DETAILS_GRID}>
-        <PanelBoundary name="conditions" resetKey={place}>
-          <ConditionsPanel f={f} air={air.data} now={now} className="lg:col-span-7" />
-        </PanelBoundary>
-        <PanelBoundary name="10-day" resetKey={place}>
-          <DailyOutlook f={f} now={now} className="lg:col-span-5 lg:col-start-8 lg:row-span-2 lg:row-start-1" />
-        </PanelBoundary>
-        <PanelBoundary name="sun and moon" resetKey={place}>
-          <SunMoonPanel f={f} now={now} className="lg:col-span-7" />
-        </PanelBoundary>
-      </div>
-      {/* US only (NWS); renders nothing elsewhere, and climate moves up beside rainfall. */}
-      <PanelBoundary name="forecaster notes" resetKey={place}>
-        <ForecasterNotesPanel now={now} className="lg:col-span-7" />
-      </PanelBoundary>
-      <PanelBoundary name="climate" resetKey={place}>
-        <ClimatePanel f={f} now={now} className="lg:col-span-5" />
-      </PanelBoundary>
-      <PanelBoundary name="rainfall" resetKey={place}>
-        <RainfallPanel f={f} now={now} className="lg:col-span-7" />
-      </PanelBoundary>
-      <PanelBoundary name="fire and smoke" resetKey={place}>
-        <FireSmokePanel f={f} air={air.data} now={now} className="lg:col-span-5" />
-      </PanelBoundary>
-      {COMMUNITY_ENABLED && (
-        <div className="min-w-0 lg:col-span-12">
-          <PanelBoundary name="nearby reports" resetKey={place}>
-            <NearbyReports now={now} />
-          </PanelBoundary>
+    <div className="flex flex-col gap-4">
+      {editing && (
+        <div className="surface sticky top-[calc(var(--topbar-h)+8px)] z-30 p-3 shadow-lg sm:p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="min-w-0 flex-1 text-sm text-ink">
+              <span className="font-semibold">Customize Daily.</span>{" "}
+              <span className="text-ink-2">Move panels with the arrows{wide ? ", choose left, right or full width," : ""} or hide the ones you don&apos;t need.</span>
+            </p>
+            <Button size="sm" variant="ghost" onClick={() => setLayout(defaultDailyLayout())}>
+              <RotateCcw className="size-3.5" aria-hidden />
+              Reset
+            </Button>
+            <Button size="sm" variant="primary" onClick={() => setEditing(false)}>
+              Done
+            </Button>
+          </div>
+          {hidden.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
+              <span className="label mr-1">Add back</span>
+              {hidden.map((x) => (
+                <Button key={x.id} size="sm" onClick={() => setLayout(layout.map((y) => (y.id === x.id ? { ...y, hidden: false } : y)))}>
+                  <Plus className="size-3.5" aria-hidden />
+                  {panelInfo(x.id).label}
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {wide ? (
+        dailySections(visible).map((s, i) =>
+          s.kind === "full" ? (
+            panel(s.item)
+          ) : (
+            <div key={`split-${i}`} className="grid grid-cols-12 items-start gap-4">
+              <div className="col-span-7 flex min-w-0 flex-col gap-4">{s.main.map(panel)}</div>
+              <div className="col-span-5 flex min-w-0 flex-col gap-4">{s.side.map(panel)}</div>
+            </div>
+          ),
+        )
+      ) : (
+        visible.map(panel)
+      )}
+
+      {visible.length === 0 && <p className="py-10 text-center text-sm text-ink-3">Every panel is hidden. Add some back above.</p>}
+
+      {!editing && (
+        <div className="flex justify-center pt-2">
+          <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+            <LayoutGrid className="size-4" aria-hidden />
+            Customize this page
+          </Button>
         </div>
       )}
     </div>

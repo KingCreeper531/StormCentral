@@ -10,12 +10,6 @@ import { fmtIn, todayIndex } from "@/lib/weather/view";
 import { Skeleton, Stat } from "../ui/misc";
 import { Panel } from "../ui/panel";
 
-/** A temperature difference (°C) in the display unit: "+8°", "−3°", "±0°". */
-function delta(dC: number, unit: "F" | "C") {
-  const v = Math.round(unit === "F" ? (dC * 9) / 5 : dC);
-  return `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v)}°`;
-}
-
 function headline(diffC: number | null, unit: "F" | "C") {
   if (diffC == null) return null;
   const d = Math.abs(unit === "F" ? (diffC * 9) / 5 : diffC);
@@ -25,7 +19,8 @@ function headline(diffC: number | null, unit: "F" | "C") {
 }
 
 /** Departure of each day's forecast high from normal, as up/down bars. */
-function DepartureStrip({ f, c, now, unit }: { f: Forecast; c: ClimateTable; now: number; unit: "F" | "C" }) {
+function DepartureStrip({ f, c, now }: { f: Forecast; c: ClimateTable; now: number }) {
+  const fmt = useFormat();
   const di = todayIndex(f, now);
   const dayFmt = fmtIn(f.timezone, { weekday: "short" });
   const days = [];
@@ -53,7 +48,7 @@ function DepartureStrip({ f, c, now, unit }: { f: Forecast; c: ClimateTable; now
                 />
               )}
             </div>
-            <span className="text-[11px] text-ink-2 tabular">{d.diff == null ? "—" : delta(d.diff, unit)}</span>
+            <span className="text-[11px] text-ink-2 tabular">{fmt.tempDelta(d.diff)}</span>
           </li>
         );
       })}
@@ -147,7 +142,7 @@ export function ClimatePanel({ f, now, className }: { f: Forecast; now: number; 
         </dl>
       )}
 
-      <DepartureStrip f={f} c={c} now={now} unit={unit} />
+      <DepartureStrip f={f} c={c} now={now} />
 
       <p className="mt-3 text-xs text-ink-3">
         Official {c.normalYears[0]}–{c.normalYears[1]} normals and records since {c.recordYears[0]} for {c.station}

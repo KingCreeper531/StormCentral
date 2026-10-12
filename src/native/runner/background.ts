@@ -14,7 +14,7 @@
  */
 import { normalizeAlerts, type RawAlertFeature } from "../../lib/alerts";
 import { airQualityUrl, forecastUrl, parseAirQuality, parseForecast } from "../../lib/api/open-meteo";
-import { checkRules, checkWarnings, widgetSnapshot, type EngineIO, type WidgetSnapshot } from "../../lib/alerting/engine";
+import { checkRules, checkWarnings, widgetSnapshot, carryNote, type EngineIO, type WidgetSnapshot } from "../../lib/alerting/engine";
 import { CURRENT_PLACE_ID, type AppNotification, type WatchConfig } from "../../lib/alerting/types";
 
 declare const CapacitorKV: {
@@ -106,7 +106,7 @@ async function check() {
   if (!place) return;
   const f = cache.forecasts.get(place.id) ?? (await io.fetchForecast(place.lat, place.lon).catch(() => null));
   const placeAlerts = alerts.get(place.id) ?? (await io.fetchAlerts(place.lat, place.lon).catch(() => null));
-  const snapshot = widgetSnapshot(place, prev?.unit ?? cfg.units.temp, f, placeAlerts, Date.now());
+  const snapshot = widgetSnapshot(place, prev?.unit ?? cfg.units.temp, f, placeAlerts, Date.now(), carryNote(prev, place, Date.now()));
   CapacitorKV.set("widget", JSON.stringify(snapshot));
 }
 

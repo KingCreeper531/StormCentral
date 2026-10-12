@@ -5,10 +5,9 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { useState, useSyncExternalStore } from "react";
 import { qk } from "@/hooks/queries";
 import type { Forecast } from "@/lib/api/open-meteo";
-import type { AlertsResponse } from "@/lib/api/types";
-import { describeSnapshot, widgetSnapshot } from "@/lib/alerting/engine";
-import { CURRENT_PLACE_ID } from "@/lib/alerting/types";
+import { describeSnapshot } from "@/lib/alerting/engine";
 import { readShared, writeShared } from "@/lib/native/runner-bridge";
+import { buildWidget } from "../alerts/alert-watcher";
 import { isNativeApp } from "@/lib/platform";
 import { useAppStore } from "@/store/app-store";
 import { Button } from "../ui/button";
@@ -36,8 +35,7 @@ export function WidgetPanel() {
     try {
       const { location: loc, units } = useAppStore.getState();
       const f = qc.getQueryData<Forecast>(qk.forecast(loc)) ?? null;
-      const local = qc.getQueryData<AlertsResponse>(qk.localAlerts(loc))?.alerts ?? null;
-      const snap = widgetSnapshot({ id: CURRENT_PLACE_ID, name: loc.name, lat: loc.lat, lon: loc.lon }, units.temp, f, local, Date.now());
+      const snap = buildWidget(qc, loc, units.temp);
       await writeShared({ widget: JSON.stringify(snap) });
       const back = await readShared("widget");
       if (!back) throw new Error("saved, but reading it back returned nothing");
