@@ -1,0 +1,27 @@
+{
+  "type": "theme",
+  "name": "Solarized Light",
+  "author": "StormCentral",
+  "description": "The light Solarized palette.",
+  "version": "1.0.0",
+  "base": "light",
+  "colors": {
+    "canvas": "#eee8d5",
+    "surface-1": "#fdf6e3",
+    "surface-2": "#f5efdc",
+    "surface-3": "#e9e2cb",
+    "line": "#e3dcc4",
+    "line-strong": "#cfc7ad",
+    "ink": "#073642",
+    "ink-2": "#4a5d63",
+    "ink-3": "#5f7276",
+    "accent": "#1f6fb2",
+    "go": "#5f7000",
+    "caution": "#8a6800",
+    "nogo": "#c4271f",
+    "series-1": "#1f6fb2",
+    "series-2": "#b8410f",
+    "series-3": "#1f8079",
+    "grid": "#efe8d2"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "type": "plugin",
+  "name": "Wildfires",
+  "author": "StormCentral",
+  "description": "Active US wildfire perimeters and fire starts (NIFC).",
+  "version": "1.0.0",
+  "layers": [
+    {
+      "type": "geojson",
+      "id": "fire-perimeters",
+      "name": "Fire perimeters",
+      "url": "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query?where=1%3D1&outFields=poly_IncidentName&geometryPrecision=4&maxAllowableOffset=0.005&outSR=4326&f=geojson",
+      "color": "#ff5a1f",
+      "opacity": 0.9,
+      "attribution": "Wildfires: NIFC WFIGS"
+    },
+    {
+      "type": "geojson",
+      "id": "fire-incidents",
+      "name": "Fire starts",
+      "url": "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?where=1%3D1&outFields=IncidentName&outSR=4326&f=geojson",
+      "color": "#ffb020",
+      "opacity": 0.9,
+      "visible": false,
+      "attribution": "Wildfires: NIFC WFIGS"
+    }
+  ]
+}

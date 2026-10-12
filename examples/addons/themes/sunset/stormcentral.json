@@ -1,0 +1,27 @@
+{
+  "type": "theme",
+  "name": "Sunset",
+  "author": "StormCentral",
+  "description": "Dusky plum with an orange glow.",
+  "version": "1.0.0",
+  "base": "dark",
+  "colors": {
+    "canvas": "#140b12",
+    "surface-1": "#1d1119",
+    "surface-2": "#271722",
+    "surface-3": "#33202d",
+    "line": "#2c1b27",
+    "line-strong": "#422a3a",
+    "ink": "#fbeae6",
+    "ink-2": "#d9b8b5",
+    "ink-3": "#ab8a8a",
+    "accent": "#ff8a4c",
+    "go": "#6fd08c",
+    "caution": "#ffc24b",
+    "nogo": "#ff5a6e",
+    "series-1": "#ff8a4c",
+    "series-2": "#c77dff",
+    "series-3": "#4cc9f0",
+    "grid": "#22141d"
+  }
+}

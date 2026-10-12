@@ -8,6 +8,7 @@ import type { WeatherAlert } from "@/lib/api/types";
 import { CATEGORIES, type PostDto } from "@/lib/community";
 import { distanceToGeometryKm, geometryContains, type BBox } from "@/lib/geo";
 import { FAMILIES, resolveTilts } from "@/lib/radar/products";
+import { reflectivityLabel, samplePixel, valueFromColor } from "@/lib/radar/probe";
 import { iemSiteId } from "@/lib/radar/frames";
 import { satelliteLabel } from "@/lib/radar/satellite";
 import { getSite, nearestSites } from "@/lib/radar/site-utils";
@@ -40,6 +41,7 @@ import { ExportLoopButton } from "../radar/export-loop-dialog";
 import { OutlookLegend } from "../radar/outlook-legend";
 import { RadarControls } from "../radar/radar-controls";
 import { RadarLegend } from "../radar/radar-legend";
+import { RadarQuickLayers } from "../radar/radar-quick-layers";
 import { frameTimeLabel, RadarTimeline } from "../radar/radar-timeline";
 import { StormCellDetail, StormCellList, StormReportDetail, StormReportsList } from "../radar/storm-detail";
 import { TropicalDetail } from "../radar/tropical-detail";
@@ -168,8 +170,10 @@ export function SevereMode() {
     speed: radar.speed,
     crossfade: radar.crossfade,
     futureHours: radar.future && !isSite ? 6 : 0,
+    historyMinutes: radar.history === "4h" ? 240 : radar.history === "2h" ? 120 : 0,
   });
   const showingForecast = !!loop.frames[loop.index]?.forecast;
+
 
   // ── Overlays ──────────────────────────────────────────────────────────────
   const national = useNationalAlerts(true);
@@ -253,6 +257,43 @@ export function SevereMode() {
   });
 
   const family = isSite ? radar.family : "reflectivity";
+
+  // ── Inspector: tap the map to read the radar under the point ─────────────
+  const [inspect, setInspect] = useState(false);
+  const [probe, setProbe] = useState<{ text: string; detail: string | null } | null>(null);
+  const probeFrame = useRef(loop.frames[loop.index]);
+  useEffect(() => {
+    probeFrame.current = loop.frames[loop.index];
+  });
+  useEffect(() => {
+    if (!map || !inspect) return;
+    const canvas = map.getCanvas();
+    canvas.style.cursor = "crosshair";
+    let ctrl: AbortController | null = null;
+    const onClick = async (e: { lngLat: { lng: number; lat: number } }) => {
+      const frame = probeFrame.current;
+      if (!frame) return;
+      ctrl?.abort();
+      ctrl = new AbortController();
+      setProbe({ text: "Reading radar…", detail: null });
+      try {
+        const [r, g, b, a] = await samplePixel(frame.tileUrl, frame.maxzoom, e.lngLat.lng, e.lngLat.lat, map.getZoom(), ctrl.signal);
+        const def = FAMILIES[family];
+        const value = a < 60 ? null : valueFromColor(r, g, b, def.legend);
+        if (value == null) setProbe({ text: "No precipitation detected here", detail: null });
+        else if (def.unit === "dBZ") setProbe({ text: `${Math.round(value)} dBZ`, detail: reflectivityLabel(value) });
+        else setProbe({ text: `${Math.round(value * 10) / 10} ${def.unit}`, detail: def.label });
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") setProbe({ text: "Couldn't read the radar here", detail: null });
+      }
+    };
+    map.on("click", onClick);
+    return () => {
+      ctrl?.abort();
+      map.off("click", onClick);
+      canvas.style.cursor = "";
+    };
+  }, [map, inspect, family]);
 
   // ── Legend caption: where the data comes from ─────────────────────────────
   const caption =
@@ -523,6 +564,30 @@ export function SevereMode() {
       )}
       {desktop && !short && <RadarLegend family={family} caption={caption} />}
       {satCaption && <p className="overlay px-2.5 py-1 text-[11px] text-ink-3 tabular">{satCaption}</p>}
+      {inspect && (
+        <p role="status" className="overlay flex items-center gap-2 py-1.5 pr-1 pl-3 text-xs">
+          <span className="min-w-0">
+            {probe ? (
+              <>
+                <span className="font-semibold text-ink tabular">{probe.text}</span>
+                {probe.detail && <span className="text-ink-2"> · {probe.detail}</span>}
+              </>
+            ) : (
+              <span className="text-ink-2">Tap the map to read the radar</span>
+            )}
+          </span>
+          <IconButton
+            label="Close inspector"
+            size="sm"
+            onClick={() => {
+              setInspect(false);
+              setProbe(null);
+            }}
+          >
+            <X className="size-3.5" aria-hidden />
+          </IconButton>
+        </p>
+      )}
       {loop.error ? (
         <p role="status" className="overlay flex items-start gap-2 px-3 py-2 text-xs text-ink-2">
           <CircleAlert className="mt-px size-3.5 shrink-0 text-nogo" aria-hidden />
@@ -590,7 +655,7 @@ export function SevereMode() {
         {radar.showOutlook && <OutlookLayer features={outlook.data?.features ?? []} kind={outlook.data?.kind ?? radar.outlookKind} />}
         {radar.showTropical && <TropicalLayer storms={storms} selectedId={selectedId("storm")} onSelect={(id) => select("storm", id)} />}
         {radar.showLightning && <LightningLayer />}
-        <RadarLayer frames={loop.frames} index={loop.index} opacity={radar.opacity} crisp={FAMILIES[family].crisp && isSite} crossfadeMs={loop.crossfadeMs} onStatus={loop.onStatus} />
+        <RadarLayer frames={loop.frames} index={loop.index} opacity={radar.opacity} crisp={(FAMILIES[family].crisp && isSite) || !radar.smooth} crossfadeMs={loop.crossfadeMs} onStatus={loop.onStatus} />
         {radar.showWarnings && (
           <WarningsLayer
             alerts={national.data?.alerts ?? []}
@@ -608,6 +673,19 @@ export function SevereMode() {
         {COMMUNITY_ENABLED && radar.showReports && <ReportsLayer posts={(reports.data ?? []) as PostDto[]} now={now} onSelect={(id) => select("post", id)} />}
         <UserMarker lat={loc.lat} lon={loc.lon} />
       </MapView>
+
+      <RadarQuickLayers
+        settings={radar}
+        onChange={setRadar}
+        inspect={inspect}
+        onInspect={(on) => {
+          setInspect(on);
+          setProbe(null);
+        }}
+        futureAvailable={!isSite}
+        // Desktop selection details open in the same corner; the chips step aside meanwhile.
+        className={cn("absolute z-20 right-[var(--sr)]", desktop ? "top-3" : "top-14 pointer-fine:top-28", floatDetail && (activeAlert || activeReport || activeLsr || activeCell || activeStorm) && "hidden")}
+      />
 
       {/* Warnings + layers: side panel on desktop, bottom sheet on phones. */}
       {(!desktop || panelOpen) && (

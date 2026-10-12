@@ -2,7 +2,7 @@
 
 import type { LayerSpecification } from "maplibre-gl";
 import { useEffect, useMemo } from "react";
-import type { PluginLayer } from "@/lib/addons/manifest";
+import { expandTileUrl, type PluginLayer } from "@/lib/addons/manifest";
 import { useAddonsStore } from "@/store/addons-store";
 import { mapAlive, SLOTS, useMapContext } from "../map-view";
 
@@ -53,7 +53,10 @@ export function PluginLayers() {
   const { map } = useMapContext();
   const plugins = useAddonsStore((s) => s.plugins);
   const entries = useMemo<Entry[]>(
-    () => plugins.filter((p) => p.enabled).flatMap((p) => p.layers.map((layer) => ({ key: `plg-${hash(p.id)}-${layer.id}`, layer, opacity: p.opacity }))),
+    () =>
+      plugins
+        .filter((p) => p.enabled)
+        .flatMap((p) => p.layers.filter((l) => !p.hidden.includes(l.id)).map((layer) => ({ key: `plg-${hash(p.id)}-${layer.id}`, layer, opacity: p.opacity }))),
     [plugins],
   );
 
@@ -66,7 +69,7 @@ export function PluginLayers() {
         map.addSource(
           e.key,
           l.kind === "raster"
-            ? { type: "raster", tiles: l.tiles, tileSize: l.tileSize, minzoom: l.minzoom, maxzoom: l.maxzoom, ...(l.attribution ? { attribution: l.attribution } : {}) }
+            ? { type: "raster", tiles: l.tiles.map((t) => expandTileUrl(t, Date.now())), tileSize: l.tileSize, minzoom: l.minzoom, maxzoom: l.maxzoom, ...(l.attribution ? { attribution: l.attribution } : {}) }
             : { type: "geojson", data: l.url, ...(l.attribution ? { attribution: l.attribution } : {}) },
         );
         added.sources.push(e.key);

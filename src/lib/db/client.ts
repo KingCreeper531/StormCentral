@@ -60,3 +60,9 @@ export async function getDb(): Promise<Db> {
     });
   return (await g.__stormcentralDb).db;
 }
+
+/** The raw libsql client, for statements Drizzle has no builder for (upserts with RETURNING). */
+export async function getDbClient(): Promise<Client> {
+  await getDb();
+  return (await g.__stormcentralDb!).client;
+}

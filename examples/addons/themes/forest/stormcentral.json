@@ -1,0 +1,27 @@
+{
+  "type": "theme",
+  "name": "Forest",
+  "author": "StormCentral",
+  "description": "Mossy greens and warm wood.",
+  "version": "1.0.0",
+  "base": "dark",
+  "colors": {
+    "canvas": "#0b120d",
+    "surface-1": "#111b14",
+    "surface-2": "#18251b",
+    "surface-3": "#213124",
+    "line": "#1d2b20",
+    "line-strong": "#2d3f30",
+    "ink": "#e7efe3",
+    "ink-2": "#b0c2aa",
+    "ink-3": "#869a80",
+    "accent": "#7cc77a",
+    "go": "#7cc77a",
+    "caution": "#e0b45a",
+    "nogo": "#e36a5d",
+    "series-1": "#7cc77a",
+    "series-2": "#d99b5f",
+    "series-3": "#5fb3b3",
+    "grid": "#16211a"
+  }
+}

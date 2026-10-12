@@ -1,0 +1,27 @@
+{
+  "type": "theme",
+  "name": "Ocean",
+  "author": "StormCentral",
+  "description": "Clean whites with sea-blue accents.",
+  "version": "1.0.0",
+  "base": "light",
+  "colors": {
+    "canvas": "#eef4f8",
+    "surface-1": "#ffffff",
+    "surface-2": "#f3f8fb",
+    "surface-3": "#e2ecf2",
+    "line": "#d8e4ec",
+    "line-strong": "#c0d1dc",
+    "ink": "#0b2230",
+    "ink-2": "#3d5566",
+    "ink-3": "#566d7d",
+    "accent": "#0a6fb5",
+    "go": "#0a7d4f",
+    "caution": "#9a6400",
+    "nogo": "#c3272f",
+    "series-1": "#0a6fb5",
+    "series-2": "#d0570f",
+    "series-3": "#0e8a7e",
+    "grid": "#e8f0f5"
+  }
+}

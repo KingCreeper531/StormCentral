@@ -1,0 +1,27 @@
+{
+  "type": "theme",
+  "name": "Dracula",
+  "author": "StormCentral",
+  "description": "Purple night with neon accents.",
+  "version": "1.0.0",
+  "base": "dark",
+  "colors": {
+    "canvas": "#1e1f29",
+    "surface-1": "#282a36",
+    "surface-2": "#313445",
+    "surface-3": "#3c3f54",
+    "line": "#343746",
+    "line-strong": "#44475a",
+    "ink": "#f8f8f2",
+    "ink-2": "#c9cbe0",
+    "ink-3": "#9497b5",
+    "accent": "#bd93f9",
+    "go": "#50fa7b",
+    "caution": "#f1fa8c",
+    "nogo": "#ff5555",
+    "series-1": "#8be9fd",
+    "series-2": "#ffb86c",
+    "series-3": "#50fa7b",
+    "grid": "#2d2f3d"
+  }
+}

@@ -17,6 +17,8 @@ export interface RadarLoopOptions {
   autoplay?: boolean;
   /** Append this many hours of HRRR model forecast (national mosaic only). */
   futureHours?: number;
+  /** Spread the loop's frames over this many minutes of history (0: the latest scans). */
+  historyMinutes?: number;
 }
 
 export interface RadarLoop {
@@ -44,7 +46,7 @@ export interface RadarLoop {
  * The clock only advances onto frames whose tiles are buffered, so the
  * viewer never sees a half-loaded frame.
  */
-export function useRadarLoop({ site, product, frameCount, speed, crossfade, autoplay = true, futureHours = 0 }: RadarLoopOptions): RadarLoop {
+export function useRadarLoop({ site, product, frameCount, speed, crossfade, autoplay = true, futureHours = 0, historyMinutes = 0 }: RadarLoopOptions): RadarLoop {
   const isMosaic = site === null;
   const iemSite = isMosaic ? MOSAIC_SITE : iemSiteId(site);
   const iemProduct = isMosaic ? "N0Q" : product;
@@ -53,18 +55,18 @@ export function useRadarLoop({ site, product, frameCount, speed, crossfade, auto
     [],
   );
   const count = Math.min(frameCount, budget);
-  const minutes = Math.min(240, count * (isMosaic ? 5 : 6) + 15);
+  const minutes = historyMinutes > 0 ? Math.min(240, historyMinutes + 10) : Math.min(240, count * (isMosaic ? 5 : 6) + 15);
   const scans = useRadarScans(iemSite, iemProduct, minutes);
 
   const scanList = scans.data?.scans;
   const usingFallback = isMosaic && (scans.isError || (scans.isSuccess && !scanList?.length));
   const live = useMemo(() => {
     // The feed may answer with a related code (N0U for N0G) when the preferred one has no scans.
-    if (scanList?.length) return framesFromScans(scanList, iemSite, scans.data?.product ?? iemProduct, count);
+    if (scanList?.length) return framesFromScans(scanList, iemSite, scans.data?.product ?? iemProduct, count, historyMinutes * 60_000);
     // Rolling-offset mosaic needs no index — always available as a fallback.
     if (usingFallback) return mosaicOffsetFrames(new Date(), Math.min(count, 12));
     return [];
-  }, [scanList, iemSite, iemProduct, count, usingFallback, scans.data?.product]);
+  }, [scanList, iemSite, iemProduct, count, usingFallback, scans.data?.product, historyMinutes]);
   // Future frames follow the newest scan (which stands in for "now"); each new scan rebuilds them.
   const lastLive = live.at(-1)?.time ?? 0;
   const future = useMemo(
