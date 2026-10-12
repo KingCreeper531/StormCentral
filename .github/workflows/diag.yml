@@ -1,0 +1,32 @@
+# Temporary: samples the upstream APIs used by new features (removed after).
+name: API probe
+on:
+  push:
+    paths: [".github/workflows/diag.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: probe
+        run: |
+          UA="StormCentral/0.1 (github.com/KingCreeper531/StormCentral)"
+          O="Origin: https://storm-central-pi.vercel.app"
+          show() { echo; echo "===== $1"; curl -s -m 40 -A "$UA" -H "Accept: application/json" -D /tmp/h -o /tmp/b -w "status=%{http_code} size=%{size_download} time=%{time_total}\n" -H "$O" "$1"; grep -i "access-control-allow-origin\|content-type" /tmp/h; head -c ${2:-2500} /tmp/b; echo; }
+          show "https://api.water.noaa.gov/nwps/v1/gauges?bbox.xmin=-80.6&bbox.ymin=40.0&bbox.xmax=-79.4&bbox.ymax=40.9&srid=EPSG_4326" 3000
+          LID=$(python3 -c "import json;d=json.load(open('/tmp/b'));g=d.get('gauges',d if isinstance(d,list) else []);print(g[0]['lid'] if g else 'PTTP1')")
+          python3 -c "import json;d=json.load(open('/tmp/b'));g=d.get('gauges',[]);print('count',len(g));[print(x['lid'],x.get('name'),json.dumps(x.get('status'))) for x in g[:12]]"
+          show "https://api.water.noaa.gov/nwps/v1/gauges/$LID" 6000
+          show "https://api.water.noaa.gov/nwps/v1/gauges/PTTP1/stageflow" 1500
+          show "https://api.weather.gov/points/40.44,-80.0" 1800
+          show "https://api.weather.gov/products/types/AFD/locations/PBZ" 1200
+          ID=$(python3 -c "import json;d=json.load(open('/tmp/b'));print(d['@graph'][0]['id'])")
+          show "https://api.weather.gov/products/$ID" 9000
+          show "https://api.weather.gov/products/types/AFD/locations/LOX" 600
+          ID=$(python3 -c "import json;d=json.load(open('/tmp/b'));print(d['@graph'][0]['id'])")
+          curl -s -A "$UA" "https://api.weather.gov/products/$ID" | python3 -c "import json,sys;print(json.load(sys.stdin)['productText'][:7000])"
+          show "https://archive-api.open-meteo.com/v1/archive?latitude=40.44&longitude=-80&start_date=1951-01-01&end_date=2025-12-31&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto&timeformat=unixtime" 600
+          show "https://api.open-meteo.com/v1/forecast?latitude=40.44&longitude=-80&daily=precipitation_sum,rain_sum,snowfall_sum&past_days=31&forecast_days=1&timezone=auto&timeformat=unixtime" 1500
+          show "https://api.open-meteo.com/v1/forecast?latitude=34.1&longitude=-118.2&hourly=vapour_pressure_deficit,relative_humidity_2m,wind_gusts_10m,soil_moisture_0_to_1cm&forecast_days=1&timezone=auto" 900
+          show "https://air-quality-api.open-meteo.com/v1/air-quality?latitude=34.1&longitude=-118.2&hourly=pm2_5,aerosol_optical_depth,dust&forecast_days=2&timezone=auto" 900
+          show "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?where=1%3D1&geometry=-125,32,-100,49&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=IncidentName,IncidentSize,PercentContained,FireDiscoveryDateTime,IncidentTypeCategory,POOState,FireCause&returnGeometry=true&outSR=4326&orderByFields=IncidentSize%20DESC&resultRecordCount=5&f=json" 3500
+          show "https://api.weather.gov/alerts/active?status=actual&event=Red%20Flag%20Warning,Flash%20Flood%20Warning&limit=2" 600
