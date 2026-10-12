@@ -15,6 +15,7 @@ import { isNativeApp } from "@/lib/platform";
 import type { ClimateResponse } from "@/lib/feeds/climate";
 import type { ForecasterNotesResponse } from "@/lib/feeds/forecaster-notes";
 import { widgetNote } from "@/lib/widget-note";
+import { forecastSource } from "@/lib/forecast-sources";
 import { selectActiveTheme, useAddonsStore } from "@/store/addons-store";
 import { useAlertsStore } from "@/store/alerts-store";
 import { useAppStore, type AppLocation } from "@/store/app-store";
@@ -170,11 +171,23 @@ export function AlertWatcher() {
   const widgetTheme = customBase ?? themePref;
   const clock = useAppStore((s) => s.clock);
   const widgetBg = useAppStore((s) => s.widgetBackground);
+  const source = useAppStore((s) => s.forecastSource);
+  const googleKey = useAppStore((s) => s.googleKey.trim());
   const hydrated = useAppStore((s) => s.hydrated);
   useEffect(() => {
     // After rehydration, so the saved choice isn't overwritten by the default.
-    if (isNativeApp() && hydrated) void writeShared({ theme: widgetTheme, clock, widgetBg }).catch(() => {});
-  }, [widgetTheme, clock, widgetBg, hydrated]);
+    if (!isNativeApp() || !hydrated) return;
+    void writeShared({
+      theme: widgetTheme,
+      clock,
+      widgetBg,
+      // The forecast source, so the widgets and the background runner use it while the app is closed.
+      forecastSource: source,
+      forecastModel: forecastSource(source).model ?? "",
+      // Only while Google is chosen: otherwise the key has no business outside the app.
+      googleKey: source === "google" ? googleKey : "",
+    }).catch(() => {});
+  }, [widgetTheme, clock, widgetBg, source, googleKey, hydrated]);
 
   // Refresh the widget whenever a new forecast, climate table or forecaster discussion lands for the selected location.
   useEffect(() => {

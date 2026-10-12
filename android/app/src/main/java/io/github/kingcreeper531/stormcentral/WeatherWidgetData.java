@@ -144,14 +144,41 @@ final class WeatherWidgetData {
 
     /**
      * True when the snapshot has a place and its conditions or forecast are
-     * missing, or older than 10 minutes.
+     * missing, or older than 10 minutes (an hour when Google is the source:
+     * its free tier is per key).
      */
-    static boolean needsRefresh(JSONObject snapshot, long nowMs) {
+    static boolean needsRefresh(Context context, JSONObject snapshot, long nowMs) {
         if (coordinates(snapshot) == null) return false;
         if (snapshot.optJSONObject("now") == null) return true;
         if (snapshot.optJSONArray("days") == null || snapshot.optJSONArray("hours") == null) return true;
         long updated = parseIso(string(snapshot, "updated"));
-        return updated == NO_TIME || Math.abs(nowMs - updated) >= FRESH_MS;
+        long fresh = googleKey(context) != null ? GOOGLE_FRESH_MS : FRESH_MS;
+        return updated == NO_TIME || Math.abs(nowMs - updated) >= fresh;
+    }
+
+    // ---- Forecast source ("Forecast from" in the app) -----------------------
+
+    private static final long GOOGLE_FRESH_MS = 60 * 60 * 1000L;
+
+    private static String pref(Context context, String key) {
+        try {
+            String v = prefs(context).getString(key, null);
+            return v == null || v.trim().isEmpty() ? null : v.trim();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** The Open-Meteo model chosen in the app ("ecmwf_ifs025"), or null for the best match. */
+    static String forecastModel(Context context) {
+        String m = pref(context, "forecastModel");
+        // Passed into a URL: only model-name characters.
+        return m != null && m.matches("[a-z0-9_]{1,40}") ? m : null;
+    }
+
+    /** The person's Google key, only while Google is the chosen source. */
+    static String googleKey(Context context) {
+        return "google".equals(pref(context, "forecastSource")) ? pref(context, "googleKey") : null;
     }
 
     /**
@@ -227,7 +254,33 @@ final class WeatherWidgetData {
      * Fetches current conditions and the short forecast as {now, days, hours}
      * (snapshot shapes). Throws on any failure.
      */
+    /**
+     * Conditions and forecast from the source chosen in the app: Google (with
+     * the person's key), one Open-Meteo model, or the best match, falling back
+     * to the best match when the chosen one fails or has nothing here.
+     */
     static JSONObject fetchForecast(Context context, double lat, double lon)
+            throws IOException, JSONException {
+        String key = googleKey(context);
+        if (key != null) {
+            try {
+                return fetchGoogle(context, key, lat, lon);
+            } catch (IOException | JSONException | RuntimeException e) {
+                // Rejected key, quota or no network: an Open-Meteo forecast below.
+            }
+        }
+        String model = forecastModel(context);
+        if (model != null) {
+            try {
+                return fetchOpenMeteo(context, lat, lon, model);
+            } catch (IOException | JSONException e) {
+                // A regional model outside its area answers with nulls: the best match below.
+            }
+        }
+        return fetchOpenMeteo(context, lat, lon, null);
+    }
+
+    private static JSONObject fetchOpenMeteo(Context context, double lat, double lon, String model)
             throws IOException, JSONException {
         String url = String.format(Locale.US,
                 "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f"
@@ -235,7 +288,8 @@ final class WeatherWidgetData {
                         + "&hourly=temperature_2m,weather_code"
                         + "&daily=weather_code,temperature_2m_max,temperature_2m_min"
                         + "&timezone=auto&forecast_days=%d&forecast_hours=%d",
-                lat, lon, DAYS, HOURS + 1);
+                lat, lon, DAYS, HOURS + 1)
+                + (model == null ? "" : "&models=" + model);
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         try {
             connection.setConnectTimeout(TIMEOUT_MS);
@@ -258,6 +312,109 @@ final class WeatherWidgetData {
         } finally {
             connection.disconnect();
         }
+    }
+
+    private static JSONObject getJson(String url) throws IOException, JSONException {
+        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+        try {
+            connection.setConnectTimeout(TIMEOUT_MS);
+            connection.setReadTimeout(TIMEOUT_MS);
+            connection.setUseCaches(false);
+            connection.setRequestProperty("User-Agent", USER_AGENT);
+            connection.setRequestProperty("Accept", "application/json");
+            int status = connection.getResponseCode();
+            if (status != HttpURLConnection.HTTP_OK) throw new IOException("HTTP " + status);
+            try (InputStream in = connection.getInputStream()) {
+                return new JSONObject(readBody(in));
+            }
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    /** Google's current conditions, next hours and days in the snapshot's shape (three calls with the person's key). */
+    static JSONObject fetchGoogle(Context context, String key, double lat, double lon) throws IOException, JSONException {
+        String base = "https://weather.googleapis.com/v1/";
+        String loc = String.format(Locale.US, "location.latitude=%.3f&location.longitude=%.3f&key=%s",
+                lat, lon, java.net.URLEncoder.encode(key, "UTF-8"));
+        JSONObject current = getJson(base + "currentConditions:lookup?" + loc);
+        JSONObject daysBody = getJson(base + "forecast/days:lookup?" + loc + "&days=" + DAYS + "&pageSize=" + DAYS);
+        JSONObject hoursBody = getJson(base + "forecast/hours:lookup?" + loc + "&hours=" + (HOURS + 1) + "&pageSize=" + (HOURS + 1));
+
+        double tempC = current.optJSONObject("temperature") == null ? Double.NaN : current.getJSONObject("temperature").optDouble("degrees", Double.NaN);
+        if (Double.isNaN(tempC)) throw new JSONException("Google returned no temperature");
+        JSONObject now = new JSONObject();
+        now.put("tempC", round1(tempC));
+        JSONObject cond = current.optJSONObject("weatherCondition");
+        int code = googleCode(cond == null ? null : cond.optString("type", null));
+        now.put("code", code);
+        String text = cond == null || cond.optJSONObject("description") == null ? null : cond.getJSONObject("description").optString("text", null);
+        if (text == null || text.isEmpty()) text = conditionText(context, code);
+        if (text != null) now.put("text", text);
+        now.put("isDay", current.optBoolean("isDaytime", true));
+        long t = parseIso(string(current, "currentTime"));
+        now.put("time", formatIso(t == NO_TIME ? System.currentTimeMillis() : t));
+
+        JSONArray days = new JSONArray();
+        JSONArray rawDays = daysBody.optJSONArray("forecastDays");
+        for (int i = 0; rawDays != null && i < rawDays.length() && days.length() < DAYS; i++) {
+            JSONObject d = rawDays.optJSONObject(i);
+            JSONObject date = d == null ? null : d.optJSONObject("displayDate");
+            if (date == null) continue;
+            JSONObject day = new JSONObject();
+            day.put("date", String.format(Locale.US, "%04d-%02d-%02d", date.optInt("year"), date.optInt("month"), date.optInt("day")));
+            JSONObject daytime = d.optJSONObject("daytimeForecast");
+            JSONObject dc = daytime == null ? null : daytime.optJSONObject("weatherCondition");
+            if (dc != null) day.put("code", googleCode(dc.optString("type", null)));
+            double hi = d.optJSONObject("maxTemperature") == null ? Double.NaN : d.getJSONObject("maxTemperature").optDouble("degrees", Double.NaN);
+            double lo = d.optJSONObject("minTemperature") == null ? Double.NaN : d.getJSONObject("minTemperature").optDouble("degrees", Double.NaN);
+            if (!Double.isNaN(hi)) day.put("hiC", round1(hi));
+            if (!Double.isNaN(lo)) day.put("loC", round1(lo));
+            if (days.length() == 0) {
+                if (!Double.isNaN(hi)) now.put("hiC", round1(hi));
+                if (!Double.isNaN(lo)) now.put("loC", round1(lo));
+            }
+            days.put(day);
+        }
+
+        JSONArray hours = new JSONArray();
+        JSONArray rawHours = hoursBody.optJSONArray("forecastHours");
+        for (int i = 0; rawHours != null && i < rawHours.length(); i++) {
+            JSONObject h = rawHours.optJSONObject(i);
+            JSONObject interval = h == null ? null : h.optJSONObject("interval");
+            JSONObject temp = h == null ? null : h.optJSONObject("temperature");
+            if (interval == null || temp == null || Double.isNaN(temp.optDouble("degrees", Double.NaN))) continue;
+            JSONObject hour = new JSONObject();
+            hour.put("time", interval.optString("startTime"));
+            JSONObject hc = h.optJSONObject("weatherCondition");
+            if (hc != null) hour.put("code", googleCode(hc.optString("type", null)));
+            hour.put("tempC", round1(temp.optDouble("degrees")));
+            hours.put(hour);
+        }
+
+        JSONObject out = new JSONObject();
+        out.put("now", now);
+        out.put("days", days);
+        out.put("hours", hours);
+        return out;
+    }
+
+    /** Google condition type ("SCATTERED_THUNDERSTORMS") → the nearest WMO code (as googleTypeToWmo in lib/google-weather.ts). */
+    static int googleCode(String type) {
+        String t = type == null ? "" : type.toUpperCase(Locale.US);
+        if (t.isEmpty()) return 3;
+        if (t.contains("THUNDER")) return 95;
+        if (t.contains("HAIL")) return 96;
+        if (t.equals("RAIN_AND_SNOW")) return 67;
+        if (t.contains("SNOW")) return t.contains("HEAVY") || t.contains("STORM") ? 75 : t.contains("LIGHT") ? 71 : t.contains("SHOWER") ? 85 : 73;
+        if (t.contains("SHOWER")) return t.contains("HEAVY") ? 82 : t.contains("LIGHT") || t.contains("CHANCE") ? 80 : 81;
+        if (t.contains("RAIN")) return t.contains("HEAVY") ? 65 : t.contains("LIGHT") ? 61 : 63;
+        if (t.contains("DRIZZLE")) return 53;
+        if (t.contains("FOG") || t.contains("HAZE")) return 45;
+        if (t.equals("CLEAR")) return 0;
+        if (t.equals("MOSTLY_CLEAR")) return 1;
+        if (t.equals("PARTLY_CLOUDY")) return 2;
+        return 3;
     }
 
     private static String readBody(InputStream in) throws IOException {
