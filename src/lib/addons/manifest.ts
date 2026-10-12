@@ -45,8 +45,10 @@ export interface ThemeAddon extends AddonMeta {
   /** Light or dark base: picks the basemap and fills in any colour left out. */
   base: Theme;
   colors: Partial<Record<ThemeSlot, string>>;
-  /** "vivid": full, saturated animated skies behind frosted-glass panels (built-in effect, no code). */
+  /** "vivid": full, bright animated skies that follow the weather and time of day (built-in effect, no code). */
   sky?: "vivid";
+  /** Light by day, dark at night at the selected location ("base": "auto" in the manifest). */
+  followSun?: boolean;
 }
 
 export interface RasterLayer {
@@ -173,8 +175,18 @@ export function parseAddon(raw: unknown, source: { id: string; homepage: string 
     const colors: Partial<Record<ThemeSlot, string>> = {};
     const given = m.colors && typeof m.colors === "object" ? (m.colors as Record<string, unknown>) : {};
     for (const slot of THEME_SLOTS) if (isHexColor(given[slot])) colors[slot] = given[slot] as string;
-    if (!Object.keys(colors).length) throw new AddonError('The theme has no valid "colors" (hex values like "#2e3440").');
-    return { ...meta, type: "theme", base: m.base === "light" ? "light" : "dark", colors, ...(m.sky === "vivid" ? { sky: "vivid" as const } : {}) };
+    const vivid = m.sky === "vivid";
+    // A vivid-sky theme may use the built-in colours as they are.
+    if (!Object.keys(colors).length && !vivid) throw new AddonError('The theme has no valid "colors" (hex values like "#2e3440").');
+    const followSun = m.base === "auto" || m.followSun === true;
+    return {
+      ...meta,
+      type: "theme",
+      base: m.base === "light" ? "light" : "dark",
+      colors,
+      ...(vivid ? { sky: "vivid" as const } : {}),
+      ...(followSun ? { followSun: true } : {}),
+    };
   }
   if (m.type === "plugin") {
     const layers = (Array.isArray(m.layers) ? m.layers : []).slice(0, MAX_LAYERS).map(parseLayer);

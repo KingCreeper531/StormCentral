@@ -54,8 +54,15 @@ const SCRIM = [
  * canvas sooner.
  */
 const SCRIM_LIGHT = "linear-gradient(180deg, rgb(243 244 246 / 0.62) 0%, rgb(243 244 246 / 0.7) 18%, rgb(243 244 246 / 0.9) 32%, #f3f4f6 44%)";
-/** Vivid skies stay bright: only a soft vignette at the edges and a little depth at the bottom. */
-const SCRIM_VIVID = "radial-gradient(140% 90% at 50% 0%, transparent 60%, rgba(0,0,0,0.22) 100%), linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.18) 100%)";
+/** Vivid skies stay bright: just a hint of depth at the very bottom. */
+const SCRIM_VIVID = "linear-gradient(180deg, transparent 70%, rgba(0,0,0,0.06) 100%)";
+
+/** Soft light discs drifting near the top of vivid day skies (the "bubbles" of Material weather apps). */
+const BUBBLES = [
+  { x: 78, y: 4, s: 46, d: 26 },
+  { x: 58, y: -8, s: 34, d: 34 },
+  { x: 96, y: 18, s: 30, d: 30 },
+] as const;
 
 /**
  * Real-time sky: gradient from the true solar altitude at the location
@@ -99,7 +106,7 @@ export function WeatherBackground({ lat, lon, code, cloudPct, windMs, windDirDeg
       ? "radial-gradient(ellipse closest-side, rgba(40,46,58,0.8), transparent)"
       : isNight
         ? "radial-gradient(ellipse closest-side, rgba(170,182,210,0.2), transparent)"
-        : "radial-gradient(ellipse closest-side, rgba(255,255,255,0.42), transparent)"
+        : "radial-gradient(ellipse closest-side, rgba(255,255,255,0.6), transparent)"
     : scene === "storm" || scene === "hail"
       ? "radial-gradient(ellipse closest-side, rgba(28,34,36,0.75), transparent)"
       : isNight
@@ -124,8 +131,21 @@ export function WeatherBackground({ lat, lon, code, cloudPct, windMs, windDirDeg
         />
       </AnimatePresence>
 
+      {/* Vivid days: big translucent discs that drift slowly. */}
+      {vivid &&
+        !isNight &&
+        BUBBLES.map((b, i) => (
+          <motion.div
+            key={`bubble${i}${reduced ? "s" : "a"}`}
+            className="absolute rounded-full"
+            style={{ left: `${b.x}%`, top: `${b.y}%`, width: `${b.s}vmax`, height: `${b.s}vmax`, x: "-50%", background: "rgba(255,255,255,0.16)" }}
+            animate={reduced ? undefined : { y: ["0vmax", "2.5vmax", "0vmax"], scale: [1, 1.04, 1] }}
+            transition={{ duration: b.d, repeat: Infinity, ease: "easeInOut", delay: -i * 5 }}
+          />
+        ))}
+
       {isNight && cover < 0.7 && (
-        <div className="absolute inset-0" style={{ opacity: 1 - cover }}>
+        <div className="absolute inset-0" style={{ opacity: Math.min(1, (1 - cover) * (vivid ? 1.6 : 1)) }}>
           {STARS.map((s, i) => (
             // Outer span sets the star's brightness; the inner one twinkles within it.
             <span key={i} className="absolute" style={{ left: `${s.x}%`, top: `${s.y}%`, opacity: s.o }}>

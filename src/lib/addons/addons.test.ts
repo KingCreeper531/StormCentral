@@ -62,6 +62,12 @@ describe("parseAddon", () => {
     expect(FEATURED_THEMES.length + FEATURED_PLUGINS.length).toBe(dirs.length);
   });
 
+  it("lets a vivid-sky theme follow the sun with the built-in colours", () => {
+    const t = parseAddon({ type: "theme", name: "Sky", base: "auto", sky: "vivid", colors: {} }, src);
+    expect(t).toMatchObject({ type: "theme", sky: "vivid", followSun: true, colors: {} });
+    expect(() => parseAddon({ type: "theme", name: "Plain", colors: {} }, src)).toThrow(AddonError);
+  });
+
   it("accepts WMTS {z}/{y}/{x} order and fills date tokens", () => {
     const p = parseAddon({ type: "plugin", name: "P", layers: [{ type: "raster", tiles: ["https://g.example/{date}/{z}/{y}/{x}.jpg"], visible: false }] }, src);
     expect(p.type === "plugin" && p.layers[0]?.visible).toBe(false);
