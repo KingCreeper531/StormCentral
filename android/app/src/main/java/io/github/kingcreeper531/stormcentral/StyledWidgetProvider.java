@@ -101,6 +101,7 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
             show(views, R.id.widget_message, true);
             show(views, R.id.widget_main, false);
             show(views, R.id.widget_place, false);
+            show(views, R.id.widget_note, false);
             return views;
         }
         show(views, R.id.widget_message, false);
@@ -125,6 +126,8 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
         views.setTextViewText(R.id.widget_place, line == null ? "" : line);
         views.setTextColor(R.id.widget_place, alertEvent != null ? p.alert : p.ink2);
         show(views, R.id.widget_place, line != null && !small);
+        // Tall enough (about three cells) for a highlight under the place.
+        note(views, snapshot, p, heightDp >= 150, nowMs);
         return views;
     }
 
@@ -143,6 +146,7 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
             show(views, R.id.widget_header, false);
             show(views, R.id.widget_cells, false);
             show(views, R.id.widget_alert, false);
+            show(views, R.id.widget_note, false);
             return views;
         }
         show(views, R.id.widget_message, false);
@@ -170,6 +174,8 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
         views.setTextColor(R.id.widget_alert, p.alert);
         // Short widgets keep the forecast row and drop the warning line.
         show(views, R.id.widget_alert, alert != null && (heightDp == 0 || heightDp >= 130));
+        // The highlight needs another row: tall widgets, and taller still alongside a warning.
+        note(views, snapshot, p, heightDp >= (alert != null ? 200 : 160), nowMs);
 
         int added = style == Style.HOURLY
                 ? addHours(context, views, snapshot.optJSONArray("hours"), f, p, nowMs)
@@ -269,6 +275,7 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
             show(views, R.id.widget_message, !tiny);
             show(views, R.id.widget_main, false);
             show(views, R.id.widget_alert, false);
+            show(views, R.id.widget_note, false);
             return views;
         }
         show(views, R.id.widget_message, false);
@@ -303,6 +310,7 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
         views.setTextViewText(R.id.widget_alert, alert == null ? "" : alert);
         views.setTextColor(R.id.widget_alert, p.alert);
         show(views, R.id.widget_alert, alert != null && !tiny);
+        note(views, snapshot, p, heightDp >= (alert != null ? 190 : 150), nowMs);
         return views;
     }
 
@@ -322,6 +330,14 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
         cell.setTextViewText(R.id.widget_cell_value, value);
         cell.setTextColor(R.id.widget_cell_value, p.ink);
         return cell;
+    }
+
+    /** Today's highlight in the widget's note line, when {@code room} allows and there is one. */
+    private static void note(RemoteViews views, JSONObject snapshot, WidgetLook p, boolean room, long nowMs) {
+        String note = room ? WeatherWidgetData.note(snapshot, nowMs) : null;
+        views.setTextViewText(R.id.widget_note, note == null ? "" : note);
+        views.setTextColor(R.id.widget_note, p.ink2);
+        show(views, R.id.widget_note, note != null);
     }
 
     private static void show(RemoteViews views, int id, boolean visible) {

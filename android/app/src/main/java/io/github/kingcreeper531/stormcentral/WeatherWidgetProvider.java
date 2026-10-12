@@ -218,6 +218,7 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
             show(views, R.id.widget_condition_below, false);
             show(views, R.id.widget_hilo_below, false);
             show(views, R.id.widget_alert, false);
+            show(views, R.id.widget_note, false);
             show(views, R.id.widget_updated, false);
             return views;
         }
@@ -303,6 +304,15 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
             showHiloBelow = true;
             budget -= line12;
         }
+        // Today's highlight before the "Updated" line: two lines when it needs them and they fit.
+        String note = WeatherWidgetData.note(snapshot, nowMs);
+        boolean showNote = note != null && budget >= ROW_GAP + line11;
+        int noteLines = 1;
+        if (showNote) {
+            boolean long1 = note.length() * 0.55f * 11f * fontScale > innerWidth;
+            noteLines = long1 && budget >= ROW_GAP + 2 * line11 ? 2 : 1;
+            budget -= ROW_GAP + noteLines * line11;
+        }
         boolean showUpdated = updated != null && budget >= ROW_GAP + line11;
 
         // ---- Apply ----
@@ -326,6 +336,10 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
         views.setTextViewText(R.id.widget_alert, alert == null ? "" : alert);
         views.setInt(R.id.widget_alert, "setMaxLines", alertLines);
         show(views, R.id.widget_alert, showAlert);
+
+        views.setTextViewText(R.id.widget_note, note == null ? "" : note);
+        views.setInt(R.id.widget_note, "setMaxLines", noteLines);
+        show(views, R.id.widget_note, showNote);
 
         views.setTextViewText(R.id.widget_updated, updated == null ? "" : updated);
         show(views, R.id.widget_updated, showUpdated);
@@ -358,7 +372,7 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
         for (int id : new int[] {R.id.widget_temp, R.id.widget_condition, R.id.widget_condition_below}) {
             views.setTextColor(id, look.ink);
         }
-        for (int id : new int[] {R.id.widget_place, R.id.widget_hilo, R.id.widget_hilo_below, R.id.widget_message}) {
+        for (int id : new int[] {R.id.widget_place, R.id.widget_hilo, R.id.widget_hilo_below, R.id.widget_message, R.id.widget_note}) {
             views.setTextColor(id, look.ink2);
         }
         views.setTextColor(R.id.widget_updated, look.ink3);

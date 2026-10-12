@@ -1,6 +1,6 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { qk } from "@/hooks/queries";
 import { getJson } from "@/lib/api/http";
@@ -12,9 +12,12 @@ import { PERMISSION_EVENT, showWebNotification, subscribePermission, webPermissi
 import { CURRENT_PLACE_ID, type WatchConfig } from "@/lib/alerting/types";
 import { readShared, syncRunner, writeShared } from "@/lib/native/runner-bridge";
 import { isNativeApp } from "@/lib/platform";
+import type { ClimateResponse } from "@/lib/feeds/climate";
+import type { ForecasterNotesResponse } from "@/lib/feeds/forecaster-notes";
+import { widgetNote } from "@/lib/widget-note";
 import { selectActiveTheme, useAddonsStore } from "@/store/addons-store";
 import { useAlertsStore } from "@/store/alerts-store";
-import { useAppStore } from "@/store/app-store";
+import { useAppStore, type AppLocation } from "@/store/app-store";
 
 const WARNING_EVERY_MS = 2 * 60_000;
 const RULES_EVERY_MS = 30 * 60_000;
@@ -46,6 +49,16 @@ export function useWatchConfig(): WatchConfig | null {
       drone: { altitudeM: drone.altitudeM, profileId: drone.profileId },
     };
   }, [hydrated, places, settings, rules, location, units.temp, units.wind, drone.altitudeM, drone.profileId]);
+}
+
+/** The widget snapshot for the selected location from whatever the app has loaded, with today's highlight. */
+export function buildWidget(qc: QueryClient, loc: AppLocation, unit: "F" | "C") {
+  const now = Date.now();
+  const f = qc.getQueryData<Forecast>(qk.forecast(loc)) ?? null;
+  const local = qc.getQueryData<AlertsResponse>(qk.localAlerts(loc))?.alerts ?? null;
+  const climate = qc.getQueryData<ClimateResponse>(qk.climate(loc)) ?? null;
+  const notes = qc.getQueryData<ForecasterNotesResponse>(qk.forecasterNotes(loc)) ?? null;
+  return widgetSnapshot({ id: CURRENT_PLACE_ID, name: loc.name, lat: loc.lat, lon: loc.lon }, unit, f, local, now, widgetNote(f, climate, notes, unit, now));
 }
 
 /** Warning checks skip the current location unless the user asked to watch it. */
@@ -146,10 +159,7 @@ export function AlertWatcher() {
   useEffect(() => {
     if (!isNativeApp() || !cfg) return;
     const t = setTimeout(() => {
-      const f = qc.getQueryData<Forecast>(qk.forecast(location)) ?? null;
-      const local = qc.getQueryData<AlertsResponse>(qk.localAlerts(location))?.alerts ?? null;
-      const widget = widgetSnapshot({ id: CURRENT_PLACE_ID, name: location.name, lat: location.lat, lon: location.lon }, unit, f, local, Date.now());
-      void syncRunner(cfg, widget).catch(() => {});
+      void syncRunner(cfg, buildWidget(qc, location, unit)).catch(() => {});
     }, 800);
     return () => clearTimeout(t);
   }, [cfg, qc, location, unit]);
@@ -166,17 +176,16 @@ export function AlertWatcher() {
     if (isNativeApp() && hydrated) void writeShared({ theme: widgetTheme, clock, widgetBg }).catch(() => {});
   }, [widgetTheme, clock, widgetBg, hydrated]);
 
-  // Refresh the widget whenever a new forecast lands for the selected location.
+  // Refresh the widget whenever a new forecast, climate table or forecaster discussion lands for the selected location.
   useEffect(() => {
     if (!isNativeApp()) return;
     return qc.getQueryCache().subscribe((e) => {
-      if (e.type !== "updated" || e.query.queryKey[0] !== "forecast" || !cfgRef.current) return;
+      const kind = e.query.queryKey[0];
+      if (e.type !== "updated" || e.action.type !== "success" || !cfgRef.current) return;
+      if (kind !== "forecast" && kind !== "climate" && kind !== "forecasterNotes") return;
       const loc = useAppStore.getState().location;
-      const f = qc.getQueryData<Forecast>(qk.forecast(loc));
-      if (!f || e.query.state.data !== f) return;
-      const local = qc.getQueryData<AlertsResponse>(qk.localAlerts(loc))?.alerts ?? null;
-      const widget = widgetSnapshot({ id: CURRENT_PLACE_ID, name: loc.name, lat: loc.lat, lon: loc.lon }, useAppStore.getState().units.temp, f, local, Date.now());
-      void syncRunner(cfgRef.current, widget).catch(() => {});
+      if (!qc.getQueryData<Forecast>(qk.forecast(loc))) return;
+      void syncRunner(cfgRef.current, buildWidget(qc, loc, useAppStore.getState().units.temp)).catch(() => {});
     });
   }, [qc]);
 

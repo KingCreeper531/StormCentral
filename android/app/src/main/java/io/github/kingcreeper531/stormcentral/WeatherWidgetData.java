@@ -180,6 +180,15 @@ final class WeatherWidgetData {
         return latest;
     }
 
+    /** Today's highlight saved by the app ("Near-record high: 84°…"), or null when there is none or it has expired. */
+    static String note(JSONObject snapshot, long nowMs) {
+        JSONObject note = snapshot == null ? null : snapshot.optJSONObject("note");
+        String text = string(note, "text");
+        if (text == null) return null;
+        long until = parseIso(string(note, "until"));
+        return until != NO_TIME && until <= nowMs ? null : text;
+    }
+
     /** A non-empty string value, or null for a missing, null or empty one. */
     static String string(JSONObject object, String key) {
         if (object == null || object.isNull(key)) return null;
