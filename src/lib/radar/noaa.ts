@@ -13,6 +13,8 @@ import type { RadarFrame } from "./frames";
 
 export const NOAA_GEOSERVER = "https://opengeo.ncep.noaa.gov/geoserver";
 export const NOAA_ATTRIBUTION = "Radar: NOAA/NWS (MRMS, NEXRAD)";
+/** NOAA renders each WMS tile on request; bigger tiles mean far fewer of those round trips. */
+export const NOAA_TILE = 512;
 
 export interface NoaaLayer {
   workspace: string;
@@ -27,13 +29,14 @@ const VELOCITY = new Set(["N0G", "N0U", "N0V", "NXG", "NXU"]);
 
 /** The NOAA layer for a radar view, or null when only IEM has it. */
 export function noaaLayerFor(site: string | null, product: string): NoaaLayer | null {
-  if (site === null) return { workspace: "conus", layer: "conus_bref_qcd", label: "MRMS", maxzoom: 10 };
+  // maxzoom counts 512 px tiles: MRMS's 1 km grid is fully resolved by z7, super-res sites by z10.
+  if (site === null) return { workspace: "conus", layer: "conus_bref_qcd", label: "MRMS", maxzoom: 7 };
   const icao = site.toLowerCase();
   // NEXRAD WSR-88D sites only (K***, P***, T*** TDWRs aren't on the server).
   if (!/^[kp][a-z]{3}$/.test(icao)) return null;
   const p = product.toUpperCase();
-  if (REFLECTIVITY.has(p)) return { workspace: icao, layer: `${icao}_sr_bref`, label: `${site.toUpperCase()} SR`, maxzoom: 12 };
-  if (VELOCITY.has(p)) return { workspace: icao, layer: `${icao}_sr_bvel`, label: `${site.toUpperCase()} SR`, maxzoom: 12 };
+  if (REFLECTIVITY.has(p)) return { workspace: icao, layer: `${icao}_sr_bref`, label: `${site.toUpperCase()} SR`, maxzoom: 10 };
+  if (VELOCITY.has(p)) return { workspace: icao, layer: `${icao}_sr_bvel`, label: `${site.toUpperCase()} SR`, maxzoom: 10 };
   return null;
 }
 
@@ -48,8 +51,8 @@ export function noaaTileUrl(l: Pick<NoaaLayer, "workspace" | "layer">, time: str
     "format=image/png",
     "transparent=true",
     "crs=EPSG:3857",
-    "width=256",
-    "height=256",
+    `width=${NOAA_TILE}`,
+    `height=${NOAA_TILE}`,
     "bbox={bbox-epsg-3857}",
     `time=${encodeURIComponent(time)}`,
   ].join("&");
@@ -111,6 +114,7 @@ export function noaaFrames(l: NoaaLayer, times: readonly string[], count: number
     tileUrl: noaaTileUrl(l, t.iso),
     maxzoom: l.maxzoom,
     attribution: NOAA_ATTRIBUTION,
+    tileSize: NOAA_TILE,
   }));
 }
 
@@ -125,8 +129,8 @@ export function noaaTilesUsable(): Promise<boolean> {
     try {
       const url = noaaTileUrl({ workspace: "conus", layer: "conus_bref_qcd" }, "current")
         .replace("time=current", "")
-        .replace("width=256", "width=8")
-        .replace("height=256", "height=8")
+        .replace(`width=${NOAA_TILE}`, "width=8")
+        .replace(`height=${NOAA_TILE}`, "height=8")
         .replace("{bbox-epsg-3857}", "-10900000,4100000,-10800000,4200000");
       const res = await fetch(url, { mode: "cors", credentials: "omit", signal: AbortSignal.timeout(8000) });
       return res.ok && (res.headers.get("content-type") ?? "").startsWith("image/");
