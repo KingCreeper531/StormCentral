@@ -84,6 +84,15 @@ final class WeatherWidgetData {
         }
     }
 
+    /** Whether the widgets are transparent over the wallpaper (the app's "widgetBg" setting) rather than on a panel. */
+    static boolean transparent(Context context) {
+        try {
+            return "transparent".equals(prefs(context).getString("widgetBg", null));
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     /** The app's clock setting: "12", "24" or "auto" (follow the phone; the default). */
     static String clock(Context context) {
         try {
