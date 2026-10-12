@@ -5,9 +5,10 @@ import { Bell, MapPin, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { searchPlaces } from "@/lib/api/open-meteo";
 import { fromDisplay, METRICS, metricDef, toDisplay, unitLabel, describeRule, type MetricGroup } from "@/lib/alerting/metrics";
-import { requestWebPermission, showWebNotification, webPermission } from "@/lib/alerting/notify-web";
+import { nativePermission, showNativeNotification } from "@/lib/alerting/notify-native";
+import { announcePermission, requestWebPermission, showWebNotification, webPermission } from "@/lib/alerting/notify-web";
 import { ALERT_CATEGORIES, CURRENT_PLACE_ID, type RuleMetric, type RuleOp } from "@/lib/alerting/types";
-import { runnerPermission, runnerTestNotification } from "@/lib/native/runner-bridge";
+import { runnerPermission } from "@/lib/native/runner-bridge";
 import { isNativeApp } from "@/lib/platform";
 import { MAX_PLACES, MAX_RULES, useAlertsStore } from "@/store/alerts-store";
 import { useAppStore } from "@/store/app-store";
@@ -31,7 +32,7 @@ function usePermission() {
   useEffect(() => {
     let live = true;
     const read = async () => {
-      const p = native ? ((await runnerPermission(false).catch(() => "prompt")) as string) : webPermission();
+      const p = native ? await nativePermission(false).catch(() => runnerPermission(false).catch(() => "prompt")) : webPermission();
       if (live) setPerm(p === "granted" ? "granted" : p === "denied" ? "denied" : p === "unsupported" ? "unsupported" : "default");
     };
     void read();
@@ -40,9 +41,11 @@ function usePermission() {
     };
   }, [native]);
   const request = async (): Promise<Permission> => {
-    const p = native ? await runnerPermission(true).catch(() => "denied") : await requestWebPermission();
+    // Android: Local Notifications' prompt (POST_NOTIFICATIONS); the background runner shares the permission.
+    const p = native ? await nativePermission(true).catch(() => runnerPermission(true).catch(() => "denied")) : await requestWebPermission();
     const next: Permission = p === "granted" ? "granted" : p === "denied" ? "denied" : p === "unsupported" ? "unsupported" : "default";
     setPerm(next);
+    announcePermission();
     return next;
   };
   return { native, perm, request };
@@ -52,7 +55,7 @@ function NotificationsPanel() {
   const settings = useAlertsStore((s) => s.settings);
   const setSettings = useAlertsStore((s) => s.setSettings);
   const { native, perm, request } = usePermission();
-  const [tested, setTested] = useState(false);
+  const [tested, setTested] = useState<"no" | "sent" | "failed">("no");
 
   // The switch always follows the tap; if permission is refused, the status line says so.
   const setEnabled = (on: boolean) => {
@@ -61,9 +64,14 @@ function NotificationsPanel() {
   };
   const test = async () => {
     if (perm !== "granted" && (await request()) !== "granted") return;
-    if (native) await runnerTestNotification().catch(() => {});
-    else showWebNotification({ id: 1, title: "StormCentral", body: "Notifications are working. Warnings for your places will look like this.", kind: "test" });
-    setTested(true);
+    const n = { id: 1, title: "StormCentral", body: "Notifications are working. Warnings for your places will look like this.", kind: "test" as const };
+    try {
+      if (native) await showNativeNotification(n);
+      else showWebNotification(n);
+      setTested("sent");
+    } catch {
+      setTested("failed");
+    }
   };
 
   const status =
@@ -113,8 +121,9 @@ function NotificationsPanel() {
       <p className="mt-3 text-xs text-ink-3">{status}</p>
       <Button size="sm" className="mt-3" onClick={() => void test()} disabled={perm === "unsupported" || perm === "denied"}>
         <Bell className="size-4" aria-hidden />
-        {tested ? "Sent" : "Send a test notification"}
+        {tested === "sent" ? "Sent" : "Send a test notification"}
       </Button>
+      {tested === "failed" && <p className="mt-2 text-xs text-nogo">Couldn&apos;t show a notification. Check that StormCentral&apos;s notifications are allowed in your phone&apos;s settings.</p>}
     </Panel>
   );
 }

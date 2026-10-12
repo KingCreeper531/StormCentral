@@ -29,6 +29,17 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// Tapping a weather notification (mobile browsers show them through this worker) opens the app.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      const open = list.find((c) => "focus" in c);
+      return open ? open.focus() : self.clients.openWindow("/");
+    }),
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET" || !IMMUTABLE_TILE.test(request.url)) return;
