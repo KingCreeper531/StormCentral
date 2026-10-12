@@ -76,9 +76,22 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
 
     // ---- Colours -----------------------------------------------------------
 
-    private static WidgetLook frame(Context context, RemoteViews views, WidgetLook look) {
+    /** Every view in each layout: each gets the tap, so the whole widget opens the app (see WeatherWidgetProvider.tapAnywhere). */
+    static final int[] COMPACT_VIEWS = {R.id.widget_main, R.id.widget_icon, R.id.widget_temp, R.id.widget_place, R.id.widget_note, R.id.widget_message};
+    static final int[] FORECAST_VIEWS = {
+        R.id.widget_header, R.id.widget_place, R.id.widget_condition, R.id.widget_icon, R.id.widget_temp,
+        R.id.widget_alert, R.id.widget_cells, R.id.widget_note, R.id.widget_message,
+    };
+    static final int[] CELL_VIEWS = {R.id.widget_cell, R.id.widget_cell_label, R.id.widget_cell_icon, R.id.widget_cell_value};
+    static final int[] CLOCK_VIEWS = {
+        R.id.widget_clock_area, R.id.widget_clock_time, R.id.widget_clock_ampm, R.id.widget_clock_date, R.id.widget_main,
+        R.id.widget_icon, R.id.widget_temp, R.id.widget_side, R.id.widget_condition, R.id.widget_hilo, R.id.widget_alert,
+        R.id.widget_note, R.id.widget_message,
+    };
+
+    private static WidgetLook frame(Context context, RemoteViews views, WidgetLook look, int[] ids) {
         views.setInt(android.R.id.background, "setBackgroundResource", look.background);
-        views.setOnClickPendingIntent(android.R.id.background, WeatherWidgetProvider.openApp(context));
+        WeatherWidgetProvider.tapAnywhere(views, WeatherWidgetProvider.openApp(context), ids);
         return look;
     }
 
@@ -93,7 +106,7 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
     private static RemoteViews buildCompact(Context context, JSONObject snapshot, int heightDp, long nowMs) {
         WidgetLook look = WidgetLook.of(context);
         RemoteViews views = new RemoteViews(context.getPackageName(), look.layout(R.layout.widget_compact, R.layout.widget_compact_clear));
-        WidgetLook p = frame(context, views, look);
+        WidgetLook p = frame(context, views, look, COMPACT_VIEWS);
         JSONObject place = snapshot == null ? null : snapshot.optJSONObject("place");
         views.setTextColor(R.id.widget_message, p.ink2);
         if (place == null) {
@@ -136,7 +149,7 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
     private static RemoteViews buildForecast(Context context, JSONObject snapshot, Style style, int heightDp, long nowMs) {
         WidgetLook look = WidgetLook.of(context);
         RemoteViews views = new RemoteViews(context.getPackageName(), look.layout(R.layout.widget_forecast, R.layout.widget_forecast_clear));
-        WidgetLook p = frame(context, views, look);
+        WidgetLook p = frame(context, views, look, FORECAST_VIEWS);
         views.removeAllViews(R.id.widget_cells);
         views.setTextColor(R.id.widget_message, p.ink2);
         JSONObject place = snapshot == null ? null : snapshot.optJSONObject("place");
@@ -245,8 +258,7 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
     private static RemoteViews buildClock(Context context, JSONObject snapshot, int widthDp, int heightDp, long nowMs) {
         WidgetLook look = WidgetLook.of(context);
         RemoteViews views = new RemoteViews(context.getPackageName(), look.layout(R.layout.widget_clock, R.layout.widget_clock_clear));
-        WidgetLook p = frame(context, views, look);
-        views.setOnClickPendingIntent(R.id.widget_clock_area, clockAppIntent(context));
+        WidgetLook p = frame(context, views, look, CLOCK_VIEWS);
 
         // The app's 12/24-hour setting; "auto" leaves TextClock to follow the phone.
         String clock = WeatherWidgetData.clock(context);
@@ -314,14 +326,6 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
         return views;
     }
 
-    /** Opens the phone's clock app (alarms), like the stock clock widgets; nothing happens if there is none. */
-    private static android.app.PendingIntent clockAppIntent(Context context) {
-        android.content.Intent intent = new android.content.Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS)
-                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
-        return android.app.PendingIntent.getActivity(context, 1, intent,
-                android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT);
-    }
-
     private static RemoteViews cell(Context context, String label, String icon, String value, WidgetLook p) {
         RemoteViews cell = new RemoteViews(context.getPackageName(), p.layout(R.layout.widget_cell, R.layout.widget_cell_clear));
         cell.setTextViewText(R.id.widget_cell_label, label);
@@ -329,6 +333,7 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
         cell.setTextViewText(R.id.widget_cell_icon, icon);
         cell.setTextViewText(R.id.widget_cell_value, value);
         cell.setTextColor(R.id.widget_cell_value, p.ink);
+        for (int id : CELL_VIEWS) cell.setOnClickPendingIntent(id, WeatherWidgetProvider.openApp(context));
         return cell;
     }
 
