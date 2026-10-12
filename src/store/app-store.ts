@@ -50,6 +50,10 @@ export interface RadarSettings {
   smooth: boolean;
   /** Loop history: the latest scans back to back, or spread over 2 or 4 hours. */
   history: RadarHistory;
+  /** Warnings tab: square tiles or the dense list. */
+  warningsView: "squares" | "list";
+  /** Warnings tab: within the search radius, or every active warning in the US. */
+  warningsScope: "nearby" | "all";
 }
 
 export type RadarHistory = "latest" | "2h" | "4h";
@@ -133,6 +137,8 @@ export const DEFAULT_RADAR: RadarSettings = {
   showLightning: true,
   smooth: true,
   history: "latest",
+  warningsView: "squares",
+  warningsScope: "nearby",
 };
 
 export const useAppStore = create<AppState>()(

@@ -16,7 +16,7 @@ In the app: **Settings → Add-ons → Install from GitHub**, then paste any of:
 Everything in this folder is also built into the app under **Settings →
 Add-ons → Featured**, one tap each:
 
-- Themes: Nord, Paper, Dracula, Solarized Dark and Light, Midnight Blue,
+- Themes: Sky (animated, see below), Nord, Paper, Dracula, Solarized Dark and Light, Midnight Blue,
   Forest, Sunset, Ocean, High Contrast (`themes/`).
 - Plugins (`plugins/`): Rainfall totals (1, 24, 48 or 72 hours), Wildfires,
   Earthquakes, Map boundaries, Earth from space (true colour, city lights,
@@ -41,6 +41,11 @@ repository. It then shows up under **Browse community add-ons** in the app.
 }
 ```
 
+- `"sky": "vivid"` (optional) turns on StormCentral's built-in vivid sky:
+  full, saturated animated backgrounds that follow the live weather and time
+  of day (sun and moon, drifting clouds, rain, snow, lightning), with
+  frosted-glass panels. Pair it with translucent surface colours
+  (`#rrggbbaa`), as the Sky theme does.
 - `base` is `"dark"` or `"light"`. It picks the basemap, and any colour you
   leave out comes from that built-in theme.
 - Colours are hex only (`#rgb`, `#rrggbb`, `#rrggbbaa`). Slots:

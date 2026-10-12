@@ -5,6 +5,7 @@
  */
 
 import themeNord from "../../../examples/addons/themes/nord/stormcentral.json";
+import themeSky from "../../../examples/addons/themes/sky/stormcentral.json";
 import themePaper from "../../../examples/addons/themes/paper/stormcentral.json";
 import themeDracula from "../../../examples/addons/themes/dracula/stormcentral.json";
 import themeSolarizedDark from "../../../examples/addons/themes/solarized-dark/stormcentral.json";
@@ -34,6 +35,7 @@ function load<T>(path: string, json: unknown): T[] {
 }
 
 export const FEATURED_THEMES: ThemeAddon[] = [
+  ...load<ThemeAddon>("themes/sky", themeSky),
   ...load<ThemeAddon>("themes/nord", themeNord),
   ...load<ThemeAddon>("themes/paper", themePaper),
   ...load<ThemeAddon>("themes/dracula", themeDracula),

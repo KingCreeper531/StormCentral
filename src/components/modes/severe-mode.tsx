@@ -36,6 +36,9 @@ import { UserMarker } from "../map/layers/user-marker";
 import { WarningsLayer } from "../map/layers/warnings-layer";
 import { AlertDetail } from "../radar/alert-detail";
 import { AlertList, alertUntil, HazardSwatch, type RankedAlert } from "../radar/alert-list";
+import { WarningSquares } from "../radar/warning-squares";
+import { reportsInAlert, type AlertReports } from "@/lib/alert-reports";
+import { Segmented } from "../ui/segmented";
 import { ExportLoopButton } from "../radar/export-loop-dialog";
 import { OutlookLegend } from "../radar/outlook-legend";
 import { RadarControls } from "../radar/radar-controls";
@@ -177,7 +180,8 @@ export function SevereMode() {
   const local = useLocalAlerts();
   const outlook = useOutlook(radar.showOutlook, radar.outlookKind);
   const reports = useReportsInView(bbox, radar.showReports);
-  const lsr = useStormReports(radar.showStormReports, LSR_HOURS);
+  // Also feeds the spotter reports shown on each warning.
+  const lsr = useStormReports(true, LSR_HOURS);
   const cells = useStormCells(radar.showCells);
   const tropical = useTropical(radar.showTropical);
   const lsrList = useMemo(() => lsr.data?.reports ?? [], [lsr.data]);
@@ -428,22 +432,74 @@ export function SevereMode() {
 
   // ── Sheet body ────────────────────────────────────────────────────────────
   const listPending = !ranked.length && (national.isLoading || !!national.error);
+  const reportCache = new Map<string, AlertReports>();
+  const reportsFor = (a: WeatherAlert) => {
+    let r = reportCache.get(a.id);
+    if (!r) reportCache.set(a.id, (r = reportsInAlert(a, lsrList, now)));
+    return r;
+  };
+  const everyWarning = radar.warningsScope === "all";
+  const squareItems = everyWarning
+    ? [...(national.data?.alerts ?? [])].sort((x, y) => y.rank - x.rank || Date.parse(x.ends ?? x.expires) - Date.parse(y.ends ?? y.expires))
+    : ranked.map((r) => r.alert);
   const warningsBody = (
     <>
+      <div className="flex flex-wrap items-center gap-2 px-3 pt-3">
+        <Segmented
+          ariaLabel="Warnings view"
+          size="sm"
+          value={radar.warningsView}
+          onChange={(warningsView) => setRadar({ warningsView })}
+          options={[
+            { value: "squares", label: "Squares" },
+            { value: "list", label: "List" },
+          ]}
+        />
+        {radar.warningsView === "squares" && (
+          <Segmented
+            ariaLabel="Which warnings"
+            size="sm"
+            value={radar.warningsScope}
+            onChange={(warningsScope) => setRadar({ warningsScope })}
+            options={[
+              { value: "nearby", label: "Nearby" },
+              { value: "all", label: `All US${national.data ? ` (${national.data.alerts.length})` : ""}` },
+            ]}
+          />
+        )}
+      </div>
       {national.isLoading && <p className="label px-4 pt-3 pb-1">Loading NWS warnings</p>}
       {national.error ? (
         <div className="px-4 pt-3 pb-1">
           <ErrorNote error={national.error} what="NWS warnings" />
         </div>
       ) : null}
-      {!listPending && <AlertList items={ranked} selectedId={selectedAlert} onSelect={focusAlert} timeZone={timeZone} />}
-      {ranked.length > 0 && <p className="label border-t border-line px-4 py-3">Within {fmt.distanceKm(radiusKm)} of {loc.name}</p>}
+      {!listPending &&
+        (radar.warningsView === "squares" ? (
+          <WarningSquares
+            items={squareItems}
+            reportsFor={reportsFor}
+            selectedId={selectedAlert}
+            onSelect={focusAlert}
+            now={now}
+            timeZone={timeZone}
+            emptyTitle={everyWarning ? "No active warnings in the US" : `No active warnings within ${fmt.distanceKm(radiusKm)}`}
+          />
+        ) : (
+          <AlertList items={ranked} selectedId={selectedAlert} onSelect={focusAlert} timeZone={timeZone} />
+        ))}
+      {(radar.warningsView === "squares" ? squareItems.length : ranked.length) > 0 && (
+        <p className="label border-t border-line px-4 py-3">
+          {radar.warningsView === "squares" && everyWarning ? "Every active NWS warning" : `Within ${fmt.distanceKm(radiusKm)} of ${loc.name}`}
+          {radar.warningsView === "squares" ? `. Reports are NWS local storm reports from the last ${LSR_HOURS} hours (trained spotters, chasers, emergency managers).` : ""}
+        </p>
+      )}
     </>
   );
 
   // Without the floating column, a selection replaces the list (its header shows the title).
   const selectionBody = activeAlert ? (
-    <AlertDetail alert={activeAlert} now={now} timeZone={timeZone} hideTitle className="p-4" />
+    <AlertDetail alert={activeAlert} now={now} timeZone={timeZone} hideTitle className="p-4" reports={reportsFor(activeAlert)} />
   ) : activeReport ? (
     <div className={EMBED_POST}>
       <PostCard post={activeReport} now={now} />
@@ -643,7 +699,7 @@ export function SevereMode() {
           <AnimatePresence mode="wait">
             {activeAlert && (
               <motion.div key={activeAlert.id} {...appear} className="overlay pointer-events-auto max-h-full overflow-y-auto overscroll-contain p-4">
-                <AlertDetail alert={activeAlert} now={now} timeZone={timeZone} onClose={clearSelection} />
+                <AlertDetail alert={activeAlert} now={now} timeZone={timeZone} onClose={clearSelection} reports={reportsFor(activeAlert)} />
               </motion.div>
             )}
             {activeReport && (
