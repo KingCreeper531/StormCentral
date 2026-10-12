@@ -1,0 +1,56 @@
+{
+  "type": "plugin",
+  "name": "Rainfall totals",
+  "author": "StormCentral",
+  "description": "Radar-estimated rain totals (NOAA MRMS). Pick the time window.",
+  "version": "1.0.0",
+  "layers": [
+    {
+      "type": "raster",
+      "id": "rain-1h",
+      "name": "Last hour",
+      "tiles": [
+        "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/q2-n1p/{z}/{x}/{y}.png"
+      ],
+      "maxzoom": 10,
+      "opacity": 0.75,
+      "visible": false,
+      "attribution": "Rainfall: NOAA MRMS via Iowa Environmental Mesonet"
+    },
+    {
+      "type": "raster",
+      "id": "rain-24h",
+      "name": "Last 24 hours",
+      "tiles": [
+        "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/q2-p24h/{z}/{x}/{y}.png"
+      ],
+      "maxzoom": 10,
+      "opacity": 0.75,
+      "attribution": "Rainfall: NOAA MRMS via Iowa Environmental Mesonet"
+    },
+    {
+      "type": "raster",
+      "id": "rain-48h",
+      "name": "Last 48 hours",
+      "tiles": [
+        "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/q2-p48h/{z}/{x}/{y}.png"
+      ],
+      "maxzoom": 10,
+      "opacity": 0.75,
+      "visible": false,
+      "attribution": "Rainfall: NOAA MRMS via Iowa Environmental Mesonet"
+    },
+    {
+      "type": "raster",
+      "id": "rain-72h",
+      "name": "Last 72 hours",
+      "tiles": [
+        "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/q2-p72h/{z}/{x}/{y}.png"
+      ],
+      "maxzoom": 10,
+      "opacity": 0.75,
+      "visible": false,
+      "attribution": "Rainfall: NOAA MRMS via Iowa Environmental Mesonet"
+    }
+  ]
+}

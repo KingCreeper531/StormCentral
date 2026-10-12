@@ -1,0 +1,24 @@
+{
+  "type": "theme",
+  "name": "High Contrast",
+  "author": "StormCentral",
+  "description": "Pure black and white with bold colours, for bright sun or low vision.",
+  "version": "1.0.0",
+  "base": "dark",
+  "colors": {
+    "canvas": "#000000",
+    "surface-1": "#000000",
+    "surface-2": "#121212",
+    "surface-3": "#262626",
+    "line": "#5c5c5c",
+    "line-strong": "#9a9a9a",
+    "ink": "#ffffff",
+    "ink-2": "#f0f0f0",
+    "ink-3": "#d0d0d0",
+    "accent": "#4db8ff",
+    "go": "#3df06a",
+    "caution": "#ffd400",
+    "nogo": "#ff4747",
+    "grid": "#333333"
+  }
+}

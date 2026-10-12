@@ -46,7 +46,13 @@ export interface RadarSettings {
   future: boolean;
   /** NOAA lightning strike density. */
   showLightning: boolean;
+  /** Blend radar pixels when zoomed in (velocity and dual-pol stay sharp). */
+  smooth: boolean;
+  /** Loop history: the latest scans back to back, or spread over 2 or 4 hours. */
+  history: RadarHistory;
 }
+
+export type RadarHistory = "latest" | "2h" | "4h";
 
 export type { OutlookKind };
 export type SatelliteBand = "off" | "infrared" | "visible";
@@ -125,6 +131,8 @@ export const DEFAULT_RADAR: RadarSettings = {
   showTracks: true,
   future: true,
   showLightning: true,
+  smooth: true,
+  history: "latest",
 };
 
 export const useAppStore = create<AppState>()(

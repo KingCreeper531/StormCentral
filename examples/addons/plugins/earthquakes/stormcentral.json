@@ -1,0 +1,28 @@
+{
+  "type": "plugin",
+  "name": "Earthquakes",
+  "author": "StormCentral",
+  "description": "Recent earthquakes from the USGS.",
+  "version": "1.0.0",
+  "layers": [
+    {
+      "type": "geojson",
+      "id": "quakes-day",
+      "name": "Past day, M2.5+",
+      "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson",
+      "color": "#ff9f0a",
+      "opacity": 0.9,
+      "attribution": "Earthquakes: USGS"
+    },
+    {
+      "type": "geojson",
+      "id": "quakes-week",
+      "name": "Past week, M4.5+",
+      "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson",
+      "color": "#ff375f",
+      "opacity": 0.9,
+      "visible": false,
+      "attribution": "Earthquakes: USGS"
+    }
+  ]
+}

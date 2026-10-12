@@ -6,6 +6,7 @@ import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { NearbyReports } from "../community/nearby-reports";
 import { CurrentHero } from "../daily/current-hero";
 import { DailyOutlook } from "../daily/daily-outlook";
+import { GoogleForecastPanel } from "../daily/google-forecast-panel";
 import { ConditionsPanel, SunMoonPanel } from "../daily/details-grid";
 import { HourlyPanel } from "../daily/hourly-panel";
 import { NowcastCard } from "../daily/nowcast-card";
@@ -56,6 +57,7 @@ export function DailyMode() {
       <RadarPreview now={now} timeZone={f.timezone} className="lg:col-span-5" />
       {/* Only renders inside an SPC thunderstorm area. */}
       <SevereRiskPanel timeZone={f.timezone} className="lg:col-span-12" />
+      <GoogleForecastPanel f={f} now={now} className="lg:col-span-12" />
       <div className={DETAILS_GRID}>
         <ConditionsPanel f={f} air={air.data} now={now} className="lg:col-span-7" />
         <DailyOutlook f={f} now={now} className="lg:col-span-5 lg:col-start-8 lg:row-span-2 lg:row-start-1" />

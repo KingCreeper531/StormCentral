@@ -13,11 +13,14 @@ In the app: **Settings → Add-ons → Install from GitHub**, then paste any of:
 - a file link: `https://github.com/owner/repo/blob/main/stormcentral.json`
 - a gist: `https://gist.github.com/user/<id>`
 
-Try the examples in this folder:
+Everything in this folder is also built into the app under **Settings →
+Add-ons → Featured**, one tap each:
 
-- `https://github.com/KingCreeper531/StormCentral/tree/main/examples/addons/themes/nord`
-- `https://github.com/KingCreeper531/StormCentral/tree/main/examples/addons/themes/paper`
-- `https://github.com/KingCreeper531/StormCentral/tree/main/examples/addons/plugins/quakes-counties`
+- Themes: Nord, Paper, Dracula, Solarized Dark and Light, Midnight Blue,
+  Forest, Sunset, Ocean, High Contrast (`themes/`).
+- Plugins (`plugins/`): Rainfall totals (1, 24, 48 or 72 hours), Wildfires,
+  Earthquakes, Map boundaries, Earth from space (true colour, city lights,
+  sea temperature). After adding one, choose which of its layers to show.
 
 ## Share yours
 
@@ -83,8 +86,13 @@ A plugin adds up to 8 layers to the Radar and Air maps.
 }
 ```
 
-- **raster**: an https tile URL with `{z}/{x}/{y}`, `{quadkey}`, or (for WMS)
-  `{bbox-epsg-3857}`. List each subdomain as its own URL; `{s}` isn't supported.
+- **raster**: an https tile URL with `{z}`, `{x}` and `{y}` (any order, so
+  WMTS `{z}/{y}/{x}` works), `{quadkey}`, or (for WMS) `{bbox-epsg-3857}`.
+  List each subdomain as its own URL; `{s}` isn't supported. For daily
+  imagery, `{date}` becomes yesterday's UTC date (`2026-10-11`) and
+  `{date-2}` … `{date-7}` go further back.
+- **visible**: `false` to install a layer switched off. People choose which
+  layers of a plugin to show under Settings → Add-ons.
 - **geojson**: an https URL that allows cross-origin requests. Polygons are
   filled and outlined, lines drawn, points shown as dots.
 - Raster layers sit above the radar and below warning polygons.

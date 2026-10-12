@@ -43,6 +43,8 @@ export function framesFromScans(
   site: string,
   product: string,
   count: number,
+  /** Spread the frames over this much history instead of taking the latest scans. */
+  spanMs = 0,
 ): RadarFrame[] {
   const isMosaic = site === MOSAIC_SITE;
   const seen = new Set<string>();
@@ -57,7 +59,14 @@ export function framesFromScans(
     frames.push({ id, time: t, tileUrl: ridgeTileUrl(site, product, d), maxzoom: isMosaic ? 8 : 10 });
   }
   frames.sort((a, b) => a.time - b.time);
-  return frames.slice(-count);
+  if (!spanMs || frames.length <= count) return frames.slice(-count);
+  // A longer history in the same number of frames: evenly spaced scans over
+  // the span, always ending on the newest.
+  const newest = frames[frames.length - 1]!.time;
+  const inSpan = frames.filter((f) => f.time >= newest - spanMs);
+  if (inSpan.length <= count) return inSpan;
+  const step = (inSpan.length - 1) / (count - 1);
+  return Array.from({ length: count }, (_, i) => inSpan[Math.round(i * step)]!);
 }
 
 /**

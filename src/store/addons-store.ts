@@ -8,6 +8,8 @@ export interface InstalledPlugin extends PluginAddon {
   enabled: boolean;
   /** Multiplies each layer's own opacity. */
   opacity: number;
+  /** Layer ids switched off: each plugin's layers can be picked separately. */
+  hidden: string[];
 }
 
 /**
@@ -25,6 +27,7 @@ export interface AddonsState {
   remove: (id: string) => void;
   setActiveTheme: (id: string | null) => void;
   setPlugin: (id: string, patch: Partial<Pick<InstalledPlugin, "enabled" | "opacity">>) => void;
+  setLayerVisible: (id: string, layerId: string, visible: boolean) => void;
 }
 
 export const MAX_ADDONS = 20;
@@ -62,7 +65,9 @@ export const useAddonsStore = create<AddonsState>()(
         } else {
           const prev = get().plugins.find((p) => p.id === a.id);
           const rest = get().plugins.filter((p) => p.id !== a.id);
-          set({ plugins: [...rest, { ...a, enabled: prev?.enabled ?? true, opacity: prev?.opacity ?? 1 }].slice(-MAX_ADDONS) });
+          const ids = new Set(a.layers.map((l) => l.id));
+          const hidden = prev ? prev.hidden.filter((h) => ids.has(h)) : a.layers.filter((l) => !l.visible).map((l) => l.id);
+          set({ plugins: [...rest, { ...a, enabled: prev?.enabled ?? true, opacity: prev?.opacity ?? 1, hidden }].slice(-MAX_ADDONS) });
         }
       },
       remove: (id) =>
@@ -73,6 +78,12 @@ export const useAddonsStore = create<AddonsState>()(
         })),
       setActiveTheme: (id) => set((s) => ({ activeTheme: id && s.themes.some((t) => t.id === id) ? id : null })),
       setPlugin: (id, patch) => set((s) => ({ plugins: s.plugins.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
+      setLayerVisible: (id, layerId, visible) =>
+        set((s) => ({
+          plugins: s.plugins.map((p) =>
+            p.id !== id ? p : { ...p, hidden: visible ? p.hidden.filter((h) => h !== layerId) : [...new Set([...p.hidden, layerId])] },
+          ),
+        })),
     }),
     {
       name: ADDONS_STORAGE_KEY,
@@ -85,7 +96,9 @@ export const useAddonsStore = create<AddonsState>()(
         const themes = revalidate<ThemeAddon>(p.themes, "theme");
         const plugins = revalidate<PluginAddon>(p.plugins, "plugin").map((pl) => {
           const stored = pl as Partial<InstalledPlugin>;
-          return { ...pl, enabled: stored.enabled !== false, opacity: typeof stored.opacity === "number" ? Math.min(1, Math.max(0.1, stored.opacity)) : 1 };
+          const ids = new Set(pl.layers.map((l) => l.id));
+          const hidden = Array.isArray(stored.hidden) ? stored.hidden.filter((h): h is string => typeof h === "string" && ids.has(h)) : [];
+          return { ...pl, enabled: stored.enabled !== false, opacity: typeof stored.opacity === "number" ? Math.min(1, Math.max(0.1, stored.opacity)) : 1, hidden };
         });
         const activeTheme = typeof p.activeTheme === "string" && themes.some((t) => t.id === p.activeTheme) ? p.activeTheme : null;
         return { ...current, themes, plugins, activeTheme };
