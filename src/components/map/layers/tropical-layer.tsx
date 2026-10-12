@@ -3,6 +3,7 @@
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import type { ExpressionSpecification } from "maplibre-gl";
 import { useMemo, useRef } from "react";
+import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import type { TropicalStorm } from "@/lib/feeds/tropical";
 import { intensityColor } from "../../radar/tropical-list";
 import { mapAlive, SLOTS, useMapContext } from "../map-view";
@@ -24,6 +25,12 @@ const DIM: ExpressionSpecification = ["==", ["get", "dim"], 1];
  * selected, the others are dimmed.
  */
 export function TropicalLayer({ storms, selectedId, onSelect }: { storms: TropicalStorm[]; selectedId: string | null; onSelect: (id: string) => void }) {
+  // White reads on the dark basemap; the light basemap needs near-black instead.
+  const light = useResolvedTheme() === "light";
+  const fg = light ? "#111316" : "#ffffff";
+  const textFg = light ? "#111316" : "#ececed";
+  const halo = light ? "#ffffff" : "#000000";
+  const past = light ? "#5b616b" : "#8b9099";
   const data = useMemo<FeatureCollection>(() => {
     const features: Feature[] = [];
     for (const s of storms) {
@@ -53,14 +60,14 @@ export function TropicalLayer({ storms, selectedId, onSelect }: { storms: Tropic
         type: "fill",
         source: SRC,
         filter: kind("cone"),
-        paint: { "fill-color": "#ffffff", "fill-opacity": ["case", SELECTED, 0.16, DIM, 0.05, 0.1] },
+        paint: { "fill-color": fg, "fill-opacity": ["case", SELECTED, 0.16, DIM, 0.05, 0.1] },
       },
       {
         id: "trop-cone-line",
         type: "line",
         source: SRC,
         filter: kind("cone"),
-        paint: { "line-color": "#ffffff", "line-width": ["case", SELECTED, 1.6, 1], "line-opacity": ["case", SELECTED, 0.95, DIM, 0.3, 0.65] },
+        paint: { "line-color": fg, "line-width": ["case", SELECTED, 1.6, 1], "line-opacity": ["case", SELECTED, 0.95, DIM, 0.3, 0.65] },
       },
       {
         id: "trop-past",
@@ -68,7 +75,7 @@ export function TropicalLayer({ storms, selectedId, onSelect }: { storms: Tropic
         source: SRC,
         filter: kind("past"),
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#8b9099", "line-width": ["case", SELECTED, 2.5, 2], "line-opacity": ["case", DIM, 0.4, 1] },
+        paint: { "line-color": past, "line-width": ["case", SELECTED, 2.5, 2], "line-opacity": ["case", DIM, 0.4, 1] },
       },
       {
         id: "trop-track",
@@ -76,7 +83,7 @@ export function TropicalLayer({ storms, selectedId, onSelect }: { storms: Tropic
         source: SRC,
         filter: kind("track"),
         layout: { "line-join": "round" },
-        paint: { "line-color": "#ffffff", "line-width": ["case", SELECTED, 2, 1.5], "line-dasharray": [2, 2], "line-opacity": ["case", DIM, 0.4, 0.95] },
+        paint: { "line-color": fg, "line-width": ["case", SELECTED, 2, 1.5], "line-dasharray": [2, 2], "line-opacity": ["case", DIM, 0.4, 0.95] },
       },
       {
         id: "trop-line-hit",
@@ -104,7 +111,7 @@ export function TropicalLayer({ storms, selectedId, onSelect }: { storms: Tropic
         type: "circle",
         source: SRC,
         filter: ["all", kind("current"), SELECTED],
-        paint: { "circle-radius": 13, "circle-opacity": 0, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 },
+        paint: { "circle-radius": 13, "circle-opacity": 0, "circle-stroke-color": fg, "circle-stroke-width": 1.5 },
       },
       {
         id: "trop-current",
@@ -114,7 +121,7 @@ export function TropicalLayer({ storms, selectedId, onSelect }: { storms: Tropic
         paint: {
           "circle-radius": 7.5,
           "circle-color": ["get", "color"],
-          "circle-stroke-color": "#ffffff",
+          "circle-stroke-color": fg,
           "circle-stroke-width": 2,
           "circle-opacity": ["case", DIM, 0.5, 1],
           "circle-stroke-opacity": ["case", DIM, 0.5, 1],
@@ -134,7 +141,7 @@ export function TropicalLayer({ storms, selectedId, onSelect }: { storms: Tropic
         filter: ["all", kind("point"), ["!=", ["get", "label"], ""]],
         minzoom: 4,
         layout: { "text-field": ["get", "label"], "text-font": font, "text-size": 10, "text-offset": [0, 1.1], "text-anchor": "top" },
-        paint: { "text-color": "#ececed", "text-halo-color": "#000000", "text-halo-width": 1.2, "text-opacity": ["case", DIM, 0.5, 1] },
+        paint: { "text-color": textFg, "text-halo-color": halo, "text-halo-width": 1.2, "text-opacity": ["case", DIM, 0.5, 1] },
       },
       {
         id: "trop-names",
@@ -149,7 +156,7 @@ export function TropicalLayer({ storms, selectedId, onSelect }: { storms: Tropic
           "text-anchor": "left",
           "text-offset": [1.1, 0],
         },
-        paint: { "text-color": "#ececed", "text-halo-color": "#000000", "text-halo-width": 1.4, "text-opacity": ["case", DIM, 0.5, 1] },
+        paint: { "text-color": textFg, "text-halo-color": halo, "text-halo-width": 1.4, "text-opacity": ["case", DIM, 0.5, 1] },
       },
     ],
     SLOTS.tropical,

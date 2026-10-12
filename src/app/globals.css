@@ -78,12 +78,17 @@
 
   --overlay-bg: rgb(255 255 255 / 0.94);
   --map-icon-filter: none;
+  --moon-dark: #3b4048;
+  --moon-lit: #fbf6e3;
 }
 
 :root {
   color-scheme: dark;
   --overlay-bg: rgb(14 15 17 / 0.92);
   --map-icon-filter: invert(1) opacity(0.8);
+  /* Moon phase disc: shadowed and lit parts. */
+  --moon-dark: var(--color-surface-3);
+  --moon-lit: #d9d7cf;
   /* Legacy alias — the accent is a single constant now (no per-mode theming). */
   --accent: var(--color-accent);
   /* Heights of fixed chrome, consumed by layouts and sheets. They include the
