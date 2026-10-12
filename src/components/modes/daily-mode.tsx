@@ -4,13 +4,17 @@ import { useAirQuality, useForecast } from "@/hooks/queries";
 import { useNow } from "@/hooks/use-now";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { NearbyReports } from "../community/nearby-reports";
+import { ClimatePanel } from "../daily/climate-panel";
 import { CurrentHero } from "../daily/current-hero";
 import { DailyOutlook } from "../daily/daily-outlook";
+import { FireSmokePanel } from "../daily/fire-smoke-panel";
+import { ForecasterNotesPanel } from "../daily/forecaster-notes-panel";
 import { GoogleForecastPanel } from "../daily/google-forecast-panel";
 import { ConditionsPanel, SunMoonPanel } from "../daily/details-grid";
 import { HourlyPanel } from "../daily/hourly-panel";
 import { NowcastCard } from "../daily/nowcast-card";
 import { RadarPreview } from "../daily/radar-preview";
+import { RainfallPanel } from "../daily/rainfall-panel";
 import { SevereRiskPanel } from "../daily/severe-risk-panel";
 import { ErrorNote, Skeleton } from "../ui/misc";
 
@@ -19,7 +23,8 @@ const DETAILS_GRID = "grid min-w-0 grid-cols-1 gap-4 lg:col-span-12 lg:grid-cols
 
 /**
  * Phones: one column in reading order (hero, nowcast, hourly, radar,
- * conditions, 10-day, sun and moon, reports). Desktop: a 7/5 split where the
+ * conditions, 10-day, sun and moon, forecaster notes, climate, rain and
+ * flooding, fire and smoke, reports). Desktop: a 7/5 split where the
  * 10-day list spans the conditions and sun-and-moon rows.
  *
  * Conditions, 10-day and sun-and-moon share a nested two-row grid
@@ -63,6 +68,11 @@ export function DailyMode() {
         <DailyOutlook f={f} now={now} className="lg:col-span-5 lg:col-start-8 lg:row-span-2 lg:row-start-1" />
         <SunMoonPanel f={f} now={now} className="lg:col-span-7" />
       </div>
+      {/* US only (NWS); renders nothing elsewhere, and climate moves up beside rainfall. */}
+      <ForecasterNotesPanel now={now} className="lg:col-span-7" />
+      <ClimatePanel f={f} now={now} className="lg:col-span-5" />
+      <RainfallPanel f={f} now={now} className="lg:col-span-7" />
+      <FireSmokePanel f={f} air={air.data} now={now} className="lg:col-span-5" />
       {COMMUNITY_ENABLED && (
         <div className="min-w-0 lg:col-span-12">
           <NearbyReports now={now} />

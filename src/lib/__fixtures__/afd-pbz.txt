@@ -1,0 +1,109 @@
+
+000
+FXUS61 KPBZ 121751
+AFDPBZ
+
+Area Forecast Discussion
+National Weather Service Pittsburgh PA
+151 PM EDT Mon Oct 12 2026
+
+.WHAT HAS CHANGED...
+Little change in messaging with latest round of model guidance.
+
+&&
+
+.KEY MESSAGES...
+1) Unseasonably warm on Tuesday; near record high temperatures.
+Rain chances on Wednesday with stalled front. 
+
+2) Below-average temperatures, rain with low probability snow
+showers, and gusty conditions expected with large-scale 
+disturbance Friday into Saturday.
+
+&&
+
+.DISCUSSION...
+KEY MESSAGE 1...
+Height rises aloft and increasing warm southwest surface flow
+starting this evening (as a weak shortwave crosses north of 
+Michigan) favors dry weather and rising temperature by Tuesday
+afternoon. Shorter period of record sites like New Philadelphia
+may see highs that tie/break the daily record (20-30%
+probability) while most others just experience highs that are
+10-15 degrees above the daily averages.
+
+Subtle embedded shortwaves along the northern ridge periphery
+will push a cold front southward into Wednesday before stalling
+approximately near the I-70 corridor. This will favor a trend
+toward more seasonable temperature into Thursday with rain
+showers mainly Wednesday afternoon/evening.
+
+KEY MESSAGE 2...
+Ensemble models are favoring the development of a notable upper
+level trough that will dive southeast through the Great Lakes 
+region starting early Friday morning and into Saturday, with
+cluster analysis favoring a modestly steep but progressive
+trough/surface low system. The model mean pattern would lend to
+rain with potentially advisory-level wind gusts (and/or gusty
+wind-driven showers) Friday, waning precipitation with breezy
+but low-impact wind gusts Saturday, and a low probability
+(~10-15% chance) for lake-enhanced rain/snow showers Saturday
+morning in northwest PA.
+
+Current guidance favors the west central PA to higher terrain
+locations for wind gusts that reach Wind Advisory criteria (46
+mph or greater) with non-zero High Wind Warning gusts in terrain
+tops of eastern Tucker County. However, variance in frontal
+timing and depth of post-frontal mixing are the primary
+indicators to monitor in whether wind risk become more/less
+likely in the days ahead.
+
+Previous discussion of the first snowflakes of the year (and
+even accumulation) have taken a hit in probabilities due to some
+coalesce of modeled synoptic pattern of a more progressive
+system that both limits the degree of cold advection and
+duration of ideal lake-effect wind direction. Snow birds will
+want to see ensemble trends toward a deeper, slower trough 
+(mainly suggested by a handful of Canadian Ensemble Model 
+members) in order to return higher probabilities of seeing the
+first flakes of the year.
+
+&&
+
+.AVIATION /18Z MONDAY THROUGH SATURDAY/...
+As high pressure builds eastward, cigs are expected to 
+gradually improve to VFR. Currently, LBE and MGW are expected to
+be the last to reach VFR ceilings. Winds will also shift to
+south-southwest by this evening. 
+
+High-resolution models indicate fog development possible early 
+Tuesday morning mainly for DUJ, otherwise, most terminals are
+forecast to remain VFR through the TAF period. Tomorrow, winds
+will gradually veer to the southwest with gusts up to 20-25
+knots.
+
+Tomorrow morning, there is a low probability for stray showers 
+may pass near FKL/DUJ associated with a weak disturbance 
+passing to the north.
+
+Outlook... 
+Stray showers may pass near FKL/DUJ with an advancing cold front
+late Tuesday/early Wednesday.
+
+Gusty winds are possible Friday as a strong low moves across 
+the Great Lakes. Gusts up to 30 knots are possible with some of
+the stronger low scenarios with a 60% chance at KPIT.
+
+&&
+
+.PBZ WATCHES/WARNINGS/ADVISORIES...
+PA...None.
+OH...None.
+WV...None.
+
+&&
+
+$$
+
+DISCUSSION...Frazier
+AVIATION...Lupo
