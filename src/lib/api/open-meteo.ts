@@ -110,6 +110,10 @@ export interface Forecast {
   hourly: Record<HourlyKey, Series> & { time: number[] };
   daily: Record<DailyKey, Series> & { time: number[] };
   minutely15: { time: number[]; precip: Series } | null;
+  /** Where it came from (lib/forecast-sources); absent means Open-Meteo's best match. */
+  source?: string;
+  /** Why the chosen source couldn't be used, when it fell back to the best match. */
+  notice?: string;
 }
 
 interface RawBlock {
@@ -142,8 +146,9 @@ function remap<K extends string>(block: RawBlock | undefined, vars: Record<strin
  * Forecast request URL. `core` asks only for variables every model has
  * (the retry after a 400 for an unsupported variable).
  */
-export function forecastUrl(lat: number, lon: number, variant: "full" | "core" = "full") {
+export function forecastUrl(lat: number, lon: number, variant: "full" | "core" = "full", model: string | null = null) {
   const base = {
+    ...(model && { models: model }),
     latitude: lat.toFixed(4),
     longitude: lon.toFixed(4),
     timezone: "auto",
@@ -189,15 +194,16 @@ export function parseForecast(input: unknown, fetchedAt = Date.now()): Forecast 
   };
 }
 
-export async function fetchForecast(lat: number, lon: number, signal?: AbortSignal): Promise<Forecast> {
+/** `model`: one Open-Meteo model ("ecmwf_ifs025") instead of the best-match blend. */
+export async function fetchForecast(lat: number, lon: number, signal?: AbortSignal, model: string | null = null): Promise<Forecast> {
   let raw: RawForecast;
   try {
-    raw = await getJson<RawForecast>(forecastUrl(lat, lon), { signal });
+    raw = await getJson<RawForecast>(forecastUrl(lat, lon, "full", model), { signal });
   } catch (err) {
     // A 400 means a variable/parameter isn't supported for this point —
     // degrade to the universally available core set instead of failing.
     if (!(err instanceof HttpError) || err.status !== 400) throw err;
-    raw = await getJson<RawForecast>(forecastUrl(lat, lon, "core"), { signal });
+    raw = await getJson<RawForecast>(forecastUrl(lat, lon, "core", model), { signal });
   }
   return parseForecast(raw);
 }

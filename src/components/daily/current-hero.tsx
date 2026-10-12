@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import type { Forecast } from "@/lib/api/open-meteo";
 import { describeCode, iconName } from "@/lib/weather/wmo";
 import { todayIndex } from "@/lib/weather/view";
+import { forecastSource, isForecastSourceId } from "@/lib/forecast-sources";
 import { useFormat } from "@/hooks/use-format";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
@@ -61,7 +62,7 @@ export function CurrentHero({ f, now, className }: { f: Forecast; now: number; c
           </dl>
         </div>
         <p className="label mt-2 [@media(max-height:500px)]:mt-1">
-          Updated {updated === 0 ? "just now" : `${updated} min ago`} · Open-Meteo
+          Updated {updated === 0 ? "just now" : `${updated} min ago`} · {f.source && isForecastSourceId(f.source) ? forecastSource(f.source).short : "Open-Meteo"}
         </p>
       </div>
       <WeatherIcon name={icon} size={160} fluid label={info.label} className="w-24 sm:w-32 [@media(max-height:500px)]:w-16" />
