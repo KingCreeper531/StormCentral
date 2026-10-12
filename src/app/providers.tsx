@@ -18,7 +18,7 @@ import { sunPosition } from "@/lib/astro/sun";
 import { useAppStore } from "@/store/app-store";
 
 /** Only small, location-scoped feeds are persisted for instant cold starts. */
-const PERSISTED = new Set(["forecast", "air", "kp"]);
+const PERSISTED = new Set(["forecast", "air", "kp", "climate"]);
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(

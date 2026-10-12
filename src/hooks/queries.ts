@@ -8,7 +8,7 @@
 import { keepPreviousData, useInfiniteQuery, useQuery, type QueryClient } from "@tanstack/react-query";
 import { getJson } from "@/lib/api/http";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
-import { fetchAirGrid, fetchAirQuality, fetchForecast, type GridVariable } from "@/lib/api/open-meteo";
+import { fetchAirGrid, fetchAirQuality, fetchForecast, fetchRecentPrecip, type GridVariable } from "@/lib/api/open-meteo";
 import type {
   AlertsResponse,
   GnssResponse,
@@ -27,8 +27,13 @@ import type { BBox, LatLon } from "@/lib/geo";
 import { MAX_GAUGE_RADIUS_KM, useAppStore } from "@/store/app-store";
 import { pollFor, type Feed, type ModeId } from "@/modes/registry";
 import type { NoaaTimesResponse } from "@/lib/feeds/radar";
+import type { ClimateResponse } from "@/lib/feeds/climate";
+import type { FloodGaugesResponse } from "@/lib/feeds/flood-gauges";
+import type { ForecasterNotesResponse } from "@/lib/feeds/forecaster-notes";
+import type { WildfiresResponse } from "@/lib/feeds/wildfires";
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
+const r1 = (v: number) => Math.round(v * 10) / 10;
 
 export const qk = {
   forecast: (p: LatLon) => ["forecast", r2(p.lat), r2(p.lon)] as const,
@@ -45,6 +50,11 @@ export const qk = {
   stormReports: (hours: number) => ["stormReports", hours] as const,
   stormCells: ["stormCells"] as const,
   tropical: ["tropical"] as const,
+  recentPrecip: (p: LatLon) => ["recentPrecip", r2(p.lat), r2(p.lon)] as const,
+  floodGauges: (p: LatLon, radiusKm: number) => ["floodGauges", r1(p.lat), r1(p.lon), radiusKm] as const,
+  forecasterNotes: (p: LatLon) => ["forecasterNotes", r2(p.lat), r2(p.lon)] as const,
+  climate: (p: LatLon) => ["climate", Math.round(p.lat * 4) / 4, Math.round(p.lon * 4) / 4] as const,
+  wildfires: (p: LatLon) => ["wildfires", Math.round(p.lat * 4) / 4, Math.round(p.lon * 4) / 4] as const,
   session: ["session"] as const,
   posts: (params: Record<string, string>) => ["posts", params] as const,
 };
@@ -257,6 +267,80 @@ export function useTropical(enabled: boolean) {
     enabled: enabled && polling,
     refetchInterval,
     staleTime: 10 * 60_000,
+  });
+}
+
+/** Rainfall over the last 31 days and the next 3 (Open-Meteo, direct). */
+export function useRecentPrecip() {
+  const loc = useAppStore((s) => s.location);
+  const { enabled, refetchInterval } = usePoll("recentPrecip");
+  return useQuery({
+    queryKey: qk.recentPrecip(loc),
+    queryFn: ({ signal }) => fetchRecentPrecip(loc.lat, loc.lon, signal),
+    enabled,
+    refetchInterval,
+    staleTime: 15 * 60_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** NWS river forecast points near the location, with flood stages. */
+export function useFloodGauges() {
+  const loc = useAppStore((s) => s.location);
+  const radiusKm = Math.round(Math.min(MAX_GAUGE_RADIUS_KM, useAppStore((s) => s.radiusKm)));
+  const { enabled, refetchInterval } = usePoll("floodGauges");
+  return useQuery({
+    queryKey: qk.floodGauges(loc, radiusKm),
+    queryFn: ({ signal }) => getJson<FloodGaugesResponse>(`/api/flood-gauges?lat=${loc.lat}&lon=${loc.lon}&radiusKm=${radiusKm}`, { signal, timeoutMs: 30_000 }),
+    enabled,
+    refetchInterval,
+    staleTime: 10 * 60_000,
+    retry: 1,
+  });
+}
+
+/** The local NWS office's latest forecast discussion (US only: 404 elsewhere). */
+export function useForecasterNotes() {
+  const loc = useAppStore((s) => s.location);
+  const { enabled, refetchInterval } = usePoll("forecasterNotes");
+  return useQuery({
+    queryKey: qk.forecasterNotes(loc),
+    queryFn: ({ signal }) => getJson<ForecasterNotesResponse>(`/api/forecaster-notes?lat=${loc.lat.toFixed(3)}&lon=${loc.lon.toFixed(3)}`, { signal, timeoutMs: 25_000 }),
+    enabled,
+    refetchInterval,
+    staleTime: 10 * 60_000,
+  });
+}
+
+/** Normals and records for the location's ERA5 grid cell. */
+export function useClimate() {
+  const loc = useAppStore((s) => s.location);
+  const { enabled } = usePoll("climate");
+  const lat = Math.round(loc.lat * 4) / 4;
+  const lon = Math.round(loc.lon * 4) / 4;
+  return useQuery({
+    queryKey: qk.climate(loc),
+    queryFn: ({ signal }) => getJson<ClimateResponse>(`/api/climate?lat=${lat}&lon=${lon}`, { signal, timeoutMs: 60_000 }),
+    enabled,
+    staleTime: 24 * 3_600_000,
+    gcTime: 24 * 3_600_000,
+    retry: 1,
+  });
+}
+
+/** Uncontained wildfires within 250 km (US). */
+export function useWildfires() {
+  const loc = useAppStore((s) => s.location);
+  const { enabled, refetchInterval } = usePoll("wildfires");
+  const lat = Math.round(loc.lat * 4) / 4;
+  const lon = Math.round(loc.lon * 4) / 4;
+  return useQuery({
+    queryKey: qk.wildfires(loc),
+    queryFn: ({ signal }) => getJson<WildfiresResponse>(`/api/wildfires?lat=${lat}&lon=${lon}`, { signal, timeoutMs: 30_000 }),
+    enabled,
+    refetchInterval,
+    staleTime: 15 * 60_000,
+    retry: 1,
   });
 }
 
