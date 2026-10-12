@@ -64,6 +64,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hydrated || !addonsHydrated) return;
     applyCustomVars(custom ? themeVars(custom) : null);
+    // Vivid-sky themes switch on frosted panels (globals.css) and the bright animated sky.
+    if (custom?.sky) document.documentElement.dataset.sky = custom.sky;
+    else delete document.documentElement.dataset.sky;
     if (custom) {
       applyTheme(custom.base, custom.colors.canvas);
       return;
