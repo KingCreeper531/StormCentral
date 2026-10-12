@@ -75,7 +75,8 @@ never run code. Format and examples: [`examples/addons`](examples/addons).
 | Data | Source | Accessed from |
 |---|---|---|
 | Forecast, nowcast, air quality, pollen, geocoding | [Open-Meteo](https://open-meteo.com) (CC BY 4.0) | Browser (CORS) |
-| NEXRAD radar tiles and scan index | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) | Browser (tiles) + `/api/radar/*` |
+| Radar: MRMS national mosaic, super-resolution NEXRAD reflectivity and velocity | [NOAA/NWS GeoServer](https://opengeo.ncep.noaa.gov) (radar.weather.gov's backend) | Browser (WMS tiles) + `/api/radar/noaa` |
+| Other radar products, and radar fallback | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) | Browser (tiles) + `/api/radar/*` |
 | Watches, warnings, storm motion | [api.weather.gov](https://www.weather.gov/documentation/services-web-api) | `/api/alerts` |
 | Convective outlook and hazard probabilities | [Storm Prediction Center](https://www.spc.noaa.gov) | `/api/outlook` |
 | Local storm reports, NEXRAD storm-cell attributes | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) | `/api/storm-reports`, `/api/storm-cells` |
@@ -87,6 +88,8 @@ never run code. Format and examples: [`examples/addons`](examples/addons).
 | River discharge, stage, water temperature | [USGS Water Services](https://waterservices.usgs.gov) (OGC API fallback) | `/api/rivers` |
 | GNSS orbital elements | [CelesTrak](https://celestrak.org) | `/api/gnss` |
 | Reverse geocoding | BigDataCloud free client API | Browser |
+| Google AI forecast (GraphCast) | Google DeepMind GraphCast, run by NOAA, via [Open-Meteo](https://open-meteo.com) | Browser |
+| Google AI forecast (optional key) | [Google Maps Platform Weather API](https://developers.google.com/maps/documentation/weather) | `/api/google-weather` |
 
 ## Getting started
 
