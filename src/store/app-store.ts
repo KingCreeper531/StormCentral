@@ -86,6 +86,8 @@ export interface AppState {
   timeZoneMode: ZonePref;
   /** With My location on, keep updating it as you move. */
   followLocation: boolean;
+  /** Android home-screen widgets: on a solid panel, or transparent over the wallpaper. */
+  widgetBackground: WidgetBackground;
   composerOpen: boolean;
   paletteOpen: boolean;
   setMode: (mode: ModeId) => void;
@@ -99,9 +101,12 @@ export interface AppState {
   setClock: (c: ClockPref) => void;
   setTimeZoneMode: (z: ZonePref) => void;
   setFollowLocation: (on: boolean) => void;
+  setWidgetBackground: (b: WidgetBackground) => void;
   setComposerOpen: (open: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
 }
+
+export type WidgetBackground = "solid" | "transparent";
 
 /** Norman, OK — home of the Storm Prediction Center. */
 /** Search radius choices: whole miles or kilometres, stored in km. */
@@ -157,6 +162,7 @@ export const useAppStore = create<AppState>()(
       clock: "auto",
       timeZoneMode: "auto",
       followLocation: true,
+      widgetBackground: "solid",
       composerOpen: false,
       paletteOpen: false,
       setMode: (mode) => {
@@ -180,6 +186,7 @@ export const useAppStore = create<AppState>()(
         set({ timeZoneMode });
       },
       setFollowLocation: (followLocation) => set({ followLocation }),
+      setWidgetBackground: (widgetBackground) => set({ widgetBackground }),
       setComposerOpen: (composerOpen) => set({ composerOpen }),
       setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
     }),
@@ -189,7 +196,7 @@ export const useAppStore = create<AppState>()(
       // Rehydrated from a client effect so SSR markup and first client render match.
       skipHydration: true,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ mode: s.mode, location: s.location, units: s.units, theme: s.theme, radar: s.radar, drone: s.drone, airLayer: s.airLayer, radiusKm: s.radiusKm, clock: s.clock, timeZoneMode: s.timeZoneMode, followLocation: s.followLocation }),
+      partialize: (s) => ({ mode: s.mode, location: s.location, units: s.units, theme: s.theme, radar: s.radar, drone: s.drone, airLayer: s.airLayer, radiusKm: s.radiusKm, clock: s.clock, timeZoneMode: s.timeZoneMode, followLocation: s.followLocation, widgetBackground: s.widgetBackground }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<AppState>;
         return {
@@ -204,6 +211,7 @@ export const useAppStore = create<AppState>()(
           clock: isValidClock(p.clock) ? p.clock : current.clock,
           timeZoneMode: isValidZone(p.timeZoneMode) ? p.timeZoneMode : current.timeZoneMode,
           followLocation: typeof p.followLocation === "boolean" ? p.followLocation : current.followLocation,
+          widgetBackground: p.widgetBackground === "transparent" ? "transparent" : "solid",
         };
       },
       onRehydrateStorage: () => (state) => {

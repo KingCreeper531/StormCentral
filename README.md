@@ -43,7 +43,7 @@ Press **1–5** to switch modes and **⌘K / Ctrl-K** to search any place. Hover
 - **Saved places and notifications**: save up to 10 places and get a notification when a warning is issued for any of them. Windows keeps checking from the tray; Android checks about every 15 minutes in the background, even with the app closed.
 - **Custom alerts**: "wind at 120 m below 15 mph", "bite index above 70", "US AQI above 100", "temperature below freezing": any mode's numbers, for any saved place, notified once a day when the forecast crosses your line.
 - **Forecast vs. reality scorecard**: how often the model matched what spotters reported (temperature, wind, rain), by category ([/community/scorecard](src/app/community/scorecard/page.tsx)).
-- **Home-screen widget and tray**: an Android widget with the temperature, conditions and the top active warning; the Windows tray icon shows the current temperature.
+- **Home-screen widgets and tray**: five Android widget styles (Weather, Clock and weather, Temperature, Hourly, 5-day) with the top active warning, on a solid panel or transparent over the wallpaper; the Windows tray icon shows the current temperature.
 - **Settings**: light, dark or system theme, and each unit (temperature, wind, pressure, distance, rain, height) set separately; the gear icon in the top bar.
 - **Shareable views**: mode and location live in the URL.
 - **Offline-first cold start**: the last forecast renders instantly from the persisted query cache, and radar tiles come from a bounded service-worker cache.

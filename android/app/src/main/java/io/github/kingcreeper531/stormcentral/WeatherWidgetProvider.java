@@ -197,9 +197,10 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
     private static RemoteViews buildSized(
             Context context, JSONObject snapshot, int widthDp, int heightDp, long nowMs) {
         Resources res = context.getResources();
-        RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_weather);
+        WidgetLook look = WidgetLook.of(context);
+        RemoteViews views = new RemoteViews(context.getPackageName(), look.layout(R.layout.widget_weather, R.layout.widget_weather_clear));
         views.setOnClickPendingIntent(android.R.id.background, openAppIntent(context));
-        applyTheme(context, views);
+        applyTheme(look, views);
 
         float density = res.getDisplayMetrics().density;
         float fontScale = res.getConfiguration().fontScale > 0 ? res.getConfiguration().fontScale : 1f;
@@ -351,26 +352,17 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
-    /**
-     * Light or dark colours to match the app's theme setting (saved by the app as
-     * "theme": light, dark or system). System follows the phone's dark mode.
-     */
-    private static void applyTheme(Context context, RemoteViews views) {
-        boolean light = isLight(context);
-        int ink = light ? 0xFF111316 : 0xFFECECED;
-        int ink2 = light ? 0xFF474C54 : 0xFFA8ACB3;
-        int ink3 = light ? 0xFF61666E : 0xFF80858D;
-        int alert = light ? 0xFFC62A2F : 0xFFE5484D;
-        views.setInt(android.R.id.background, "setBackgroundResource",
-                light ? R.drawable.widget_background_light : R.drawable.widget_background);
+    /** Colours for the app's theme and widget background settings (see {@link WidgetLook}). */
+    private static void applyTheme(WidgetLook look, RemoteViews views) {
+        views.setInt(android.R.id.background, "setBackgroundResource", look.background);
         for (int id : new int[] {R.id.widget_temp, R.id.widget_condition, R.id.widget_condition_below}) {
-            views.setTextColor(id, ink);
+            views.setTextColor(id, look.ink);
         }
         for (int id : new int[] {R.id.widget_place, R.id.widget_hilo, R.id.widget_hilo_below, R.id.widget_message}) {
-            views.setTextColor(id, ink2);
+            views.setTextColor(id, look.ink2);
         }
-        views.setTextColor(R.id.widget_updated, ink3);
-        views.setTextColor(R.id.widget_alert, alert);
+        views.setTextColor(R.id.widget_updated, look.ink3);
+        views.setTextColor(R.id.widget_alert, look.alert);
     }
 
     /** Whether the widgets draw light: the app's theme, or the phone's dark mode for "system". */

@@ -154,14 +154,17 @@ export function AlertWatcher() {
     return () => clearTimeout(t);
   }, [cfg, qc, location, unit]);
 
-  // The widget matches the app's light/dark/system setting (a custom theme's base wins).
+  // The widgets match the app's light/dark/system setting (a custom theme's base wins), clock and background choice.
   const themePref = useAppStore((s) => s.theme);
   const customBase = useAddonsStore((s) => selectActiveTheme(s)?.base);
   const widgetTheme = customBase ?? themePref;
   const clock = useAppStore((s) => s.clock);
+  const widgetBg = useAppStore((s) => s.widgetBackground);
+  const hydrated = useAppStore((s) => s.hydrated);
   useEffect(() => {
-    if (isNativeApp()) void writeShared({ theme: widgetTheme, clock }).catch(() => {});
-  }, [widgetTheme, clock]);
+    // After rehydration, so the saved choice isn't overwritten by the default.
+    if (isNativeApp() && hydrated) void writeShared({ theme: widgetTheme, clock, widgetBg }).catch(() => {});
+  }, [widgetTheme, clock, widgetBg, hydrated]);
 
   // Refresh the widget whenever a new forecast lands for the selected location.
   useEffect(() => {

@@ -14,7 +14,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * The extra widget styles (Temperature, Hourly, 5-day). They draw from the same
+ * The extra widget styles (Temperature, Hourly, 5-day, Clock). They draw from the same
  * snapshot as {@link WeatherWidgetProvider} and share its refresh, so every
  * style updates together.
  */
@@ -22,7 +22,7 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
 
     private static final String TAG = "StormCentralWidget";
 
-    enum Style { COMPACT, HOURLY, DAILY }
+    enum Style { COMPACT, HOURLY, DAILY, CLOCK }
 
     abstract Style style();
 
@@ -43,6 +43,7 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
         render(context, manager, ids(context, manager, CompactWidgetProvider.class), Style.COMPACT, snapshot);
         render(context, manager, ids(context, manager, HourlyWidgetProvider.class), Style.HOURLY, snapshot);
         render(context, manager, ids(context, manager, DailyWidgetProvider.class), Style.DAILY, snapshot);
+        render(context, manager, ids(context, manager, ClockWidgetProvider.class), Style.CLOCK, snapshot);
     }
 
     private static int[] ids(Context context, AppWidgetManager manager, Class<?> cls) {
@@ -60,9 +61,12 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
             try {
                 Bundle options = manager.getAppWidgetOptions(id);
                 int heightDp = options == null ? 0 : options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0);
+                int widthDp = options == null ? 0 : options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0);
                 RemoteViews views = style == Style.COMPACT
                         ? buildCompact(context, snapshot, heightDp, nowMs)
-                        : buildForecast(context, snapshot, style, heightDp, nowMs);
+                        : style == Style.CLOCK
+                                ? buildClock(context, snapshot, widthDp, heightDp, nowMs)
+                                : buildForecast(context, snapshot, style, heightDp, nowMs);
                 manager.updateAppWidget(id, views);
             } catch (RuntimeException e) {
                 Log.w(TAG, "Could not draw widget " + id, e);
@@ -72,25 +76,10 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
 
     // ---- Colours -----------------------------------------------------------
 
-    private static final class Palette {
-        final int ink;
-        final int ink2;
-        final int alert;
-        final int background;
-
-        Palette(boolean light) {
-            ink = light ? 0xFF111316 : 0xFFECECED;
-            ink2 = light ? 0xFF474C54 : 0xFFA8ACB3;
-            alert = light ? 0xFFC62A2F : 0xFFE5484D;
-            background = light ? R.drawable.widget_background_light : R.drawable.widget_background;
-        }
-    }
-
-    private static Palette frame(Context context, RemoteViews views) {
-        Palette p = new Palette(WeatherWidgetProvider.isLight(context));
-        views.setInt(android.R.id.background, "setBackgroundResource", p.background);
+    private static WidgetLook frame(Context context, RemoteViews views, WidgetLook look) {
+        views.setInt(android.R.id.background, "setBackgroundResource", look.background);
         views.setOnClickPendingIntent(android.R.id.background, WeatherWidgetProvider.openApp(context));
-        return p;
+        return look;
     }
 
     private static String temp(Context context, double celsius, boolean fahrenheit) {
@@ -102,8 +91,9 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
     // ---- Temperature (compact) ----------------------------------------------
 
     private static RemoteViews buildCompact(Context context, JSONObject snapshot, int heightDp, long nowMs) {
-        RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_compact);
-        Palette p = frame(context, views);
+        WidgetLook look = WidgetLook.of(context);
+        RemoteViews views = new RemoteViews(context.getPackageName(), look.layout(R.layout.widget_compact, R.layout.widget_compact_clear));
+        WidgetLook p = frame(context, views, look);
         JSONObject place = snapshot == null ? null : snapshot.optJSONObject("place");
         views.setTextColor(R.id.widget_message, p.ink2);
         if (place == null) {
@@ -141,8 +131,9 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
     // ---- Hourly and 5-day -------------------------------------------------
 
     private static RemoteViews buildForecast(Context context, JSONObject snapshot, Style style, int heightDp, long nowMs) {
-        RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_forecast);
-        Palette p = frame(context, views);
+        WidgetLook look = WidgetLook.of(context);
+        RemoteViews views = new RemoteViews(context.getPackageName(), look.layout(R.layout.widget_forecast, R.layout.widget_forecast_clear));
+        WidgetLook p = frame(context, views, look);
         views.removeAllViews(R.id.widget_cells);
         views.setTextColor(R.id.widget_message, p.ink2);
         JSONObject place = snapshot == null ? null : snapshot.optJSONObject("place");
@@ -191,7 +182,7 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
         return views;
     }
 
-    private static int addHours(Context context, RemoteViews views, JSONArray hours, boolean f, Palette p, long nowMs) {
+    private static int addHours(Context context, RemoteViews views, JSONArray hours, boolean f, WidgetLook p, long nowMs) {
         if (hours == null) return 0;
         int added = 0;
         for (int i = 0; i < hours.length() && added <= WeatherWidgetData.HOURS; i++) {
@@ -215,7 +206,7 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
         return hour >= 6 && hour < 19;
     }
 
-    private static int addDays(Context context, RemoteViews views, JSONArray days, boolean f, Palette p, long nowMs) {
+    private static int addDays(Context context, RemoteViews views, JSONArray days, boolean f, WidgetLook p, long nowMs) {
         if (days == null) return 0;
         String today = WeatherWidgetData.localDate(nowMs);
         int added = 0;
@@ -238,8 +229,93 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
         return added;
     }
 
-    private static RemoteViews cell(Context context, String label, String icon, String value, Palette p) {
-        RemoteViews cell = new RemoteViews(context.getPackageName(), R.layout.widget_cell);
+    // ---- Clock --------------------------------------------------------------
+
+    /**
+     * A large clock and the date (TextClock: the launcher keeps them ticking, no
+     * updates needed), then today's weather. Smaller sizes drop the weather
+     * details first, then the weather row, then shrink the clock.
+     */
+    private static RemoteViews buildClock(Context context, JSONObject snapshot, int widthDp, int heightDp, long nowMs) {
+        WidgetLook look = WidgetLook.of(context);
+        RemoteViews views = new RemoteViews(context.getPackageName(), look.layout(R.layout.widget_clock, R.layout.widget_clock_clear));
+        WidgetLook p = frame(context, views, look);
+        views.setOnClickPendingIntent(R.id.widget_clock_area, clockAppIntent(context));
+
+        // The app's 12/24-hour setting; "auto" leaves TextClock to follow the phone.
+        String clock = WeatherWidgetData.clock(context);
+        String time12 = "24".equals(clock) ? "HH:mm" : "h:mm";
+        String time24 = "12".equals(clock) ? "h:mm" : "HH:mm";
+        views.setCharSequence(R.id.widget_clock_time, "setFormat12Hour", time12);
+        views.setCharSequence(R.id.widget_clock_time, "setFormat24Hour", time24);
+        views.setCharSequence(R.id.widget_clock_ampm, "setFormat12Hour", "24".equals(clock) ? "" : "a");
+        views.setCharSequence(R.id.widget_clock_ampm, "setFormat24Hour", "12".equals(clock) ? "a" : "");
+        String date = android.text.format.DateFormat.getBestDateTimePattern(java.util.Locale.getDefault(), "EEEMMMd");
+        views.setCharSequence(R.id.widget_clock_date, "setFormat12Hour", date);
+        views.setCharSequence(R.id.widget_clock_date, "setFormat24Hour", date);
+
+        boolean tiny = heightDp > 0 && heightDp < 90;
+        boolean shortWidget = heightDp > 0 && heightDp < 130;
+        float timeSp = tiny ? 38f : shortWidget ? 48f : 60f;
+        views.setTextViewTextSize(R.id.widget_clock_time, TypedValue.COMPLEX_UNIT_SP, timeSp);
+        views.setTextColor(R.id.widget_clock_time, p.ink);
+        views.setTextColor(R.id.widget_clock_ampm, p.ink2);
+        views.setTextColor(R.id.widget_clock_date, p.ink2);
+        views.setTextColor(R.id.widget_message, p.ink2);
+
+        JSONObject place = snapshot == null ? null : snapshot.optJSONObject("place");
+        if (place == null) {
+            views.setTextViewText(R.id.widget_message, context.getString(R.string.widget_setup));
+            show(views, R.id.widget_message, !tiny);
+            show(views, R.id.widget_main, false);
+            show(views, R.id.widget_alert, false);
+            return views;
+        }
+        show(views, R.id.widget_message, false);
+
+        boolean f = WeatherWidgetData.fahrenheit(snapshot);
+        JSONObject now = snapshot.optJSONObject("now");
+        double tempC = WeatherWidgetData.number(now, "tempC");
+        int code = now == null || now.isNull("code") ? -1 : now.optInt("code", -1);
+        boolean isDay = now == null || now.optBoolean("isDay", true);
+        String condition = WeatherWidgetData.string(now, "text");
+        if (condition == null && code >= 0) condition = WeatherWidgetData.conditionText(context, code);
+        double hi = WeatherWidgetData.number(now, "hiC");
+        double lo = WeatherWidgetData.number(now, "loC");
+        String placeName = WeatherWidgetData.string(place, "name");
+        String hilo = Double.isNaN(hi) || Double.isNaN(lo) ? null
+                : context.getString(R.string.widget_hilo, WeatherWidgetData.displayTemp(hi, f), WeatherWidgetData.displayTemp(lo, f));
+        // Second line: high/low and the place, as far as they fit.
+        String detail = hilo == null ? placeName : placeName == null ? hilo : hilo + " · " + placeName;
+
+        views.setTextViewText(R.id.widget_icon, code >= 0 ? WeatherWidgetData.icon(code, isDay) : "");
+        views.setTextViewText(R.id.widget_temp, temp(context, tempC, f));
+        views.setTextColor(R.id.widget_temp, p.ink);
+        views.setTextViewText(R.id.widget_condition, condition == null ? "" : condition);
+        views.setTextColor(R.id.widget_condition, p.ink);
+        views.setTextViewText(R.id.widget_hilo, detail == null ? "" : detail);
+        views.setTextColor(R.id.widget_hilo, p.ink2);
+        show(views, R.id.widget_main, !tiny);
+        show(views, R.id.widget_side, widthDp == 0 || widthDp >= 200);
+        show(views, R.id.widget_hilo, detail != null && !shortWidget);
+
+        String alert = WeatherWidgetProvider.alertLine(context, snapshot.optJSONObject("alert"), nowMs);
+        views.setTextViewText(R.id.widget_alert, alert == null ? "" : alert);
+        views.setTextColor(R.id.widget_alert, p.alert);
+        show(views, R.id.widget_alert, alert != null && !tiny);
+        return views;
+    }
+
+    /** Opens the phone's clock app (alarms), like the stock clock widgets; nothing happens if there is none. */
+    private static android.app.PendingIntent clockAppIntent(Context context) {
+        android.content.Intent intent = new android.content.Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS)
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+        return android.app.PendingIntent.getActivity(context, 1, intent,
+                android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    private static RemoteViews cell(Context context, String label, String icon, String value, WidgetLook p) {
+        RemoteViews cell = new RemoteViews(context.getPackageName(), p.layout(R.layout.widget_cell, R.layout.widget_cell_clear));
         cell.setTextViewText(R.id.widget_cell_label, label);
         cell.setTextColor(R.id.widget_cell_label, p.ink2);
         cell.setTextViewText(R.id.widget_cell_icon, icon);
