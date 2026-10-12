@@ -41,3 +41,29 @@ export function luminaryGlow(phase: SkyPhase): string {
   if (phase === "day") return "rgba(255,246,228,0.06)";
   return "rgba(205,215,240,0.06)"; // moon
 }
+
+/**
+ * Vivid, full-height skies for themes that ask for them ("sky": "vivid"),
+ * in the style of phone weather apps: saturated blues by day, warm golden
+ * hours, deep navy nights, slate rain and storm. Mid-tone throughout so
+ * white text with a soft shadow stays readable at the top of the screen.
+ */
+export function vividSkyGradient(scene: Scene, phase: SkyPhase): string {
+  const night = phase === "night" || phase === "astronomical";
+  const twilight = phase === "nautical" || phase === "civil";
+  const golden = phase === "golden";
+  if (scene === "storm" || scene === "hail")
+    return night ? "linear-gradient(180deg,#0d1018 0%,#1a1f2b 50%,#262c3a 100%)" : "linear-gradient(180deg,#232a37 0%,#363e4e 45%,#4b5466 100%)";
+  if (scene === "rain" || scene === "drizzle" || scene === "freezing")
+    return night ? "linear-gradient(180deg,#0f1622 0%,#1b2534 50%,#283447 100%)" : "linear-gradient(180deg,#3a4b61 0%,#4f6279 45%,#677b93 100%)";
+  if (scene === "cloudy")
+    return night ? "linear-gradient(180deg,#141b27 0%,#222c3b 50%,#313c4d 100%)" : "linear-gradient(180deg,#4f6582 0%,#667d99 45%,#8195b0 100%)";
+  if (scene === "snow")
+    return night ? "linear-gradient(180deg,#18223a 0%,#26324d 50%,#36435f 100%)" : "linear-gradient(180deg,#5b7596 0%,#7590b0 45%,#8fa7c3 100%)";
+  if (scene === "fog") return night ? "linear-gradient(180deg,#1c222c 0%,#2a313c 100%)" : "linear-gradient(180deg,#68737f 0%,#87919c 100%)";
+  // clear / partly
+  if (night) return "linear-gradient(180deg,#070d24 0%,#101c45 45%,#1d2d62 100%)";
+  if (twilight) return "linear-gradient(180deg,#1b2452 0%,#56407a 45%,#c2687a 100%)";
+  if (golden) return "linear-gradient(180deg,#24427f 0%,#b0607a 50%,#ee9a5a 100%)";
+  return "linear-gradient(180deg,#145fc4 0%,#2f7fe0 45%,#5aa2ea 100%)";
+}

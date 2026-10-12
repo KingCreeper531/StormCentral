@@ -45,6 +45,8 @@ export interface ThemeAddon extends AddonMeta {
   /** Light or dark base: picks the basemap and fills in any colour left out. */
   base: Theme;
   colors: Partial<Record<ThemeSlot, string>>;
+  /** "vivid": full, saturated animated skies behind frosted-glass panels (built-in effect, no code). */
+  sky?: "vivid";
 }
 
 export interface RasterLayer {
@@ -172,7 +174,7 @@ export function parseAddon(raw: unknown, source: { id: string; homepage: string 
     const given = m.colors && typeof m.colors === "object" ? (m.colors as Record<string, unknown>) : {};
     for (const slot of THEME_SLOTS) if (isHexColor(given[slot])) colors[slot] = given[slot] as string;
     if (!Object.keys(colors).length) throw new AddonError('The theme has no valid "colors" (hex values like "#2e3440").');
-    return { ...meta, type: "theme", base: m.base === "light" ? "light" : "dark", colors };
+    return { ...meta, type: "theme", base: m.base === "light" ? "light" : "dark", colors, ...(m.sky === "vivid" ? { sky: "vivid" as const } : {}) };
   }
   if (m.type === "plugin") {
     const layers = (Array.isArray(m.layers) ? m.layers : []).slice(0, MAX_LAYERS).map(parseLayer);

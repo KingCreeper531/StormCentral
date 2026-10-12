@@ -7,7 +7,8 @@ import { describeCode } from "@/lib/weather/wmo";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useNow } from "@/hooks/use-now";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
-import { luminaryGlow, skyGradient } from "./sky";
+import { selectActiveTheme, useAddonsStore } from "@/store/addons-store";
+import { luminaryGlow, skyGradient, vividSkyGradient } from "./sky";
 import { PrecipCanvas, type PrecipKind } from "./precip-canvas";
 
 interface Props {
@@ -53,6 +54,8 @@ const SCRIM = [
  * canvas sooner.
  */
 const SCRIM_LIGHT = "linear-gradient(180deg, rgb(243 244 246 / 0.62) 0%, rgb(243 244 246 / 0.7) 18%, rgb(243 244 246 / 0.9) 32%, #f3f4f6 44%)";
+/** Vivid skies stay bright: only a soft vignette at the edges and a little depth at the bottom. */
+const SCRIM_VIVID = "radial-gradient(140% 90% at 50% 0%, transparent 60%, rgba(0,0,0,0.22) 100%), linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.18) 100%)";
 
 /**
  * Real-time sky: gradient from the true solar altitude at the location
@@ -66,11 +69,13 @@ export function WeatherBackground({ lat, lon, code, cloudPct, windMs, windDirDeg
   // Hydration-safe (false on the server); animated nodes are keyed on it so they remount cleanly.
   const reduced = useMediaQuery("(prefers-reduced-motion: reduce)");
   const light = useResolvedTheme() === "light";
+  // Themes can ask for full, saturated skies (e.g. the "Sky" theme): see vividSkyGradient.
+  const vivid = useAddonsStore((s) => selectActiveTheme(s)?.sky === "vivid");
   const sun = useMemo(() => sunPosition(new Date(now), lat, lon), [now, lat, lon]);
   const phase = skyPhase(sun.altitude);
   const info = describeCode(code);
   const scene = info.scene;
-  const gradient = skyGradient(scene, phase);
+  const gradient = vivid ? vividSkyGradient(scene, phase) : skyGradient(scene, phase);
   const isNight = phase === "night" || phase === "astronomical" || phase === "nautical";
 
   const kind: PrecipKind =
@@ -89,8 +94,13 @@ export function WeatherBackground({ lat, lon, code, cloudPct, windMs, windDirDeg
   const lumY = Math.max(4, Math.min(46, 40 - sun.altitude * 0.9));
   const showLuminary = (scene === "clear" || scene === "partly") && sun.altitude > -8;
 
-  const cloudFill =
-    scene === "storm" || scene === "hail"
+  const cloudFill = vivid
+    ? scene === "storm" || scene === "hail"
+      ? "radial-gradient(ellipse closest-side, rgba(40,46,58,0.8), transparent)"
+      : isNight
+        ? "radial-gradient(ellipse closest-side, rgba(170,182,210,0.2), transparent)"
+        : "radial-gradient(ellipse closest-side, rgba(255,255,255,0.42), transparent)"
+    : scene === "storm" || scene === "hail"
       ? "radial-gradient(ellipse closest-side, rgba(28,34,36,0.75), transparent)"
       : isNight
         ? "radial-gradient(ellipse closest-side, rgba(60,68,84,0.22), transparent)"
@@ -132,11 +142,27 @@ export function WeatherBackground({ lat, lon, code, cloudPct, windMs, windDirDeg
         </div>
       )}
 
-      {showLuminary && (
+      {showLuminary && !vivid && (
         <div
           className="absolute size-40 -translate-x-1/2 -translate-y-1/2 transition-[left,top] duration-[3000ms]"
           style={{ left: `${lumX}%`, top: `${lumY}%`, background: `radial-gradient(circle closest-side, ${luminaryGlow(phase)}, transparent)` }}
         />
+      )}
+      {/* Vivid: a real sun or moon disc with a slowly breathing glow. */}
+      {showLuminary && vivid && (
+        <div className="absolute -translate-x-1/2 -translate-y-1/2 transition-[left,top] duration-[3000ms]" style={{ left: `${lumX}%`, top: `${lumY}%` }}>
+          <div
+            className="absolute top-1/2 left-1/2 size-72 -translate-x-1/2 -translate-y-1/2 rounded-full"
+            style={{
+              background: isNight ? "radial-gradient(circle closest-side, rgba(200,215,255,0.22), transparent)" : "radial-gradient(circle closest-side, rgba(255,236,170,0.45), rgba(255,210,120,0.12) 55%, transparent)",
+              animation: reduced ? undefined : "sky-breathe 9s ease-in-out infinite",
+            }}
+          />
+          <div
+            className="relative size-14 rounded-full"
+            style={{ background: isNight ? "radial-gradient(circle at 35% 35%, #f4f6ff, #c9d2ec)" : "radial-gradient(circle at 40% 40%, #fffbe8, #ffd76a)", boxShadow: isNight ? "0 0 30px rgba(210,220,255,0.5)" : "0 0 60px rgba(255,214,110,0.8)" }}
+          />
+        </div>
       )}
 
       {/* Cloud deck: soft bands drifting with the real wind. */}
@@ -151,7 +177,7 @@ export function WeatherBackground({ lat, lon, code, cloudPct, windMs, windDirDeg
               width: `${c.w}vw`,
               height: `${c.h}vh`,
               background: cloudFill,
-              opacity: Math.min(0.9, cover * 0.85),
+              opacity: Math.min(0.9, cover * (vivid ? 1 : 0.85)),
             }}
             initial={reduced ? false : { x: windPush < 0 ? "110vw" : "-90vw" }}
             animate={reduced ? undefined : { x: windPush < 0 ? "-90vw" : "110vw" }}
@@ -172,7 +198,7 @@ export function WeatherBackground({ lat, lon, code, cloudPct, windMs, windDirDeg
 
       <PrecipCanvas kind={kind} intensity={intensity} wind={windPush} lightning={scene === "storm" || scene === "hail"} paused={!!hidden} />
 
-      <div className="absolute inset-0" style={{ background: light ? SCRIM_LIGHT : SCRIM }} />
+      <div className="absolute inset-0" style={{ background: vivid ? SCRIM_VIVID : light ? SCRIM_LIGHT : SCRIM }} />
     </div>
   );
 }

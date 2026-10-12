@@ -10,6 +10,10 @@ import { clockIn } from "@/lib/weather/view";
 import { useAppStore } from "@/store/app-store";
 import { IconButton } from "../ui/button";
 import { AlertTag, HazardSwatch } from "./alert-list";
+import { isSpotterSource, type AlertReports } from "@/lib/alert-reports";
+import { placeName, reportMagnitude, reportTitle, sourceLabel } from "@/lib/feeds/storm-parse";
+import { useFormat } from "@/hooks/use-format";
+import { timeAgo } from "@/lib/time";
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -33,8 +37,11 @@ export function AlertDetail({
   hideTitle = false,
   className,
   timeZone,
+  reports,
 }: {
   alert: WeatherAlert;
+  /** NWS storm reports filed inside the warning (lib/alert-reports). */
+  reports?: AlertReports;
   now: number;
   /** IANA zone of the selected location; times use the device's zone when omitted. */
   timeZone: string | undefined;
@@ -110,6 +117,8 @@ export function AlertDetail({
         </dl>
       )}
 
+      {reports && <SpotterReports r={reports} now={now} />}
+
       <div className="mt-3 border-t border-line pt-3">
         {a.headline && <p className="text-sm font-medium text-ink">{a.headline}</p>}
         <div id={textId}>
@@ -131,6 +140,48 @@ export function AlertDetail({
           {expanded ? "Show less" : a.instruction ? "Full text and safety instructions" : "Full text"}
         </button>
       </div>
+    </div>
+  );
+}
+
+/** What NWS storm reports (spotters, chasers, emergency managers, the public) say inside the warning. */
+function SpotterReports({ r, now }: { r: AlertReports; now: number }) {
+  const fmt = useFormat();
+  const value = (x: AlertReports["reports"][number]) => {
+    const m = reportMagnitude(x);
+    if (!m) return null;
+    if (m.kind === "length") return fmt.precip(m.mm);
+    if (m.kind === "speed") return fmt.wind(m.ms);
+    if (m.kind === "rating") return m.text;
+    return `${m.value}${m.unit ? ` ${m.unit.toLowerCase()}` : ""}`;
+  };
+  return (
+    <div className="mt-3 border-t border-line pt-3">
+      <p className="label">
+        {r.reports.length
+          ? `Storm reports in this warning: ${r.reports.length}${r.spotters ? `, ${r.spotters} from trained spotters and officials` : ""}`
+          : "No storm reports inside this warning yet"}
+      </p>
+      {r.reports.length > 0 && (
+        <ul className="mt-1.5 space-y-1.5">
+          {r.reports.slice(0, 6).map((x) => {
+            const v = value(x);
+            return (
+              <li key={x.id} className="flex items-baseline justify-between gap-3 text-[13px]">
+                <span className="min-w-0">
+                  <span className="font-medium text-ink">{reportTitle(x.typeText)}</span>
+                  {v && <span className="text-ink-2"> · {v}</span>}
+                  <span className="block truncate text-xs text-ink-3">
+                    {[placeName(x.place), x.source ? sourceLabel(x.source) : null].filter(Boolean).join(" · ")}
+                    {isSpotterSource(x.source) ? " ✓" : ""}
+                  </span>
+                </span>
+                <span className="shrink-0 text-xs text-ink-3 tabular">{timeAgo(Date.parse(x.time), now)}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
