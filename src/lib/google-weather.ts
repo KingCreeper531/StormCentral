@@ -6,6 +6,8 @@
  */
 
 export interface GoogleWeather {
+  /** "google": Google Weather API (needs a key). "graphcast": Google DeepMind's GraphCast model as run by NOAA, via Open-Meteo (free, no key). */
+  source?: "google" | "graphcast";
   timeZone: string | null;
   current: {
     tempC: number | null;
@@ -114,5 +116,61 @@ export function parseGoogleDays(raw: any): GoogleWeather["days"] {
 export function parseGoogleTimeZone(...raws: any[]): string | null {
   for (const r of raws) if (typeof r?.timeZone?.id === "string") return r.timeZone.id;
   return null;
+}
+/** GraphCast (Google DeepMind's AI model, run by NOAA as GraphCastGFS) through Open-Meteo: free, no key, 6-hourly to 10 days. */
+export function graphcastUrl(lat: number, lon: number) {
+  return `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(2)}&longitude=${lon.toFixed(2)}&models=gfs_graphcast025&hourly=temperature_2m,precipitation,weather_code,cloud_cover&timezone=auto&forecast_days=10&timeformat=unixtime`;
+}
+
+/** A WMO code from precipitation and cloud when the model doesn't give one. */
+function codeFrom(precipMm: number | null, cloud: number | null, tempC: number | null): number {
+  if (precipMm != null && precipMm >= 0.2) {
+    const snow = tempC != null && tempC <= 0;
+    if (precipMm >= 7.5) return snow ? 75 : 65;
+    if (precipMm >= 2.5) return snow ? 73 : 63;
+    return snow ? 71 : 61;
+  }
+  if (cloud == null) return 2;
+  return cloud < 20 ? 0 : cloud < 50 ? 1 : cloud < 85 ? 2 : 3;
+}
+
+/** Open-Meteo GraphCast response → the same shape as Google's API (no probabilities: GraphCast is a single run). */
+export function parseGraphcast(raw: any, nowMs: number): GoogleWeather | null {
+  const h = raw?.hourly;
+  const times: unknown[] = Array.isArray(h?.time) ? h.time : [];
+  const offset = num(raw?.utc_offset_seconds) ?? 0;
+  const hours: GoogleWeather["hours"] = [];
+  times.forEach((t, i) => {
+    const sec = num(t);
+    const tempC = num(h.temperature_2m?.[i]);
+    if (sec == null || tempC == null) return;
+    const precipMm = num(h.precipitation?.[i]);
+    const code = num(h.weather_code?.[i]) ?? codeFrom(precipMm, num(h.cloud_cover?.[i]), tempC);
+    const localHour = new Date((sec + offset) * 1000).getUTCHours();
+    hours.push({ time: new Date(sec * 1000).toISOString(), tempC, code, text: null, isDay: localHour >= 6 && localHour < 19, precipChance: null, precipMm });
+  });
+  if (!hours.length) return null;
+  // Days in the place's own time zone.
+  const byDay = new Map<string, GoogleWeather["hours"]>();
+  for (const x of hours) {
+    const day = new Date(Date.parse(x.time) + offset * 1000).toISOString().slice(0, 10);
+    byDay.set(day, [...(byDay.get(day) ?? []), x]);
+  }
+  const today = new Date(nowMs + offset * 1000).toISOString().slice(0, 10);
+  const days: GoogleWeather["days"] = [...byDay]
+    .filter(([d]) => d >= today)
+    .map(([date, list]) => {
+      const temps = list.map((x) => x.tempC!).filter((v) => v != null);
+      return { date, hiC: Math.max(...temps), loC: Math.min(...temps), code: Math.max(...list.map((x) => x.code)), text: null, precipChance: null };
+    });
+  const nowEntry = hours.reduce((best, x) => (Math.abs(Date.parse(x.time) - nowMs) < Math.abs(Date.parse(best.time) - nowMs) ? x : best));
+  return {
+    source: "graphcast",
+    timeZone: typeof raw?.timezone === "string" ? raw.timezone : null,
+    current: { tempC: nowEntry.tempC, feelsC: null, text: null, code: nowEntry.code, isDay: nowEntry.isDay, humidity: null, windMs: null, gustMs: null, windDeg: null, precipChance: null, thunderChance: null, uv: null },
+    hours,
+    days,
+    fetchedAt: nowMs,
+  };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */

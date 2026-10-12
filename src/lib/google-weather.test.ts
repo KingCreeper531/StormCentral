@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { googleTypeToWmo, parseGoogleCurrent, parseGoogleDays, parseGoogleHours, parseGoogleTimeZone } from "./google-weather";
+import { googleTypeToWmo, parseGoogleCurrent, parseGoogleDays, parseGoogleHours, parseGoogleTimeZone, parseGraphcast } from "./google-weather";
 
 describe("Google Weather parsing", () => {
   it("maps condition types to WMO codes", () => {
@@ -49,5 +49,28 @@ describe("Google Weather parsing", () => {
     expect(days).toEqual([{ date: "2026-10-12", hiC: 28, loC: 14, code: 95, text: "Thunderstorms", precipChance: 80 }]);
     expect(parseGoogleCurrent(null)).toBeNull();
     expect(parseGoogleDays({})).toEqual([]);
+  });
+
+  it("reads GraphCast (6-hourly) from Open-Meteo into the same shape", () => {
+    const t0 = Date.parse("2026-10-12T06:00:00Z") / 1000; // 1 AM at UTC-5
+    const time = Array.from({ length: 12 }, (_, i) => t0 + i * 3600);
+    const raw = {
+      timezone: "America/Chicago",
+      utc_offset_seconds: -5 * 3600,
+      hourly: {
+        time,
+        temperature_2m: time.map((_, i) => (i % 6 === 0 ? 10 + i : null)),
+        precipitation: time.map((_, i) => (i === 6 ? 3 : 0)),
+        weather_code: time.map(() => null),
+        cloud_cover: time.map(() => 90),
+      },
+    };
+    const g = parseGraphcast(raw, t0 * 1000)!;
+    expect(g.source).toBe("graphcast");
+    expect(g.hours).toHaveLength(2);
+    expect(g.hours[1]).toMatchObject({ tempC: 16, precipMm: 3, code: 63, precipChance: null });
+    expect(g.days[0]).toMatchObject({ date: "2026-10-12", hiC: 16, loC: 10 });
+    expect(g.current?.tempC).toBe(10);
+    expect(parseGraphcast({}, 0)).toBeNull();
   });
 });
