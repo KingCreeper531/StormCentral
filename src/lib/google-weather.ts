@@ -36,7 +36,11 @@ const GOOGLE = "https://weather.googleapis.com/v1";
 export class GoogleKeyError extends Error {}
 
 async function googleCall(path: string, params: Record<string, string>, key: string, signal?: AbortSignal): Promise<any> {
-  const res = await fetch(`${GOOGLE}/${path}?${new URLSearchParams({ ...params, key })}`, { signal, headers: { Accept: "application/json" } });
+  // No URLSearchParams: this also runs in the Android background runner, which lacks it.
+  const query = Object.entries({ ...params, key })
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join("&");
+  const res = await fetch(`${GOOGLE}/${path}?${query}`, { signal, headers: { Accept: "application/json" } });
   if (res.ok) return res.json();
   const body = await res.json().catch(() => null);
   const message: string = body?.error?.message ?? `Google Weather answered ${res.status}`;
@@ -88,7 +92,8 @@ const dateOf = (d: any): string | null =>
  * replaces the matching hour, day or current reading; the rest stays.
  */
 export function applyGoogle(base: Forecast, current: any, hours: any[], days: any[], fetchedAt = Date.now()): Forecast {
-  const f: Forecast = structuredClone(base);
+  // A JSON copy (the background runner has no structuredClone); a forecast is plain data.
+  const f: Forecast = JSON.parse(JSON.stringify(base));
   const set = <T extends Record<string, unknown>>(target: T, key: keyof T, v: number | null) => {
     if (v != null) (target as Record<string, unknown>)[key as string] = v;
   };

@@ -64,7 +64,7 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
 
     /** Refetches conditions and forecast when the snapshot is stale, then redraws every widget style. */
     static void refreshIfStale(BroadcastReceiver receiver, Context context, JSONObject snapshot) {
-        if (WeatherWidgetData.needsRefresh(snapshot, System.currentTimeMillis())) {
+        if (WeatherWidgetData.needsRefresh(context, snapshot, System.currentTimeMillis())) {
             refreshAsync(receiver, context, WeatherWidgetData.coordinates(snapshot));
         }
     }

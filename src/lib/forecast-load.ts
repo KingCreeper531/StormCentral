@@ -1,17 +1,6 @@
 import { fetchForecast, type Forecast } from "./api/open-meteo";
-import { forecastSource, type ForecastSourceId } from "./forecast-sources";
+import { forecastSource, hasForecastData, type ForecastSourceId } from "./forecast-sources";
 import { fetchGoogleForecast, GoogleKeyError } from "./google-weather";
-
-/** Whether a forecast has temperatures for the next day (regional models return nulls outside their area). */
-function hasData(f: Forecast, nowMs: number): boolean {
-  const { time, temp } = f.hourly;
-  let count = 0;
-  for (let i = 0; i < time.length; i++) {
-    const t = time[i]! * 1000;
-    if (t >= nowMs && t < nowMs + 24 * 3_600_000 && temp[i] != null) count++;
-  }
-  return count >= 12;
-}
 
 /**
  * The forecast from the chosen source. When that source can't serve this
@@ -25,7 +14,7 @@ export async function loadForecast(lat: number, lon: number, id: ForecastSourceI
   if (src.model) {
     try {
       const f = await fetchForecast(lat, lon, signal, src.model);
-      if (hasData(f, Date.now())) return { ...f, source: id };
+      if (hasForecastData(f.hourly, Date.now())) return { ...f, source: id };
       return fallback(`${src.label} has no forecast for this location, so this is Open-Meteo's best match.`);
     } catch (err) {
       if (signal?.aborted) throw err;

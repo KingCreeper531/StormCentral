@@ -36,3 +36,13 @@ export const DEFAULT_FORECAST_SOURCE: ForecastSourceId = "auto";
 export const isForecastSourceId = (v: unknown): v is ForecastSourceId => FORECAST_SOURCES.some((s) => s.id === v);
 
 export const forecastSource = (id: ForecastSourceId): ForecastSource => FORECAST_SOURCES.find((s) => s.id === id) as ForecastSource;
+
+/** Whether a forecast has temperatures for the next day (regional models return nulls outside their area). */
+export function hasForecastData(hourly: { time: number[]; temp: (number | null)[] }, nowMs: number): boolean {
+  let count = 0;
+  for (let i = 0; i < hourly.time.length; i++) {
+    const t = hourly.time[i]! * 1000;
+    if (t >= nowMs && t < nowMs + 24 * 3_600_000 && hourly.temp[i] != null) count++;
+  }
+  return count >= 12;
+}
