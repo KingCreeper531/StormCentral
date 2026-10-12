@@ -18,4 +18,24 @@ describe("transparent widget layouts", () => {
     const texts = base.match(/<(TextView|TextClock)\b/g)!.length;
     expect(twin.match(/android:shadowColor=/g)!.length).toBe(texts);
   });
+
+  // A tap target on a view the layout lacks breaks the whole widget ("Problem loading widget").
+  const JAVA = join(LAYOUT_DIR, "..", "..", "java", "io", "github", "kingcreeper531", "stormcentral");
+  const arrays: [file: string, array: string, layout: string][] = [
+    ["WeatherWidgetProvider.java", "WEATHER_VIEWS", "widget_weather"],
+    ["StyledWidgetProvider.java", "COMPACT_VIEWS", "widget_compact"],
+    ["StyledWidgetProvider.java", "FORECAST_VIEWS", "widget_forecast"],
+    ["StyledWidgetProvider.java", "CELL_VIEWS", "widget_cell"],
+    ["StyledWidgetProvider.java", "CLOCK_VIEWS", "widget_clock"],
+  ];
+  it.each(arrays)("%s %s covers exactly the views in %s.xml", (file, array, layout) => {
+    const java = readFileSync(join(JAVA, file), "utf8");
+    const body = java.match(new RegExp(`${array}\\s*=\\s*\\{([^}]*)\\}`))?.[1] ?? "";
+    const listed = [...body.matchAll(/R\.id\.(\w+)/g)].map((m) => m[1]).sort();
+    for (const name of [layout, `${layout}_clear`]) {
+      const xml = readFileSync(join(LAYOUT_DIR, `${name}.xml`), "utf8");
+      const ids = [...xml.matchAll(/android:id="@\+id\/(\w+)"/g)].map((m) => m[1]).sort();
+      expect(listed).toEqual(ids);
+    }
+  });
 });
