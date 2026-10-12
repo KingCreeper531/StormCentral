@@ -2,6 +2,7 @@
 <!-- Generated from widget_cell.xml by scripts/widget-clear-layouts.mjs: edit that file and re-run. -->
 <!-- One forecast column in widget_forecast.xml: hour or day, icon, temperature. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_cell"
     android:layout_width="0dp"
     android:layout_height="wrap_content"
     android:layout_weight="1"

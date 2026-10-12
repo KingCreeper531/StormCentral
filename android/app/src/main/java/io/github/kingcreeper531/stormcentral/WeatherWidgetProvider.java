@@ -199,7 +199,7 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
         Resources res = context.getResources();
         WidgetLook look = WidgetLook.of(context);
         RemoteViews views = new RemoteViews(context.getPackageName(), look.layout(R.layout.widget_weather, R.layout.widget_weather_clear));
-        views.setOnClickPendingIntent(android.R.id.background, openAppIntent(context));
+        tapAnywhere(views, openAppIntent(context), WEATHER_VIEWS);
         applyTheme(look, views);
 
         float density = res.getDisplayMetrics().density;
@@ -355,6 +355,22 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
         if (until <= nowMs) return null;
         return context.getString(R.string.widget_alert_until,
                 event, WeatherWidgetData.formatTime(context, until, nowMs));
+    }
+
+    /** Every view in widget_weather.xml: each gets the tap, so the whole widget opens the app. */
+    static final int[] WEATHER_VIEWS = {
+        R.id.widget_place, R.id.widget_main, R.id.widget_temp, R.id.widget_side, R.id.widget_condition, R.id.widget_hilo,
+        R.id.widget_condition_below, R.id.widget_hilo_below, R.id.widget_alert, R.id.widget_note, R.id.widget_updated, R.id.widget_message,
+    };
+
+    /**
+     * Opens the app from a tap anywhere on the widget. The panel alone isn't
+     * enough: some launchers don't pass taps on the text through to it, so
+     * every view carries the same intent.
+     */
+    static void tapAnywhere(RemoteViews views, PendingIntent intent, int[] ids) {
+        views.setOnClickPendingIntent(android.R.id.background, intent);
+        for (int id : ids) views.setOnClickPendingIntent(id, intent);
     }
 
     private static PendingIntent openAppIntent(Context context) {
