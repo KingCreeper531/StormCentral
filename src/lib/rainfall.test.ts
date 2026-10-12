@@ -33,11 +33,11 @@ describe("rainTotals", () => {
     expect(t.dryDays).toBe(0);
   });
 
-  it("counts dry days since the last wet day", () => {
+  it("counts days since the last wet day", () => {
     // Rain only during day 27.
     const r = recent((h) => (Math.floor(h / 24) === 27 ? 1 : 0));
     const t = rainTotals(r, now);
-    expect(t.dryDays).toBe(3);
+    expect(t.dryDays).toBe(4);
     expect(t.last24h).toBe(0);
     expect(t.monthToDate).toBe(0);
   });

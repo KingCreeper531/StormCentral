@@ -93,7 +93,7 @@ export function FireSmokePanel({ f, air, now, className }: { f: Forecast; air: A
           </li>
         ))}
       </ol>
-      {dry != null && dry >= 3 && <p className="mt-1.5 text-xs text-ink-3">{dry} days without meaningful rain, so vegetation is drying out.</p>}
+      {dry != null && dry >= 3 && <p className="mt-1.5 text-xs text-ink-3">{dry} days since meaningful rain, so vegetation is drying out.</p>}
 
       {smoke && (
         <div className="mt-4 border-t border-line pt-3">

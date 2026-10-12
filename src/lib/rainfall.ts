@@ -12,7 +12,7 @@ export interface RainTotals {
   monthToDate: number | null;
   next24h: number | null;
   next72h: number | null;
-  /** Whole days since the last day with at least 1 mm (null: none in the record). */
+  /** Days since the last day with at least 1 mm: 0 today, 1 yesterday (null: none in the record). */
   dryDays: number | null;
 }
 
@@ -75,7 +75,7 @@ export function rainTotals(r: RecentPrecip, nowMs: number): RainTotals {
     else
       for (let i = di - 1; i >= 0; i--) {
         if ((r.daily.precip[i] ?? 0) >= 1) {
-          dryDays = di - i - 1;
+          dryDays = di - i;
           break;
         }
       }

@@ -151,10 +151,10 @@ export function RainfallPanel({ f, now, className }: { f: Forecast; now: number;
             {totals.dryDays == null
               ? "No day with 1 mm or more in the past month."
               : totals.dryDays === 0
-                ? "Wet today."
+                ? "Rain has fallen today."
                 : totals.dryDays === 1
                   ? "Last rain (1 mm or more) was yesterday."
-                  : `${totals.dryDays} dry days in a row.`}
+                  : `Last rain (1 mm or more) was ${totals.dryDays} days ago.`}
           </p>
 
           {bars.length > 0 && (
