@@ -98,7 +98,11 @@ function AppearancePanel({ onBrowse }: { onBrowse: () => void }) {
         />
       </Row>
       <p className="label">
-        {custom ? `"${custom.name}" sets its own ${custom.base} mode while it's on.` : "System follows your device's light or dark setting."}
+        {custom
+          ? custom.followSun
+            ? `"${custom.name}" is light while the sun is up and dark at night.`
+            : `"${custom.name}" sets its own ${custom.base} mode while it's on.`
+          : "System follows your device's light or dark setting."}
       </p>
       <div className="mt-4 border-t border-line pt-4">
         <p className="mb-2 text-sm text-ink">Color theme</p>

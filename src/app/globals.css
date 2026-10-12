@@ -224,8 +224,14 @@ body {
   to { opacity: 0.95; transform: scale(1.1); }
 }
 
-/* Vivid-sky themes ("sky": "vivid" in a theme add-on): frosted-glass panels
-   over the animated sky, and a soft shadow so text reads on bright skies. */
+/* Vivid-sky themes ("sky": "vivid" in a theme add-on). The body's own
+   background would paint over the fixed sky (z-index -10) behind the page;
+   let it through so only <html> keeps the canvas colour. */
+:root[data-sky="vivid"] body {
+  background: transparent;
+}
+
+/* The sun disc's slow glow. */
 @keyframes sky-breathe {
   0%,
   100% {
@@ -237,12 +243,3 @@ body {
     opacity: 1;
   }
 }
-:root[data-sky="vivid"] .surface,
-:root[data-sky="vivid"] .overlay {
-  -webkit-backdrop-filter: blur(22px) saturate(150%);
-  backdrop-filter: blur(22px) saturate(150%);
-}
-:root[data-sky="vivid"] body {
-  text-shadow: 0 1px 2px rgb(0 0 0 / 0.28);
-}
-

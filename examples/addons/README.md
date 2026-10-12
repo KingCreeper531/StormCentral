@@ -44,9 +44,11 @@ repository. It then shows up under **Browse community add-ons** in the app.
 - `"sky": "vivid"` (optional) turns on StormCentral's built-in vivid sky:
   full, saturated animated backgrounds that follow the live weather and time
   of day (sun and moon, drifting clouds, rain, snow, lightning), with
-  frosted-glass panels. Pair it with translucent surface colours
-  (`#rrggbbaa`), as the Sky theme does.
-- `base` is `"dark"` or `"light"`. It picks the basemap, and any colour you
+  bright, airy day skies and deep starry nights. With `"sky": "vivid"`,
+  `colors` may be empty to keep StormCentral's own light and dark colours,
+  as the Sky theme does.
+- `base` is `"dark"`, `"light"` or `"auto"` (light while the sun is up at the
+  selected location, dark at night). It picks the basemap, and any colour you
   leave out comes from that built-in theme.
 - Colours are hex only (`#rgb`, `#rrggbb`, `#rrggbbaa`). Slots:
 
