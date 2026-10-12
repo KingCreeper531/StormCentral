@@ -1,0 +1,21 @@
+{
+  "type": "theme",
+  "name": "Paper",
+  "author": "StormCentral",
+  "description": "Warm off-white with ink-blue accents.",
+  "version": "1.0.0",
+  "base": "light",
+  "colors": {
+    "canvas": "#f4f1ea",
+    "surface-1": "#fbf9f4",
+    "surface-2": "#f0ece2",
+    "surface-3": "#e6e0d3",
+    "line": "#e0d9ca",
+    "line-strong": "#cbc2b0",
+    "ink": "#1d1b17",
+    "ink-2": "#4a463e",
+    "ink-3": "#6b665c",
+    "accent": "#1f4e8c",
+    "grid": "#ebe6db"
+  }
+}

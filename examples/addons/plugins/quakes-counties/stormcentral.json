@@ -1,0 +1,27 @@
+{
+  "type": "plugin",
+  "name": "Counties and earthquakes",
+  "author": "StormCentral",
+  "description": "US county lines plus USGS earthquakes (M2.5+, past day).",
+  "version": "1.0.0",
+  "layers": [
+    {
+      "type": "raster",
+      "id": "counties",
+      "name": "US counties",
+      "tiles": ["https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/uscounties/{z}/{x}/{y}.png"],
+      "maxzoom": 12,
+      "opacity": 0.6,
+      "attribution": "Counties: Iowa Environmental Mesonet"
+    },
+    {
+      "type": "geojson",
+      "id": "quakes",
+      "name": "Earthquakes",
+      "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson",
+      "color": "#ff9f0a",
+      "opacity": 0.9,
+      "attribution": "Earthquakes: USGS"
+    }
+  ]
+}
