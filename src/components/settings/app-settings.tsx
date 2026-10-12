@@ -1,19 +1,24 @@
 "use client";
 
-import { Bell, ChevronRight, Download, Monitor, Moon, RefreshCw, Sun } from "lucide-react";
+import { Bell, ChevronDown, ChevronRight, Download, Monitor, Moon, RefreshCw, Sun, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { checkForUpdate, installedVersion, type AvailableUpdate } from "@/lib/native/app-update";
 import { desktopBridge, type DesktopUpdateStatus } from "@/lib/native/desktop";
 import { GITHUB_REPO, isNativeApp } from "@/lib/platform";
 import type { ThemePref } from "@/lib/theme";
+import { cn } from "@/lib/utils";
+import { selectActiveTheme, useAddonsStore } from "@/store/addons-store";
 import { UNIT_PRESETS, type DistanceUnit, type HeightUnit, type PrecipUnit, type PressureUnit, type TempUnit, type UnitPrefs, type WindUnit } from "@/lib/weather/units";
 import { MAX_GAUGE_RADIUS_KM, RADIUS_KM, RADIUS_MI, useAppStore } from "@/store/app-store";
+import { useSession } from "@/hooks/queries";
 import { Button, buttonClass } from "../ui/button";
 import { Skeleton } from "../ui/misc";
 import { Panel } from "../ui/panel";
 import { Segmented } from "../ui/segmented";
+import { Tabs } from "../ui/tabs";
 import { AccountSection } from "./account-panel";
+import { AddonsSection, ThemePicker } from "./addons-panel";
 import { DesktopSettings } from "./desktop-settings";
 import { WidgetPanel } from "./widget-panel";
 
@@ -51,12 +56,13 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function AppearancePanel() {
+function AppearancePanel({ onBrowse }: { onBrowse: () => void }) {
   const theme = useAppStore((s) => s.theme);
   const setTheme = useAppStore((s) => s.setTheme);
+  const custom = useAddonsStore(selectActiveTheme);
   return (
     <Panel title="Appearance">
-      <Row label="Theme">
+      <Row label="Mode">
         <Segmented<ThemePref>
           ariaLabel="Theme"
           stretch
@@ -90,7 +96,13 @@ function AppearancePanel() {
           ]}
         />
       </Row>
-      <p className="label">System follows your device&apos;s light or dark setting.</p>
+      <p className="label">
+        {custom ? `"${custom.name}" sets its own ${custom.base} mode while it's on.` : "System follows your device's light or dark setting."}
+      </p>
+      <div className="mt-4 border-t border-line pt-4">
+        <p className="mb-2 text-sm text-ink">Color theme</p>
+        <ThemePicker onBrowse={onBrowse} />
+      </div>
     </Panel>
   );
 }
@@ -99,6 +111,8 @@ function UnitsPanel() {
   const units = useAppStore((s) => s.units);
   const setUnits = useAppStore((s) => s.setUnits);
   const preset = presetOf(units);
+  const [open, setOpen] = useState(false);
+  const expanded = open || preset === "custom";
   return (
     <Panel title="Units" subtitle={preset === "custom" ? "Custom mix" : undefined}>
       <Row label="System">
@@ -114,7 +128,12 @@ function UnitsPanel() {
           ]}
         />
       </Row>
-      <div className="divide-y divide-line border-t border-line">
+      {!expanded && (
+        <button type="button" onClick={() => setOpen(true)} className="inline-flex items-center gap-1 text-xs text-ink-2 underline-offset-2 hover:underline">
+          Set each unit separately <ChevronDown className="size-3.5" aria-hidden />
+        </button>
+      )}
+      <div className={cn("divide-y divide-line border-t border-line", !expanded && "hidden")}>
         {UNIT_ROWS.map((r) => (
           <Row key={r.key} label={r.label}>
             <Segmented
@@ -277,26 +296,88 @@ function LinkRow({ href, icon, title, sub }: { href: string; icon: React.ReactNo
   );
 }
 
-/** /settings: appearance, units, notifications and (Windows app) tray options. Stored on this device. */
+type Section = "general" | "alerts" | "account" | "addons" | "app";
+const SECTIONS: Section[] = ["general", "alerts", "account", "addons", "app"];
+
+// The open section lives in the URL hash (#addons), so links and Back work.
+function subscribeHash(cb: () => void) {
+  window.addEventListener("hashchange", cb);
+  return () => window.removeEventListener("hashchange", cb);
+}
+const hashSection = (): Section => {
+  const h = window.location.hash.slice(1) as Section;
+  return SECTIONS.includes(h) ? h : "general";
+};
+function openSection(s: Section) {
+  history.replaceState(null, "", s === "general" ? window.location.pathname + window.location.search : `#${s}`);
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+}
+
+function SignedOutAccount() {
+  return (
+    <Panel>
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+        <span className="grid size-9 shrink-0 place-items-center rounded-[var(--radius-control)] bg-surface-2 text-ink-2">
+          <UserRound className="size-4" aria-hidden />
+        </span>
+        <p className="min-w-0 flex-1 text-sm text-ink-2">Sign in to post spotter reports and set a profile picture, name and bio.</p>
+        <Link href="/login?next=%2Fsettings%23account" className={buttonClass("primary")}>
+          Sign in
+        </Link>
+      </div>
+    </Panel>
+  );
+}
+
+/** /settings: grouped into tabs so each screen stays short. Stored on this device. */
 export function AppSettings() {
   const hydrated = useAppStore((s) => s.hydrated);
+  const section = useSyncExternalStore(subscribeHash, hashSection, () => "general" as Section);
+  const host = useSyncExternalStore(noSubscribe, hostSnapshot, () => "web" as Host);
+  const signedIn = !!useSession().data;
   if (!hydrated) return <Skeleton className="h-96 w-full" />;
+  const tabs = [
+    { value: "general" as const, label: "General" },
+    { value: "alerts" as const, label: "Alerts" },
+    { value: "account" as const, label: "Account" },
+    { value: "addons" as const, label: "Add-ons" },
+    ...(host === "web" ? [] : [{ value: "app" as const, label: "App" }]),
+  ];
+  const current = tabs.some((t) => t.value === section) ? section : "general";
   return (
-    <div className="space-y-4">
-      <AppearancePanel />
-      <UnitsPanel />
-      <RadiusPanel />
-      <LinkRow href="/alerts" icon={<Bell className="size-4" aria-hidden />} title="Alerts and places" sub="Warning notifications, saved places and custom alerts" />
-      <AccountSection />
-      <UpdatesPanel />
-      <WidgetPanel />
-      <DesktopSettings />
-      <p className="text-xs text-ink-3">
-        Settings are saved on this device.{" "}
-        <a href={`https://github.com/${GITHUB_REPO}/releases/latest`} target="_blank" rel="noreferrer" className="text-ink-2 underline-offset-2 hover:underline">
-          Latest version and release notes
-        </a>
-      </p>
+    <div>
+      <div className="-mx-4 mb-4 overflow-x-auto border-b border-line px-4 sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
+        <Tabs<Section> ariaLabel="Settings sections" items={tabs} value={current} onChange={openSection} className="gap-5" />
+      </div>
+      <div className="space-y-4" role="tabpanel">
+        {current === "general" && (
+          <>
+            <AppearancePanel onBrowse={() => openSection("addons")} />
+            <UnitsPanel />
+            <RadiusPanel />
+          </>
+        )}
+        {current === "alerts" && (
+          <>
+            <LinkRow href="/alerts" icon={<Bell className="size-4" aria-hidden />} title="Alerts and places" sub="Warning notifications, saved places and custom alerts" />
+            <WidgetPanel />
+          </>
+        )}
+        {current === "account" && (signedIn ? <AccountSection /> : <SignedOutAccount />)}
+        {current === "addons" && <AddonsSection />}
+        {current === "app" && (
+          <>
+            <UpdatesPanel />
+            <DesktopSettings />
+          </>
+        )}
+        <p className="text-xs text-ink-3">
+          Settings are saved on this device.{" "}
+          <a href={`https://github.com/${GITHUB_REPO}/releases/latest`} target="_blank" rel="noreferrer" className="text-ink-2 underline-offset-2 hover:underline">
+            Latest version and release notes
+          </a>
+        </p>
+      </div>
     </div>
   );
 }

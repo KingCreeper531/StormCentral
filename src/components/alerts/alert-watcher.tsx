@@ -11,6 +11,7 @@ import { showWebNotification, webPermission } from "@/lib/alerting/notify-web";
 import { CURRENT_PLACE_ID, type WatchConfig } from "@/lib/alerting/types";
 import { runnerCheck, syncRunner, writeShared } from "@/lib/native/runner-bridge";
 import { isNativeApp } from "@/lib/platform";
+import { selectActiveTheme, useAddonsStore } from "@/store/addons-store";
 import { useAlertsStore } from "@/store/alerts-store";
 import { useAppStore } from "@/store/app-store";
 
@@ -103,11 +104,13 @@ export function AlertWatcher() {
     return () => clearTimeout(t);
   }, [cfg, qc, location, unit]);
 
-  // The widget matches the app's light/dark/system setting.
+  // The widget matches the app's light/dark/system setting (a custom theme's base wins).
   const themePref = useAppStore((s) => s.theme);
+  const customBase = useAddonsStore((s) => selectActiveTheme(s)?.base);
+  const widgetTheme = customBase ?? themePref;
   useEffect(() => {
-    if (isNativeApp()) void writeShared({ theme: themePref }).catch(() => {});
-  }, [themePref]);
+    if (isNativeApp()) void writeShared({ theme: widgetTheme }).catch(() => {});
+  }, [widgetTheme]);
 
   // Refresh the widget whenever a new forecast lands for the selected location.
   useEffect(() => {

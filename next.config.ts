@@ -30,20 +30,30 @@ const CONNECT = [
   "https://*.cartocdn.com",
   "https://api.maptiler.com",
   "https://api.bigdatacloud.net",
-  // Android app: in-app update check against GitHub Releases.
+  // Android app: in-app update check against GitHub Releases; add-on search.
   "https://api.github.com",
+  // Add-on manifests (themes and plugins) from GitHub.
+  "https://raw.githubusercontent.com",
+  "https://gist.githubusercontent.com",
 ];
+
+/**
+ * Map plugins (lib/addons) bring their own tile and GeoJSON hosts, which can't
+ * be listed ahead of time. MapLibre fetches tiles, so both directives need
+ * them; plain http stays blocked.
+ */
+const PLUGIN_HOSTS = "https:";
 
 const csp = [
   "default-src 'self'",
   // Next.js injects inline bootstrap scripts; dev mode additionally needs eval for HMR.
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://mesonet.agron.iastate.edu https://gibs.earthdata.nasa.gov https://nowcoast.noaa.gov https://*.cartocdn.com https://api.maptiler.com",
+  `img-src 'self' data: blob: ${PLUGIN_HOSTS}`,
   // Radar loop exports preview as blob: video.
   "media-src 'self' blob:",
   "font-src 'self' data:",
-  `connect-src ${CONNECT.join(" ")}${isDev ? " ws:" : ""}`,
+  `connect-src ${CONNECT.join(" ")} ${PLUGIN_HOSTS}${isDev ? " ws:" : ""}`,
   "worker-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",

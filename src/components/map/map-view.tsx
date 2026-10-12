@@ -7,6 +7,7 @@ import type { BBox } from "@/lib/geo";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { PluginLayers } from "./layers/plugin-layers";
 
 /**
  * Z-order slots. Our layers insert *before* a slot marker, so stacking is
@@ -210,6 +211,7 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
         )}
       </div>
       {ctx.map && children}
+      {ctx.map && interactive && <PluginLayers />}
     </Ctx.Provider>
   );
 }

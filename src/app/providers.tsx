@@ -9,7 +9,9 @@ import { AlertWatcher } from "@/components/alerts/alert-watcher";
 import { DesktopTraySync } from "@/components/shell/desktop-tray-sync";
 import { HttpError } from "@/lib/api/http";
 import { IS_STATIC_BUNDLE } from "@/lib/platform";
-import { applyTheme, resolveTheme } from "@/lib/theme";
+import { themeVars } from "@/lib/addons/manifest";
+import { applyCustomVars, applyTheme, resolveTheme } from "@/lib/theme";
+import { selectActiveTheme, useAddonsStore } from "@/store/addons-store";
 import { useAlertsStore } from "@/store/alerts-store";
 import { useAppStore } from "@/store/app-store";
 
@@ -43,6 +45,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void useAppStore.persist.rehydrate();
     void useAlertsStore.persist.rehydrate();
+    void useAddonsStore.persist.rehydrate();
     // Not in the Android bundle: its assets come from the app's local file server.
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production" && !IS_STATIC_BUNDLE) {
       navigator.serviceWorker.register("/sw.js").catch(() => {
@@ -52,17 +55,25 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Keep the document's theme in step with the setting (and the OS, for "system").
+  // A custom theme from GitHub wins: its base picks light or dark.
   const themePref = useAppStore((s) => s.theme);
   const hydrated = useAppStore((s) => s.hydrated);
+  const custom = useAddonsStore(selectActiveTheme);
+  const addonsHydrated = useAddonsStore((s) => s.hydrated);
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !addonsHydrated) return;
+    applyCustomVars(custom ? themeVars(custom) : null);
+    if (custom) {
+      applyTheme(custom.base, custom.colors.canvas);
+      return;
+    }
     applyTheme(resolveTheme(themePref));
     if (themePref !== "system") return;
     const mq = window.matchMedia("(prefers-color-scheme: light)");
     const onChange = () => applyTheme(resolveTheme("system"));
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
-  }, [themePref, hydrated]);
+  }, [themePref, hydrated, custom, addonsHydrated]);
 
   return (
     <PersistQueryClientProvider
