@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Check, ExternalLink, Layers, Palette, Puzzle, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { ADDON_TOPICS, fetchAddon, MANIFEST_FILE, searchAddons } from "@/lib/addons/github";
-import { AddonError, type ThemeAddon } from "@/lib/addons/manifest";
+import { FEATURED_PLUGINS, FEATURED_THEMES } from "@/lib/addons/featured";
+import { AddonError, type PluginAddon, type ThemeAddon } from "@/lib/addons/manifest";
 import { GITHUB_REPO } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { useAddonsStore, type InstalledPlugin } from "@/store/addons-store";
@@ -193,6 +194,7 @@ function SourceLink({ href }: { href: string | null }) {
 
 function PluginRow({ p }: { p: InstalledPlugin }) {
   const setPlugin = useAddonsStore((s) => s.setPlugin);
+  const setLayerVisible = useAddonsStore((s) => s.setLayerVisible);
   const remove = useAddonsStore((s) => s.remove);
   return (
     <li className="py-3">
@@ -212,6 +214,32 @@ function PluginRow({ p }: { p: InstalledPlugin }) {
           <Trash2 className="size-4" aria-hidden />
         </IconButton>
       </div>
+      {p.layers.length > 1 && (
+        <div className="mt-2 sm:pl-11">
+          <p className="label mb-1.5">Choose what it shows</p>
+          <div className="flex flex-wrap gap-1.5">
+            {p.layers.map((l) => {
+              const on = !p.hidden.includes(l.id);
+              return (
+                <button
+                  key={l.id}
+                  type="button"
+                  aria-pressed={on}
+                  disabled={!p.enabled}
+                  onClick={() => setLayerVisible(p.id, l.id, !on)}
+                  className={cn(
+                    "inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 text-xs transition-colors disabled:opacity-40 pointer-coarse:min-h-10",
+                    on ? "border-accent bg-surface-2 text-ink" : "border-line text-ink-3 hover:text-ink",
+                  )}
+                >
+                  {on && <Check className="size-3.5 text-accent" aria-hidden />}
+                  {l.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <div className="mt-1 grid gap-x-6 sm:grid-cols-2 sm:pl-11">
         <Toggle label="Show on maps" checked={p.enabled} onChange={(enabled) => setPlugin(p.id, { enabled })} />
         <label className="flex min-h-10 items-center gap-3 text-[13px] text-ink-2">
@@ -253,14 +281,82 @@ function ThemeRow({ t }: { t: ThemeAddon }) {
   );
 }
 
+/** Ready-made themes and plugins, installed with one tap (bundled, no download). */
+function FeaturedPanel() {
+  const install = useAddonsStore((s) => s.install);
+  const setActive = useAddonsStore((s) => s.setActiveTheme);
+  const themes = useAddonsStore((s) => s.themes);
+  const active = useAddonsStore((s) => s.activeTheme);
+  const plugins = useAddonsStore((s) => s.plugins);
+  const wearTheme = (t: ThemeAddon) => (themes.some((x) => x.id === t.id) ? setActive(t.id) : install(t));
+  const addPlugin = (p: PluginAddon) => install(p);
+  return (
+    <Panel title="Featured" subtitle="Made for StormCentral. Tap a theme to wear it; add a plugin, then choose what it shows.">
+      <p className="label mb-2">Themes</p>
+      <div role="radiogroup" aria-label="Featured themes" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {FEATURED_THEMES.map((t) => {
+          const on = active === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => (on ? setActive(null) : wearTheme(t))}
+              title={t.description ?? undefined}
+              className={cn(
+                "flex min-h-11 items-center gap-2 rounded-[var(--radius-control)] border px-2.5 py-2 text-left text-[13px] transition-colors",
+                on ? "border-accent bg-surface-2 text-ink" : "border-line text-ink-2 hover:border-line-strong",
+              )}
+            >
+              <Swatch theme={t} />
+              <span className="min-w-0 flex-1 truncate font-medium">{t.name}</span>
+              {on && <Check className="size-4 shrink-0 text-accent" aria-hidden />}
+            </button>
+          );
+        })}
+      </div>
+      <p className="label mt-1.5">Tap the theme in use again to go back to StormCentral&apos;s own colours.</p>
+
+      <p className="label mt-5 mb-1">Plugins</p>
+      <ul className="divide-y divide-line">
+        {FEATURED_PLUGINS.map((p) => {
+          const added = plugins.some((x) => x.id === p.id);
+          return (
+            <li key={p.id} className="flex items-center gap-3 py-2.5">
+              <span className="grid size-8 shrink-0 place-items-center rounded-[var(--radius-control)] bg-surface-2 text-ink-2">
+                <Layers className="size-4" aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-medium text-ink">{p.name}</span>
+                <span className="block text-xs text-ink-3">{p.description}</span>
+                <span className="block truncate text-[11px] text-ink-3">{p.layers.map((l) => l.name).join(" · ")}</span>
+              </span>
+              <Button size="sm" variant={added ? "ghost" : "secondary"} disabled={added} onClick={() => addPlugin(p)}>
+                {added ? (
+                  <>
+                    <Check className="size-4" aria-hidden /> Added
+                  </>
+                ) : (
+                  "Add"
+                )}
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+    </Panel>
+  );
+}
+
 /** Add-ons tab: install from GitHub, manage installed themes and plugins. */
 export function AddonsSection() {
   const themes = useAddonsStore((s) => s.themes);
   const plugins = useAddonsStore((s) => s.plugins);
   return (
     <div className="space-y-4">
-      <InstallForm />
-      <Panel title="Plugins" subtitle="Extra map layers on the Radar and Air maps">
+      <FeaturedPanel />
+      <Panel title="Your plugins" subtitle="Extra map layers on the Radar and Air maps">
         {plugins.length ? (
           <ul className="-my-3 divide-y divide-line">
             {plugins.map((p) => (
@@ -268,10 +364,10 @@ export function AddonsSection() {
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-ink-3">No plugins yet.</p>
+          <p className="text-sm text-ink-3">No plugins yet. Add one from Featured above.</p>
         )}
       </Panel>
-      <Panel title="Themes" subtitle="Pick one under General → Appearance">
+      <Panel title="Your themes" subtitle="Pick one here or under General → Appearance">
         {themes.length ? (
           <ul className="-my-3 divide-y divide-line">
             {themes.map((t) => (
@@ -282,6 +378,7 @@ export function AddonsSection() {
           <p className="text-sm text-ink-3">No themes yet.</p>
         )}
       </Panel>
+      <InstallForm />
     </div>
   );
 }

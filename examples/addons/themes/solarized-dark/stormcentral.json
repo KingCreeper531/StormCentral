@@ -1,0 +1,27 @@
+{
+  "type": "theme",
+  "name": "Solarized Dark",
+  "author": "StormCentral",
+  "description": "Ethan Schoonover's classic low-contrast dark.",
+  "version": "1.0.0",
+  "base": "dark",
+  "colors": {
+    "canvas": "#00212b",
+    "surface-1": "#002b36",
+    "surface-2": "#073642",
+    "surface-3": "#0d4352",
+    "line": "#0a3a47",
+    "line-strong": "#2a5561",
+    "ink": "#eee8d5",
+    "ink-2": "#93a1a1",
+    "ink-3": "#8a9c9e",
+    "accent": "#41a0e6",
+    "go": "#859900",
+    "caution": "#b58900",
+    "nogo": "#f2615d",
+    "series-1": "#268bd2",
+    "series-2": "#cb4b16",
+    "series-3": "#2aa198",
+    "grid": "#06313c"
+  }
+}

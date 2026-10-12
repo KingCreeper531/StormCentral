@@ -58,6 +58,8 @@ export interface RasterLayer {
   maxzoom: number;
   opacity: number;
   attribution: string | null;
+  /** Shown when the plugin is installed; people can turn each layer on or off. */
+  visible: boolean;
 }
 
 export interface GeoJsonLayer {
@@ -68,6 +70,7 @@ export interface GeoJsonLayer {
   color: string;
   opacity: number;
   attribution: string | null;
+  visible: boolean;
 }
 
 export type PluginLayer = RasterLayer | GeoJsonLayer;
@@ -103,7 +106,17 @@ function httpsUrl(v: unknown): string | null {
   }
 }
 
-const TILE_TOKEN = /\{(?:z\}.*\{x\}.*\{y|quadkey|bbox-epsg-3857)\}/;
+/** A tile template needs {z}, {x} and {y} (any order, for WMTS), {quadkey} or {bbox-epsg-3857}. */
+const hasTileTokens = (t: string) => (t.includes("{z}") && t.includes("{x}") && t.includes("{y}")) || t.includes("{quadkey}") || t.includes("{bbox-epsg-3857}");
+const DATE_TOKEN = /\{date(?:-([1-7]))?\}/g;
+
+/**
+ * Fills date tokens for daily imagery (NASA GIBS and similar): {date} is
+ * yesterday in UTC, {date-2} two days ago, up to {date-7}.
+ */
+export function expandTileUrl(url: string, nowMs: number): string {
+  return url.replace(DATE_TOKEN, (_, back: string | undefined) => new Date(nowMs - Number(back ?? 1) * 86_400_000).toISOString().slice(0, 10));
+}
 const num = (v: unknown, lo: number, hi: number, dflt: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt);
 const slug = (v: unknown, i: number) => (typeof v === "string" && /^[a-z0-9-]{1,40}$/i.test(v) ? v : `layer-${i}`);
 
@@ -113,9 +126,10 @@ function parseLayer(raw: unknown, i: number): PluginLayer {
   const name = text(l.name, 60) ?? `Layer ${i + 1}`;
   const attribution = text(l.attribution, 200);
   const opacity = num(l.opacity, 0.1, 1, 0.75);
+  const visible = l.visible !== false;
   if (l.type === "raster") {
     const list = Array.isArray(l.tiles) ? l.tiles : [l.tiles];
-    const tiles = list.map(httpsUrl).filter((t): t is string => !!t && TILE_TOKEN.test(t)).slice(0, 4);
+    const tiles = list.map(httpsUrl).filter((t): t is string => !!t && hasTileTokens(t)).slice(0, 4);
     if (!tiles.length) throw new AddonError(`"${name}" needs an https tile URL with {z}/{x}/{y}, {quadkey} or {bbox-epsg-3857}.`);
     const minzoom = num(l.minzoom, 0, 22, 0);
     return {
@@ -128,12 +142,13 @@ function parseLayer(raw: unknown, i: number): PluginLayer {
       maxzoom: num(l.maxzoom, minzoom, 22, 18),
       opacity,
       attribution,
+      visible,
     };
   }
   if (l.type === "geojson") {
     const url = httpsUrl(l.url);
     if (!url) throw new AddonError(`"${name}" needs an https GeoJSON URL.`);
-    return { kind: "geojson", id: slug(l.id, i), name, url, color: isHexColor(l.color) ? l.color : "#5b9cf6", opacity, attribution };
+    return { kind: "geojson", id: slug(l.id, i), name, url, color: isHexColor(l.color) ? l.color : "#5b9cf6", opacity, attribution, visible };
   }
   throw new AddonError(`"${name}" has an unknown type; use "raster" or "geojson".`);
 }

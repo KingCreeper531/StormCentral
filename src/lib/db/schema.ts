@@ -176,6 +176,12 @@ CREATE TABLE IF NOT EXISTS comments (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS comments_post_idx ON comments(post_id, created_at);
+CREATE TABLE IF NOT EXISTS api_usage (
+  api TEXT NOT NULL,
+  month TEXT NOT NULL,
+  count INTEGER NOT NULL,
+  PRIMARY KEY (api, month)
+);
 `;
 
 export const schema = { users, sessions, passwordResets, media, posts, verifications, comments };

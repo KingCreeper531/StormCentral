@@ -1,0 +1,24 @@
+{
+  "type": "theme",
+  "name": "Midnight Blue",
+  "author": "StormCentral",
+  "description": "Deep navy, easy on the eyes at night.",
+  "version": "1.0.0",
+  "base": "dark",
+  "colors": {
+    "canvas": "#05070f",
+    "surface-1": "#0b1020",
+    "surface-2": "#121a30",
+    "surface-3": "#1a2440",
+    "line": "#18213a",
+    "line-strong": "#26324f",
+    "ink": "#e6ecff",
+    "ink-2": "#a7b3d6",
+    "ink-3": "#7d89ad",
+    "accent": "#6ea8ff",
+    "go": "#3ecf8e",
+    "caution": "#f5b942",
+    "nogo": "#ff5c6c",
+    "grid": "#111830"
+  }
+}

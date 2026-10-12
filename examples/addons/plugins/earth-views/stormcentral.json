@@ -1,0 +1,44 @@
+{
+  "type": "plugin",
+  "name": "Earth from space",
+  "author": "StormCentral",
+  "description": "NASA imagery: yesterday's true-colour Earth, city lights and sea temperatures.",
+  "version": "1.0.0",
+  "layers": [
+    {
+      "type": "raster",
+      "id": "true-color",
+      "name": "True colour (yesterday)",
+      "tiles": [
+        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/{date}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg"
+      ],
+      "maxzoom": 9,
+      "opacity": 0.85,
+      "attribution": "Imagery: NASA GIBS"
+    },
+    {
+      "type": "raster",
+      "id": "city-lights",
+      "name": "City lights",
+      "tiles": [
+        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png"
+      ],
+      "maxzoom": 8,
+      "opacity": 0.8,
+      "visible": false,
+      "attribution": "Imagery: NASA GIBS"
+    },
+    {
+      "type": "raster",
+      "id": "sea-temp",
+      "name": "Sea surface temperature",
+      "tiles": [
+        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GHRSST_L4_MUR_Sea_Surface_Temperature/default/{date-2}/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png"
+      ],
+      "maxzoom": 7,
+      "opacity": 0.7,
+      "visible": false,
+      "attribution": "Sea temperature: NASA GIBS (GHRSST MUR)"
+    }
+  ]
+}

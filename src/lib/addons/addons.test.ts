@@ -1,7 +1,8 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { resolveManifest } from "./github";
-import { AddonError, parseAddon, themeVars } from "./manifest";
+import { FEATURED_PLUGINS, FEATURED_THEMES } from "./featured";
+import { AddonError, expandTileUrl, parseAddon, themeVars } from "./manifest";
 
 const src = { id: "x", homepage: null };
 
@@ -52,9 +53,19 @@ describe("parseAddon", () => {
     expect(() => parseAddon([], src)).toThrow(AddonError);
   });
   it("accepts the bundled examples", () => {
-    for (const f of ["themes/nord", "themes/paper", "plugins/quakes-counties"]) {
+    const dirs = ["themes", "plugins"].flatMap((kind) => readdirSync(`examples/addons/${kind}`).map((d) => `${kind}/${d}`));
+    for (const f of dirs) {
       const json = JSON.parse(readFileSync(`examples/addons/${f}/stormcentral.json`, "utf8"));
-      expect(() => parseAddon(json, src)).not.toThrow();
+      expect(() => parseAddon(json, src), f).not.toThrow();
     }
+    // Every example is in the in-app Featured list.
+    expect(FEATURED_THEMES.length + FEATURED_PLUGINS.length).toBe(dirs.length);
+  });
+
+  it("accepts WMTS {z}/{y}/{x} order and fills date tokens", () => {
+    const p = parseAddon({ type: "plugin", name: "P", layers: [{ type: "raster", tiles: ["https://g.example/{date}/{z}/{y}/{x}.jpg"], visible: false }] }, src);
+    expect(p.type === "plugin" && p.layers[0]?.visible).toBe(false);
+    const now = Date.parse("2026-10-12T05:00:00Z");
+    expect(expandTileUrl("https://g.example/{date}/{date-2}/{z}", now)).toBe("https://g.example/2026-10-11/2026-10-10/{z}");
   });
 });

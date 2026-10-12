@@ -164,6 +164,25 @@ export function RadarControls({
             />
           </Field>
         </div>
+        <Field label="Loop history">
+          <Segmented
+            ariaLabel="Loop history"
+            size="sm"
+            stretch
+            value={settings.history}
+            onChange={(history) => onChange({ history })}
+            options={[
+              { value: "latest", label: "Latest scans" },
+              { value: "2h", label: "2 hours" },
+              { value: "4h", label: "4 hours" },
+            ]}
+          />
+          <p className="label mt-1.5">Longer histories spread the same number of frames over more time, to see how storms evolved.</p>
+        </Field>
+        <div>
+          <Toggle label="Smoothed radar" checked={settings.smooth} onChange={(smooth) => onChange({ smooth })} />
+          <p className="label">Blends pixels when zoomed in for a cleaner picture. Velocity and dual-pol stay sharp.</p>
+        </div>
         <Toggle label="Smooth cross-fade" checked={settings.crossfade} onChange={(crossfade) => onChange({ crossfade })} />
         <div>
           <Toggle label="Future radar (next 6 hours)" checked={settings.future} onChange={(future) => onChange({ future })} />
