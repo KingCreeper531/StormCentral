@@ -68,6 +68,7 @@ export async function loadGoogleWeather(lat: number, lon: number): Promise<Googl
       call("forecast/days:lookup", { ...loc, days: "10", pageSize: "10" }, key),
     ]);
     return {
+      source: "google" as const,
       timeZone: parseGoogleTimeZone(current, hours, days),
       current: parseGoogleCurrent(current),
       hours: parseGoogleHours(hours),
