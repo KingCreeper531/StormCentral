@@ -8,6 +8,8 @@
     <string name="widget_description_compact">Just the temperature and sky, sized for one or two cells</string>
     <string name="widget_label_hourly">Hourly forecast</string>
     <string name="widget_description_hourly">Current conditions and the next five hours</string>
+    <string name="widget_label_clock">Clock and weather</string>
+    <string name="widget_description_clock">The time and date with current conditions and today\'s high and low</string>
     <string name="widget_label_daily">5-day forecast</string>
     <string name="widget_description_daily">Current conditions and highs and lows for five days</string>
 
@@ -45,5 +47,8 @@
     <string name="widget_preview_icon" translatable="false">⛅</string>
     <string name="widget_preview_condition">Partly cloudy</string>
     <string name="widget_preview_hilo" translatable="false">H 82° L 63°</string>
+    <string name="widget_preview_time" translatable="false">10:42</string>
+    <string name="widget_preview_ampm" translatable="false">AM</string>
+    <string name="widget_preview_date">Mon, Oct 12</string>
     <string name="widget_preview_updated">Updated 2:05 PM</string>
 </resources>

@@ -13,6 +13,7 @@ import { isNativeApp } from "@/lib/platform";
 import { useAppStore } from "@/store/app-store";
 import { Button } from "../ui/button";
 import { Panel } from "../ui/panel";
+import { Segmented } from "../ui/segmented";
 
 const noSubscribe = () => () => {};
 
@@ -25,6 +26,8 @@ export function WidgetPanel() {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const background = useAppStore((s) => s.widgetBackground);
+  const setBackground = useAppStore((s) => s.setWidgetBackground);
   if (!native) return null;
 
   const refresh = async () => {
@@ -47,7 +50,23 @@ export function WidgetPanel() {
   };
 
   return (
-    <Panel title="Home-screen widget" subtitle="Shows the selected location's weather and top warning">
+    <Panel title="Home-screen widgets" subtitle="Show the selected location's weather and top warning">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm text-ink">Background</p>
+          <p className="text-xs text-ink-3">Transparent shows your wallpaper behind white text.</p>
+        </div>
+        <Segmented
+          ariaLabel="Widget background"
+          size="sm"
+          value={background}
+          onChange={setBackground}
+          options={[
+            { value: "solid", label: "Solid" },
+            { value: "transparent", label: "Transparent" },
+          ]}
+        />
+      </div>
       <Button size="sm" onClick={() => void refresh()} disabled={busy}>
         {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <RefreshCw className="size-4" aria-hidden />}
         Refresh widget
@@ -58,8 +77,8 @@ export function WidgetPanel() {
         </p>
       )}
       <p className="label mt-3">
-        Four styles: Weather, Temperature, Hourly forecast and 5-day forecast. Long-press your home screen, tap Widgets, then StormCentral. They follow your theme and
-        clock settings.
+        Five styles: Weather, Clock and weather, Temperature, Hourly forecast and 5-day forecast. Long-press your home screen, tap Widgets, then StormCentral.
+        They follow your theme and clock settings and update when you leave the app.
       </p>
     </Panel>
   );
