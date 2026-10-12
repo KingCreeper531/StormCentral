@@ -30,7 +30,18 @@ export function NowcastCard({ f, now, className }: { f: Forecast; now: number; c
 
   // Second opinion from Google's AI forecast: its highest rain chance in the same 3 hours.
   let googleLine: string | null = null;
-  if (google.data?.kind === "ok") {
+  if (google.data?.kind === "ok" && google.data.data.source === "graphcast") {
+    // GraphCast gives amounts in 6-hour steps, no probabilities.
+    const next = google.data.data.hours.filter((h) => Date.parse(h.time) > now && Date.parse(h.time) <= now + 6 * 3_600_000);
+    const mm = next.reduce((sum, h) => sum + (h.precipMm ?? 0), 0);
+    if (next.length) {
+      const wetModel = wetNow || firstWet > 0;
+      const wetAi = mm >= 0.2;
+      googleLine = wetAi
+        ? `Google's GraphCast AI ${wetModel ? "agrees" : "differs"}: about ${fmt.precip(mm)} in the next 6 hours`
+        : `Google's GraphCast AI ${wetModel ? "differs" : "agrees"}: dry for the next 6 hours`;
+    }
+  } else if (google.data?.kind === "ok") {
     const end = now + 3 * 3_600_000;
     const hours = google.data.data.hours.filter((h) => {
       const t = Date.parse(h.time);
