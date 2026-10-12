@@ -191,7 +191,30 @@ export interface WidgetSnapshot {
   unit: "F" | "C";
   now: { tempC: number; code: number; text: string; hiC: number | null; loC: number | null; isDay: boolean; time: string } | null;
   alert: { event: string; until: string } | null;
+  /** Next days for the 5-day widget: the place's local date ("2026-10-07"). */
+  days?: { date: string; code: number | null; hiC: number | null; loC: number | null }[];
+  /** Next hours for the hourly widget, starting with the current hour (ISO instants). */
+  hours?: { time: string; code: number | null; tempC: number }[];
   updated: string;
+}
+
+const WIDGET_DAYS = 5;
+const WIDGET_HOURS = 6;
+
+function widgetForecast(f: Forecast, now: number): Pick<WidgetSnapshot, "days" | "hours"> {
+  const days: NonNullable<WidgetSnapshot["days"]> = [];
+  for (let i = todayIndex(f, now); i < f.daily.time.length && days.length < WIDGET_DAYS; i++) {
+    // daily.time is the place's local midnight; shifting by the offset gives that date in UTC.
+    const date = new Date((f.daily.time[i]! + f.utcOffsetSeconds) * 1000).toISOString().slice(0, 10);
+    days.push({ date, code: f.daily.code[i] ?? null, hiC: f.daily.tMax[i] ?? null, loC: f.daily.tMin[i] ?? null });
+  }
+  const hours: NonNullable<WidgetSnapshot["hours"]> = [];
+  for (let i = currentHourIndex(f, now); i < f.hourly.time.length && hours.length < WIDGET_HOURS; i++) {
+    const tempC = f.hourly.temp[i];
+    if (tempC == null) continue;
+    hours.push({ time: new Date(f.hourly.time[i]! * 1000).toISOString(), code: f.hourly.code[i] ?? null, tempC });
+  }
+  return { days, hours };
 }
 
 export function widgetSnapshot(place: SavedPlace, unit: "F" | "C", f: Forecast | null, alerts: WeatherAlert[] | null, now: number): WidgetSnapshot {
@@ -215,6 +238,7 @@ export function widgetSnapshot(place: SavedPlace, unit: "F" | "C", f: Forecast |
     unit,
     now: current,
     alert: top ? { event: top.event, until: top.ends ?? top.expires } : null,
+    ...(f ? widgetForecast(f, now) : {}),
     updated: new Date(now).toISOString(),
   };
 }

@@ -5,6 +5,7 @@ import { monotonePath, niceTicks, roundedBar, segments, type Pt } from "@/lib/ch
 import { useMeasure } from "@/hooks/use-measure";
 import { cn } from "@/lib/utils";
 import { timeTicks } from "./time-ticks";
+import { fmtIn } from "@/lib/weather/view";
 
 export interface SeriesDef {
   key: string;
@@ -186,7 +187,7 @@ export function TimeSeriesChart({
   const xTicks = useMemo(() => {
     if (compact || !times.length) return [];
     if (tickEvery || t1 <= t0) {
-      const fmt = new Intl.DateTimeFormat(undefined, { hour: "numeric", timeZone });
+      const fmt = fmtIn(timeZone, { hour: "numeric" });
       return times.filter((_, i) => i % (tickEvery || 1) === 0).map((t) => ({ t, label: fmt.format(t) }));
     }
     // Round local hours (or midnights) spaced by time, at least ~64 px apart.
@@ -245,7 +246,7 @@ export function TimeSeriesChart({
     setHoverIdx(null);
   };
 
-  const fmtTime = useMemo(() => new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "numeric", minute: "2-digit", timeZone }), [timeZone]);
+  const fmtTime = useMemo(() => fmtIn(timeZone, { weekday: "short", hour: "numeric", minute: "2-digit" }), [timeZone]);
   // Guard against a stale index after the data shrinks.
   const hover = hoverIdx != null && hoverIdx < times.length ? hoverIdx : null;
   const hx = hover != null ? geo.sx(times[hover]!) : 0;
