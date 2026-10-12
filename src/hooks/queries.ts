@@ -26,6 +26,7 @@ import type { TropicalResponse } from "@/lib/feeds/tropical";
 import type { BBox, LatLon } from "@/lib/geo";
 import { MAX_GAUGE_RADIUS_KM, useAppStore } from "@/store/app-store";
 import { pollFor, type Feed, type ModeId } from "@/modes/registry";
+import type { NoaaTimesResponse } from "@/lib/feeds/radar";
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -127,6 +128,22 @@ export function useNationalAlerts(force = false) {
     enabled: hydrated && (enabled || force),
     refetchInterval: refetchInterval ?? (force ? 60_000 : undefined),
     staleTime: 40_000,
+  });
+}
+
+/** MRMS / super-res NEXRAD times from NOAA (lib/radar/noaa), when that source is in use. */
+export function useNoaaTimes(layer: { workspace: string; layer: string } | null, minutes: number, enabled: boolean) {
+  const { refetchInterval } = usePoll("radar");
+  const hydrated = useAppStore((s) => s.hydrated);
+  return useQuery({
+    queryKey: ["noaa-times", layer?.workspace ?? "-", layer?.layer ?? "-", minutes] as const,
+    queryFn: ({ signal }) => getJson<NoaaTimesResponse>(`/api/radar/noaa?workspace=${layer!.workspace}&layer=${layer!.layer}&minutes=${minutes}`, { signal }),
+    enabled: hydrated && enabled && !!layer,
+    // MRMS updates every 2 minutes.
+    refetchInterval: refetchInterval ?? 60_000,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+    retry: 1,
   });
 }
 

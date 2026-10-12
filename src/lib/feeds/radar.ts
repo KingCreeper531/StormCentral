@@ -1,9 +1,10 @@
 import type { ProductsResponse, ScansResponse } from "../api/types";
+import { noaaCapabilitiesUrl, parseTimeDimension } from "../radar/noaa";
 import { alternateProducts } from "../radar/products";
 import { parseIemProducts, parseIemScans } from "./parse";
 import { cached } from "./cache";
 import type { Feed } from "./types";
-import { badParams, upstreamJson } from "./upstream";
+import { badParams, upstreamJson, upstreamText } from "./upstream";
 
 const IEM_RADAR = "https://mesonet.agron.iastate.edu/json/radar.py";
 const isoMinute = (t: number) => new Date(t).toISOString().slice(0, 16) + "Z";
@@ -54,5 +55,31 @@ export const radarProductsFeed: Feed<ProductsResponse> = {
       if (!products.length) products = await ask("products").catch(() => [] as string[]);
       return { site, products };
     });
+  },
+};
+
+export interface NoaaTimesResponse {
+  workspace: string;
+  layer: string;
+  /** ISO times NOAA has for the layer, oldest first. */
+  times: string[];
+}
+
+/**
+ * `workspace=conus&layer=conus_bref_qcd&minutes=90`: the times NOAA's
+ * GeoServer (radar.weather.gov's backend) has for an MRMS or NEXRAD layer.
+ */
+export const noaaTimesFeed: Feed<NoaaTimesResponse> = {
+  path: "/api/radar/noaa",
+  maxAge: 30,
+  async load(sp) {
+    const workspace = (sp.get("workspace") ?? "").toLowerCase();
+    const layer = (sp.get("layer") ?? "").toLowerCase();
+    const minutes = Math.min(250, Math.max(10, Number(sp.get("minutes")) || 90));
+    if (!/^[a-z]{4,10}$/.test(workspace) || !/^[a-z0-9_]{4,40}$/.test(layer) || !layer.startsWith(`${workspace}_`)) throw badParams("invalid workspace/layer");
+    const all = await cached(`noaa:${layer}`, 30_000, async () => parseTimeDimension(await upstreamText(noaaCapabilitiesUrl({ workspace, layer }), { timeoutMs: 15_000 })));
+    const newest = Date.parse(all.at(-1) ?? "");
+    const times = Number.isFinite(newest) ? all.filter((t) => Date.parse(t) >= newest - minutes * 60_000) : [];
+    return { workspace, layer, times };
   },
 };

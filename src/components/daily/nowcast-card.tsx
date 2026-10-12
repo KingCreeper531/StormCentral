@@ -2,12 +2,15 @@
 
 import type { Forecast } from "@/lib/api/open-meteo";
 import { useFormat } from "@/hooks/use-format";
+import { fmtIn } from "@/lib/weather/view";
+import { useGoogleWeather } from "./google-forecast-panel";
 import { TimeSeriesChart } from "../charts/time-series";
 import { Panel } from "../ui/panel";
 
 /** Next 3 hours of 15-minute precipitation with a plain-language summary. */
 export function NowcastCard({ f, now, className }: { f: Forecast; now: number; className?: string }) {
   const fmt = useFormat();
+  const google = useGoogleWeather(f);
   const m = f.minutely15;
   if (!m || !m.time.length) return null;
   const start = m.time.findIndex((t) => t * 1000 + 15 * 60_000 > now);
@@ -24,6 +27,26 @@ export function NowcastCard({ f, now, className }: { f: Forecast; now: number; c
     : firstWet > 0
       ? `Precipitation starting in about ${firstWet * 15} min`
       : "No precipitation expected in the next 3 hours";
+
+  // Second opinion from Google's AI forecast: its highest rain chance in the same 3 hours.
+  let googleLine: string | null = null;
+  if (google.data?.kind === "ok") {
+    const end = now + 3 * 3_600_000;
+    const hours = google.data.data.hours.filter((h) => {
+      const t = Date.parse(h.time);
+      return t + 3_600_000 > now && t < end && h.precipChance != null;
+    });
+    const peak = hours.reduce<(typeof hours)[number] | null>((best, h) => (!best || h.precipChance! > best.precipChance! ? h : best), null);
+    if (peak) {
+      const at = fmtIn(f.timezone, { hour: "numeric" }).format(Date.parse(peak.time));
+      const wetModel = wetNow || firstWet > 0;
+      const wetGoogle = peak.precipChance! >= 40;
+      googleLine =
+        peak.precipChance! < 15
+          ? `Google AI: rain unlikely (${peak.precipChance}%)${wetModel ? ", so this may be brief or light" : ""}`
+          : `Google AI ${wetModel === wetGoogle ? "agrees" : "differs"}: ${peak.precipChance}% chance of rain around ${at}`;
+    }
+  }
 
   return (
     <Panel
@@ -42,6 +65,7 @@ export function NowcastCard({ f, now, className }: { f: Forecast; now: number; c
         series={[{ key: "p", label: "Precipitation", color: "var(--color-series-1)", values: vals, kind: "bar", format: (v) => fmt.precip(v), axisFormat: (v) => (v === 0 ? "0" : fmt.precip(v, false)) }]}
         tickEvery={4}
       />
+      {googleLine && <p className="label mt-2">{googleLine}</p>}
     </Panel>
   );
 }

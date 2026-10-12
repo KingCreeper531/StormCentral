@@ -24,13 +24,9 @@ async function load(lat: number, lon: number, signal: AbortSignal): Promise<Resu
   }
 }
 
-/**
- * Google's AI weather forecast (Google Maps Platform Weather API) next to the
- * main forecast. Hidden when the server has no Google key.
- */
-export function GoogleForecastPanel({ f, now, className }: { f: Forecast; now: number; className?: string }) {
-  const fmt = useFormat();
-  const q = useQuery({
+/** Google's forecast for the forecast's point (shared cache: one request serves every card). */
+export function useGoogleWeather(f: Pick<Forecast, "lat" | "lon">) {
+  return useQuery({
     queryKey: ["google-weather", Math.round(f.lat * 10) / 10, Math.round(f.lon * 10) / 10],
     queryFn: ({ signal }) => load(f.lat, f.lon, signal),
     enabled: !IS_STATIC_BUNDLE,
@@ -38,6 +34,15 @@ export function GoogleForecastPanel({ f, now, className }: { f: Forecast; now: n
     refetchInterval: 60 * 60_000,
     retry: 1,
   });
+}
+
+/**
+ * Google's AI weather forecast (Google Maps Platform Weather API) next to the
+ * main forecast. Hidden when the server has no Google key.
+ */
+export function GoogleForecastPanel({ f, now, className }: { f: Forecast; now: number; className?: string }) {
+  const fmt = useFormat();
+  const q = useGoogleWeather(f);
   if (!q.data || q.data.kind === "off") return null;
   if (q.data.kind === "limit") {
     return (
