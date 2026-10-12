@@ -14,6 +14,7 @@ import type { RadarLoop } from "@/hooks/use-radar-loop";
 import { isNativeApp } from "@/lib/platform";
 import { clockIn } from "@/lib/weather/view";
 import type { RadarFrame } from "./frames";
+import { zoneFor } from "@/lib/clock";
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -424,7 +425,7 @@ interface Caption {
 function dateLabel(time: number, timeZone: string | undefined) {
   const opts = { month: "short", day: "numeric", year: "numeric" } as const;
   try {
-    return new Intl.DateTimeFormat(undefined, { ...opts, timeZone }).format(time);
+    return new Intl.DateTimeFormat(undefined, { ...opts, timeZone: zoneFor(timeZone) }).format(time);
   } catch {
     return new Intl.DateTimeFormat(undefined, opts).format(time);
   }

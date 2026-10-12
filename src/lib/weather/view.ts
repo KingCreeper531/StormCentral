@@ -1,5 +1,6 @@
 /** Helpers for slicing a columnar forecast relative to "now". */
 import type { Forecast } from "../api/open-meteo";
+import { timePrefsVersion, withClock, zoneFor } from "../clock";
 
 /** Index of the hourly slot containing `nowMs` (hourly.time is epoch seconds). */
 export function currentHourIndex(f: Forecast, nowMs: number): number {
@@ -32,12 +33,13 @@ export function todayIndex(f: Forecast, nowMs: number) {
   return 0;
 }
 
-export const fmtIn = (tz: string | undefined, opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(undefined, { ...opts, timeZone: tz });
+/** A formatter in `tz` that follows the 12/24-hour and time zone settings (lib/clock). */
+export const fmtIn = (tz: string | undefined, opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(undefined, withClock({ ...opts, timeZone: zoneFor(tz) }));
 
 /** Clock formatters by zone (`""` = the device's); lists render many rows per tick. */
 const clocks = new Map<string, Intl.DateTimeFormat>();
 function clockFmt(tz: string | undefined, withZone: boolean) {
-  const key = `${tz ?? ""}|${withZone}`;
+  const key = `${tz ?? ""}|${withZone}|${timePrefsVersion()}`;
   let f = clocks.get(key);
   if (!f) {
     try {
@@ -56,8 +58,9 @@ function clockFmt(tz: string | undefined, withZone: boolean) {
  * differently from the device's at that instant (viewing a place elsewhere),
  * the zone is named ("5:45 PM CDT"), so the time can't be misread.
  */
-export function clockIn(tz: string | undefined, at: Date | number | string): string {
+export function clockIn(zone: string | undefined, at: Date | number | string): string {
   const d = at instanceof Date ? at : new Date(at);
+  const tz = zoneFor(zone);
   const there = clockFmt(tz, false).format(d);
   if (!tz || clockFmt(undefined, false).format(d) === there) return there;
   return clockFmt(tz, true).format(d);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WeatherAlert } from "../api/types";
+import type { Forecast } from "../api/open-meteo";
 import { alertCategory, alertMatchesLevel, checkRules, checkWarnings, widgetSnapshot, type EngineIO } from "./engine";
 import { clockAt, clockFromIso, dayKeyAt, hashId } from "./format";
 import { describeRule, firstHit, fromDisplay, toDisplay } from "./metrics";
@@ -135,6 +136,22 @@ describe("widget snapshot", () => {
     const s = widgetSnapshot({ id: "current", name: "Norman, OK", lat: 35.22, lon: -97.44 }, "F", null, [alert("svr", "Severe Thunderstorm Warning"), alert("tor", "Tornado Warning")], NOW);
     expect(s.now).toBeNull();
     expect(s.alert?.event).toBe("Tornado Warning");
+  });
+  it("adds the next days and hours for the forecast widgets", () => {
+    const day0 = Date.parse("2026-05-20T05:00:00Z") / 1000; // local midnight at UTC-5
+    const h0 = Date.parse("2026-05-20T20:00:00Z") / 1000;
+    const hours = Array.from({ length: 10 }, (_, i) => h0 + i * 3600);
+    const f = {
+      utcOffsetSeconds: -5 * 3600,
+      current: { temp: 25, code: 2, isDay: 1, time: NOW / 1000 },
+      hourly: { time: hours, temp: hours.map((_, i) => 20 + i), code: hours.map(() => 3) },
+      daily: { time: Array.from({ length: 7 }, (_, i) => day0 + i * 86400), code: [1, 2, 3, 61, 95, 0, 0], tMax: [30, 31, 32, 33, 34, 35, 36], tMin: [10, 11, 12, 13, 14, 15, 16] },
+    } as unknown as Forecast;
+    const s = widgetSnapshot({ id: "current", name: "Norman, OK", lat: 35.22, lon: -97.44 }, "F", f, null, NOW);
+    expect(s.days?.map((d) => d.date)).toEqual(["2026-05-20", "2026-05-21", "2026-05-22", "2026-05-23", "2026-05-24"]);
+    expect(s.days?.[0]).toMatchObject({ code: 1, hiC: 30, loC: 10 });
+    expect(s.hours?.[0]).toEqual({ time: "2026-05-20T21:00:00.000Z", code: 3, tempC: 21 });
+    expect(s.hours).toHaveLength(6);
   });
 });
 

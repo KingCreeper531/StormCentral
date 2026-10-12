@@ -7,6 +7,7 @@ import { MotionConfig } from "motion/react";
 import { useEffect, useState } from "react";
 import { AlertWatcher } from "@/components/alerts/alert-watcher";
 import { DesktopTraySync } from "@/components/shell/desktop-tray-sync";
+import { LocationFollower } from "@/components/shell/location-follower";
 import { HttpError } from "@/lib/api/http";
 import { IS_STATIC_BUNDLE } from "@/lib/platform";
 import { themeVars } from "@/lib/addons/manifest";
@@ -92,6 +93,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         {/* Headless: warning/custom-alert checks and the Windows tray temperature. */}
         <AlertWatcher />
         <DesktopTraySync />
+        <LocationFollower />
       </MotionConfig>
     </PersistQueryClientProvider>
   );
