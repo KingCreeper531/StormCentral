@@ -210,6 +210,8 @@ jobs:
             echo "| Android 7.0 or newer | \`StormCentral-$VERSION.apk\`: open it on your phone and allow installs from your browser when asked. The app tells you when a new version is out. |"
             echo
             echo "The Windows installer isn't code-signed yet, so Windows may say \"Windows protected your PC\". Choose **More info → Run anyway**."
+            echo
+            echo "Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/)."
             if [ "$SIGNING" = "shared" ]; then
               echo
               echo "This APK is signed with the project's shared development key."

@@ -10,6 +10,8 @@ Every data source is free and open. No paid weather API keys are required.
 
 Get the newest version from **[Releases](https://github.com/KingCreeper531/StormCentral/releases/latest)**.
 
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/). See the [code signing policy](#code-signing-policy).
+
 | Device | File | Updates |
 |---|---|---|
 | **Windows 10 / 11** (64-bit) | `StormCentral-Setup-<version>.exe` | Automatic. The app downloads new releases in the background and asks to restart. |
@@ -245,6 +247,21 @@ StormCentral/
 | `Space` | Play/pause the radar loop (Severe) |
 | `←` / `→` | Step radar frames |
 | `Esc` | Close dialogs and selections |
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+
+Only the Windows installer built by the **Release apps** workflow (`.github/workflows/release.yml`) from this repository's `main` branch is submitted for signing. Nothing built elsewhere is signed.
+
+**Team roles**
+
+- Committers and reviewers: [repository members](https://github.com/KingCreeper531/StormCentral/graphs/contributors)
+- Approvers: [repository owner](https://github.com/KingCreeper531)
+
+**Privacy policy**
+
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. To show weather, it sends the coordinates of the places you look at to the public weather data services listed under [Data sources](#data-sources). It checks GitHub Releases for app updates. Google receives requests only if you add your own Google Weather API key, and a spotter network server only if you sign in to one. StormCentral has no analytics, tracking or advertising.
 
 ## Credits
 
