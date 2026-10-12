@@ -1,15 +1,16 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { qk } from "@/hooks/queries";
 import { getJson } from "@/lib/api/http";
 import { fetchAirQuality, fetchForecast, type Forecast } from "@/lib/api/open-meteo";
 import type { AlertsResponse } from "@/lib/api/types";
 import { checkRules, checkWarnings, widgetSnapshot, type EngineIO } from "@/lib/alerting/engine";
-import { showWebNotification, webPermission } from "@/lib/alerting/notify-web";
+import { nativePermission, showNativeNotification } from "@/lib/alerting/notify-native";
+import { PERMISSION_EVENT, showWebNotification, subscribePermission, webPermission } from "@/lib/alerting/notify-web";
 import { CURRENT_PLACE_ID, type WatchConfig } from "@/lib/alerting/types";
-import { runnerCheck, syncRunner, writeShared } from "@/lib/native/runner-bridge";
+import { readShared, syncRunner, writeShared } from "@/lib/native/runner-bridge";
 import { isNativeApp } from "@/lib/platform";
 import { selectActiveTheme, useAddonsStore } from "@/store/addons-store";
 import { useAlertsStore } from "@/store/alerts-store";
@@ -17,9 +18,9 @@ import { useAppStore } from "@/store/app-store";
 
 const WARNING_EVERY_MS = 2 * 60_000;
 const RULES_EVERY_MS = 30 * 60_000;
-/** While the Android app is open, ask the runner to check this often. */
-const NATIVE_CHECK_EVERY_MS = 5 * 60_000;
 const KV_PREFIX = "stormcentral:alerts:kv:";
+/** Engine state shared with the Android background runner, so a warning isn't announced twice. */
+const SHARED_KV_KEYS = ["seen-alerts", "fired-rules"];
 
 /** The engine's view of the stores: saved places plus (optionally) the selected location. */
 export function useWatchConfig(): WatchConfig | null {
@@ -76,6 +77,55 @@ const pageIO: EngineIO = {
 };
 
 /**
+ * Android, app open: run the engine in the page and notify through Local
+ * Notifications, reading and writing the runner's own storage so the runner
+ * (which keeps checking while the app is closed) knows what was already sent.
+ */
+async function withNativeIO<T>(run: (io: EngineIO) => Promise<T>): Promise<T> {
+  const store = new Map<string, string | null>();
+  for (const k of SHARED_KV_KEYS) store.set(k, await readShared(k).catch(() => null));
+  const dirty = new Set<string>();
+  const io: EngineIO = {
+    ...pageIO,
+    kvGet: (k) => store.get(k) ?? null,
+    kvSet: (k, v) => {
+      store.set(k, v);
+      dirty.add(k);
+    },
+    notify: (n) => showNativeNotification(n),
+  };
+  try {
+    return await run(io);
+  } finally {
+    if (dirty.size) await writeShared(Object.fromEntries([...dirty].map((k) => [k, store.get(k) ?? ""]))).catch(() => {});
+  }
+}
+
+/** Whether notifications are allowed, kept current (prompts, settings changes, returning to the app). */
+function useNotificationsAllowed(native: boolean): boolean {
+  const web = useSyncExternalStore(
+    (cb) => (typeof window === "undefined" ? () => {} : subscribePermission(cb)),
+    () => webPermission() === "granted",
+    () => false,
+  );
+  const [nativeOk, setNativeOk] = useState(false);
+  useEffect(() => {
+    if (!native) return;
+    let live = true;
+    const read = () => void nativePermission(false).then((p) => live && setNativeOk(p === "granted"), () => {});
+    read();
+    window.addEventListener(PERMISSION_EVENT, read);
+    document.addEventListener("visibilitychange", read);
+    return () => {
+      live = false;
+      window.removeEventListener(PERMISSION_EVENT, read);
+      document.removeEventListener("visibilitychange", read);
+    };
+  }, [native]);
+  return native ? nativeOk : web;
+}
+
+/**
  * Runs the alert engine for the whole app (mounted once, in Providers).
  * - Web and Windows: checks in the page. Only one tab runs it (Web Locks), and
  *   the Windows app keeps it running while hidden in the tray.
@@ -128,40 +178,48 @@ export function AlertWatcher() {
   }, [qc]);
 
   const enabled = !!cfg?.settings.enabled;
-  useEffect(() => {
-    if (!isNativeApp() || !enabled) return;
-    const tick = () => document.visibilityState === "visible" && void runnerCheck().catch(() => {});
-    const first = setTimeout(tick, 5_000);
-    const id = setInterval(tick, NATIVE_CHECK_EVERY_MS);
-    return () => {
-      clearTimeout(first);
-      clearInterval(id);
-    };
-  }, [enabled]);
+  const native = useSyncExternalStore(
+    () => () => {},
+    isNativeApp,
+    () => false,
+  );
+  const allowed = useNotificationsAllowed(native);
 
-  // ── Web and Windows: run the engine here ──
+  // ── Run the engine in the page: web, Windows, and Android while open ──
+  // Starts as soon as both the setting and the permission are on (the
+  // permission prompt usually answers after the switch is flipped).
   useEffect(() => {
-    if (isNativeApp() || !enabled || webPermission() !== "granted") return;
+    if (!enabled || !allowed) return;
     let stopped = false;
     let release: (() => void) | null = null;
     const timers: ReturnType<typeof setInterval>[] = [];
+    const cleanups: (() => void)[] = [];
 
     const start = () => {
+      // Android checks only while the app is in front; the runner covers the rest.
+      const active = () => !native || document.visibilityState === "visible";
+      const run = (fn: (io: EngineIO) => Promise<unknown>) => (native ? withNativeIO(fn) : fn(pageIO));
       const warnings = () => {
         const c = cfgRef.current;
-        if (c && !stopped) void checkWarnings(warningConfig(c), pageIO).catch(() => {});
+        if (c && !stopped && active()) void run((io) => checkWarnings(warningConfig(c), io)).catch(() => {});
       };
       const rules = () => {
         const c = cfgRef.current;
-        if (c && !stopped && c.rules.some((r) => r.enabled)) void checkRules(c, pageIO).catch(() => {});
+        if (c && !stopped && active() && c.rules.some((r) => r.enabled) && c.settings.custom !== false) void run((io) => checkRules(c, io)).catch(() => {});
       };
       warnings();
       rules();
       timers.push(setInterval(warnings, WARNING_EVERY_MS), setInterval(rules, RULES_EVERY_MS));
+      // Coming back to the Android app: check right away.
+      if (native) {
+        const onVisible = () => document.visibilityState === "visible" && warnings();
+        document.addEventListener("visibilitychange", onVisible);
+        cleanups.push(() => document.removeEventListener("visibilitychange", onVisible));
+      }
     };
 
     // One tab checks; the others wait for the lock (and take over if that tab closes).
-    if (typeof navigator !== "undefined" && navigator.locks) {
+    if (!native && typeof navigator !== "undefined" && navigator.locks) {
       void navigator.locks
         .request("stormcentral:alert-watcher", () => {
           if (stopped) return;
@@ -175,9 +233,10 @@ export function AlertWatcher() {
     return () => {
       stopped = true;
       timers.forEach(clearInterval);
+      cleanups.forEach((f) => f());
       release?.();
     };
-  }, [enabled]);
+  }, [enabled, allowed, native]);
 
   return null;
 }
