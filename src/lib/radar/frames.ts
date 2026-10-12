@@ -18,6 +18,8 @@ export interface RadarFrame {
   approximate?: boolean;
   /** Model forecast (HRRR) rather than an observed scan. */
   forecast?: boolean;
+  /** Source credit when it differs from the layer's default (IEM). */
+  attribution?: string;
 }
 
 export const MOSAIC_SITE = "USCOMP";

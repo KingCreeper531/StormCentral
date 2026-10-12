@@ -163,7 +163,7 @@ export class RadarLayerManager {
       tiles: [f.tileUrl],
       tileSize: 256,
       maxzoom: f.maxzoom,
-      attribution: this.opts.attribution,
+      attribution: f.attribution ?? this.opts.attribution,
     });
     const beforeId = this.opts.beforeId?.();
     this.map.addLayer(
