@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { compactUtc, framesFromScans, frameBudget, iemSiteId, mosaicOffsetFrames, MOSAIC_SITE } from "./frames";
 import { RadarLayerManager, type RadarMap } from "./layer-manager";
 import { crossfadeFor, frameDelayMs, nextPlayableIndex, stepIndex } from "./playback";
@@ -97,6 +97,10 @@ function mockMap() {
       const l = layers.find((x) => x.id === id);
       if (l) l.paint[k] = v;
     },
+    setLayoutProperty: (id, k, v) => {
+      const l = layers.find((x) => x.id === id);
+      if (l) l.paint[`layout:${k}`] = v;
+    },
     isSourceLoaded: (id) => loaded.has(id),
     on: (t, fn) => handlers.set(t, (handlers.get(t) ?? new Set()).add(fn)),
     off: (t, fn) => handlers.get(t)?.delete(fn),
@@ -141,5 +145,33 @@ describe("RadarLayerManager", () => {
 
     mgr.destroy();
     expect(map.layers).toHaveLength(0);
+  });
+
+  it("loads only the visible frame while the map moves, then resumes", () => {
+    vi.useFakeTimers();
+    const map = mockMap();
+    const statuses: boolean[][] = [];
+    const mgr = new RadarLayerManager(map, { schedule: (fn) => fn(), onStatus: (s) => statuses.push(s.ready) });
+    mgr.sync([frame(0), frame(5), frame(10)]);
+    for (const m of [0, 5, 10]) map.loaded.add(`radar-src-${frame(m).id}`);
+    mgr.show(2);
+    map.emit("sourcedata");
+    expect(statuses.at(-1)).toEqual([true, true, true]);
+
+    map.emit("movestart");
+    const vis = (suffix: string) => map.layers.find((l) => l.id.endsWith(suffix))!.paint["layout:visibility"];
+    expect([vis("00"), vis("05"), vis("10")]).toEqual(["none", "none", undefined]);
+    expect(statuses.at(-1)).toEqual([false, false, true]);
+
+    // Playback during the gesture swaps which frame is shown.
+    mgr.show(1);
+    expect([vis("05"), vis("10")]).toEqual(["visible", "none"]);
+
+    map.emit("moveend");
+    vi.advanceTimersByTime(600);
+    expect([vis("00"), vis("05"), vis("10")]).toEqual(["visible", "visible", "visible"]);
+    expect(statuses.at(-1)).toEqual([true, true, true]);
+    mgr.destroy();
+    vi.useRealTimers();
   });
 });

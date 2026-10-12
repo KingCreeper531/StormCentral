@@ -17,6 +17,10 @@
  *  5. Below MapLibre, a service worker keeps timestamped tile responses in a
  *     bounded cache-first store (see /public/sw.js), so re-buffering after a
  *     pan/zoom is served from disk instead of the network.
+ *  6. While the map moves (pan, pinch, zoom out), only the frame on screen
+ *     loads: the others are hidden (hidden layers request no tiles) and
+ *     reported not ready, so the loop holds still and all the bandwidth goes
+ *     to the visible frame. Buffering resumes shortly after the map settles.
  */
 import type { RadarFrame } from "./frames";
 
@@ -40,6 +44,7 @@ export interface RadarMap {
   removeLayer(id: string): unknown;
   getLayer(id: string): unknown;
   setPaintProperty(layerId: string, name: string, value: unknown): unknown;
+  setLayoutProperty?(layerId: string, name: string, value: unknown): unknown;
   isSourceLoaded(id: string): boolean;
   on(type: string, listener: (e: unknown) => void): unknown;
   off(type: string, listener: (e: unknown) => void): unknown;
@@ -67,6 +72,8 @@ export interface LayerManagerOptions {
 
 const SOURCE_PREFIX = "radar-src-";
 const LAYER_PREFIX = "radar-lyr-";
+/** Wait this long after the map stops before buffering the rest of the loop again. */
+const RESUME_MS = 500;
 
 export class RadarLayerManager {
   private frames: RadarFrame[] = [];
@@ -77,6 +84,8 @@ export class RadarLayerManager {
   private scheduled = false;
   private lastStatusKey = "";
   private destroyed = false;
+  private moving = false;
+  private resumeTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private readonly map: RadarMap,
@@ -88,6 +97,8 @@ export class RadarLayerManager {
     map.on("sourcedata", this.onData);
     map.on("idle", this.onData);
     map.on("error", this.onError);
+    map.on("movestart", this.onMoveStart);
+    map.on("moveend", this.onMoveEnd);
   }
 
   get frameList(): readonly RadarFrame[] {
@@ -114,6 +125,10 @@ export class RadarLayerManager {
     const frame = this.frames[index];
     if (!frame || frame.id === this.visibleId || this.destroyed) return;
     const prev = this.visibleId;
+    if (this.moving) {
+      this.setVisible(frame.id, true);
+      if (prev) this.setVisible(prev, false);
+    }
     this.setLayerOpacity(frame.id, this.opacity);
     if (prev) this.setLayerOpacity(prev, 0);
     this.visibleId = frame.id;
@@ -153,6 +168,9 @@ export class RadarLayerManager {
     this.map.off("sourcedata", this.onData);
     this.map.off("idle", this.onData);
     this.map.off("error", this.onError);
+    this.map.off("movestart", this.onMoveStart);
+    this.map.off("moveend", this.onMoveEnd);
+    if (this.resumeTimer) clearTimeout(this.resumeTimer);
     this.destroyed = true;
   }
 
@@ -161,7 +179,7 @@ export class RadarLayerManager {
     this.map.addSource(sourceId, {
       type: "raster",
       tiles: [f.tileUrl],
-      tileSize: 256,
+      tileSize: f.tileSize ?? 256,
       maxzoom: f.maxzoom,
       attribution: f.attribution ?? this.opts.attribution,
     });
@@ -181,6 +199,8 @@ export class RadarLayerManager {
       },
       beforeId && this.map.getLayer(beforeId) ? beforeId : undefined,
     );
+    // Added mid-gesture: stay hidden until the map settles.
+    if (this.moving && f.id !== this.visibleId) this.setVisible(f.id, false);
   }
 
   private removeFrame(id: string) {
@@ -208,6 +228,33 @@ export class RadarLayerManager {
     }
   }
 
+  private setVisible(id: string, visible: boolean) {
+    const layerId = LAYER_PREFIX + id;
+    if (this.map.getLayer(layerId)) this.map.setLayoutProperty?.(layerId, "visibility", visible ? "visible" : "none");
+  }
+
+  private readonly onMoveStart = () => {
+    if (this.resumeTimer) {
+      clearTimeout(this.resumeTimer);
+      this.resumeTimer = null;
+    }
+    if (this.moving || this.destroyed) return;
+    this.moving = true;
+    for (const f of this.frames) if (f.id !== this.visibleId) this.setVisible(f.id, false);
+    this.scheduleStatus();
+  };
+
+  private readonly onMoveEnd = () => {
+    if (this.resumeTimer) clearTimeout(this.resumeTimer);
+    this.resumeTimer = setTimeout(() => {
+      this.resumeTimer = null;
+      if (this.destroyed) return;
+      this.moving = false;
+      for (const f of this.frames) this.setVisible(f.id, true);
+      this.scheduleStatus();
+    }, RESUME_MS);
+  };
+
   private readonly onData = () => this.scheduleStatus();
 
   /** Tile 404s (e.g. outside coverage) are expected; don't spam the console. */
@@ -223,7 +270,8 @@ export class RadarLayerManager {
     const run = () => {
       this.scheduled = false;
       if (this.destroyed) return;
-      const ready = this.frames.map((f) => this.sourceLoaded(f.id));
+      // Mid-gesture, hidden frames have no tiles for the new view: only the visible one counts.
+      const ready = this.frames.map((f) => (!this.moving || f.id === this.visibleId) && this.sourceLoaded(f.id));
       const key = ready.map((r) => (r ? 1 : 0)).join("") + this.frames.map((f) => f.id).join("|");
       if (key === this.lastStatusKey) return;
       this.lastStatusKey = key;
