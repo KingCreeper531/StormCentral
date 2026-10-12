@@ -1,0 +1,28 @@
+# Temporary: checks Google Weather CORS and Open-Meteo model names (removed after).
+name: API probe
+on:
+  push:
+    paths: [".github/workflows/diag.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: probe
+        run: |
+          O="Origin: https://storm-central-pi.vercel.app"
+          G="https://weather.googleapis.com/v1/currentConditions:lookup?key=AIzaSyFAKEKEYFORCORSCHECK000000000000&location.latitude=40.4&location.longitude=-80"
+          echo "== google preflight"; curl -s -o /dev/null -D - -X OPTIONS -H "$O" -H "Access-Control-Request-Method: GET" "$G" | grep -i "HTTP/\|access-control"
+          echo "== google get"; curl -s -D - -H "$O" "$G" | grep -i "HTTP/\|access-control\|\"message\|\"status" | head
+          for m in best_match ecmwf_ifs025 ecmwf_aifs025_single ecmwf_aifs025 gfs_seamless ncep_nbm_conus gfs_graphcast025 icon_seamless gem_seamless ukmo_seamless meteofrance_seamless jma_seamless; do
+            r=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=40.44&longitude=-80&models=$m&hourly=temperature_2m,precipitation,precipitation_probability,weather_code,cloud_cover&timezone=auto&forecast_days=10&timeformat=unixtime")
+            echo "$m :: $(echo "$r" | python3 -c "
+          import sys,json
+          d=json.load(sys.stdin)
+          if d.get('error'): print('ERROR', d.get('reason')); sys.exit()
+          h=d['hourly']; t=h['temperature_2m']
+          n=sum(1 for v in t if v is not None)
+          pp=sum(1 for v in h.get('precipitation_probability',[]) if v is not None)
+          wc=sum(1 for v in h.get('weather_code',[]) if v is not None)
+          print('temps',n,'of',len(t),'prob',pp,'code',wc, 'step', (h['time'][1]-h['time'][0])//3600)
+          ")"
+          done
