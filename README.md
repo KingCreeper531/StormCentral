@@ -48,6 +48,14 @@ Press **1–5** to switch modes and **⌘K / Ctrl-K** to search any place. Hover
 - **Shareable views**: mode and location live in the URL.
 - **Offline-first cold start**: the last forecast renders instantly from the persisted query cache, and radar tiles come from a bounded service-worker cache.
 
+## Themes and plugins
+
+Install add-ons from GitHub under **Settings → Add-ons**: paste `owner/repo` or a
+link to a `stormcentral.json`, or browse repositories tagged
+`stormcentral-theme` / `stormcentral-plugin`. Themes recolour the app; plugins
+add tile or GeoJSON layers to the Radar and Air maps. Add-ons are JSON only and
+never run code. Format and examples: [`examples/addons`](examples/addons).
+
 ## Tech stack
 
 | Layer | Choice |
