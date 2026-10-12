@@ -8,7 +8,8 @@
  *
  * The runner has fetch, timers, console and Capacitor's KV/notification APIs,
  * but no DOM, Intl, URLSearchParams or AbortSignal, so only runner-safe
- * modules may be imported here (lib/alerting, lib/alerts, open-meteo parsing).
+ * modules may be imported here (lib/alerting, lib/alerts, open-meteo parsing,
+ * lib/forecast-sources, lib/google-weather).
  * Its KV store is the SharedPreferences file named after the runner label,
  * which is also what the widget (WeatherWidgetProvider.java) reads.
  */
@@ -16,6 +17,8 @@ import { normalizeAlerts, type RawAlertFeature } from "../../lib/alerts";
 import { airQualityUrl, forecastUrl, parseAirQuality, parseForecast } from "../../lib/api/open-meteo";
 import { checkRules, checkWarnings, widgetSnapshot, carryNote, type EngineIO, type WidgetSnapshot } from "../../lib/alerting/engine";
 import { CURRENT_PLACE_ID, type AppNotification, type WatchConfig } from "../../lib/alerting/types";
+import { hasForecastData } from "../../lib/forecast-sources";
+import { fetchGoogleForecast } from "../../lib/google-weather";
 
 declare const CapacitorKV: {
   get(key: string): { value?: string | null } | null | undefined;
@@ -63,19 +66,38 @@ const io: EngineIO = {
     })) as { features?: RawAlertFeature[] };
     return normalizeAlerts(raw.features ?? []);
   },
-  fetchForecast: async (lat, lon) => {
-    try {
-      return parseForecast(await getJson(forecastUrl(lat, lon)));
-    } catch {
-      return parseForecast(await getJson(forecastUrl(lat, lon, "core")));
-    }
-  },
+  fetchForecast: (lat, lon) => fetchChosen(lat, lon),
   fetchAir: async (lat, lon) => parseAirQuality(await getJson(airQualityUrl(lat, lon))),
   kvGet,
   kvSet: (key, value) => CapacitorKV.set(key, value),
   notify,
   log: (m) => console.log(`[stormcentral] ${m}`),
 };
+
+async function fetchBest(lat: number, lon: number, model: string | null = null) {
+  try {
+    return parseForecast(await getJson(forecastUrl(lat, lon, "full", model)));
+  } catch {
+    return parseForecast(await getJson(forecastUrl(lat, lon, "core", model)));
+  }
+}
+
+/** The forecast model chosen in the app ("Forecast from"), falling back to the best match where it has nothing. */
+async function fetchChosen(lat: number, lon: number) {
+  const model = kvGet("forecastModel") || null;
+  if (model) {
+    try {
+      const f = await fetchBest(lat, lon, model);
+      if (hasForecastData(f.hourly, Date.now())) return { ...f, source: kvGet("forecastSource") ?? undefined };
+    } catch {
+      /* the best match below */
+    }
+  }
+  return fetchBest(lat, lon);
+}
+
+/** Google's free tier is per key: while the app is closed, refresh the widget from Google at most hourly. */
+const GOOGLE_EVERY_MS = 60 * 60_000;
 
 function readConfig(): WatchConfig | null {
   try {
@@ -104,9 +126,32 @@ async function check() {
   })();
   const place = cfg.places.find((p) => p.id === CURRENT_PLACE_ID) ?? (prev ? { id: CURRENT_PLACE_ID, ...prev.place } : null);
   if (!place) return;
-  const f = cache.forecasts.get(place.id) ?? (await io.fetchForecast(place.lat, place.lon).catch(() => null));
+  let f = cache.forecasts.get(place.id) ?? (await io.fetchForecast(place.lat, place.lon).catch(() => null));
   const placeAlerts = alerts.get(place.id) ?? (await io.fetchAlerts(place.lat, place.lon).catch(() => null));
-  const snapshot = widgetSnapshot(place, prev?.unit ?? cfg.units.temp, f, placeAlerts, Date.now(), carryNote(prev, place, Date.now()));
+  const now = Date.now();
+  const note = carryNote(prev, place, now);
+
+  // Google chosen: its forecast over the model one, hourly at most; in between, keep the last forecast and refresh only the warning.
+  const key = kvGet("forecastSource") === "google" ? kvGet("googleKey") : null;
+  if (key) {
+    const samePlace = prev && Math.abs(prev.place.lat - place.lat) < 1e-4 && Math.abs(prev.place.lon - place.lon) < 1e-4;
+    const last = Number(kvGet("widgetGoogleAt") ?? 0);
+    if (samePlace && prev?.now && now - last < GOOGLE_EVERY_MS) {
+      const fresh = widgetSnapshot(place, prev.unit, null, placeAlerts, now, note);
+      CapacitorKV.set("widget", JSON.stringify({ ...fresh, now: prev.now, days: prev.days, hours: prev.hours, updated: prev.updated }));
+      return;
+    }
+    if (f) {
+      try {
+        f = await fetchGoogleForecast(key, f);
+        CapacitorKV.set("widgetGoogleAt", String(now));
+      } catch {
+        /* a rejected key or no network: the model forecast */
+      }
+    }
+  }
+
+  const snapshot = widgetSnapshot(place, prev?.unit ?? cfg.units.temp, f, placeAlerts, now, note);
   CapacitorKV.set("widget", JSON.stringify(snapshot));
 }
 
