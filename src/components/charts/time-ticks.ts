@@ -6,6 +6,9 @@
  * chart's time zone instead and placed with the linear time scale.
  */
 
+import { zoneFor } from "@/lib/clock";
+import { fmtIn } from "@/lib/weather/view";
+
 const HOUR = 3_600_000;
 /** Candidate steps in hours; multi-day steps land on local midnights. */
 const STEPS = [1, 2, 3, 6, 12, 24, 48, 72, 168] as const;
@@ -35,7 +38,7 @@ export function timeTicks(t0: number, t1: number, maxTicks: number, timeZone?: s
   const fit = Math.max(1, maxTicks);
   const step: number = STEPS.find((s) => spanH / s <= fit) ?? 168;
 
-  const partsFmt = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric" });
+  const partsFmt = new Intl.DateTimeFormat("en-US", { timeZone: zoneFor(timeZone), hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric" });
   const local = (t: number): LocalParts => {
     const p: Record<string, number> = {};
     for (const { type, value } of partsFmt.formatToParts(t)) if (type !== "literal") p[type] = Number(value);
@@ -47,8 +50,8 @@ export function timeTicks(t0: number, t1: number, maxTicks: number, timeZone?: s
   if (start < t0) start += HOUR;
 
   const multiDay = spanH > 24;
-  const hourFmt = new Intl.DateTimeFormat(undefined, { hour: "numeric", timeZone });
-  const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: "short", timeZone });
+  const hourFmt = fmtIn(timeZone, { hour: "numeric" });
+  const dayFmt = fmtIn(timeZone, { weekday: "short" });
   const out: TimeTick[] = [];
   for (let t = start, n = 0; t <= t1 && n < MAX_SCAN; t += HOUR, n++) {
     const { dayIndex, hour, minute } = local(t);

@@ -6,14 +6,15 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { checkForUpdate, installedVersion, type AvailableUpdate } from "@/lib/native/app-update";
 import { desktopBridge, type DesktopUpdateStatus } from "@/lib/native/desktop";
 import { GITHUB_REPO, isNativeApp } from "@/lib/platform";
+import { deviceZone, type ClockPref, type ZonePref } from "@/lib/clock";
 import type { ThemePref } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { selectActiveTheme, useAddonsStore } from "@/store/addons-store";
 import { UNIT_PRESETS, type DistanceUnit, type HeightUnit, type PrecipUnit, type PressureUnit, type TempUnit, type UnitPrefs, type WindUnit } from "@/lib/weather/units";
 import { MAX_GAUGE_RADIUS_KM, RADIUS_KM, RADIUS_MI, useAppStore } from "@/store/app-store";
-import { useSession } from "@/hooks/queries";
+import { useForecast, useSession } from "@/hooks/queries";
 import { Button, buttonClass } from "../ui/button";
-import { Skeleton } from "../ui/misc";
+import { Skeleton, Toggle } from "../ui/misc";
 import { Panel } from "../ui/panel";
 import { Segmented } from "../ui/segmented";
 import { Tabs } from "../ui/tabs";
@@ -264,6 +265,88 @@ function UpdatesPanel() {
   );
 }
 
+/** Readable zone name: "Central Daylight Time (America/Chicago)". */
+function zoneLabel(tz: string) {
+  try {
+    const long = new Intl.DateTimeFormat(undefined, { timeZone: tz, timeZoneName: "long" }).formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value;
+    return long ? `${long} (${tz.replaceAll("_", " ")})` : tz;
+  } catch {
+    return tz;
+  }
+}
+
+/** 12/24-hour clock and which time zone times are shown in. */
+function TimePanel() {
+  const clock = useAppStore((s) => s.clock);
+  const setClock = useAppStore((s) => s.setClock);
+  const zoneMode = useAppStore((s) => s.timeZoneMode);
+  const setZoneMode = useAppStore((s) => s.setTimeZoneMode);
+  const location = useAppStore((s) => s.location);
+  const forecast = useForecast();
+  const placeZone = forecast.data?.timezone ?? null;
+  const device = useSyncExternalStore(noSubscribe, deviceZone, () => null);
+  // A fixed afternoon time, to show the clock style.
+  const sample = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    ...(clock !== "auto" && { hourCycle: clock === "12" ? "h12" : "h23" }),
+  }).format(new Date(2026, 0, 1, 15, 30));
+
+  let note: string;
+  if (zoneMode === "device") note = device ? `Always ${zoneLabel(device)}, this device's zone.` : "Always this device's zone.";
+  else if (!placeZone) note = location.source === "gps" && device ? `Using ${zoneLabel(device)} until your location's forecast loads.` : "Times follow the zone of the place you're viewing.";
+  else if (location.source === "gps") note = `Detected from your location: ${zoneLabel(placeZone)}. It changes on its own when you cross into another zone.`;
+  else note = `Following ${location.name}: ${zoneLabel(placeZone)}. Turn on My location to use the zone you're in.`;
+
+  return (
+    <Panel title="Time" subtitle={`Times look like ${sample}`}>
+      <Row label="Clock">
+        <Segmented<ClockPref>
+          ariaLabel="Clock"
+          stretch
+          value={clock}
+          onChange={setClock}
+          options={[
+            { value: "auto", label: "Automatic" },
+            { value: "12", label: "12-hour" },
+            { value: "24", label: "24-hour" },
+          ]}
+        />
+      </Row>
+      <Row label="Time zone">
+        <Segmented<ZonePref>
+          ariaLabel="Time zone"
+          stretch
+          value={zoneMode}
+          onChange={setZoneMode}
+          options={[
+            { value: "auto", label: "Automatic" },
+            { value: "device", label: "This device" },
+          ]}
+        />
+      </Row>
+      <p className="label">{note}</p>
+    </Panel>
+  );
+}
+
+/** Keep My location up to date while moving. */
+function LocationPanel() {
+  const follow = useAppStore((s) => s.followLocation);
+  const setFollow = useAppStore((s) => s.setFollowLocation);
+  const gps = useAppStore((s) => s.location.source === "gps");
+  return (
+    <Panel title="Location">
+      <Toggle label="Follow me as I move" checked={follow} onChange={setFollow} />
+      <p className="label mt-1">
+        {gps
+          ? "With My location on, the forecast, warnings and town name update as you travel, about every 2 km."
+          : "Works when My location is selected: tap the search bar and choose Use my current location."}
+      </p>
+    </Panel>
+  );
+}
+
 /** How far to look for warnings, spotter reports and river gauges. */
 function RadiusPanel() {
   const radiusKm = useAppStore((s) => s.radiusKm);
@@ -354,6 +437,8 @@ export function AppSettings() {
           <>
             <AppearancePanel onBrowse={() => openSection("addons")} />
             <UnitsPanel />
+            <TimePanel />
+            <LocationPanel />
             <RadiusPanel />
           </>
         )}

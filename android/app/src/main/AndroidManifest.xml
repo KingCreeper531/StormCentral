@@ -61,6 +61,43 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/weather_widget_info" />
         </receiver>
+
+        <!-- More widget styles (StyledWidgetProvider.java). -->
+        <receiver
+            android:name=".CompactWidgetProvider"
+            android:label="@string/widget_label_compact"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_compact_info" />
+        </receiver>
+
+        <receiver
+            android:name=".HourlyWidgetProvider"
+            android:label="@string/widget_label_hourly"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_hourly_info" />
+        </receiver>
+
+        <receiver
+            android:name=".DailyWidgetProvider"
+            android:label="@string/widget_label_daily"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_daily_info" />
+        </receiver>
     </application>
 
     <!-- Permissions -->

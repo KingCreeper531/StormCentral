@@ -6,6 +6,7 @@ import type { OutlookKind } from "@/lib/api/types";
 import type { LatLon } from "@/lib/geo";
 import type { ProductFamily, TiltPrefix } from "@/lib/radar/products";
 import type { Speed } from "@/lib/radar/playback";
+import { isValidClock, isValidZone, setTimePrefs, type ClockPref, type ZonePref } from "@/lib/clock";
 import type { ThemePref } from "@/lib/theme";
 import { defaultUnitsForLocale, UNIT_PRESETS, type UnitPrefs } from "@/lib/weather/units";
 import { isModeId, type ModeId } from "@/modes/registry";
@@ -69,6 +70,12 @@ export interface AppState {
   airLayer: "us_aqi" | "pm2_5";
   /** How far to look for warnings, spotter reports and river gauges. */
   radiusKm: number;
+  /** 12- or 24-hour clock, or the device's habit. */
+  clock: ClockPref;
+  /** Times in the place's zone (yours, with My location on) or always the device's. */
+  timeZoneMode: ZonePref;
+  /** With My location on, keep updating it as you move. */
+  followLocation: boolean;
   composerOpen: boolean;
   paletteOpen: boolean;
   setMode: (mode: ModeId) => void;
@@ -79,6 +86,9 @@ export interface AppState {
   setDrone: (d: Partial<DroneSettings>) => void;
   setAirLayer: (l: AppState["airLayer"]) => void;
   setRadiusKm: (km: number) => void;
+  setClock: (c: ClockPref) => void;
+  setTimeZoneMode: (z: ZonePref) => void;
+  setFollowLocation: (on: boolean) => void;
   setComposerOpen: (open: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
 }
@@ -130,6 +140,9 @@ export const useAppStore = create<AppState>()(
       drone: { profileId: "sub250", altitudeM: 120 },
       airLayer: "us_aqi",
       radiusKm: DEFAULT_RADIUS_KM,
+      clock: "auto",
+      timeZoneMode: "auto",
+      followLocation: true,
       composerOpen: false,
       paletteOpen: false,
       setMode: (mode) => {
@@ -144,6 +157,15 @@ export const useAppStore = create<AppState>()(
       setDrone: (d) => set((s) => ({ drone: { ...s.drone, ...d } })),
       setAirLayer: (airLayer) => set({ airLayer }),
       setRadiusKm: (radiusKm) => set({ radiusKm: Math.min(MAX_RADIUS_KM, Math.max(10, radiusKm)) }),
+      setClock: (clock) => {
+        setTimePrefs({ clock });
+        set({ clock });
+      },
+      setTimeZoneMode: (timeZoneMode) => {
+        setTimePrefs({ zone: timeZoneMode });
+        set({ timeZoneMode });
+      },
+      setFollowLocation: (followLocation) => set({ followLocation }),
       setComposerOpen: (composerOpen) => set({ composerOpen }),
       setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
     }),
@@ -153,7 +175,7 @@ export const useAppStore = create<AppState>()(
       // Rehydrated from a client effect so SSR markup and first client render match.
       skipHydration: true,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ mode: s.mode, location: s.location, units: s.units, theme: s.theme, radar: s.radar, drone: s.drone, airLayer: s.airLayer, radiusKm: s.radiusKm }),
+      partialize: (s) => ({ mode: s.mode, location: s.location, units: s.units, theme: s.theme, radar: s.radar, drone: s.drone, airLayer: s.airLayer, radiusKm: s.radiusKm, clock: s.clock, timeZoneMode: s.timeZoneMode, followLocation: s.followLocation }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<AppState>;
         return {
@@ -165,10 +187,15 @@ export const useAppStore = create<AppState>()(
           units: { ...current.units, ...p.units },
           radiusKm: typeof p.radiusKm === "number" && p.radiusKm > 0 ? Math.min(MAX_RADIUS_KM, p.radiusKm) : current.radiusKm,
           theme: p.theme === "light" || p.theme === "dark" || p.theme === "system" ? p.theme : current.theme,
+          clock: isValidClock(p.clock) ? p.clock : current.clock,
+          timeZoneMode: isValidZone(p.timeZoneMode) ? p.timeZoneMode : current.timeZoneMode,
+          followLocation: typeof p.followLocation === "boolean" ? p.followLocation : current.followLocation,
         };
       },
       onRehydrateStorage: () => (state) => {
         if (!state) return;
+        // Before anything renders with the restored settings.
+        setTimePrefs({ clock: state.clock, zone: state.timeZoneMode });
         // First visit: pick units from the browser locale.
         if (!localStorage.getItem("stormcentral:v1")) {
           let zone: string | undefined;

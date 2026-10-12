@@ -108,9 +108,10 @@ export function AlertWatcher() {
   const themePref = useAppStore((s) => s.theme);
   const customBase = useAddonsStore((s) => selectActiveTheme(s)?.base);
   const widgetTheme = customBase ?? themePref;
+  const clock = useAppStore((s) => s.clock);
   useEffect(() => {
-    if (isNativeApp()) void writeShared({ theme: widgetTheme }).catch(() => {});
-  }, [widgetTheme]);
+    if (isNativeApp()) void writeShared({ theme: widgetTheme, clock }).catch(() => {});
+  }, [widgetTheme, clock]);
 
   // Refresh the widget whenever a new forecast lands for the selected location.
   useEffect(() => {

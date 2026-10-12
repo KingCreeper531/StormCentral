@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import type { RadarLoop } from "@/hooks/use-radar-loop";
 import { SPEEDS, type Speed } from "@/lib/radar/playback";
 import { cn } from "@/lib/utils";
-import { clockIn } from "@/lib/weather/view";
+import { clockIn, fmtIn } from "@/lib/weather/view";
 import { IconButton } from "../ui/button";
 import { Segmented } from "../ui/segmented";
 
@@ -17,7 +17,7 @@ function ago(t: number, now: number) {
   return m <= 0 ? "Now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)} h ${m % 60} min ago`;
 }
 
-const clock = (timeZone?: string) => new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", timeZone });
+const clock = (timeZone?: string) => fmtIn(timeZone, { hour: "numeric", minute: "2-digit" });
 
 /**
  * Clock time of the current frame in the location's zone ("~4:12 PM" when the

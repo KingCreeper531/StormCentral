@@ -3,6 +3,7 @@ package io.github.kingcreeper531.stormcentral;
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -58,8 +59,13 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
     public void onUpdate(Context context, AppWidgetManager manager, int[] appWidgetIds) {
         JSONObject snapshot = WeatherWidgetData.read(context);
         render(context, manager, appWidgetIds, snapshot);
+        refreshIfStale(this, context, snapshot);
+    }
+
+    /** Refetches conditions and forecast when the snapshot is stale, then redraws every widget style. */
+    static void refreshIfStale(BroadcastReceiver receiver, Context context, JSONObject snapshot) {
         if (WeatherWidgetData.needsRefresh(snapshot, System.currentTimeMillis())) {
-            refreshAsync(context, WeatherWidgetData.coordinates(snapshot));
+            refreshAsync(receiver, context, WeatherWidgetData.coordinates(snapshot));
         }
     }
 
@@ -85,10 +91,10 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
 
     // ---- Refresh -----------------------------------------------------------
 
-    private void refreshAsync(Context context, final double[] coordinates) {
+    private static void refreshAsync(BroadcastReceiver receiver, Context context, final double[] coordinates) {
         if (coordinates == null || !REFRESHING.compareAndSet(false, true)) return;
         final Context app = context.getApplicationContext();
-        final PendingResult pending = goAsync();
+        final BroadcastReceiver.PendingResult pending = receiver.goAsync();
         final AtomicBoolean finished = new AtomicBoolean(false);
         final Runnable finish = () -> {
             if (finished.compareAndSet(false, true) && pending != null) pending.finish();
@@ -98,8 +104,8 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
         try {
             new Thread(() -> {
                 try {
-                    JSONObject now = WeatherWidgetData.fetchNow(app, coordinates[0], coordinates[1]);
-                    JSONObject merged = WeatherWidgetData.storeNow(app, coordinates, now);
+                    JSONObject fresh = WeatherWidgetData.fetchForecast(app, coordinates[0], coordinates[1]);
+                    JSONObject merged = WeatherWidgetData.storeForecast(app, coordinates, fresh);
                     if (merged != null) renderAll(app, merged);
                 } catch (Exception e) {
                     // Network or parse failure: keep showing the stored snapshot.
@@ -119,11 +125,13 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
 
     // ---- Drawing -----------------------------------------------------------
 
-    private static void renderAll(Context context, JSONObject snapshot) {
+    /** Redraws every StormCentral widget, of every style, from the snapshot. */
+    static void renderAll(Context context, JSONObject snapshot) {
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
         if (manager == null) return; // no widget support on this device
         int[] ids = manager.getAppWidgetIds(new ComponentName(context, WeatherWidgetProvider.class));
         render(context, manager, ids, snapshot);
+        StyledWidgetProvider.renderAllStyles(context, manager, snapshot);
     }
 
     private static void render(
@@ -348,14 +356,7 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
      * "theme": light, dark or system). System follows the phone's dark mode.
      */
     private static void applyTheme(Context context, RemoteViews views) {
-        String pref = WeatherWidgetData.theme(context);
-        boolean light;
-        if ("light".equals(pref)) light = true;
-        else if ("dark".equals(pref)) light = false;
-        else {
-            int night = context.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
-            light = night != Configuration.UI_MODE_NIGHT_YES;
-        }
+        boolean light = isLight(context);
         int ink = light ? 0xFF111316 : 0xFFECECED;
         int ink2 = light ? 0xFF474C54 : 0xFFA8ACB3;
         int ink3 = light ? 0xFF61666E : 0xFF80858D;
@@ -370,6 +371,23 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
         }
         views.setTextColor(R.id.widget_updated, ink3);
         views.setTextColor(R.id.widget_alert, alert);
+    }
+
+    /** Whether the widgets draw light: the app's theme, or the phone's dark mode for "system". */
+    static boolean isLight(Context context) {
+        String pref = WeatherWidgetData.theme(context);
+        if ("light".equals(pref)) return true;
+        if ("dark".equals(pref)) return false;
+        int night = context.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        return night != Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    static PendingIntent openApp(Context context) {
+        return openAppIntent(context);
+    }
+
+    static String alertLine(Context context, JSONObject alert, long nowMs) {
+        return alertText(context, alert, nowMs);
     }
 
     private static void show(RemoteViews views, int id, boolean visible) {

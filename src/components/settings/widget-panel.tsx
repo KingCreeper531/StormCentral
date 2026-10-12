@@ -57,6 +57,10 @@ export function WidgetPanel() {
           {result.text}
         </p>
       )}
+      <p className="label mt-3">
+        Four styles: Weather, Temperature, Hourly forecast and 5-day forecast. Long-press your home screen, tap Widgets, then StormCentral. They follow your theme and
+        clock settings.
+      </p>
     </Panel>
   );
 }

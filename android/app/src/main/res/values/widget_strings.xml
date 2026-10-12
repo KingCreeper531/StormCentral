@@ -4,7 +4,18 @@
     <string name="widget_label">Weather</string>
     <string name="widget_description">Current conditions and active warnings for your saved place</string>
 
+    <string name="widget_label_compact">Temperature</string>
+    <string name="widget_description_compact">Just the temperature and sky, sized for one or two cells</string>
+    <string name="widget_label_hourly">Hourly forecast</string>
+    <string name="widget_description_hourly">Current conditions and the next five hours</string>
+    <string name="widget_label_daily">5-day forecast</string>
+    <string name="widget_description_daily">Current conditions and highs and lows for five days</string>
+
     <string name="widget_setup">Open StormCentral to set up</string>
+    <string name="widget_setup_short">Open the app</string>
+    <string name="widget_now">Now</string>
+    <string name="widget_today">Today</string>
+    <string name="widget_hilo_short" translatable="false">%1$d°/%2$d°</string>
     <string name="widget_no_data">No data yet</string>
 
     <string name="widget_temp">%1$d°</string>
@@ -31,6 +42,7 @@
     <!-- Sample values for the widget picker preview (Android 12+). -->
     <string name="widget_preview_place" translatable="false">Norman, OK</string>
     <string name="widget_preview_temp" translatable="false">75°</string>
+    <string name="widget_preview_icon" translatable="false">⛅</string>
     <string name="widget_preview_condition">Partly cloudy</string>
     <string name="widget_preview_hilo" translatable="false">H 82° L 63°</string>
     <string name="widget_preview_updated">Updated 2:05 PM</string>

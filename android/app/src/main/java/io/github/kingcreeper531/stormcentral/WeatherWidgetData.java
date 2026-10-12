@@ -35,10 +35,13 @@ import java.util.regex.Pattern;
  *   "now": { "tempC": 24.5, "code": 95, "text": "Thunderstorm", "hiC": 31.0, "loC": 17.2,
  *            "isDay": true, "time": "2026-10-07T19:00:00Z" },
  *   "alert": { "event": "Tornado Warning", "until": "2026-10-07T20:12:00Z" },
+ *   "days": [ { "date": "2026-10-07", "code": 95, "hiC": 31.0, "loC": 17.2 }, ... ],
+ *   "hours": [ { "time": "2026-10-07T19:00:00Z", "code": 95, "tempC": 24.5 }, ... ],
  *   "updated": "2026-10-07T19:05:00Z" }
  * </pre>
  *
- * {@code now} and {@code alert} may be missing or null.
+ * {@code now}, {@code alert}, {@code days} and {@code hours} may be missing or
+ * null. Days are the place's local dates; hours are instants.
  */
 final class WeatherWidgetData {
 
@@ -48,6 +51,10 @@ final class WeatherWidgetData {
 
     /** Returned by {@link #parseIso} for a missing or unreadable time. */
     static final long NO_TIME = Long.MIN_VALUE;
+
+    /** Forecast lengths the widgets show (the hourly list also has the current hour). */
+    static final int DAYS = 5;
+    static final int HOURS = 5;
 
     /** A snapshot whose conditions are newer than this is not refetched. */
     private static final long FRESH_MS = 10 * 60 * 1000L;
@@ -75,6 +82,24 @@ final class WeatherWidgetData {
         } catch (RuntimeException e) {
             return "system";
         }
+    }
+
+    /** The app's clock setting: "12", "24" or "auto" (follow the phone; the default). */
+    static String clock(Context context) {
+        try {
+            String c = prefs(context).getString("clock", null);
+            return "12".equals(c) || "24".equals(c) ? c : "auto";
+        } catch (RuntimeException e) {
+            return "auto";
+        }
+    }
+
+    /** True when times should read "15:00" rather than "3:00 PM". */
+    static boolean use24Hour(Context context) {
+        String c = clock(context);
+        if ("24".equals(c)) return true;
+        if ("12".equals(c)) return false;
+        return android.text.format.DateFormat.is24HourFormat(context);
     }
 
     /** The stored snapshot, or null when there is none or it is not a JSON object. */
@@ -108,20 +133,25 @@ final class WeatherWidgetData {
         return new double[] {lat, lon};
     }
 
-    /** True when the snapshot has a place and its conditions are missing or older than 10 minutes. */
+    /**
+     * True when the snapshot has a place and its conditions or forecast are
+     * missing, or older than 10 minutes.
+     */
     static boolean needsRefresh(JSONObject snapshot, long nowMs) {
         if (coordinates(snapshot) == null) return false;
         if (snapshot.optJSONObject("now") == null) return true;
+        if (snapshot.optJSONArray("days") == null || snapshot.optJSONArray("hours") == null) return true;
         long updated = parseIso(string(snapshot, "updated"));
         return updated == NO_TIME || Math.abs(nowMs - updated) >= FRESH_MS;
     }
 
     /**
-     * Writes fresh conditions into the latest stored snapshot (so a place, unit
-     * or alert written meanwhile is kept) and returns it. Returns null, writing
-     * nothing, when the place was removed or moved since the fetch started.
+     * Writes fresh conditions and forecast (the keys of {@code fresh}: now, days,
+     * hours) into the latest stored snapshot, so a place, unit or alert written
+     * meanwhile is kept, and returns it. Returns null, writing nothing, when the
+     * place was removed or moved since the fetch started.
      */
-    static synchronized JSONObject storeNow(Context context, double[] fetchedFor, JSONObject now) {
+    static synchronized JSONObject storeForecast(Context context, double[] fetchedFor, JSONObject fresh) {
         JSONObject latest = read(context);
         double[] place = coordinates(latest);
         if (place == null
@@ -130,7 +160,9 @@ final class WeatherWidgetData {
             return null;
         }
         try {
-            latest.put("now", now);
+            for (String key : new String[] {"now", "days", "hours"}) {
+                if (fresh.has(key)) latest.put(key, fresh.get(key));
+            }
             latest.put("updated", formatIso(System.currentTimeMillis()));
         } catch (JSONException e) {
             return null;
@@ -173,15 +205,19 @@ final class WeatherWidgetData {
 
     // ---- Open-Meteo --------------------------------------------------------
 
-    /** Fetches current conditions as a snapshot "now" object. Throws on any failure. */
-    static JSONObject fetchNow(Context context, double lat, double lon)
+    /**
+     * Fetches current conditions and the short forecast as {now, days, hours}
+     * (snapshot shapes). Throws on any failure.
+     */
+    static JSONObject fetchForecast(Context context, double lat, double lon)
             throws IOException, JSONException {
         String url = String.format(Locale.US,
                 "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f"
                         + "&current=temperature_2m,weather_code,is_day"
-                        + "&daily=temperature_2m_max,temperature_2m_min"
-                        + "&timezone=auto&forecast_days=1",
-                lat, lon);
+                        + "&hourly=temperature_2m,weather_code"
+                        + "&daily=weather_code,temperature_2m_max,temperature_2m_min"
+                        + "&timezone=auto&forecast_days=%d&forecast_hours=%d",
+                lat, lon, DAYS, HOURS + 1);
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         try {
             connection.setConnectTimeout(TIMEOUT_MS);
@@ -194,7 +230,12 @@ final class WeatherWidgetData {
                 throw new IOException("Open-Meteo returned HTTP " + status);
             }
             try (InputStream in = connection.getInputStream()) {
-                return parseNow(context, new JSONObject(readBody(in)), System.currentTimeMillis());
+                JSONObject body = new JSONObject(readBody(in));
+                JSONObject out = new JSONObject();
+                out.put("now", parseNow(context, body, System.currentTimeMillis()));
+                out.put("days", parseDays(body));
+                out.put("hours", parseHours(body));
+                return out;
             }
         } finally {
             connection.disconnect();
@@ -243,6 +284,57 @@ final class WeatherWidgetData {
         return now;
     }
 
+    /** Daily forecast as snapshot "days": the place's local date, code, high and low. */
+    static JSONArray parseDays(JSONObject body) throws JSONException {
+        JSONArray out = new JSONArray();
+        JSONObject daily = body.optJSONObject("daily");
+        JSONArray dates = daily == null ? null : daily.optJSONArray("time");
+        if (dates == null) return out;
+        for (int i = 0; i < dates.length() && out.length() < DAYS; i++) {
+            String date = dates.optString(i, "");
+            if (date.length() < 10) continue;
+            JSONObject day = new JSONObject();
+            day.put("date", date.substring(0, 10));
+            int code = at(daily, "weather_code", i) >= 0 ? (int) at(daily, "weather_code", i) : -1;
+            if (code >= 0) day.put("code", code);
+            double hi = at(daily, "temperature_2m_max", i);
+            double lo = at(daily, "temperature_2m_min", i);
+            if (!Double.isNaN(hi)) day.put("hiC", round1(hi));
+            if (!Double.isNaN(lo)) day.put("loC", round1(lo));
+            out.put(day);
+        }
+        return out;
+    }
+
+    /** Hourly forecast as snapshot "hours": instants, code and temperature. */
+    static JSONArray parseHours(JSONObject body) throws JSONException {
+        JSONArray out = new JSONArray();
+        JSONObject hourly = body.optJSONObject("hourly");
+        JSONArray times = hourly == null ? null : hourly.optJSONArray("time");
+        if (times == null) return out;
+        long offset = body.optLong("utc_offset_seconds", 0L) * 1000L;
+        for (int i = 0; i < times.length() && out.length() < HOURS + 1; i++) {
+            long local = parseIso(times.optString(i, null));
+            double temp = at(hourly, "temperature_2m", i);
+            if (local == NO_TIME || Double.isNaN(temp)) continue;
+            JSONObject hour = new JSONObject();
+            hour.put("time", formatIso(local - offset));
+            hour.put("tempC", round1(temp));
+            double code = at(hourly, "weather_code", i);
+            if (!Double.isNaN(code)) hour.put("code", (int) code);
+            out.put(hour);
+        }
+        return out;
+    }
+
+    /** values[key][i] as a finite number, or NaN. */
+    private static double at(JSONObject block, String key, int i) {
+        JSONArray values = block == null ? null : block.optJSONArray(key);
+        if (values == null || i >= values.length() || values.isNull(i)) return Double.NaN;
+        double value = values.optDouble(i, Double.NaN);
+        return Double.isInfinite(value) ? Double.NaN : value;
+    }
+
     private static double first(JSONObject daily, String key) {
         JSONArray values = daily == null ? null : daily.optJSONArray(key);
         if (values == null || values.length() == 0 || values.isNull(0)) return Double.NaN;
@@ -252,6 +344,51 @@ final class WeatherWidgetData {
 
     private static double round1(double value) {
         return Math.round(value * 10.0) / 10.0;
+    }
+
+    /** An emoji for a WMO weather code (the moon for clear nights). */
+    static String icon(int code, boolean isDay) {
+        switch (code) {
+            case 0:
+                return isDay ? "\u2600\uFE0F" : "\uD83C\uDF19";
+            case 1:
+                return isDay ? "\uD83C\uDF24\uFE0F" : "\uD83C\uDF19";
+            case 2:
+                return "\u26C5";
+            case 3:
+                return "\u2601\uFE0F";
+            case 45:
+            case 48:
+                return "\uD83C\uDF2B\uFE0F";
+            case 51:
+            case 53:
+            case 55:
+            case 80:
+            case 81:
+            case 82:
+                return "\uD83C\uDF26\uFE0F";
+            case 56:
+            case 57:
+            case 61:
+            case 63:
+            case 65:
+            case 66:
+            case 67:
+                return "\uD83C\uDF27\uFE0F";
+            case 71:
+            case 73:
+            case 75:
+            case 77:
+            case 85:
+            case 86:
+                return "\uD83C\uDF28\uFE0F";
+            case 95:
+            case 96:
+            case 99:
+                return "\u26C8\uFE0F";
+            default:
+                return "\u2601\uFE0F";
+        }
     }
 
     /** Short text for a WMO weather code, or null for an unknown code. */
@@ -351,6 +488,29 @@ final class WeatherWidgetData {
         return millis;
     }
 
+    /** "3 PM" or "15:00" in the device's zone, following the app's clock setting. */
+    static String formatHour(Context context, long millis) {
+        String pattern = use24Hour(context) ? "HH:mm" : "h a";
+        return new SimpleDateFormat(pattern, Locale.getDefault()).format(new Date(millis));
+    }
+
+    /** Today's date on the device ("2026-10-07"), to compare with "days" dates. */
+    static String localDate(long millis) {
+        return new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date(millis));
+    }
+
+    /** Short weekday ("Thu") for a "yyyy-MM-dd" date, or null when unreadable. */
+    static String weekday(String date) {
+        try {
+            SimpleDateFormat in = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+            in.setLenient(false);
+            Date d = in.parse(date);
+            return d == null ? null : new SimpleDateFormat("EEE", Locale.getDefault()).format(d);
+        } catch (java.text.ParseException e) {
+            return null;
+        }
+    }
+
     /** Formats epoch milliseconds as "2026-10-07T19:05:00Z". */
     static String formatIso(long millis) {
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US);
@@ -359,12 +519,12 @@ final class WeatherWidgetData {
     }
 
     /**
-     * A time in the device's zone and 12/24-hour setting ("3:12 PM"), with the
+     * A time in the device's zone and the app's 12/24-hour setting ("3:12 PM"), with the
      * weekday in front when it is not today ("Thu 3:12 PM").
      */
     static String formatTime(Context context, long millis, long nowMs) {
         Date date = new Date(millis);
-        String time = android.text.format.DateFormat.getTimeFormat(context).format(date);
+        String time = new SimpleDateFormat(use24Hour(context) ? "HH:mm" : "h:mm a", Locale.getDefault()).format(date);
         Calendar then = Calendar.getInstance();
         then.setTimeInMillis(millis);
         Calendar today = Calendar.getInstance();
