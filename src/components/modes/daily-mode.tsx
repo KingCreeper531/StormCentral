@@ -15,7 +15,7 @@ import { CurrentHero } from "../daily/current-hero";
 import { DailyOutlook } from "../daily/daily-outlook";
 import { ConditionsPanel, SunMoonPanel } from "../daily/details-grid";
 import { FireSmokePanel } from "../daily/fire-smoke-panel";
-import { ForecastComparePanel } from "../daily/forecast-compare-panel";
+import { ForecastSourceBar } from "../daily/forecast-source-bar";
 import { ForecasterNotesPanel } from "../daily/forecaster-notes-panel";
 import { HourlyPanel } from "../daily/hourly-panel";
 import { NowcastCard } from "../daily/nowcast-card";
@@ -40,7 +40,6 @@ const RENDER: Record<DailyPanelId, (c: Ctx) => React.ReactNode> = {
   hourly: ({ f, now }) => <HourlyPanel f={f} now={now} />,
   radar: ({ f, now }) => <RadarPreview now={now} timeZone={f.timezone} />,
   severe: ({ f }) => <SevereRiskPanel timeZone={f.timezone} />,
-  compare: ({ f, now }) => <ForecastComparePanel f={f} now={now} />,
   conditions: ({ f, air, now }) => <ConditionsPanel f={f} air={air} now={now} />,
   outlook: ({ f, now }) => <DailyOutlook f={f} now={now} />,
   sunmoon: ({ f, now }) => <SunMoonPanel f={f} now={now} />,
@@ -143,6 +142,7 @@ export function DailyMode() {
 
   return (
     <div className="flex flex-col gap-4">
+      <ForecastSourceBar f={f} />
       {editing && (
         <div className="surface sticky top-[calc(var(--topbar-h)+8px)] z-30 p-3 shadow-lg sm:p-4">
           <div className="flex flex-wrap items-center gap-2">

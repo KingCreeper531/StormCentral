@@ -21,7 +21,6 @@ import { Tabs } from "../ui/tabs";
 import { AccountSection } from "./account-panel";
 import { AddonsSection, ThemePicker } from "./addons-panel";
 import { DesktopSettings } from "./desktop-settings";
-import { CompareSettings } from "./compare-settings";
 import { WidgetPanel } from "./widget-panel";
 
 type Preset = "imperial" | "metric" | "custom";
@@ -445,7 +444,6 @@ export function AppSettings() {
             <TimePanel />
             <LocationPanel />
             <RadiusPanel />
-            <CompareSettings />
           </>
         )}
         {current === "alerts" && (
