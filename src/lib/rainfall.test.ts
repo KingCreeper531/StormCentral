@@ -93,4 +93,9 @@ describe("fire weather", () => {
     expect(smokeOutlook(air([40, 80, 20], 0.8), now)).toMatchObject({ label: "Smoky", now: 40, peak: 80, peakTime: (T0 + H) * 1000 });
     expect(smokeOutlook(air([200], 2), now).label).toBe("Heavy smoke");
   });
+
+  it("copes with air data saved by an older version (no AOD series)", () => {
+    const old = { timezone: "UTC", fetchedAt: 0, hourly: { time: [T0, T0 + H], pm25: [5, 6] } } as unknown as AirQuality;
+    expect(smokeOutlook(old, T0 * 1000)).toMatchObject({ now: 5, aod: null, label: "Clear air" });
+  });
 });
