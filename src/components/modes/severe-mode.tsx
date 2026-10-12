@@ -256,19 +256,23 @@ export function SevereMode() {
   const family = isSite ? radar.family : "reflectivity";
 
   // ── Legend caption: where the data comes from ─────────────────────────────
+  // With NOAA as the source, say so and how fresh its newest scan is.
+  const newestScan = loop.liveCount > 0 ? loop.frames[loop.liveCount - 1]?.time : undefined;
+  const scanAge = newestScan ? Math.max(0, Math.round((now - newestScan) / 60_000)) : null;
+  const noaaTag = loop.sourceLabel ? `NOAA ${loop.sourceLabel}${scanAge != null ? ` · updated ${scanAge < 1 ? "now" : `${scanAge} min ago`}` : ""}` : null;
   const caption =
     isSite && site ? (
       <>
-        <span className="shrink-0 font-mono">{loop.sourceLabel ?? `${site.icao} ${productCode}`}</span>
+        <span className="shrink-0 font-mono">{noaaTag ?? `${site.icao} ${productCode}`}</span>
         <span className="min-w-0 truncate">
           {site.place}, {site.state}
         </span>
       </>
     ) : (
       <>
-        <span className="shrink-0 font-mono">{showingForecast ? "HRRR" : (loop.sourceLabel ?? "N0Q")}</span>
+        <span className="shrink-0 font-mono">{showingForecast ? "HRRR" : (noaaTag ?? "N0Q")}</span>
         <span className="min-w-0 truncate">
-          {showingForecast ? "Model forecast, not observed" : loop.usingFallback ? "Mosaic (rolling)" : loop.source === "noaa" ? "NOAA MRMS national mosaic" : "National mosaic"}
+          {showingForecast ? "Model forecast, not observed" : loop.usingFallback ? "Mosaic (rolling)" : loop.source === "noaa" ? "Multi-radar national mosaic, 1 km" : "National mosaic"}
         </span>
       </>
     );
@@ -515,7 +519,7 @@ export function SevereMode() {
   // Desktop: legend card above the transport. Short screens: one row with an
   // inline legend. Phones: a legend strip inside the transport box, all of it
   // riding on top of the sheet.
-  const legendCode = isSite && site ? (loop.sourceLabel ?? `${site.icao} ${productCode}`) : showingForecast ? "HRRR forecast" : (loop.sourceLabel ?? "N0Q");
+  const legendCode = showingForecast && !isSite ? "HRRR forecast" : (noaaTag ?? (isSite && site ? `${site.icao} ${productCode}` : "N0Q"));
   const sentenceCaseFamily = FAMILIES[family].label.toLowerCase();
   const dock = (
     <div ref={dockRef} className="pointer-events-none flex flex-col items-start gap-2 [&>*]:pointer-events-auto">

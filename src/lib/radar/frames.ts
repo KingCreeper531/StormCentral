@@ -20,6 +20,8 @@ export interface RadarFrame {
   forecast?: boolean;
   /** Source credit when it differs from the layer's default (IEM). */
   attribution?: string;
+  /** Tile edge in px (default 256). WMS sources render 512 px tiles: a quarter of the requests. */
+  tileSize?: 256 | 512;
 }
 
 export const MOSAIC_SITE = "USCOMP";
