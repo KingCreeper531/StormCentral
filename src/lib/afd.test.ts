@@ -66,6 +66,8 @@ describe("parseAfd", () => {
       "",
       "Hot and breezy.",
       "",
+      "-JAR",
+      "",
       "&&",
       "",
       ".PRELIMINARY POINT TEMPS/POPS...",

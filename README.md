@@ -68,7 +68,7 @@ never run code. Format and examples: [`examples/addons`](examples/addons).
 | Science | Custom ephemerides, wind and thermodynamics, DOP; **satellite.js** (SGP4) on the server |
 | Icons | [Makin-Things/weather-icons](https://github.com/Makin-Things/weather-icons) (animated SVG, MIT) + Lucide for UI chrome |
 | Apps | **Electron 44** + **electron-updater** (Windows), **Capacitor 8** (Android), released by GitHub Actions |
-| Tests | **Vitest**: 243 unit tests across science, radar, parsers, feeds, alerting, security and the DB schema |
+| Tests | **Vitest**: 244 unit tests across science, radar, parsers, feeds, alerting, security and the DB schema |
 
 ## Data sources
 

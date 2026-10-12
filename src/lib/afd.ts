@@ -142,7 +142,8 @@ function toParagraphs(lines: string[]): string[] {
     cur.push(line);
   }
   flush();
-  return paras.filter(Boolean).map(plain);
+  // Forecaster sign-offs ("-JAR", "MPS") aren't content.
+  return paras.filter((p) => p && !/^[-–]?\s*[A-Z]{2,5}\s*$/.test(p)).map(plain);
 }
 
 const PROPER = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|june|july|august|september|october|november|december)\b/g;
