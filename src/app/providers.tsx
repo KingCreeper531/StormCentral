@@ -100,7 +100,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       persistOptions={{
         persister,
         maxAge: 24 * 3_600_000,
-        buster: "v1",
+        // Bump when a persisted query's shape changes, so data saved by an older version is dropped.
+        buster: "v2",
         dehydrateOptions: {
           shouldDehydrateQuery: (q) => q.state.status === "success" && PERSISTED.has(String(q.queryKey[0])),
         },

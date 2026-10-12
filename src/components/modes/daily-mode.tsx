@@ -17,6 +17,7 @@ import { RadarPreview } from "../daily/radar-preview";
 import { RainfallPanel } from "../daily/rainfall-panel";
 import { SevereRiskPanel } from "../daily/severe-risk-panel";
 import { ErrorNote, Skeleton } from "../ui/misc";
+import { PanelBoundary } from "../ui/panel-boundary";
 
 /** Conditions + 10-day + sun and moon (see below). */
 const DETAILS_GRID = "grid min-w-0 grid-cols-1 gap-4 lg:col-span-12 lg:grid-cols-12 lg:grid-rows-[auto_minmax(0,1fr)]";
@@ -54,28 +55,58 @@ export function DailyMode() {
       </div>
     );
 
+  // A panel that fails hides itself; the rest of the page keeps working. Each retries on a new place.
+  const place = `${f.lat},${f.lon}`;
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-      <CurrentHero f={f} now={now} className="lg:col-span-7" />
-      <NowcastCard f={f} now={now} className="lg:col-span-5 lg:self-end" />
-      <HourlyPanel f={f} now={now} className="lg:col-span-7" />
-      <RadarPreview now={now} timeZone={f.timezone} className="lg:col-span-5" />
+      <PanelBoundary name="hero" resetKey={place}>
+        <CurrentHero f={f} now={now} className="lg:col-span-7" />
+      </PanelBoundary>
+      <PanelBoundary name="nowcast" resetKey={place}>
+        <NowcastCard f={f} now={now} className="lg:col-span-5 lg:self-end" />
+      </PanelBoundary>
+      <PanelBoundary name="hourly" resetKey={place}>
+        <HourlyPanel f={f} now={now} className="lg:col-span-7" />
+      </PanelBoundary>
+      <PanelBoundary name="radar preview" resetKey={place}>
+        <RadarPreview now={now} timeZone={f.timezone} className="lg:col-span-5" />
+      </PanelBoundary>
       {/* Only renders inside an SPC thunderstorm area. */}
-      <SevereRiskPanel timeZone={f.timezone} className="lg:col-span-12" />
-      <GoogleForecastPanel f={f} now={now} className="lg:col-span-12" />
+      <PanelBoundary name="severe outlook" resetKey={place}>
+        <SevereRiskPanel timeZone={f.timezone} className="lg:col-span-12" />
+      </PanelBoundary>
+      <PanelBoundary name="Google forecast" resetKey={place}>
+        <GoogleForecastPanel f={f} now={now} className="lg:col-span-12" />
+      </PanelBoundary>
       <div className={DETAILS_GRID}>
-        <ConditionsPanel f={f} air={air.data} now={now} className="lg:col-span-7" />
-        <DailyOutlook f={f} now={now} className="lg:col-span-5 lg:col-start-8 lg:row-span-2 lg:row-start-1" />
-        <SunMoonPanel f={f} now={now} className="lg:col-span-7" />
+        <PanelBoundary name="conditions" resetKey={place}>
+          <ConditionsPanel f={f} air={air.data} now={now} className="lg:col-span-7" />
+        </PanelBoundary>
+        <PanelBoundary name="10-day" resetKey={place}>
+          <DailyOutlook f={f} now={now} className="lg:col-span-5 lg:col-start-8 lg:row-span-2 lg:row-start-1" />
+        </PanelBoundary>
+        <PanelBoundary name="sun and moon" resetKey={place}>
+          <SunMoonPanel f={f} now={now} className="lg:col-span-7" />
+        </PanelBoundary>
       </div>
       {/* US only (NWS); renders nothing elsewhere, and climate moves up beside rainfall. */}
-      <ForecasterNotesPanel now={now} className="lg:col-span-7" />
-      <ClimatePanel f={f} now={now} className="lg:col-span-5" />
-      <RainfallPanel f={f} now={now} className="lg:col-span-7" />
-      <FireSmokePanel f={f} air={air.data} now={now} className="lg:col-span-5" />
+      <PanelBoundary name="forecaster notes" resetKey={place}>
+        <ForecasterNotesPanel now={now} className="lg:col-span-7" />
+      </PanelBoundary>
+      <PanelBoundary name="climate" resetKey={place}>
+        <ClimatePanel f={f} now={now} className="lg:col-span-5" />
+      </PanelBoundary>
+      <PanelBoundary name="rainfall" resetKey={place}>
+        <RainfallPanel f={f} now={now} className="lg:col-span-7" />
+      </PanelBoundary>
+      <PanelBoundary name="fire and smoke" resetKey={place}>
+        <FireSmokePanel f={f} air={air.data} now={now} className="lg:col-span-5" />
+      </PanelBoundary>
       {COMMUNITY_ENABLED && (
         <div className="min-w-0 lg:col-span-12">
-          <NearbyReports now={now} />
+          <PanelBoundary name="nearby reports" resetKey={place}>
+            <NearbyReports now={now} />
+          </PanelBoundary>
         </div>
       )}
     </div>

@@ -87,7 +87,10 @@ export interface SmokeOutlook {
 
 /** Plain-language smoke and haze from PM2.5 (ground level) and AOD (the whole sky). */
 export function smokeOutlook(a: AirQuality, nowMs: number): SmokeOutlook {
-  const { time, pm25, aod } = a.hourly;
+  // Air data saved by an older version of the app has no AOD (and may lack PM2.5).
+  const { time } = a.hourly;
+  const pm25 = a.hourly.pm25 ?? [];
+  const aod = a.hourly.aod ?? [];
   let i0 = -1;
   for (let i = 0; i < time.length; i++) if (time[i]! * 1000 <= nowMs) i0 = i;
   const now = i0 >= 0 ? (pm25[i0] ?? null) : null;
