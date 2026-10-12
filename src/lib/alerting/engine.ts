@@ -7,6 +7,7 @@
  * Everything host-specific is injected through `EngineIO`, and nothing here
  * uses Intl, the DOM or AbortSignal, which the runner's engine lacks.
  */
+import type { WidgetNote } from "../widget-note";
 import type { AirQuality, Forecast } from "../api/open-meteo";
 import type { WeatherAlert } from "../api/types";
 import { describeCode } from "../weather/wmo";
@@ -195,6 +196,8 @@ export interface WidgetSnapshot {
   days?: { date: string; code: number | null; hiC: number | null; loC: number | null }[];
   /** Next hours for the hourly widget, starting with the current hour (ISO instants). */
   hours?: { time: string; code: number | null; tempC: number }[];
+  /** A one-line highlight widgets show when they have room ("Near-record high: 84°…"). */
+  note?: WidgetNote | null;
   updated: string;
 }
 
@@ -217,7 +220,14 @@ function widgetForecast(f: Forecast, now: number): Pick<WidgetSnapshot, "days" |
   return { days, hours };
 }
 
-export function widgetSnapshot(place: SavedPlace, unit: "F" | "C", f: Forecast | null, alerts: WeatherAlert[] | null, now: number): WidgetSnapshot {
+export function widgetSnapshot(
+  place: SavedPlace,
+  unit: "F" | "C",
+  f: Forecast | null,
+  alerts: WeatherAlert[] | null,
+  now: number,
+  note: WidgetNote | null = null,
+): WidgetSnapshot {
   const top = (alerts ?? []).filter((a) => Date.parse(a.ends ?? a.expires) > now).sort((a, b) => b.rank - a.rank)[0];
   let current: WidgetSnapshot["now"] = null;
   if (f && f.current.temp != null) {
@@ -239,8 +249,19 @@ export function widgetSnapshot(place: SavedPlace, unit: "F" | "C", f: Forecast |
     now: current,
     alert: top ? { event: top.event, until: top.ends ?? top.expires } : null,
     ...(f ? widgetForecast(f, now) : {}),
+    note: note && Date.parse(note.until) > now ? note : null,
     updated: new Date(now).toISOString(),
   };
+}
+
+/**
+ * The background runner can't compute highlights (no climate or NWS text), so
+ * it keeps the app's last one for the same place while it's still current.
+ */
+export function carryNote(prev: WidgetSnapshot | null, place: { lat: number; lon: number }, now: number): WidgetNote | null {
+  const n = prev?.note;
+  if (!n || !prev || Math.abs(prev.place.lat - place.lat) > 1e-4 || Math.abs(prev.place.lon - place.lon) > 1e-4) return null;
+  return Date.parse(n.until) > now ? n : null;
 }
 
 /** One-line summary for logs and tests. */

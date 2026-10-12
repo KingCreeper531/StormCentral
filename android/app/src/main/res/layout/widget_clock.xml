@@ -135,6 +135,18 @@
         android:textSize="12sp"
         android:visibility="gone" />
 
+    <!-- Today's highlight ("Near-record high: 84°…"), shown when there is room. -->
+    <TextView
+        android:id="@+id/widget_note"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:textColor="#FFA8ACB3"
+        android:textSize="11sp"
+        android:visibility="gone" />
+
     <TextView
         android:id="@+id/widget_message"
         android:layout_width="match_parent"

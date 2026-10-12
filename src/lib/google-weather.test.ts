@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { googleTypeToWmo, parseGoogleCurrent, parseGoogleDays, parseGoogleHours, parseGoogleTimeZone, parseGraphcast } from "./google-weather";
+import { googleTypeToWmo, parseGoogleCurrent, parseGoogleDays, parseGoogleHours, parseGoogleTimeZone, parseModel } from "./google-weather";
 
 describe("Google Weather parsing", () => {
   it("maps condition types to WMO codes", () => {
@@ -51,7 +51,7 @@ describe("Google Weather parsing", () => {
     expect(parseGoogleDays({})).toEqual([]);
   });
 
-  it("reads GraphCast (6-hourly) from Open-Meteo into the same shape", () => {
+  it("reads any Open-Meteo model (here 6-hourly) into the same shape", () => {
     const t0 = Date.parse("2026-10-12T06:00:00Z") / 1000; // 1 AM at UTC-5
     const time = Array.from({ length: 12 }, (_, i) => t0 + i * 3600);
     const raw = {
@@ -61,16 +61,18 @@ describe("Google Weather parsing", () => {
         time,
         temperature_2m: time.map((_, i) => (i % 6 === 0 ? 10 + i : null)),
         precipitation: time.map((_, i) => (i === 6 ? 3 : 0)),
+        precipitation_probability: time.map((_, i) => (i === 6 ? 70 : null)),
         weather_code: time.map(() => null),
         cloud_cover: time.map(() => 90),
       },
     };
-    const g = parseGraphcast(raw, t0 * 1000)!;
-    expect(g.source).toBe("graphcast");
+    const g = parseModel(raw, t0 * 1000)!;
+    expect(g.source).toBe("model");
+    expect(g.stepHours).toBe(6);
     expect(g.hours).toHaveLength(2);
-    expect(g.hours[1]).toMatchObject({ tempC: 16, precipMm: 3, code: 63, precipChance: null });
-    expect(g.days[0]).toMatchObject({ date: "2026-10-12", hiC: 16, loC: 10 });
+    expect(g.hours[1]).toMatchObject({ tempC: 16, precipMm: 3, code: 63, precipChance: 70 });
+    expect(g.days[0]).toMatchObject({ date: "2026-10-12", hiC: 16, loC: 10, precipChance: 70, precipMm: 3 });
     expect(g.current?.tempC).toBe(10);
-    expect(parseGraphcast({}, 0)).toBeNull();
+    expect(parseModel({}, 0)).toBeNull();
   });
 });

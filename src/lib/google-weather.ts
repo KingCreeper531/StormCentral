@@ -1,13 +1,16 @@
 /**
- * Google Weather API (Google Maps Platform), normalised for the app. Google's
- * forecasts come from its AI weather models; the app shows them beside the
- * Open-Meteo forecast. Types and parsing are shared; fetching is server-only
- * (lib/server/google-weather.ts) because it needs the API key.
+ * Google Weather API (Google Maps Platform), normalised for the app. Each
+ * person adds their own API key in Settings, and the browser calls Google
+ * directly (Google allows it), so the key stays on their device and every
+ * user spends their own free allowance. Also the shared comparison shape for
+ * the other forecast models (lib/compare-sources).
  */
 
 export interface GoogleWeather {
-  /** "google": Google Weather API (needs a key). "graphcast": Google DeepMind's GraphCast model as run by NOAA, via Open-Meteo (free, no key). */
-  source?: "google" | "graphcast";
+  /** "google": Google Weather API (the person's key). "model": an Open-Meteo model. */
+  source?: "google" | "model";
+  /** Hours between forecast steps. */
+  stepHours?: number;
   timeZone: string | null;
   current: {
     tempC: number | null;
@@ -24,7 +27,7 @@ export interface GoogleWeather {
     uv: number | null;
   } | null;
   hours: { time: string; tempC: number | null; code: number; text: string | null; isDay: boolean; precipChance: number | null; precipMm: number | null }[];
-  days: { date: string; hiC: number | null; loC: number | null; code: number; text: string | null; precipChance: number | null }[];
+  days: { date: string; hiC: number | null; loC: number | null; code: number; text: string | null; precipChance: number | null; precipMm?: number | null }[];
   /** Epoch ms. */
   fetchedAt: number;
 }
@@ -117,11 +120,6 @@ export function parseGoogleTimeZone(...raws: any[]): string | null {
   for (const r of raws) if (typeof r?.timeZone?.id === "string") return r.timeZone.id;
   return null;
 }
-/** GraphCast (Google DeepMind's AI model, run by NOAA as GraphCastGFS) through Open-Meteo: free, no key, 6-hourly to 10 days. */
-export function graphcastUrl(lat: number, lon: number) {
-  return `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(2)}&longitude=${lon.toFixed(2)}&models=gfs_graphcast025&hourly=temperature_2m,precipitation,weather_code,cloud_cover&timezone=auto&forecast_days=10&timeformat=unixtime`;
-}
-
 /** A WMO code from precipitation and cloud when the model doesn't give one. */
 function codeFrom(precipMm: number | null, cloud: number | null, tempC: number | null): number {
   if (precipMm != null && precipMm >= 0.2) {
@@ -134,8 +132,12 @@ function codeFrom(precipMm: number | null, cloud: number | null, tempC: number |
   return cloud < 20 ? 0 : cloud < 50 ? 1 : cloud < 85 ? 2 : 3;
 }
 
-/** Open-Meteo GraphCast response → the same shape as Google's API (no probabilities: GraphCast is a single run). */
-export function parseGraphcast(raw: any, nowMs: number): GoogleWeather | null {
+/**
+ * Any Open-Meteo single-model response (hourly temperature_2m, precipitation,
+ * optional precipitation_probability, weather_code, cloud_cover) → the
+ * comparison shape. Hours with no temperature (past the model's range) are dropped.
+ */
+export function parseModel(raw: any, nowMs: number): GoogleWeather | null {
   const h = raw?.hourly;
   const times: unknown[] = Array.isArray(h?.time) ? h.time : [];
   const offset = num(raw?.utc_offset_seconds) ?? 0;
@@ -147,7 +149,7 @@ export function parseGraphcast(raw: any, nowMs: number): GoogleWeather | null {
     const precipMm = num(h.precipitation?.[i]);
     const code = num(h.weather_code?.[i]) ?? codeFrom(precipMm, num(h.cloud_cover?.[i]), tempC);
     const localHour = new Date((sec + offset) * 1000).getUTCHours();
-    hours.push({ time: new Date(sec * 1000).toISOString(), tempC, code, text: null, isDay: localHour >= 6 && localHour < 19, precipChance: null, precipMm });
+    hours.push({ time: new Date(sec * 1000).toISOString(), tempC, code, text: null, isDay: localHour >= 6 && localHour < 19, precipChance: num(h.precipitation_probability?.[i]), precipMm });
   });
   if (!hours.length) return null;
   // Days in the place's own time zone.
@@ -161,16 +163,75 @@ export function parseGraphcast(raw: any, nowMs: number): GoogleWeather | null {
     .filter(([d]) => d >= today)
     .map(([date, list]) => {
       const temps = list.map((x) => x.tempC!).filter((v) => v != null);
-      return { date, hiC: Math.max(...temps), loC: Math.min(...temps), code: Math.max(...list.map((x) => x.code)), text: null, precipChance: null };
+      const chances = list.map((x) => x.precipChance).filter((v): v is number => v != null);
+      const amounts = list.map((x) => x.precipMm).filter((v): v is number => v != null);
+      return {
+        date,
+        hiC: Math.max(...temps),
+        loC: Math.min(...temps),
+        code: Math.max(...list.map((x) => x.code)),
+        text: null,
+        precipChance: chances.length ? Math.max(...chances) : null,
+        precipMm: amounts.length ? Math.round(amounts.reduce((a, b) => a + b, 0) * 10) / 10 : null,
+      };
     });
   const nowEntry = hours.reduce((best, x) => (Math.abs(Date.parse(x.time) - nowMs) < Math.abs(Date.parse(best.time) - nowMs) ? x : best));
+  const stepHours = hours.length > 1 ? Math.max(1, Math.round((Date.parse(hours[1]!.time) - Date.parse(hours[0]!.time)) / 3_600_000)) : 1;
   return {
-    source: "graphcast",
+    source: "model",
+    stepHours,
     timeZone: typeof raw?.timezone === "string" ? raw.timezone : null,
     current: { tempC: nowEntry.tempC, feelsC: null, text: null, code: nowEntry.code, isDay: nowEntry.isDay, humidity: null, windMs: null, gustMs: null, windDeg: null, precipChance: null, thunderChance: null, uv: null },
     hours,
     days,
     fetchedAt: nowMs,
+  };
+}
+
+const GOOGLE = "https://weather.googleapis.com/v1";
+
+/** The key was rejected (invalid, API not enabled, billing, quota): fixable in Settings or Google Cloud. */
+export class GoogleKeyError extends Error {}
+
+async function googleCall(path: string, params: Record<string, string>, key: string, signal?: AbortSignal): Promise<any> {
+  const res = await fetch(`${GOOGLE}/${path}?${new URLSearchParams({ ...params, key })}`, { signal, headers: { Accept: "application/json" } });
+  if (res.ok) return res.json();
+  const body = await res.json().catch(() => null);
+  const message: string = body?.error?.message ?? `Google Weather answered ${res.status}`;
+  if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 429) {
+    throw new GoogleKeyError(
+      res.status === 429
+        ? "Your Google key has used up its allowance for now."
+        : /not valid|invalid/i.test(message)
+          ? "Google says this API key isn't valid."
+          : /not been used|disabled|enable/i.test(message)
+            ? "Turn on the Weather API for this key's project in Google Cloud."
+            : /billing/i.test(message)
+              ? "Google needs a billing account on this key's project (the free tier still applies)."
+              : /referer|restricted|not authorized/i.test(message)
+                ? "This key's restrictions block StormCentral. Allow this website (or no website restriction) for the key."
+                : message,
+    );
+  }
+  throw new Error(message);
+}
+
+/** Current conditions, the next 24 hours and 10 days from Google, with the person's own key. */
+export async function fetchGoogleWeather(key: string, lat: number, lon: number, signal?: AbortSignal): Promise<GoogleWeather> {
+  const loc = { "location.latitude": lat.toFixed(2), "location.longitude": lon.toFixed(2) };
+  const [current, hours, days] = await Promise.all([
+    googleCall("currentConditions:lookup", loc, key, signal),
+    googleCall("forecast/hours:lookup", { ...loc, hours: "24", pageSize: "24" }, key, signal),
+    googleCall("forecast/days:lookup", { ...loc, days: "10", pageSize: "10" }, key, signal),
+  ]);
+  return {
+    source: "google",
+    stepHours: 1,
+    timeZone: parseGoogleTimeZone(current, hours, days),
+    current: parseGoogleCurrent(current),
+    hours: parseGoogleHours(hours),
+    days: parseGoogleDays(days),
+    fetchedAt: Date.now(),
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
