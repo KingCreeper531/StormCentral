@@ -1,4 +1,4 @@
-// Temporary: runs the new feeds against the live services (removed after).
+// Temporary: runs the new feeds against the live services (removed after merge).
 import { climateFeed } from "../src/lib/feeds/climate";
 import { floodGaugesFeed } from "../src/lib/feeds/flood-gauges";
 import { forecasterNotesFeed } from "../src/lib/feeds/forecaster-notes";
