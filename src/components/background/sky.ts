@@ -44,26 +44,27 @@ export function luminaryGlow(phase: SkyPhase): string {
 
 /**
  * Vivid, full-height skies for themes that ask for them ("sky": "vivid"),
- * in the style of phone weather apps: saturated blues by day, warm golden
- * hours, deep navy nights, slate rain and storm. Mid-tone throughout so
- * white text with a soft shadow stays readable at the top of the screen.
+ * in the clean style of Material weather apps: airy cyan-blue days, peach
+ * sunrises and sunsets, deep indigo nights, soft greys for cloud, rain and
+ * snow. Day skies are light (dark text, white cards); night skies are deep
+ * (white text, dark cards), matching a theme that follows the sun.
  */
 export function vividSkyGradient(scene: Scene, phase: SkyPhase): string {
-  const night = phase === "night" || phase === "astronomical";
-  const twilight = phase === "nautical" || phase === "civil";
+  const night = phase === "night" || phase === "astronomical" || phase === "nautical";
+  const twilight = phase === "civil";
   const golden = phase === "golden";
   if (scene === "storm" || scene === "hail")
-    return night ? "linear-gradient(180deg,#0d1018 0%,#1a1f2b 50%,#262c3a 100%)" : "linear-gradient(180deg,#232a37 0%,#363e4e 45%,#4b5466 100%)";
+    return night ? "linear-gradient(180deg,#1b1d3a 0%,#272a4d 55%,#33375e 100%)" : "linear-gradient(180deg,#7d8aa3 0%,#9aa6bb 55%,#b6c0d0 100%)";
   if (scene === "rain" || scene === "drizzle" || scene === "freezing")
-    return night ? "linear-gradient(180deg,#0f1622 0%,#1b2534 50%,#283447 100%)" : "linear-gradient(180deg,#3a4b61 0%,#4f6279 45%,#677b93 100%)";
+    return night ? "linear-gradient(180deg,#1f2447 0%,#2c3360 55%,#3a4273 100%)" : "linear-gradient(180deg,#93a9bf 0%,#b1c2d2 55%,#cbd7e2 100%)";
   if (scene === "cloudy")
-    return night ? "linear-gradient(180deg,#141b27 0%,#222c3b 50%,#313c4d 100%)" : "linear-gradient(180deg,#4f6582 0%,#667d99 45%,#8195b0 100%)";
+    return night ? "linear-gradient(180deg,#24285a 0%,#31367a 55%,#3f4591 100%)" : "linear-gradient(180deg,#a7c4d8 0%,#c3d6e3 55%,#dae6ee 100%)";
   if (scene === "snow")
-    return night ? "linear-gradient(180deg,#18223a 0%,#26324d 50%,#36435f 100%)" : "linear-gradient(180deg,#5b7596 0%,#7590b0 45%,#8fa7c3 100%)";
-  if (scene === "fog") return night ? "linear-gradient(180deg,#1c222c 0%,#2a313c 100%)" : "linear-gradient(180deg,#68737f 0%,#87919c 100%)";
+    return night ? "linear-gradient(180deg,#2a3166 0%,#38408a 55%,#4851a3 100%)" : "linear-gradient(180deg,#bcd3e4 0%,#d4e3ee 55%,#e9f1f7 100%)";
+  if (scene === "fog") return night ? "linear-gradient(180deg,#2a2e4f 0%,#3a3f66 100%)" : "linear-gradient(180deg,#b9c3cb 0%,#d4dadf 100%)";
   // clear / partly
-  if (night) return "linear-gradient(180deg,#070d24 0%,#101c45 45%,#1d2d62 100%)";
-  if (twilight) return "linear-gradient(180deg,#1b2452 0%,#56407a 45%,#c2687a 100%)";
-  if (golden) return "linear-gradient(180deg,#24427f 0%,#b0607a 50%,#ee9a5a 100%)";
-  return "linear-gradient(180deg,#145fc4 0%,#2f7fe0 45%,#5aa2ea 100%)";
+  if (night) return "linear-gradient(180deg,#2a2c8c 0%,#3a3dab 50%,#5357cf 100%)";
+  if (twilight) return "linear-gradient(180deg,#5d6fd0 0%,#b48fd6 55%,#f4b6b8 100%)";
+  if (golden) return "linear-gradient(180deg,#8fcdf0 0%,#ffd2a6 60%,#ffc08a 100%)";
+  return "linear-gradient(180deg,#7fd2f3 0%,#a9e1f6 50%,#cdeef9 100%)";
 }

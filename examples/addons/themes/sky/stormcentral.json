@@ -2,27 +2,9 @@
   "type": "theme",
   "name": "Sky",
   "author": "StormCentral",
-  "description": "Bright animated skies that follow the weather and time of day, with frosted-glass panels. Inspired by phone weather apps.",
-  "version": "1.0.0",
-  "base": "dark",
+  "description": "Bright animated skies that follow the weather and time of day: airy blue days, indigo starry nights. Light by day, dark at night.",
+  "version": "2.0.0",
+  "base": "auto",
   "sky": "vivid",
-  "colors": {
-    "canvas": "#14325e",
-    "surface-1": "#0b1426b3",
-    "surface-2": "#ffffff1f",
-    "surface-3": "#ffffff33",
-    "line": "#ffffff26",
-    "line-strong": "#ffffff45",
-    "ink": "#ffffff",
-    "ink-2": "#e6edf8",
-    "ink-3": "#c8d4e6",
-    "accent": "#8fcbff",
-    "go": "#72e3a4",
-    "caution": "#ffd36e",
-    "nogo": "#ff8a8a",
-    "series-1": "#8fcbff",
-    "series-2": "#ffb36b",
-    "series-3": "#72e3a4",
-    "grid": "#ffffff1a"
-  }
+  "colors": {}
 }

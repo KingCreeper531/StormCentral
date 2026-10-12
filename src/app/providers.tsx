@@ -14,6 +14,7 @@ import { themeVars } from "@/lib/addons/manifest";
 import { applyCustomVars, applyTheme, resolveTheme } from "@/lib/theme";
 import { selectActiveTheme, useAddonsStore } from "@/store/addons-store";
 import { useAlertsStore } from "@/store/alerts-store";
+import { sunPosition } from "@/lib/astro/sun";
 import { useAppStore } from "@/store/app-store";
 
 /** Only small, location-scoped feeds are persisted for instant cold starts. */
@@ -64,9 +65,23 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hydrated || !addonsHydrated) return;
     applyCustomVars(custom ? themeVars(custom) : null);
-    // Vivid-sky themes switch on frosted panels (globals.css) and the bright animated sky.
+    // Vivid-sky themes switch on the bright animated sky (weather-background, globals.css).
     if (custom?.sky) document.documentElement.dataset.sky = custom.sky;
     else delete document.documentElement.dataset.sky;
+    if (custom?.followSun) {
+      // Light while the sun is up at the selected location (civil twilight counts as day), dark at night.
+      const apply = () => {
+        const { lat, lon } = useAppStore.getState().location;
+        applyTheme(sunPosition(new Date(), lat, lon).altitude > -6 ? "light" : "dark");
+      };
+      apply();
+      const id = setInterval(apply, 5 * 60_000);
+      const unsub = useAppStore.subscribe((s, prev) => s.location !== prev.location && apply());
+      return () => {
+        clearInterval(id);
+        unsub();
+      };
+    }
     if (custom) {
       applyTheme(custom.base, custom.colors.canvas);
       return;
