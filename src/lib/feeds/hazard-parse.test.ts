@@ -65,6 +65,7 @@ describe("NIFC wildfires", () => {
         f("Far", -110, 44.5),
         f("Lac-368088", -120.95, 44.5, { IncidentSize: null }),
         f("Spot", -120.95, 44.5, { IncidentSize: null, FireDiscoveryDateTime: 1784157600000 + 3 * 86_400_000 }),
+        f("LAC-368099", -120.95, 44.5, { IncidentSize: null, FireDiscoveryDateTime: 1784157600000 + 3 * 86_400_000 }),
       ],
     };
     // Three days on: the old unsized report drops out, the fresh one stays.

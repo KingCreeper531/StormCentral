@@ -41,8 +41,7 @@ interface RawFeature {
 }
 
 /**
- * Uncontained wildfires within `radiusKm`, nearest first. Unsized reports
- * (often quick initial-attack calls that never grow) drop out after two days.
+ * Uncontained wildfires within `radiusKm`, nearest first.
  */
 export function parseWildfires(raw: unknown, p: LatLon, radiusKm: number, nowMs = Date.now()): Wildfire[] {
   const features = (raw as { features?: RawFeature[] })?.features;
@@ -61,8 +60,10 @@ export function parseWildfires(raw: unknown, p: LatLon, radiusKm: number, nowMs 
     if (distanceKm > radiusKm) continue;
     const acres = typeof a.IncidentSize === "number" && a.IncidentSize >= 0 ? a.IncidentSize : null;
     const found = typeof a.FireDiscoveryDateTime === "number" ? a.FireDiscoveryDateTime : null;
-    if ((acres ?? 0) < 1 && (found == null || nowMs - found > 2 * 86_400_000)) continue;
     const name = (a.IncidentName ?? "").trim();
+    // Unsized reports are mostly quick initial-attack calls; keep them only for a day, and never
+    // the dispatch-numbered ones ("LAC-368088") that some agencies file for every small start.
+    if ((acres ?? 0) < 1 && (found == null || nowMs - found > 86_400_000 || /^[a-z]{2,4}-?\d{4,}$/i.test(name))) continue;
     out.push({
       // NIFC names are often all caps ("ROWE CREEK COMPLEX").
       name: name ? (name === name.toUpperCase() ? name.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase()) : name) : "Unnamed fire",

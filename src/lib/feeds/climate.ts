@@ -46,7 +46,7 @@ async function findStations(lat: number, lon: number): Promise<AcisStation[]> {
 
 /**
  * `lat` & `lon`: daily normals and records from the best nearby station (US).
- * The station for a grid cell is cached for a month, its table for a week.
+ * The stations near a grid cell are cached for a month, the table for a week.
  */
 export const climateFeed: Feed<ClimateResponse> = {
   path: "/api/climate",
@@ -59,15 +59,21 @@ export const climateFeed: Feed<ClimateResponse> = {
     const stations = await cached(`climate-stations:${lat}:${lon}`, 30 * 86_400_000, () => findStations(lat, lon), { persist: true });
     const best = stations[0]!;
     return cached(
-      `climate:${best.sid}`,
+      `climate:${lat}:${lon}`,
       7 * 86_400_000,
       async () => {
         // A threaded record ("PITthr") joins a city's old downtown and newer airport stations: records back to the 1800s.
+        // Only some airports carry one (PIT does, nearby AGC doesn't), so the nearest few are tried.
         let sid = best.sid;
+        let station = best;
         let records: AcisReply | null = null;
-        if (best.faa) {
-          records = await acis("StnData", { sid: `${best.faa}thr`, sdate: "por", edate: "por", elems: RECORD_ELEMS, meta: "name,valid_daterange" }).catch(() => null);
-          if (records) sid = `${best.faa}thr`;
+        for (const s of stations.filter((x) => x.faa && x.distanceKm < 60).slice(0, 3)) {
+          records = await acis("StnData", { sid: `${s.faa}thr`, sdate: "por", edate: "por", elems: RECORD_ELEMS, meta: "name,valid_daterange" }).catch(() => null);
+          if (records) {
+            sid = `${s.faa}thr`;
+            station = s;
+            break;
+          }
         }
         records ??= await acis("StnData", { sid, sdate: "por", edate: "por", elems: RECORD_ELEMS, meta: "name,valid_daterange" });
         // Normals for a leap year give all 366 days.
@@ -82,7 +88,7 @@ export const climateFeed: Feed<ClimateResponse> = {
           ],
         }).catch(() => ({ data: [] }));
         const name = records.meta?.name;
-        return buildClimate(records, normals, best, sid === best.sid ? undefined : name, records.meta?.valid_daterange?.[0]);
+        return buildClimate(records, normals, station, sid === station.sid ? undefined : name, records.meta?.valid_daterange?.[0]);
       },
       { persist: true },
     );

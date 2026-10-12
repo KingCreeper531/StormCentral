@@ -17,7 +17,7 @@ const run = async (label: string, fn: () => Promise<unknown>) => {
 const UA = { "User-Agent": "StormCentral/0.1 (github.com/KingCreeper531/StormCentral)" };
 const boi = await (await fetch("https://api.weather.gov/products/types/AFD/locations/BOI", { headers: UA })).json();
 const text = (await (await fetch(`https://api.weather.gov/products/${boi["@graph"][0].id}`, { headers: UA })).json()).productText;
-console.log("### RAW BOI\n" + text.slice(0, 6000));
+console.log("### RAW BOI bytes", text.length);
 
 const places: Record<string, [number, number]> = {
   pittsburgh: [40.44, -80.0], losangeles: [34.05, -118.25], boise: [43.6, -116.2], houston: [29.76, -95.37], norman: [35.22, -97.44],

@@ -188,7 +188,8 @@ function heading(raw: string): { title: string; period: string | null } {
   return { title, period };
 }
 
-const SECTION = /^\.([A-Z][A-Z0-9 /&(),'-]*?)\.\.\.(.*)$/;
+/** ".SHORT TERM /Through Wednesday Night/...": capitals first; the period part may be mixed case. */
+const SECTION = /^\.([A-Z][A-Z0-9 &'-]*(?:\s*[/(][^.]*?[/)])?)\s*\.\.\.(.*)$/;
 /** "11/345 PM.", "12/1757Z.", "Issued at 1050 AM CDT Mon Oct 12 2026", "1258 PM EDT" after a heading. */
 const STAMP = /^(?:issued at\s+)?(?:\d{1,2}\/)?\d{3,4}\s*(?:Z|AM|PM)?(?:\s+[A-Z]{3,4})?(?:\s+\w{3}\s+\w{3}\s+\d{1,2}\s+\d{4})?\.?\s*/i;
 
@@ -204,9 +205,19 @@ export function parseAfd(text: string): ParsedAfd {
     const { head, body } = cur;
     cur = null;
     if (SKIP.test(head)) return;
-    const paragraphs = toParagraphs(body.filter((l) => !/^\s*issued at \d/i.test(l)));
+    const kept = body.filter((l) => !/^\s*(?:issued|updated)(?: at)? \d{3,4}\s*(?:AM|PM|Z)/i.test(l));
+    let paragraphs = toParagraphs(kept);
+    // Some offices put the period on its own line: "(Rest of today and tonight)".
+    let periodLine: string | null = null;
+    const lead = paragraphs[0]?.match(/^\(([^()]{3,60})\)$/);
+    if (lead) {
+      periodLine = lead[1]!;
+      paragraphs = paragraphs.slice(1);
+    }
     if (!paragraphs.length) return;
-    const { title, period } = heading(head);
+    const h = heading(head);
+    const title = h.title;
+    const period = h.period ?? (periodLine ? sentenceCase(periodLine) : null);
     const id = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     sections.push({ id, title, period, specialty: SPECIALTY.test(head), paragraphs });
   };

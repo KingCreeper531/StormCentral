@@ -77,7 +77,7 @@ export function rankStations(raw: unknown, p: LatLon, nowMs: number): AcisStatio
   if (!Array.isArray(list)) return [];
   const recent = new Date(nowMs - 45 * 86_400_000).toISOString().slice(0, 10);
   const oldest = new Date(nowMs - 30 * 365.25 * 86_400_000).toISOString().slice(0, 10);
-  const out: (AcisStation & { score: number })[] = [];
+  const out: { station: AcisStation; score: number }[] = [];
   for (const m of list) {
     const range = m.valid_daterange?.[0];
     if (!m.ll || !m.sids?.length || !range || range[1] < recent || range[0] > oldest) continue;
@@ -87,9 +87,9 @@ export function rankStations(raw: unknown, p: LatLon, nowMs: number): AcisStatio
     // An airport counts as 25 km closer; each decade of record beyond 30 years as 3 km closer.
     const years = (Date.parse(range[1]) - Date.parse(range[0])) / (365.25 * 86_400_000);
     const score = distanceKm - (faa ? 25 : 0) - Math.max(0, years - 30) * 0.3;
-    out.push({ name: m.name ?? "Station", sid: own.split(" ")[0]!, faa, lat: m.ll[1], lon: m.ll[0], distanceKm, start: range[0], end: range[1], score });
+    out.push({ station: { name: m.name ?? "Station", sid: own.split(" ")[0]!, faa, lat: m.ll[1], lon: m.ll[0], distanceKm, start: range[0], end: range[1] }, score });
   }
-  return out.sort((a, b) => a.score - b.score).map(({ score: _score, ...s }) => s);
+  return out.sort((a, b) => a.score - b.score).map((o) => o.station);
 }
 
 /** "BURBANK VALLEY PUMP PLANT" → "Burbank Valley Pump Plant"; mixed case is left alone. */

@@ -87,9 +87,8 @@ export function FireSmokePanel({ f, air, now, className }: { f: Forecast; air: A
               <span aria-hidden className="size-2 shrink-0 rounded-[2px]" style={{ background: LEVEL_COLOR[d.level] }} />
               {FIRE_LEVELS[d.level]}
             </p>
-            <p className="mt-0.5 truncate text-[11px] text-ink-3 tabular">
-              RH {fmt.percent(d.minRh)}, gust {fmt.wind(d.maxGust)}
-            </p>
+            <p className="mt-0.5 text-[11px] leading-snug text-ink-3 tabular">Humidity {fmt.percent(d.minRh)}</p>
+            <p className="text-[11px] leading-snug text-ink-3 tabular">Gusts {fmt.wind(d.maxGust)}</p>
           </li>
         ))}
       </ol>

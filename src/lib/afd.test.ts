@@ -44,6 +44,43 @@ describe("parseAfd", () => {
     expect(r.glossary.map((g) => g.term)).toContain("Santa Ana winds");
   });
 
+  it("reads mixed-case periods, period lines and drops update stamps", () => {
+    const text = [
+      "National Weather Service Norman OK",
+      "",
+      ".KEY MESSAGES...",
+      "Updated at 1235 PM CDT Mon Oct 12 2026",
+      "",
+      "- Remaining unseasonably hot through Tuesday.",
+      "",
+      "&&",
+      "",
+      ".SHORT TERM /Through Wednesday Night/...",
+      "The closed upper level low center is overhead.",
+      "",
+      "&&",
+      "",
+      ".NEAR TERM...",
+      "(Rest of today and tonight)",
+      "Issued 1148 AM MDT MON OCT 12 2026",
+      "",
+      "Hot and breezy.",
+      "",
+      "&&",
+      "",
+      ".PRELIMINARY POINT TEMPS/POPS...",
+      "Houston (IAH)   77  92  77  92 /  30  60  20  10",
+      "",
+      "$$",
+    ].join("\n");
+    const r = parseAfd(text);
+    expect(r.summary?.items).toEqual(["Remaining unseasonably hot through Tuesday."]);
+    expect(r.sections.map((s) => [s.id, s.period, s.paragraphs])).toEqual([
+      ["short-term", "Through Wednesday night", ["The closed upper level low center is overhead."]],
+      ["near-term", "Rest of today and tonight", ["Hot and breezy."]],
+    ]);
+  });
+
   it("returns an empty result for text that isn't a discussion", () => {
     const r = parseAfd("nothing here");
     expect(r.summary).toBeNull();
