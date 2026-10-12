@@ -47,7 +47,12 @@ export type Feed =
   | "outlook"
   | "stormReports"
   | "stormCells"
-  | "tropical";
+  | "tropical"
+  | "floodGauges"
+  | "forecasterNotes"
+  | "climate"
+  | "wildfires"
+  | "recentPrecip";
 
 const MIN = 60_000;
 
@@ -64,6 +69,11 @@ export const POLLING: Record<Feed, Partial<Record<ModeId, number | false>> & { d
   stormReports: { default: false, severe: 2 * MIN },
   stormCells: { default: false, severe: 2 * MIN },
   tropical: { default: false, daily: 30 * MIN, severe: 15 * MIN },
+  floodGauges: { default: false, daily: 15 * MIN },
+  forecasterNotes: { default: false, daily: 30 * MIN },
+  climate: { default: false, daily: 12 * 60 * MIN },
+  wildfires: { default: false, daily: 30 * MIN },
+  recentPrecip: { default: false, daily: 30 * MIN },
 };
 
 export function pollFor(feed: Feed, mode: ModeId): number | false {

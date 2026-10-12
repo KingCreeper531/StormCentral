@@ -202,6 +202,44 @@ export async function fetchForecast(lat: number, lon: number, signal?: AbortSign
   return parseForecast(raw);
 }
 
+// ─── Recent rainfall ────────────────────────────────────────────────────────
+
+/** Hourly and daily precipitation for the last 31 days and the next 3 (model analysis, not gauges). */
+export interface RecentPrecip {
+  timezone: string;
+  fetchedAt: number;
+  /** Epoch seconds; each value is the total for the hour *ending* at that time. */
+  hourly: { time: number[]; precip: Series };
+  /** Epoch seconds of local midnight. */
+  daily: { time: number[]; precip: Series; snow: Series };
+}
+
+export function recentPrecipUrl(lat: number, lon: number) {
+  return `${FORECAST_URL}?${qs({
+    latitude: lat.toFixed(4),
+    longitude: lon.toFixed(4),
+    timezone: "auto",
+    timeformat: "unixtime",
+    past_days: 31,
+    forecast_days: 3,
+    hourly: "precipitation",
+    daily: ["precipitation_sum", "snowfall_sum"],
+  })}`;
+}
+
+export function parseRecentPrecip(input: unknown, fetchedAt = Date.now()): RecentPrecip {
+  const raw = input as { timezone: string; hourly?: RawBlock; daily?: RawBlock };
+  const hTime = (raw.hourly?.time as number[]) ?? [];
+  const dTime = (raw.daily?.time as number[]) ?? [];
+  const h = remap(raw.hourly, { precipitation: "precip" } as const, hTime.length);
+  const d = remap(raw.daily, { precipitation_sum: "precip", snowfall_sum: "snow" } as const, dTime.length);
+  return { timezone: raw.timezone, fetchedAt, hourly: { time: hTime, precip: h.precip }, daily: { time: dTime, precip: d.precip, snow: d.snow } };
+}
+
+export async function fetchRecentPrecip(lat: number, lon: number, signal?: AbortSignal): Promise<RecentPrecip> {
+  return parseRecentPrecip(await getJson(recentPrecipUrl(lat, lon), { signal }));
+}
+
 // ─── Air quality ────────────────────────────────────────────────────────────
 
 const AIR_HOURLY = {
@@ -215,6 +253,7 @@ const AIR_HOURLY = {
   carbon_monoxide: "co",
   uv_index: "uv",
   dust: "dust",
+  aerosol_optical_depth: "aod",
   alder_pollen: "alder",
   birch_pollen: "birch",
   olive_pollen: "olive",

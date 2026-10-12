@@ -27,7 +27,7 @@ Press **1–5** to switch modes and **⌘K / Ctrl-K** to search any place. Hover
 
 | Mode | What you get |
 |---|---|
-| **Daily** | Conditions hero with an animated sky that tracks the real sun position; 15-minute nowcast; 24 h temperature and precipitation charts; 10-day range bars; wind compass, pressure tendency, UV, visibility, AQI, sun arc and moon phase; live radar preview; **SPC tornado / hail / wind probabilities** when you're in a risk area; spotter reports near you. |
+| **Daily** | Conditions hero with an animated sky that tracks the real sun position; 15-minute nowcast; 24 h temperature and precipitation charts; 10-day range bars; wind compass, pressure tendency, UV, visibility, AQI, sun arc and moon phase; live radar preview; **SPC tornado / hail / wind probabilities** when you're in a risk area; **forecaster notes** (your NWS office's discussion with key messages up front, the full text and a jargon decoder); **compared with normal** (official normals and record highs/lows for the date, rain this month vs. normal, the week's departures); **rainfall and flooding** (totals so far and ahead, flood alerts, NWS river gauges with flood stages and forecast crests); **fire and smoke** (fire-weather level for 3 days, smoke/haze from PM2.5, Red Flag Warnings and active wildfires nearby); spotter reports near you. |
 | **Radar** (fullscreen) | NEXRAD national mosaic or any single WSR-88D site, with **future radar** (the next 6 hours of HRRR model reflectivity after the live loop) and **lightning** (NOAA strike density, last 15 minutes). Products: reflectivity, velocity, storm-relative velocity, CC, ZDR and hydrometeor classification. Tilt selection is driven by what the radar is actually producing. Buffer-aware loop playback (play/pause/step, 0.5–4×, cross-fade). NWS warning polygons in official hazard colors with PDS/emergency tags, **projected storm tracks with ETA to your location**, SPC Day 1 outlook (categorical or **tornado / hail / wind probabilities**, hatched where significant), **official NWS storm reports** (hail size, wind speed, tornadoes, fading with age), **NEXRAD storm cells** (TVS, mesocyclone, max hail size, 15–60 min forecast track and arrival time at your location), the **NHC hurricane tracker** (cone, track, intensity forecast), **GOES infrared / visible satellite** looping with the radar, and **export the loop as a GIF or video**. |
 | **UAV Pilot** | Flyability score with a factor breakdown per airframe class, an hourly go/no-go strip, wind at flight altitude vs. the airframe limit, a 10/80/120/180 m wind profile with **bulk shear and veer**, NOAA Kp index, **GNSS sky plot with satellite count and PDOP/HDOP** (SGP4 from CelesTrak), an estimated cloud ceiling against the Part 107 500-ft clearance, visibility and density altitude. |
 | **Angler** | Bite Index with explained reasons, an hourly bite timeline with solunar bands, moon phase and solunar major/minor periods, a 48 h barometer with Met Office tendency terms, **USGS real-time river gauges** (discharge, stage, 24 h change, water temperature), and an estimated water temperature where no gauge reports one. |
@@ -68,13 +68,13 @@ never run code. Format and examples: [`examples/addons`](examples/addons).
 | Science | Custom ephemerides, wind and thermodynamics, DOP; **satellite.js** (SGP4) on the server |
 | Icons | [Makin-Things/weather-icons](https://github.com/Makin-Things/weather-icons) (animated SVG, MIT) + Lucide for UI chrome |
 | Apps | **Electron 44** + **electron-updater** (Windows), **Capacitor 8** (Android), released by GitHub Actions |
-| Tests | **Vitest**: 189 unit tests across science, radar, parsers, feeds, alerting, security and the DB schema |
+| Tests | **Vitest**: 244 unit tests across science, radar, parsers, feeds, alerting, security and the DB schema |
 
 ## Data sources
 
 | Data | Source | Accessed from |
 |---|---|---|
-| Forecast, nowcast, air quality, pollen, geocoding | [Open-Meteo](https://open-meteo.com) (CC BY 4.0) | Browser (CORS) |
+| Forecast, nowcast, recent rainfall, air quality and smoke, pollen, geocoding | [Open-Meteo](https://open-meteo.com) (CC BY 4.0) | Browser (CORS) |
 | Radar: MRMS national mosaic, super-resolution NEXRAD reflectivity and velocity | [NOAA/NWS GeoServer](https://opengeo.ncep.noaa.gov) (radar.weather.gov's backend) | Browser (WMS tiles) + `/api/radar/noaa` |
 | Other radar products, and radar fallback | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) | Browser (tiles) + `/api/radar/*` |
 | Watches, warnings, storm motion | [api.weather.gov](https://www.weather.gov/documentation/services-web-api) | `/api/alerts` |
@@ -86,6 +86,10 @@ never run code. Format and examples: [`examples/addons`](examples/addons).
 | GOES-East/West satellite imagery | [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api) | Browser (WMS tiles) |
 | Planetary Kp | [NOAA SWPC](https://www.swpc.noaa.gov) | `/api/space-weather` |
 | River discharge, stage, water temperature | [USGS Water Services](https://waterservices.usgs.gov) (OGC API fallback) | `/api/rivers` |
+| River forecast points, flood stages and forecast crests | [NOAA National Water Prediction Service](https://water.noaa.gov) | `/api/flood-gauges` |
+| Forecaster notes (Area Forecast Discussion) | [api.weather.gov](https://www.weather.gov/documentation/services-web-api) | `/api/forecaster-notes` |
+| Daily normals (1991–2020) and records | [NOAA ACIS](https://www.rcc-acis.org) (threaded NWS climate sites) | `/api/climate` |
+| Active wildfires | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | `/api/wildfires` |
 | GNSS orbital elements | [CelesTrak](https://celestrak.org) | `/api/gnss` |
 | Reverse geocoding | BigDataCloud free client API | Browser |
 | Google AI forecast (GraphCast) | Google DeepMind GraphCast, run by NOAA, via [Open-Meteo](https://open-meteo.com) | Browser |
