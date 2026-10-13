@@ -465,6 +465,10 @@ export function AppSettings() {
           <a href={`https://github.com/${GITHUB_REPO}/releases/latest`} target="_blank" rel="noreferrer" className="text-ink-2 underline-offset-2 hover:underline">
             Latest version and release notes
           </a>
+          {" · "}
+          <Link href="/privacy" className="text-ink-2 underline-offset-2 hover:underline">
+            Privacy policy
+          </Link>
         </p>
       </div>
     </div>
