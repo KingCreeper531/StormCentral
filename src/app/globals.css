@@ -231,6 +231,18 @@ body {
   background: transparent;
 }
 
+/* Vivid days put pale blue sky behind the page, where the light theme's
+   near-white controls (secondary buttons, fields, selects) would fade into
+   it. Give hairlines more weight and lift those controls with a soft shadow. */
+:root[data-sky="vivid"][data-theme="light"] {
+  --color-line: #cdd3db;
+  --color-line-strong: #b3bac4;
+}
+:root[data-sky="vivid"][data-theme="light"] :is(button, a, select, input, textarea).bg-surface-2,
+:root[data-sky="vivid"][data-theme="light"] :is(button, a, select, input, textarea).bg-surface-1 {
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.14), 0 2px 8px rgb(15 23 42 / 0.08);
+}
+
 /* The sun disc's slow glow. */
 @keyframes sky-breathe {
   0%,
