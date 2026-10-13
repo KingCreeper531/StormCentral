@@ -226,11 +226,15 @@ function quitFromTray() {
   app.quit();
 }
 
-/** Packaged Windows/macOS builds only: a dev build would register the bare Electron binary. */
-const loginItemSupported = () => app.isPackaged && (process.platform === "win32" || process.platform === "darwin");
+/**
+ * Packaged Windows/macOS builds only: a dev build would register the bare
+ * Electron binary, and a Store (MSIX) app can't add itself to startup.
+ */
+const loginItemSupported = () => app.isPackaged && !process.windowsStore && (process.platform === "win32" || process.platform === "darwin");
 
 function currentSettings() {
-  const s = publicSettings(settings.get());
+  /** @type {import("./settings.mjs").PublicSettings & { launchAtLoginSupported?: boolean }} */
+  const s = { ...publicSettings(settings.get()), launchAtLoginSupported: loginItemSupported() || !app.isPackaged };
   // Windows owns the truth: the user may have removed the entry in Task Manager or Settings.
   if (loginItemSupported()) s.launchAtLogin = app.getLoginItemSettings(LOGIN_ITEM).openAtLogin;
   return s;

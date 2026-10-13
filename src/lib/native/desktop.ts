@@ -11,6 +11,8 @@ export interface DesktopSettings {
   closeToTray: boolean;
   /** Start hidden in the tray when the user signs in (installed Windows builds). */
   launchAtLogin: boolean;
+  /** False in the Microsoft Store version, which can't add itself to startup. Missing in older apps (supported). */
+  launchAtLoginSupported?: boolean;
 }
 
 export interface TrayStatus {
@@ -26,8 +28,8 @@ export interface TrayStatus {
 }
 
 export interface DesktopUpdateStatus {
-  /** current: up to date. downloading: a newer version is on its way. ready: restart to install. */
-  state: "current" | "downloading" | "ready" | "error" | "unsupported";
+  /** current: up to date. downloading: a newer version is on its way. ready: restart to install. store: the Microsoft Store updates it. */
+  state: "current" | "downloading" | "ready" | "error" | "unsupported" | "store";
   current: string;
   latest: string | null;
 }
