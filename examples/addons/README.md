@@ -1,4 +1,4 @@
-# StormCentral add-ons
+# Storm Central add-ons
 
 Themes and plugins are a single JSON file named `stormcentral.json`, hosted in a
 public GitHub repository (or gist). Add-ons are data only: colours and map
@@ -41,11 +41,11 @@ repository. It then shows up under **Browse community add-ons** in the app.
 }
 ```
 
-- `"sky": "vivid"` (optional) turns on StormCentral's built-in vivid sky:
+- `"sky": "vivid"` (optional) turns on Storm Central's built-in vivid sky:
   full, saturated animated backgrounds that follow the live weather and time
   of day (sun and moon, drifting clouds, rain, snow, lightning), with
   bright, airy day skies and deep starry nights. With `"sky": "vivid"`,
-  `colors` may be empty to keep StormCentral's own light and dark colours,
+  `colors` may be empty to keep Storm Central's own light and dark colours,
   as the Sky theme does.
 - `base` is `"dark"`, `"light"` or `"auto"` (light while the sun is up at the
   selected location, dark at night). It picks the basemap, and any colour you

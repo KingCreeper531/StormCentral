@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     try {
       await sendMail({
         to: email,
-        subject: "Reset your StormCentral password",
+        subject: "Reset your Storm Central password",
         text: `Hi ${user.username},\n\nUse this link to choose a new password. It works once, for ${RESET_MINUTES} minutes:\n\n${link}\n\nIf you didn't ask for this, you can ignore this email; your password stays the same.\n`,
         html: `<p>Hi ${user.username},</p><p>Use this link to choose a new password. It works once, for ${RESET_MINUTES} minutes:</p><p><a href="${link}">Reset my password</a></p><p>If you didn't ask for this, you can ignore this email; your password stays the same.</p>`,
       });

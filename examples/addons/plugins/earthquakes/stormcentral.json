@@ -1,7 +1,7 @@
 {
   "type": "plugin",
   "name": "Earthquakes",
-  "author": "StormCentral",
+  "author": "Storm Central",
   "description": "Recent earthquakes from the USGS.",
   "version": "1.0.0",
   "layers": [

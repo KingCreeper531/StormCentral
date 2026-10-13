@@ -1,7 +1,7 @@
 {
   "type": "theme",
   "name": "Sky",
-  "author": "StormCentral",
+  "author": "Storm Central",
   "description": "Bright animated skies that follow the weather and time of day: airy blue days, indigo starry nights. Light by day, dark at night.",
   "version": "2.0.0",
   "base": "auto",

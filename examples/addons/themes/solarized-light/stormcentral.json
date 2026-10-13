@@ -1,7 +1,7 @@
 {
   "type": "theme",
   "name": "Solarized Light",
-  "author": "StormCentral",
+  "author": "Storm Central",
   "description": "The light Solarized palette.",
   "version": "1.0.0",
   "base": "light",

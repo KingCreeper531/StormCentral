@@ -2,7 +2,7 @@
  * Android background runner (Capacitor Background Runner).
  *
  * A headless JavaScript context, separate from the web view, that Android
- * wakes about every 15 minutes, even while StormCentral is closed. It runs the
+ * wakes about every 15 minutes, even while Storm Central is closed. It runs the
  * same alert engine as the page and refreshes the home-screen widget's data.
  * Built to out/runners/background.js by scripts/build-native.mjs (esbuild).
  *
@@ -175,6 +175,6 @@ addEventListener("check", (resolve, reject) => {
 });
 
 addEventListener("test", (resolve) => {
-  notify({ id: 1, title: "StormCentral notifications are on", body: "You'll be notified about warnings and your custom alerts.", kind: "test" });
+  notify({ id: 1, title: "Storm Central notifications are on", body: "You'll be notified about warnings and your custom alerts.", kind: "test" });
   resolve();
 });

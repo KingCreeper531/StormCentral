@@ -5,7 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 
 /**
- * Runs after StormCentral is updated (MY_PACKAGE_REPLACED, sent only by the
+ * Runs after Storm Central is updated (MY_PACKAGE_REPLACED, sent only by the
  * system to the updated app): keeps the background checks scheduled and says
  * the update is done, since an update closes the app.
  */
@@ -20,7 +20,7 @@ public class PackageReplacedReceiver extends BroadcastReceiver {
                 || "confirm".equals(AppUpdater.prefs(ctx).getString(AppUpdater.PREF_STATE, ""));
         AppUpdater.prefs(ctx).edit().putString(AppUpdater.PREF_STATE, "installed").apply();
         if (ours) {
-            Notifier.show(ctx, AlertsWorker.id("updated"), Notifier.ALERTS, "StormCentral updated",
+            Notifier.show(ctx, AlertsWorker.id("updated"), Notifier.ALERTS, "Storm Central updated",
                     "You're on version " + AppUpdater.installedVersion(ctx) + ". Tap to open.");
         }
     }

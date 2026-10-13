@@ -15,7 +15,7 @@ import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 
 /**
- * Posts StormCentral's notifications straight through Android's
+ * Posts Storm Central's notifications straight through Android's
  * NotificationManager, with one channel per kind so each can be tuned (or
  * silenced) in the system settings. Used by {@link AlertsWorker} whether the
  * app is open or closed, so there is a single, native delivery path.

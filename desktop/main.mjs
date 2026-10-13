@@ -1,10 +1,10 @@
 // @ts-check
 /**
- * StormCentral for Windows. An Electron window around the app's own Next.js
+ * Storm Central for Windows. An Electron window around the app's own Next.js
  * server, which runs locally (server.mjs), so every feature works with no
  * hosting: radar, all modes, and accounts and reports stored on this PC.
  *
- * A build can instead point at a hosted StormCentral (STORMCENTRAL_URL at
+ * A build can instead point at a hosted Storm Central (STORMCENTRAL_URL at
  * build time, baked into package.json by electron-builder.config.mjs), so all
  * users share one spotter network. Updates come from GitHub Releases.
  *
@@ -99,7 +99,7 @@ const ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width=
 /** @param {string} body */
 const page = (body) =>
   "data:text/html;charset=utf-8," +
-  encodeURIComponent(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>StormCentral</title>
+  encodeURIComponent(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Storm Central</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
 <style>html,body{height:100%;margin:0;background:#000;color:#a8acb3;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
 main{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:0 24px}
@@ -107,12 +107,12 @@ h1{margin:0;font-size:15px;font-weight:600;color:#ececed}p{margin:0;max-width:42
 a{display:inline-block;margin-top:6px;padding:7px 14px;border:1px solid #25282d;border-radius:6px;background:#16181b;color:#ececed;text-decoration:none}
 a:hover{background:#1f2226}</style></head><body><main>${ICON}${body}</main></body></html>`);
 
-const SPLASH = page(`<p>Starting StormCentral…</p>`);
+const SPLASH = page(`<p>Starting Storm Central…</p>`);
 
 /** @param {string} url @param {string} reason */
 const offlinePage = (url, reason) =>
   page(
-    `<h1>Can't reach StormCentral</h1><p>Check your internet connection. (${reason.replace(/[<>&"]/g, "")})</p><a href="${encodeURI(url)}">Try again</a>`,
+    `<h1>Can't reach Storm Central</h1><p>Check your internet connection. (${reason.replace(/[<>&"]/g, "")})</p><a href="${encodeURI(url)}">Try again</a>`,
   );
 
 // ─── Window, menu and security ──────────────────────────────────────────────
@@ -127,7 +127,7 @@ function createWindow({ hidden }) {
     minHeight: 560,
     show: false,
     backgroundColor: "#000000",
-    title: "StormCentral",
+    title: "Storm Central",
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
@@ -212,7 +212,7 @@ function showTrayHintOnce() {
   settings.update({ trayHintShown: true });
   if (!Notification.isSupported()) return;
   trayHint = new Notification({
-    title: "StormCentral is still running",
+    title: "Storm Central is still running",
     body: "It keeps checking for warnings. Quit from the tray icon.",
     icon: appIcon(),
     silent: true,
@@ -326,7 +326,7 @@ function showAbout() {
   const win = mainWindow;
   const opts = /** @type {import("electron").MessageBoxOptions} */ ({
     type: "info",
-    message: `StormCentral ${app.getVersion()}`,
+    message: `Storm Central ${app.getVersion()}`,
     detail: `Open-data weather, NEXRAD radar and a community spotter network.\n\nElectron ${process.versions.electron} · ${REMOTE_URL ? `Server: ${REMOTE_URL}` : "Local server"}\nData folder: ${app.getPath("userData")}`,
   });
   void (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts));
@@ -359,7 +359,7 @@ function buildMenu() {
         { label: "Release notes", click: () => openExternal(`https://github.com/${REPO}/releases`) },
         { label: "Open logs folder", click: () => void shell.openPath(app.getPath("logs")) },
         { type: "separator" },
-        { label: "About StormCentral", click: showAbout },
+        { label: "About Storm Central", click: showAbout },
       ],
     },
   ]);
@@ -370,9 +370,9 @@ function onServerCrash(code) {
   log(`server crashed (code ${code})`);
   const opts = /** @type {import("electron").MessageBoxOptions} */ ({
     type: "error",
-    buttons: ["Restart StormCentral", "Quit"],
+    buttons: ["Restart Storm Central", "Quit"],
     defaultId: 0,
-    message: "StormCentral stopped unexpectedly",
+    message: "Storm Central stopped unexpectedly",
     detail: `The local server exited (code ${code}). Details are in ${app.getPath("logs")}.`,
   });
   // A dialog parented to a window hidden in the tray could go unseen.
@@ -387,7 +387,7 @@ function onServerCrash(code) {
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
 async function start() {
-  log(`StormCentral ${app.getVersion()} starting (${REMOTE_URL ? `remote ${REMOTE_URL}` : "local server"})`);
+  log(`Storm Central ${app.getVersion()} starting (${REMOTE_URL ? `remote ${REMOTE_URL}` : "local server"})`);
   hardenSessions();
   registerIpc();
   Menu.setApplicationMenu(buildMenu());
@@ -408,7 +408,7 @@ async function start() {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       log(`startup failed: ${message}`);
-      dialog.showErrorBox("StormCentral couldn't start", `${message}\n\nDetails are in ${app.getPath("logs")}.`);
+      dialog.showErrorBox("Storm Central couldn't start", `${message}\n\nDetails are in ${app.getPath("logs")}.`);
       app.exit(1);
       return;
     }

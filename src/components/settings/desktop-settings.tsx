@@ -45,9 +45,9 @@ export function DesktopSettings() {
   // Sign-in launch is a Windows (and macOS) login item; Linux builds have no equivalent.
   const loginLabel =
     bridge.platform === "win32"
-      ? "Start StormCentral when you sign in to Windows"
+      ? "Start Storm Central when you sign in to Windows"
       : bridge.platform === "darwin"
-        ? "Start StormCentral when you log in"
+        ? "Start Storm Central when you log in"
         : null;
 
   return (
@@ -72,7 +72,7 @@ export function DesktopSettings() {
         )
       )}
       {settings?.closeToTray && (
-        <p className="mt-2 text-xs text-ink-3">With the window closed, StormCentral keeps checking for warnings. Quit from the tray icon.</p>
+        <p className="mt-2 text-xs text-ink-3">With the window closed, Storm Central keeps checking for warnings. Quit from the tray icon.</p>
       )}
       {error && (
         <p role="alert" className="mt-2 text-xs text-ink-2">

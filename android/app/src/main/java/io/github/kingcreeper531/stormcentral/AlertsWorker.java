@@ -27,7 +27,7 @@ import java.util.Locale;
 import java.util.TimeZone;
 
 /**
- * StormCentral's notifications on Android, done natively.
+ * Storm Central's notifications on Android, done natively.
  *
  * <p>WorkManager runs this about every 15 minutes, whether the app is open,
  * closed or swiped away, and again after a reboot. The page also asks for a
@@ -39,7 +39,7 @@ import java.util.TimeZone;
  * <ul>
  *   <li>NWS warnings (api.weather.gov), each announced once;</li>
  *   <li>lightning nearby (NOAA nowCOAST strike density, last 15 minutes);</li>
- *   <li>severe spotter reports nearby (the StormCentral server, when there is one);</li>
+ *   <li>severe spotter reports nearby (the Storm Central server, when there is one);</li>
  *   <li>the morning briefing, once a day at the chosen time.</li>
  * </ul>
  *
@@ -157,8 +157,8 @@ public final class AlertsWorker extends Worker {
         JSONObject cfg = readConfig(ctx);
         if (cfg == null) return "waiting for the app to save your settings";
         JSONObject settings = cfg.optJSONObject("settings");
-        if (settings == null || !settings.optBoolean("enabled", false)) return "notifications are off in StormCentral";
-        if (!Notifier.allowed(ctx)) return "Android is blocking StormCentral's notifications";
+        if (settings == null || !settings.optBoolean("enabled", false)) return "notifications are off in Storm Central";
+        if (!Notifier.allowed(ctx)) return "Android is blocking Storm Central's notifications";
 
         List<Place> all = places(cfg);
         boolean watchCurrent = settings.optBoolean("watchCurrent", true);
