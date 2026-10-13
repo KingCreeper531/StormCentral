@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { reverseGeocode } from "@/lib/api/open-meteo";
+import { getFreshPosition, PositionError } from "@/lib/device-position";
 import { useAppStore } from "@/store/app-store";
 
 export function useGeolocate() {
@@ -16,20 +17,18 @@ export function useGeolocate() {
       return;
     }
     setState("locating");
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
+    getFreshPosition(navigator.geolocation)
+      .then(async (pos) => {
         const { latitude: lat, longitude: lon } = pos.coords;
         const name = await reverseGeocode(lat, lon).catch(() => "My location");
         setLocation({ lat, lon, name, source: "gps" });
         setState("idle");
         setError(null);
-      },
-      (err) => {
+      })
+      .catch((err: unknown) => {
         setState("error");
-        setError(err.code === err.PERMISSION_DENIED ? "Location permission denied" : "Couldn't get your location");
-      },
-      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 5 * 60_000 },
-    );
+        setError(err instanceof PositionError ? err.message : "Couldn't get your location");
+      });
   }, [setLocation]);
 
   return { locate, state, error };
