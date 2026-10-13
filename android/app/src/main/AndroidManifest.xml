@@ -124,5 +124,7 @@
     <uses-feature android:name="android.hardware.location" android:required="false" />
     <!-- Severe weather and custom alerts (Android 13+ asks the user). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Lets people exempt StormCentral from battery optimization so warning checks aren't delayed. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 </manifest>

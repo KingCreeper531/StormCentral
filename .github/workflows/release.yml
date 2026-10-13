@@ -261,24 +261,45 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - name: Collect the installers of the releases on the Releases page
+      - name: Collect the downloads of the releases on the Releases page
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p site/download
-          {
-            echo '<!doctype html><meta charset="utf-8"><title>StormCentral downloads</title>'
-            echo '<h1>StormCentral downloads</h1><ul>'
-          } > site/index.html
+          items=""
           for tag in $(gh release list --repo "$GITHUB_REPOSITORY" --limit 10 --json tagName --jq '.[].tagName'); do
             v="${tag#v}"
-            file="StormCentral-Setup-$v.exe"
             mkdir -p "site/download/$v"
-            if gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern "$file" --dir "site/download/$v"; then
-              echo "<li><a href=\"download/$v/$file\">$file</a></li>" >> site/index.html
-            fi
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern "StormCentral-Setup-$v.exe" --pattern "StormCentral-$v.apk" --dir "site/download/$v" || true
+            links=""
+            [ -f "site/download/$v/StormCentral-Setup-$v.exe" ] && links="$links<a href=\"download/$v/StormCentral-Setup-$v.exe\">Windows installer</a>"
+            [ -f "site/download/$v/StormCentral-$v.apk" ] && links="$links<a href=\"download/$v/StormCentral-$v.apk\">Android APK</a>"
+            [ -n "$links" ] && items="$items<li><h2>StormCentral $v</h2><p>$links</p></li>"
           done
-          echo '</ul>' >> site/index.html
+          cat > site/index.html <<HTML
+          <!doctype html>
+          <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>StormCentral downloads</title>
+          <style>
+            :root { color-scheme: dark light; --bg:#000; --ink:#f4f5f7; --ink2:#a4abb8; --line:#262a31; --accent:#5b9cf6; }
+            @media (prefers-color-scheme: light) { :root { --bg:#f4f5f7; --ink:#0e0f11; --ink2:#4b5260; --line:#d8dce3; --accent:#2563d4; } }
+            body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui, sans-serif; }
+            main { max-width:40rem; margin:0 auto; padding:40px 16px; }
+            h1 { font-size:1.6rem; margin:0 0 4px; } h2 { font-size:1rem; margin:0 0 8px; }
+            p.lead { color:var(--ink2); margin:0 0 24px; } ul { list-style:none; padding:0; margin:0; }
+            li { border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:12px; }
+            a { display:inline-block; margin:0 8px 8px 0; padding:8px 12px; border-radius:6px; border:1px solid var(--line); color:var(--ink); text-decoration:none; }
+            a:hover { border-color:var(--accent); } footer { color:var(--ink2); font-size:.85rem; margin-top:24px; }
+            footer a { border:0; padding:0; margin:0; color:var(--accent); }
+          </style></head>
+          <body><main>
+          <h1>StormCentral downloads</h1>
+          <p class="lead">Free, open-source weather for Windows and Android. The newest version is first.</p>
+          <ul>$items</ul>
+          <footer>Release notes and source: <a href="https://github.com/$GITHUB_REPOSITORY/releases">GitHub Releases</a>.
+          Free code signing provided by <a href="https://about.signpath.io/">SignPath.io</a>, certificate by <a href="https://signpath.org/">SignPath Foundation</a>.</footer>
+          </main></body></html>
+          HTML
           touch site/.nojekyll
           find site -type f -exec ls -la {} \;
       - uses: actions/upload-pages-artifact@v3
