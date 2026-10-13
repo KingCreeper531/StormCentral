@@ -521,6 +521,41 @@ final class WeatherWidgetData {
         return Math.round(value * 10.0) / 10.0;
     }
 
+    /** Words for a WMO weather code (matches lib/weather/wmo.ts). */
+    static String describe(int code) {
+        switch (code) {
+            case 0: return "Clear";
+            case 1: return "Mostly clear";
+            case 2: return "Partly cloudy";
+            case 3: return "Overcast";
+            case 45: return "Fog";
+            case 48: return "Freezing fog";
+            case 51: return "Light drizzle";
+            case 53: return "Drizzle";
+            case 55: return "Heavy drizzle";
+            case 56: return "Freezing drizzle";
+            case 57: return "Heavy freezing drizzle";
+            case 61: return "Light rain";
+            case 63: return "Rain";
+            case 65: return "Heavy rain";
+            case 66: return "Freezing rain";
+            case 67: return "Heavy freezing rain";
+            case 71: return "Light snow";
+            case 73: return "Snow";
+            case 75: return "Heavy snow";
+            case 77: return "Snow grains";
+            case 80: return "Light showers";
+            case 81: return "Showers";
+            case 82: return "Violent showers";
+            case 85: return "Snow showers";
+            case 86: return "Heavy snow showers";
+            case 95: return "Thunderstorms";
+            case 96: return "Thunderstorms with hail";
+            case 99: return "Severe thunderstorms with hail";
+            default: return "Mixed conditions";
+        }
+    }
+
     /** An emoji for a WMO weather code (the moon for clear nights). */
     static String icon(int code, boolean isDay) {
         switch (code) {

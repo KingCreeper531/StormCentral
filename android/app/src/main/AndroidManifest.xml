@@ -110,6 +110,15 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_clock_info" />
         </receiver>
+        <!-- In-app update results (only our own PackageInstaller session reaches it). -->
+        <receiver android:name=".InstallStatusReceiver" android:exported="false" />
+        <!-- After an update: keep background checks scheduled and say it's done. -->
+        <receiver android:name=".PackageReplacedReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
     <!-- Permissions -->
@@ -124,5 +133,10 @@
     <uses-feature android:name="android.hardware.location" android:required="false" />
     <!-- Severe weather and custom alerts (Android 13+ asks the user). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- In-app updates: install the newer APK (asks once), and later updates without a prompt on Android 12+. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+    <!-- Lets people exempt StormCentral from battery optimization so warning checks aren't delayed. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 </manifest>

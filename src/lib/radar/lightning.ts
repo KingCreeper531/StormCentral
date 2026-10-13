@@ -1,5 +1,5 @@
 /**
- * Lightning: NOAA nowCOAST lightning strike density (ground-based network,
+ * Lightning: NOAA nowCOAST lightning strike density (layer ldn_lightning_strike_density; ground-based network,
  * 15-minute windows, ~8 km grid), served by nowCOAST's GeoServer as WMS.
  * NOAA notes it is not meant for lightning-safety decisions: it is coarse and
  * a few minutes behind.
@@ -15,7 +15,7 @@ export function lightningTileUrl(slot: number): string {
     "service=WMS",
     "version=1.3.0",
     "request=GetMap",
-    "layers=lightning_detection",
+    "layers=ldn_lightning_strike_density",
     "styles=",
     "format=image/png",
     "transparent=true",

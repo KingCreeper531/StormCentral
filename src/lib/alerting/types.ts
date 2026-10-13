@@ -56,7 +56,17 @@ export interface AlertSettings {
   categories?: Partial<Record<AlertCategory, boolean>>;
   /** Custom alerts (forecast thresholds); missing means on. */
   custom?: boolean;
+  /** A daily forecast summary at a chosen time ("HH:MM", the device's clock). Missing means off. */
+  briefing?: { enabled: boolean; time: string };
+  /** Lightning detected within `radiusKm` of a watched place. Missing means off. */
+  lightning?: { enabled: boolean; radiusKm: number };
+  /** Severe spotter reports within `radiusKm` of a watched place. Missing means off. */
+  spotter?: { enabled: boolean; radiusKm: number };
 }
+
+export const DEFAULT_BRIEFING = { enabled: false, time: "07:00" } as const;
+export const DEFAULT_LIGHTNING = { enabled: false, radiusKm: 16 } as const;
+export const DEFAULT_SPOTTER = { enabled: false, radiusKm: 40 } as const;
 
 /**
  * Everything the alert engine needs, as plain JSON. The page builds it from
@@ -69,6 +79,12 @@ export interface WatchConfig {
   rules: AlertRule[];
   units: { temp: TempUnit; wind: WindUnit };
   drone: { altitudeM: number; profileId: string };
+  /**
+   * The spotter network this app talks to, for nearby-report alerts: its
+   * origin, the signed-in username (their own reports aren't announced) and
+   * the accounts they blocked. Null without a spotter network.
+   */
+  community?: { url: string; username: string | null; muted: string[] } | null;
 }
 
 /** A notification the engine wants shown. `id` is a stable 31-bit integer. */
@@ -76,5 +92,5 @@ export interface AppNotification {
   id: number;
   title: string;
   body: string;
-  kind: "warning" | "custom" | "test";
+  kind: "warning" | "custom" | "test" | "lightning" | "spotter" | "briefing";
 }

@@ -36,10 +36,11 @@ export function ErrorNote({ error, what }: { error: unknown; what: string }) {
  * Switch with its label. The whole row is the touch target (44 px tall on
  * touch screens); the track grows to 24×44 there so the state reads at a glance.
  */
-export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+/** `hideLabel`: the label is for screen readers only (a row already shows it). */
+export function Toggle({ checked, onChange, label, hideLabel = false }: { checked: boolean; onChange: (v: boolean) => void; label: string; hideLabel?: boolean }) {
   return (
     <label className="flex min-h-10 cursor-pointer items-center justify-between gap-3 text-[13px] text-ink-2 pointer-coarse:min-h-11">
-      <span>{label}</span>
+      <span className={hideLabel ? "sr-only" : undefined}>{label}</span>
       <button
         type="button"
         role="switch"

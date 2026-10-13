@@ -1,15 +1,18 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Bell, MapPin, Plus, Search, Trash2 } from "lucide-react";
+import { BatteryCharging, Bell, MapPin, Plus, Search, Settings2, Trash2 } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { searchPlaces } from "@/lib/api/open-meteo";
 import { fromDisplay, METRICS, metricDef, toDisplay, unitLabel, describeRule, type MetricGroup } from "@/lib/alerting/metrics";
 import { nativePermission, showNativeNotification } from "@/lib/alerting/notify-native";
 import { announcePermission, requestWebPermission, showWebNotification, webPermission } from "@/lib/alerting/notify-web";
-import { ALERT_CATEGORIES, CURRENT_PLACE_ID, type RuleMetric, type RuleOp } from "@/lib/alerting/types";
+import { ALERT_CATEGORIES, CURRENT_PLACE_ID, DEFAULT_BRIEFING, DEFAULT_LIGHTNING, DEFAULT_SPOTTER, type RuleMetric, type RuleOp } from "@/lib/alerting/types";
+import { nativeAlerts, nativeAlertsAvailable, type NativeAlertsStatus } from "@/lib/native/storm-alerts";
 import { runnerPermission } from "@/lib/native/runner-bridge";
-import { isNativeApp } from "@/lib/platform";
+import { COMMUNITY_ENABLED, isNativeApp } from "@/lib/platform";
+import { timeAgo } from "@/lib/time";
+import { useNow } from "@/hooks/use-now";
 import { MAX_PLACES, MAX_RULES, useAlertsStore } from "@/store/alerts-store";
 import { useAppStore } from "@/store/app-store";
 import { Button, IconButton } from "../ui/button";
@@ -51,10 +54,61 @@ function usePermission() {
   return { native, perm, request };
 }
 
+/** Android 0.4.3+: what the native checker last did, and whether anything is in its way. */
+function useNativeStatus() {
+  const available = useSyncExternalStore(noSubscribe, nativeAlertsAvailable, () => false);
+  const [status, setStatus] = useState<NativeAlertsStatus | null>(null);
+  useEffect(() => {
+    if (!available) return;
+    let live = true;
+    const read = () => void nativeAlerts.status().then((s) => live && setStatus(s), () => {});
+    read();
+    const t = setInterval(read, 15_000);
+    document.addEventListener("visibilitychange", read);
+    return () => {
+      live = false;
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", read);
+    };
+  }, [available]);
+  return { available, status };
+}
+
+function NativeStatus({ status }: { status: NativeAlertsStatus }) {
+  const now = useNow(15_000);
+  return (
+    <div className="mt-3 space-y-2 rounded-[var(--radius-control)] border border-line bg-surface-2 px-3 py-2.5 text-xs text-ink-2">
+      <p>
+        <span className="font-medium text-ink">Background checks:</span>{" "}
+        {status.lastRun ? `last ran ${timeAgo(status.lastRun, now)}${status.lastResult ? ` (${status.lastResult})` : ""}.` : "waiting for the first run (needs a network connection)."}
+      </p>
+      {!status.allowed && <p className="text-nogo">Android is blocking StormCentral&apos;s notifications. Turn them on in notification settings.</p>}
+      {!status.batteryUnrestricted && (
+        <p>
+          Battery optimization can delay checks by an hour or more on some phones. Allow StormCentral to run in the background so warnings arrive on time.
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2 pt-0.5">
+        {!status.batteryUnrestricted && (
+          <Button size="sm" onClick={() => void nativeAlerts.requestBatteryExemption().catch(() => {})}>
+            <BatteryCharging className="size-4" aria-hidden />
+            Allow background activity
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={() => void nativeAlerts.openNotificationSettings().catch(() => {})}>
+          <Settings2 className="size-4" aria-hidden />
+          Notification settings
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function NotificationsPanel() {
   const settings = useAlertsStore((s) => s.settings);
   const setSettings = useAlertsStore((s) => s.setSettings);
   const { native, perm, request } = usePermission();
+  const nativeChecks = useNativeStatus();
   const [tested, setTested] = useState<"no" | "sent" | "failed">("no");
 
   // The switch always follows the tap; if permission is refused, the status line says so.
@@ -66,9 +120,13 @@ function NotificationsPanel() {
     if (perm !== "granted" && (await request()) !== "granted") return;
     const n = { id: 1, title: "StormCentral", body: "Notifications are working. Warnings for your places will look like this.", kind: "test" as const };
     try {
-      if (native) await showNativeNotification(n);
-      else showWebNotification(n);
-      setTested("sent");
+      // Android 0.4.3+: through the same native path real alerts use.
+      if (nativeChecks.available) setTested((await nativeAlerts.test()).shown ? "sent" : "failed");
+      else {
+        if (native) await showNativeNotification(n);
+        else showWebNotification(n);
+        setTested("sent");
+      }
     } catch {
       setTested("failed");
     }
@@ -124,6 +182,89 @@ function NotificationsPanel() {
         {tested === "sent" ? "Sent" : "Send a test notification"}
       </Button>
       {tested === "failed" && <p className="mt-2 text-xs text-nogo">Couldn&apos;t show a notification. Check that StormCentral&apos;s notifications are allowed in your phone&apos;s settings.</p>}
+      {nativeChecks.available && nativeChecks.status && settings.enabled && <NativeStatus status={nativeChecks.status} />}
+    </Panel>
+  );
+}
+
+/** Distance choices in the person's units, stored in km. */
+function distanceOptions(imperial: boolean, km: readonly number[]) {
+  return km.map((k) => ({ value: String(k), label: imperial ? `${Math.round(k / 1.609)} mi` : `${k} km` }));
+}
+
+const SELECT =
+  "h-9 rounded-[var(--radius-control)] border border-line bg-surface-2 px-2 text-sm text-ink outline-none focus:border-accent disabled:opacity-40 pointer-coarse:h-11";
+
+function OptionRow({ label, hint, children }: { label: string; hint: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2.5">
+      <div className="min-w-0 flex-1 basis-48">
+        <p className="text-sm text-ink">{label}</p>
+        <p className="text-xs text-ink-3">{hint}</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">{children}</div>
+    </div>
+  );
+}
+
+/** Morning briefing, lightning nearby and nearby spotter reports. */
+function MoreAlertsPanel() {
+  const settings = useAlertsStore((s) => s.settings);
+  const setSettings = useAlertsStore((s) => s.setSettings);
+  const imperial = useAppStore((s) => s.units.distance) === "mi";
+  const briefing = settings.briefing ?? DEFAULT_BRIEFING;
+  const lightning = settings.lightning ?? DEFAULT_LIGHTNING;
+  const spotter = settings.spotter ?? DEFAULT_SPOTTER;
+  const off = !settings.enabled;
+  return (
+    <Panel title="More notifications" subtitle={off ? "Turn on Notify me above to use these" : "For your watched places"}>
+      <div className="divide-y divide-line">
+        <OptionRow label="Morning briefing" hint="Today's high and low, rain chance and anything notable, once a day">
+          <input
+            type="time"
+            aria-label="Briefing time"
+            value={briefing.time}
+            disabled={off || !briefing.enabled}
+            onChange={(e) => e.target.value && setSettings({ briefing: { ...briefing, time: e.target.value } })}
+            className={SELECT}
+          />
+          <Toggle hideLabel label="Morning briefing" checked={briefing.enabled} onChange={(enabled) => setSettings({ briefing: { ...briefing, enabled } })} />
+        </OptionRow>
+        <OptionRow label="Lightning nearby" hint="Strikes in the last 15 minutes (NOAA), at most every 45 minutes per place">
+          <select
+            aria-label="Lightning distance"
+            value={String(lightning.radiusKm)}
+            disabled={off || !lightning.enabled}
+            onChange={(e) => setSettings({ lightning: { ...lightning, radiusKm: Number(e.target.value) } })}
+            className={SELECT}
+          >
+            {distanceOptions(imperial, [8, 16, 32, 48]).map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <Toggle hideLabel label="Lightning nearby" checked={lightning.enabled} onChange={(enabled) => setSettings({ lightning: { ...lightning, enabled } })} />
+        </OptionRow>
+        {COMMUNITY_ENABLED && (
+          <OptionRow label="Nearby spotter reports" hint="Tornado, hail, wind damage, flooding or other serious reports from the last hour">
+            <select
+              aria-label="Spotter report distance"
+              value={String(spotter.radiusKm)}
+              disabled={off || !spotter.enabled}
+              onChange={(e) => setSettings({ spotter: { ...spotter, radiusKm: Number(e.target.value) } })}
+              className={SELECT}
+            >
+              {distanceOptions(imperial, [16, 40, 80, 160]).map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <Toggle hideLabel label="Nearby spotter reports" checked={spotter.enabled} onChange={(enabled) => setSettings({ spotter: { ...spotter, enabled } })} />
+          </OptionRow>
+        )}
+      </div>
     </Panel>
   );
 }
@@ -348,6 +489,7 @@ export function AlertsSettings() {
   return (
     <div className="space-y-4">
       <NotificationsPanel />
+      <MoreAlertsPanel />
       <PlacesPanel />
       <RulesPanel />
       <p className="text-xs text-ink-3">Places and alerts are stored on this device only. Notifications can be late or missed; always follow official warnings.</p>

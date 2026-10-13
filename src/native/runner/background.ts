@@ -113,7 +113,9 @@ async function check() {
   const cfg = readConfig();
   if (!cfg) return;
   const warnCfg = cfg.settings.watchCurrent ? cfg : { ...cfg, places: cfg.places.filter((p) => p.id !== CURRENT_PLACE_ID) };
-  const { alerts } = await checkWarnings(warnCfg, io);
+  // App 0.4.3+ notifies about warnings natively (AlertsWorker.java); then this only gathers them for the widget.
+  const native = kvGet("native-last-run") != null || kvGet("nativeAlerts") === "1";
+  const { alerts } = await checkWarnings(native ? { ...warnCfg, settings: { ...warnCfg.settings, enabled: false } } : warnCfg, io);
   const { cache } = await checkRules(cfg, io);
 
   // The widget follows the app's selected location.

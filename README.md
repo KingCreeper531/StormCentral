@@ -15,7 +15,7 @@ Free code signing provided by [SignPath.io](https://about.signpath.io/), certifi
 | Device | File | Updates |
 |---|---|---|
 | **Windows 10 / 11** (64-bit) | `StormCentral-Setup-<version>.exe` | Automatic. The app downloads new releases in the background and asks to restart. |
-| **Android 7.0+** | `StormCentral-<version>.apk` | The app shows a notice when a new release is out; tap **Download** and install it over the old one. |
+| **Android 7.0+** | `StormCentral-<version>.apk` | In the app (0.4.3 and newer). Tap **Update** and it downloads and installs itself; Android asks once to allow it. With automatic updates on (Settings → App), new versions install in the background, and on Android 12+ without a prompt after the first in-app update. |
 
 - **Windows:** the installer isn't code-signed yet, so SmartScreen may say "Windows protected your PC". Choose **More info → Run anyway**. It installs for your user only, with no admin prompt.
 - **Android:** open the APK on your phone and allow your browser to install apps when asked.
@@ -178,7 +178,7 @@ cd android && ./gradlew assembleRelease    # → android/app/build/outputs/apk/r
 1. Bump `version` in `package.json` (it is the version of the web app, the Windows app and the APK), commit and push.
 2. Tag it: `git tag v0.2.0 && git push origin v0.2.0`. You can also run **Release apps** from the Actions tab with **publish** ticked.
 3. The workflow checks the code, builds the installer and the APK, and publishes the GitHub release. Installed Windows apps update themselves from it, and Android apps offer the new APK.
-4. It also copies the installer to GitHub Pages at `https://kingcreeper531.github.io/StormCentral/download/<version>/StormCentral-Setup-<version>.exe`. The Microsoft Store needs a download link that doesn't redirect, which GitHub release links always do. Turn this on once under **Settings → Pages → Source: GitHub Actions**. The newest release and the one before it are kept, so the Store's link keeps working until the listing is updated.
+4. It also publishes a download page at `https://kingcreeper531.github.io/StormCentral/` with the installer and APK of each release on the Releases page, e.g. `…/download/<version>/StormCentral-Setup-<version>.exe`. The Microsoft Store needs a download link that doesn't redirect, which GitHub release links always do. Turn this on once under **Settings → Pages → Source: GitHub Actions**. The newest release and the one before it are kept, so the Store's link keeps working until the listing is updated.
 
 Optional repository secrets:
 
