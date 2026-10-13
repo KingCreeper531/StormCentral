@@ -111,6 +111,83 @@ export const commentSchema = z.object({
 
 export const MAX_IMAGE_BYTES = 2.5 * 1024 * 1024;
 
+/* ---------- Blocking and moderation ---------- */
+
+/** Why someone flags a report, comment or account for the moderators. */
+export const FLAG_REASONS = {
+  spam: "Spam or advertising",
+  harassment: "Harassment or bullying",
+  hate: "Hateful or abusive content",
+  sexual: "Sexual or graphic content",
+  violence: "Threats or violence",
+  misleading: "False or misleading weather report",
+  privacy: "Shares someone's private information",
+  other: "Something else",
+} as const;
+
+export type FlagReason = keyof typeof FLAG_REASONS;
+export const FLAG_REASON_IDS = Object.keys(FLAG_REASONS) as [FlagReason, ...FlagReason[]];
+export const FLAG_TARGETS = ["post", "comment", "user"] as const;
+export type FlagTarget = (typeof FLAG_TARGETS)[number];
+
+/** Open flags from this many different people hide a report or comment until a moderator looks at it. */
+export const AUTO_HIDE_FLAGS = 3;
+
+export const flagSchema = z.object({
+  type: z.enum(FLAG_TARGETS),
+  id: z.string().trim().min(1).max(64),
+  reason: z.enum(FLAG_REASON_IDS),
+  details: z.string().trim().max(500, "Keep it under 500 characters").optional(),
+});
+
+export const blockSchema = z.object({ username });
+
+/** Suspension lengths a moderator can choose, in days; 0 means permanent. */
+export const SUSPENSION_DAYS = [1, 7, 30, 0] as const;
+/** Stored for permanent suspensions (year 9999). */
+export const PERMANENT_SUSPENSION = 253_402_300_799_000;
+
+export const moderationActionSchema = z.discriminatedUnion("action", [
+  /** Close the flags and show the content again. */
+  z.object({ action: z.literal("keep"), type: z.enum(FLAG_TARGETS), id: z.string().min(1).max(64) }),
+  /** Delete the report or comment and close its flags. */
+  z.object({ action: z.literal("remove"), type: z.enum(["post", "comment"]), id: z.string().min(1).max(64) }),
+  z.object({ action: z.literal("suspend"), username, days: z.union([z.literal(1), z.literal(7), z.literal(30), z.literal(0)]) }),
+  z.object({ action: z.literal("unsuspend"), username }),
+]);
+export type ModerationAction = z.infer<typeof moderationActionSchema>;
+
+/** "Suspended until Oct 20, 2026" / "Suspended" for permanent suspensions. */
+export function suspensionText(until: number) {
+  if (until >= PERMANENT_SUSPENSION) return "This account has been suspended.";
+  return `This account is suspended until ${new Date(until).toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" })}.`;
+}
+
+export interface BlockedUserDto {
+  username: string;
+  displayName: string;
+  avatarHue: number;
+  avatarUrl: string | null;
+  blockedAt: number;
+}
+
+/** One flagged item in the moderation queue, with every open flag against it. */
+export interface QueueItemDto {
+  type: FlagTarget;
+  id: string;
+  /** Hidden from others while it waits for review. */
+  hidden: boolean;
+  firstFlaggedAt: number;
+  flags: { reason: FlagReason; details: string | null; reporter: string; createdAt: number }[];
+  author: { username: string; displayName: string; avatarHue: number; avatarUrl: string | null; suspendedUntil: number | null } | null;
+  /** The flagged text: a report's or comment's body, or an account's bio. */
+  body: string | null;
+  image: string | null;
+  createdAt: number | null;
+  /** For a comment: the report it belongs to. */
+  postId: string | null;
+}
+
 /** Placeholder names that say nothing about where a report is ("My location"). */
 export const isGenericPlace = (p: string | null | undefined) => !p || /^(my|current|your)( current)? location$/i.test(p.trim());
 
@@ -141,6 +218,8 @@ export interface PostDto {
   comments: number;
   viewerVerified: boolean;
   isOwn: boolean;
+  /** Only ever true for the author: hidden from everyone else while flags await a moderator. */
+  hidden: boolean;
   distanceKm?: number;
 }
 
@@ -150,6 +229,7 @@ export interface CommentDto {
   createdAt: number;
   author: Omit<PostAuthor, "reputation">;
   isOwn: boolean;
+  hidden: boolean;
 }
 
 export interface FeedResponse {

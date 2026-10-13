@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/client";
 import { media, users } from "@/lib/db/schema";
-import { forbidden, sameOrigin, tooMany, unauthorized } from "@/lib/server/guard";
+import { forbidden, sameOrigin, suspended, tooMany, unauthorized } from "@/lib/server/guard";
 import { imageSize, sniffImage, stripMetadata } from "@/lib/server/image";
 import { rateLimit } from "@/lib/server/rate-limit";
 
@@ -29,6 +29,8 @@ export async function POST(req: Request) {
   if (!sameOrigin(req)) return forbidden();
   const user = await getSessionUser({ refresh: true });
   if (!user) return unauthorized();
+  const blocked = suspended(user);
+  if (blocked) return blocked;
   const rl = rateLimit(`avatar:${user.id}`, 10, 15 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
 

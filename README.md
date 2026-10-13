@@ -111,6 +111,7 @@ That's all you need. A SQLite database is created at `./data/stormcentral.db` on
 |---|---|
 | `DATABASE_URL` | `file:./data/stormcentral.db` (default) or a `libsql://` Turso URL for serverless deploys |
 | `DATABASE_AUTH_TOKEN` | Turso auth token |
+| `MODERATORS` | Comma-separated usernames who can review reported content and suspend accounts (see below) |
 | `NEXT_PUBLIC_MAPTILER_KEY` | Optional; switches the basemap to MapTiler `dataviz-dark` |
 | `NWS_USER_AGENT` | Contact string sent to api.weather.gov (required by NWS policy) |
 
@@ -134,6 +135,8 @@ The shared spotter network needs one hosted copy of the web app. Vercel's free p
 1. On [vercel.com](https://vercel.com), choose **Continue with GitHub**, then **Add New → Project**, import this repository and click **Deploy**.
 2. In the project, open **Storage → Create Database → Turso**, create it and connect it to the project. Vercel adds `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` itself (`DATABASE_URL` / `DATABASE_AUTH_TOKEN` also work). Then **Deployments → Redeploy**.
 3. Point the apps at it: put the site's `https://` address in `STORMCENTRAL_URL` in `.github/workflows/release.yml` (or set a repository variable of that name) and publish a release.
+
+**Moderation.** People can block each other and report reports, comments and accounts from the ⋯ menu. Content reported by three different people is hidden until someone reviews it. To review it yourself, set `MODERATORS` to your username (comma-separate several) in the project's environment variables and redeploy. Moderators get a **Moderation queue** link in Settings → Account, where they can keep or remove reported content and suspend accounts for 1, 7 or 30 days, or permanently. Suspended accounts can still read, but can't post, comment, confirm or edit their profile, and their content is hidden while the suspension lasts.
 
 **Password reset emails.** Add `SMTP_URL` in the project's environment variables. A Gmail app password works: `smtps://you%40gmail.com:APPPASSWORD@smtp.gmail.com:465` (optionally `MAIL_FROM`, e.g. `StormCentral <you@gmail.com>`). Environment variables only reach new deployments, so redeploy **Production** after adding it. Without it, signed-in users can still change their password in Settings, but "Forgot your password?" says email isn't set up.
 

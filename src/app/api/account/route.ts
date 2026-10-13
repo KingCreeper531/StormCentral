@@ -1,10 +1,10 @@
-import { eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { verifyPassword } from "@/lib/auth/password";
 import { destroySession, getSessionUser } from "@/lib/auth/session";
 import { deleteAccountSchema, firstIssue, profileSchema } from "@/lib/community";
 import { getDb } from "@/lib/db/client";
-import { comments, media, passwordResets, posts, sessions, users, verifications } from "@/lib/db/schema";
-import { forbidden, sameOrigin, tooMany, unauthorized } from "@/lib/server/guard";
+import { blocks, comments, flags, media, passwordResets, posts, sessions, users, verifications } from "@/lib/db/schema";
+import { forbidden, sameOrigin, suspended, tooMany, unauthorized } from "@/lib/server/guard";
 import { rateLimit } from "@/lib/server/rate-limit";
 
 const noStore = { "Cache-Control": "no-store" };
@@ -14,6 +14,8 @@ export async function PATCH(req: Request) {
   if (!sameOrigin(req)) return forbidden();
   const user = await getSessionUser({ refresh: true });
   if (!user) return unauthorized();
+  const blocked = suspended(user);
+  if (blocked) return blocked;
   const parsed = profileSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: firstIssue(parsed.error) }, { status: 400, headers: noStore });
   const db = await getDb();
@@ -53,7 +55,13 @@ export async function DELETE(req: Request) {
   const own = (await db.select({ id: posts.id }).from(posts).where(eq(posts.userId, user.id))).map((p) => p.id);
   const onOwnPosts = own.length ? [inArray(verifications.postId, own)] : [];
   const commentsOnOwn = own.length ? [inArray(comments.postId, own)] : [];
+  const ownComments = (await db.select({ id: comments.id }).from(comments).where(or(eq(comments.userId, user.id), ...commentsOnOwn))).map((c) => c.id);
+  const flagged = [eq(flags.reporterId, user.id), and(eq(flags.targetType, "user"), eq(flags.targetId, user.id))];
+  if (own.length) flagged.push(and(eq(flags.targetType, "post"), inArray(flags.targetId, own)));
+  if (ownComments.length) flagged.push(and(eq(flags.targetType, "comment"), inArray(flags.targetId, ownComments)));
   await db.batch([
+    db.delete(flags).where(or(...flagged)),
+    db.delete(blocks).where(or(eq(blocks.blockerId, user.id), eq(blocks.blockedId, user.id))),
     db.delete(verifications).where(or(eq(verifications.userId, user.id), ...onOwnPosts)),
     db.delete(comments).where(or(eq(comments.userId, user.id), ...commentsOnOwn)),
     db.delete(posts).where(eq(posts.userId, user.id)),

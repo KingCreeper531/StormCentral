@@ -359,6 +359,8 @@ export interface SessionUser {
   displayName: string;
   avatarHue: number;
   avatarUrl: string | null;
+  moderator: boolean;
+  suspendedUntil: number | null;
 }
 
 export function useSession() {

@@ -308,6 +308,14 @@ export function Composer() {
                     </span>
                   </label>
 
+                  <p className="label">
+                    By posting, you agree to follow the{" "}
+                    <Link href="/community" onClick={close} className="text-ink-2 underline underline-offset-2">
+                      community guidelines
+                    </Link>
+                    .
+                  </p>
+
                   {submit.error && (
                     <p role="alert" className="rounded-[var(--radius-control)] border border-nogo/30 bg-nogo/10 px-3 py-2 text-xs text-ink-2">
                       {(submit.error as Error).message}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BadgeCheck, Loader2, MessageSquare, Trash2 } from "lucide-react";
+import { BadgeCheck, EyeOff, Loader2, MessageSquare, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { getJson } from "@/lib/api/http";
@@ -14,6 +14,7 @@ import { useFormat } from "@/hooks/use-format";
 import { useNow } from "@/hooks/use-now";
 import { Button } from "../ui/button";
 import { Avatar } from "../ui/misc";
+import { ActionMenu, confirmBlock, ReportDialog, useBlock, type MenuAction } from "./moderation";
 
 /** Chip recipe from DESIGN.md §5: hairline, 4 px corners, 11 px text. Colour only as a swatch. */
 const CHIP = "inline-flex items-center gap-1.5 rounded-[4px] border border-line px-1.5 py-px text-[11px] font-medium text-ink-2";
@@ -56,6 +57,8 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
   const qc = useQueryClient();
   const { data: viewer } = useSession();
   const [showComments, setShowComments] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const blockUser = useBlock();
   const [verified, setVerified] = useState({ on: post.viewerVerified, n: post.verifications });
   const cat = CATEGORIES[post.category] ?? CATEGORIES.observation;
   const tier = tierFor(post.author.reputation);
@@ -72,6 +75,19 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
     mutationFn: () => send(`/api/posts/${post.id}`, "DELETE"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["posts"] }),
   });
+
+  const menu: MenuAction[] = [];
+  if (viewer && !post.isOwn) {
+    menu.push({ label: "Report this report", icon: "report", onSelect: () => setReporting(true) });
+    menu.push({
+      label: `Block ${post.author.displayName}`,
+      icon: "block",
+      danger: true,
+      onSelect: () => confirmBlock(post.author.displayName) && blockUser.mutate({ username: post.author.username, blocked: true }),
+    });
+    if (viewer.moderator)
+      menu.push({ label: "Remove (moderator)", icon: "remove", danger: true, onSelect: () => confirm("Remove this report for everyone?") && remove.mutate() });
+  }
 
   const snap = post.conditions;
   const profile = `/u/${post.author.username}`;
@@ -116,6 +132,13 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
           </p>
         </div>
       </header>
+
+      {post.hidden && (
+        <p className="mt-3 flex items-start gap-2 rounded-[var(--radius-control)] border border-caution/40 bg-caution/10 px-3 py-2 text-xs text-ink-2">
+          <EyeOff className="mt-px size-3.5 shrink-0" aria-hidden />
+          Hidden from others while moderators review reports about it. Only you can see it.
+        </p>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className={CHIP}>
@@ -197,9 +220,20 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
               Delete
             </Button>
           )}
+          {menu.length > 0 && (
+            <div className="ml-auto">
+              <ActionMenu label="More actions" actions={menu} />
+            </div>
+          )}
         </footer>
       )}
+      {(blockUser.error || remove.error) && (
+        <p role="alert" className="mt-2 text-xs text-ink-2">
+          {((blockUser.error ?? remove.error) as Error).message}
+        </p>
+      )}
       {showComments && <Comments postId={post.id} now={now} />}
+      {reporting && <ReportDialog type="post" id={post.id} onClose={() => setReporting(false)} />}
     </article>
   );
 }
@@ -221,6 +255,31 @@ function Comments({ postId, now }: { postId: string; now: number }) {
     },
   });
   const comments = list.data ?? [];
+  const [reporting, setReporting] = useState<string | null>(null);
+  const blockUser = useBlock();
+  const removeComment = useMutation({
+    mutationFn: (id: string) => send(`/api/comments/${id}`, "DELETE"),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["comments", postId] });
+      void qc.invalidateQueries({ queryKey: ["posts"] });
+    },
+  });
+  const commentMenu = (c: CommentDto): MenuAction[] => {
+    if (!viewer) return [];
+    if (c.isOwn) return [{ label: "Delete comment", icon: "delete", danger: true, onSelect: () => confirm("Delete this comment?") && removeComment.mutate(c.id) }];
+    const items: MenuAction[] = [
+      { label: "Report comment", icon: "report", onSelect: () => setReporting(c.id) },
+      {
+        label: `Block ${c.author.displayName}`,
+        icon: "block",
+        danger: true,
+        onSelect: () => confirmBlock(c.author.displayName) && blockUser.mutate({ username: c.author.username, blocked: true }),
+      },
+    ];
+    if (viewer.moderator)
+      items.push({ label: "Remove (moderator)", icon: "remove", danger: true, onSelect: () => confirm("Remove this comment for everyone?") && removeComment.mutate(c.id) });
+    return items;
+  };
   return (
     <div className="mt-2 border-t border-line pt-1">
       {list.isLoading && <p className="py-2.5 text-xs text-ink-3">Loading comments…</p>}
@@ -236,6 +295,10 @@ function Comments({ postId, now }: { postId: string; now: number }) {
                   <span className="shrink-0 text-xs text-ink-3 tabular">{timeAgo(c.createdAt, now)}</span>
                 </p>
                 <p className="text-[13px] leading-relaxed break-words whitespace-pre-wrap text-ink-2">{c.body}</p>
+                {c.hidden && <p className="mt-0.5 text-xs text-ink-3">Hidden from others while moderators review it.</p>}
+              </div>
+              <div className="-mt-1 -mr-2 shrink-0">
+                <ActionMenu label="Comment actions" actions={commentMenu(c)} />
               </div>
             </li>
           ))}
@@ -270,11 +333,12 @@ function Comments({ postId, now }: { postId: string; now: number }) {
           to comment.
         </p>
       )}
-      {add.error && (
+      {(add.error || blockUser.error || removeComment.error) && (
         <p role="alert" className="mt-2 text-xs text-ink-2">
-          {(add.error as Error).message}
+          {((add.error ?? blockUser.error ?? removeComment.error) as Error).message}
         </p>
       )}
+      {reporting && <ReportDialog type="comment" id={reporting} onClose={() => setReporting(null)} />}
     </div>
   );
 }

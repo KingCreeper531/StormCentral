@@ -1,13 +1,15 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Camera, Loader2, Trash2 } from "lucide-react";
+import { Camera, ChevronRight, Loader2, ShieldCheck, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useRef, useState } from "react";
 import { getJson } from "@/lib/api/http";
+import { suspensionText, type BlockedUserDto } from "@/lib/community";
 import { qk, useSession } from "@/hooks/queries";
 import { Field, INPUT } from "../community/auth-form";
+import { useBlock } from "../community/moderation";
 import { ChangePasswordPanel } from "../community/password-forms";
 import { Button } from "../ui/button";
 import { Avatar } from "../ui/misc";
@@ -156,6 +158,62 @@ function ProfilePanel({ profile, hue }: { profile: Profile; hue: number }) {
   );
 }
 
+/** Accounts this person has blocked, each with Unblock. */
+function BlockedAccountsPanel() {
+  const blocked = useQuery({
+    queryKey: ["blocks"],
+    queryFn: ({ signal }) => getJson<{ blocked: BlockedUserDto[] }>("/api/blocks", { signal }).then((r) => r.blocked),
+  });
+  const unblock = useBlock();
+  const list = blocked.data ?? [];
+  return (
+    <Panel title="Blocked accounts" subtitle="You don't see each other's reports or comments, and can't interact">
+      {blocked.isLoading && <p className="text-[13px] text-ink-3">Loading…</p>}
+      {blocked.error && <p className="text-[13px] text-ink-3">Couldn&apos;t load your blocked accounts.</p>}
+      {blocked.isSuccess && !list.length && (
+        <p className="text-[13px] text-ink-3">You haven&apos;t blocked anyone. Use the ⋯ menu on a report, comment or profile to block someone.</p>
+      )}
+      {list.length > 0 && (
+        <ul className="-my-2 divide-y divide-line">
+          {list.map((b) => (
+            <li key={b.username} className="flex items-center gap-3 py-2">
+              <Avatar name={b.displayName} hue={b.avatarHue} src={b.avatarUrl} size={28} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-ink">{b.displayName}</p>
+                <p className="truncate text-xs text-ink-3">@{b.username}</p>
+              </div>
+              <Button size="sm" onClick={() => unblock.mutate({ username: b.username, blocked: false })} disabled={unblock.isPending}>
+                Unblock
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {unblock.error && (
+        <p role="alert" className="mt-2 text-xs text-ink-2">
+          {(unblock.error as Error).message}
+        </p>
+      )}
+    </Panel>
+  );
+}
+
+/** Moderators: a way into the review queue. */
+function ModerationLink() {
+  return (
+    <Panel padded={false}>
+      <Link href="/moderation" className="flex min-h-14 items-center gap-3 px-4 text-sm text-ink hover:bg-surface-2 sm:px-5">
+        <ShieldCheck className="size-4 shrink-0 text-ink-3" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium">Moderation queue</span>
+          <span className="block text-xs text-ink-3">Review reported content and accounts</span>
+        </span>
+        <ChevronRight className="size-4 shrink-0 text-ink-3" aria-hidden />
+      </Link>
+    </Panel>
+  );
+}
+
 function DeleteAccountPanel() {
   const uid = useId();
   const router = useRouter();
@@ -223,8 +281,15 @@ export function AccountSection() {
   if (!session.data || !profile.data) return null;
   return (
     <>
+      {session.data.suspendedUntil != null && (
+        <p role="status" className="rounded-[var(--radius-control)] border border-nogo/30 bg-nogo/10 px-3 py-2 text-[13px] text-ink-2">
+          {suspensionText(session.data.suspendedUntil)} You can still read reports, but you can&apos;t post, comment, confirm or edit your profile.
+        </p>
+      )}
+      {session.data.moderator && <ModerationLink />}
       <ProfilePanel key={`${profile.data.displayName}|${profile.data.bio ?? ""}`} profile={profile.data} hue={session.data.avatarHue} />
       <ChangePasswordPanel />
+      <BlockedAccountsPanel />
       <DeleteAccountPanel />
     </>
   );
