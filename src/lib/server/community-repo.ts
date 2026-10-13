@@ -1,10 +1,10 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, gte, inArray, lt, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import type { CommentDto, ConditionsSnapshot, FeedResponse, PostDto } from "../community";
 import { avatarUrl, conditionsSchema } from "../community";
 import { getDb } from "../db/client";
-import { comments, media, posts, users, verifications } from "../db/schema";
+import { comments, flags, media, posts, users, verifications } from "../db/schema";
 import { haversineKm, type BBox, type LatLon } from "../geo";
 
 const PAGE = 20;
@@ -13,6 +13,21 @@ const PAGE = 20;
 const reputationSql = sql<number>`(
   SELECT COUNT(*) FROM verifications v JOIN posts p2 ON p2.id = v.post_id WHERE p2.user_id = ${users.id}
 )`;
+
+/** No block between the viewer and the user in `userCol`, in either direction. */
+export function notBlocked(viewerId: string | null, userCol: SQL | typeof posts.userId | typeof comments.userId): SQL | undefined {
+  if (!viewerId) return undefined;
+  return sql`NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ${viewerId} AND b.blocked_id = ${userCol}) OR (b.blocker_id = ${userCol} AND b.blocked_id = ${viewerId}))`;
+}
+
+/**
+ * What others may see: content that isn't hidden for review, from accounts
+ * that aren't suspended. Authors always see their own.
+ */
+function visible(viewerId: string | null, hidden: typeof posts.hidden | typeof comments.hidden, userId: typeof posts.userId | typeof comments.userId, now: number) {
+  const shown = and(eq(hidden, 0), or(isNull(users.suspendedUntil), lte(users.suspendedUntil, now)));
+  return viewerId ? or(eq(userId, viewerId), shown) : shown;
+}
 
 export type FeedQuery =
   | { sort: "latest"; cursor?: string | null }
@@ -30,7 +45,8 @@ function decodeCursor(cursor: string | null | undefined) {
 
 export async function listPosts(q: FeedQuery, viewerId: string | null): Promise<FeedResponse> {
   const db = await getDb();
-  const where = [];
+  const now = Date.now();
+  const where: (SQL | undefined)[] = [visible(viewerId, posts.hidden, posts.userId, now), notBlocked(viewerId, posts.userId)];
   let limit = PAGE;
 
   if ("cursor" in q) {
@@ -55,7 +71,10 @@ export async function listPosts(q: FeedQuery, viewerId: string | null): Promise<
   if (q.sort === "user") where.push(eq(users.username, q.username));
 
   const verifyCount = sql<number>`(SELECT COUNT(*) FROM verifications v WHERE v.post_id = ${posts.id})`;
-  const commentCount = sql<number>`(SELECT COUNT(*) FROM comments c WHERE c.post_id = ${posts.id})`;
+  // Counts only the comments this viewer would see.
+  const commentCount = sql<number>`(SELECT COUNT(*) FROM comments c JOIN users cu ON cu.id = c.user_id WHERE c.post_id = ${posts.id}
+    AND (c.user_id = ${viewerId ?? ""} OR (c.hidden = 0 AND (cu.suspended_until IS NULL OR cu.suspended_until <= ${now})))
+    ${viewerId ? sql`AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ${viewerId} AND b.blocked_id = c.user_id) OR (b.blocker_id = c.user_id AND b.blocked_id = ${viewerId}))` : sql``})`;
 
   const rows = await db
     .select({
@@ -73,7 +92,7 @@ export async function listPosts(q: FeedQuery, viewerId: string | null): Promise<
     .from(posts)
     .innerJoin(users, eq(posts.userId, users.id))
     .leftJoin(media, eq(posts.mediaId, media.id))
-    .where(where.length ? and(...where) : undefined)
+    .where(and(...where))
     .orderBy(...(q.sort === "top" ? [desc(verifyCount), desc(posts.createdAt)] : [desc(posts.createdAt), desc(posts.id)]))
     .limit(limit + 1);
 
@@ -106,6 +125,7 @@ export async function listPosts(q: FeedQuery, viewerId: string | null): Promise<
     comments: Number(r.comments),
     viewerVerified: mine.has(r.post.id),
     isOwn: viewerId === r.post.userId,
+    hidden: r.post.hidden !== 0,
   }));
 
   if (q.sort === "nearby") {
@@ -187,7 +207,10 @@ export async function getPostOwner(postId: string) {
 /** Explicit cascade (libSQL's connection pool doesn't guarantee PRAGMA foreign_keys). */
 export async function deletePost(postId: string, mediaId: string | null) {
   const db = await getDb();
+  const commentIds = (await db.select({ id: comments.id }).from(comments).where(eq(comments.postId, postId))).map((c) => c.id);
   const children = [
+    db.delete(flags).where(and(eq(flags.targetType, "post"), eq(flags.targetId, postId))),
+    db.delete(flags).where(and(eq(flags.targetType, "comment"), inArray(flags.targetId, commentIds.length ? commentIds : [""]))),
     db.delete(verifications).where(eq(verifications.postId, postId)),
     db.delete(comments).where(eq(comments.postId, postId)),
     db.delete(posts).where(eq(posts.id, postId)),
@@ -219,7 +242,7 @@ export async function listComments(postId: string, viewerId: string | null): Pro
     .select({ c: comments, username: users.username, displayName: users.displayName, avatarHue: users.avatarHue, avatarMediaId: users.avatarMediaId })
     .from(comments)
     .innerJoin(users, eq(comments.userId, users.id))
-    .where(eq(comments.postId, postId))
+    .where(and(eq(comments.postId, postId), visible(viewerId, comments.hidden, comments.userId, Date.now()), notBlocked(viewerId, comments.userId)))
     .orderBy(comments.createdAt)
     .limit(200);
   return rows.map((r) => ({
@@ -228,6 +251,7 @@ export async function listComments(postId: string, viewerId: string | null): Pro
     createdAt: r.c.createdAt,
     author: { username: r.username, displayName: r.displayName, avatarHue: r.avatarHue, avatarUrl: avatarUrl(r.avatarMediaId) },
     isOwn: r.c.userId === viewerId,
+    hidden: r.c.hidden !== 0,
   }));
 }
 
@@ -236,6 +260,17 @@ export async function addComment(postId: string, userId: string, body: string) {
   const id = randomUUID();
   await db.insert(comments).values({ id, postId, userId, body, createdAt: Date.now() });
   return id;
+}
+
+export async function getComment(id: string) {
+  const db = await getDb();
+  const [row] = await db.select({ userId: comments.userId, postId: comments.postId }).from(comments).where(eq(comments.id, id));
+  return row ?? null;
+}
+
+export async function deleteComment(id: string) {
+  const db = await getDb();
+  await db.batch([db.delete(flags).where(and(eq(flags.targetType, "comment"), eq(flags.targetId, id))), db.delete(comments).where(eq(comments.id, id))]);
 }
 
 export async function getMedia(id: string) {
@@ -255,10 +290,14 @@ export async function getProfile(username: string) {
       avatarMediaId: users.avatarMediaId,
       bio: users.bio,
       createdAt: users.createdAt,
+      suspendedUntil: users.suspendedUntil,
       reputation: reputationSql,
       posts: sql<number>`(SELECT COUNT(*) FROM posts p WHERE p.user_id = ${users.id})`,
     })
     .from(users)
     .where(eq(users.username, username));
-  return row ? { ...row, avatarUrl: avatarUrl(row.avatarMediaId), reputation: Number(row.reputation), posts: Number(row.posts) } : null;
+  if (!row) return null;
+  // An expired suspension reads as none.
+  const suspendedUntil = row.suspendedUntil != null && row.suspendedUntil > Date.now() ? row.suspendedUntil : null;
+  return { ...row, suspendedUntil, avatarUrl: avatarUrl(row.avatarMediaId), reputation: Number(row.reputation), posts: Number(row.posts) };
 }

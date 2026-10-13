@@ -26,6 +26,16 @@ export interface SessionUser {
   displayName: string;
   avatarHue: number;
   avatarUrl: string | null;
+  /** Listed in MODERATORS: sees the moderation queue and can act on it. */
+  moderator: boolean;
+  /** Set while a moderator has suspended the account. */
+  suspendedUntil: number | null;
+}
+
+/** Moderators are named by username in the MODERATORS environment variable (comma-separated). */
+export function isModerator(username: string) {
+  const list = (process.env.MODERATORS ?? "").split(",").map((u) => u.trim().toLowerCase()).filter(Boolean);
+  return list.includes(username.toLowerCase());
 }
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -68,6 +78,7 @@ export async function getSessionUser(opts: { refresh?: boolean } = {}): Promise<
       displayName: users.displayName,
       avatarHue: users.avatarHue,
       avatarMediaId: users.avatarMediaId,
+      suspendedUntil: users.suspendedUntil,
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
@@ -84,7 +95,15 @@ export async function getSessionUser(opts: { refresh?: boolean } = {}): Promise<
     await db.update(sessions).set({ expiresAt }).where(eq(sessions.id, id));
     await setCookie(token, expiresAt);
   }
-  return { id: row.id, username: row.username, displayName: row.displayName, avatarHue: row.avatarHue, avatarUrl: avatarUrl(row.avatarMediaId) };
+  return {
+    id: row.id,
+    username: row.username,
+    displayName: row.displayName,
+    avatarHue: row.avatarHue,
+    avatarUrl: avatarUrl(row.avatarMediaId),
+    moderator: isModerator(row.username),
+    suspendedUntil: row.suspendedUntil != null && row.suspendedUntil > now ? row.suspendedUntil : null,
+  };
 }
 
 export async function destroySession() {

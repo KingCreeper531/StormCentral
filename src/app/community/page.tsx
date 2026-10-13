@@ -63,9 +63,27 @@ function Privacy() {
   );
 }
 
+function Guidelines() {
+  return (
+    <div className="space-y-2">
+      <ul className="list-disc space-y-1 pl-4 text-[13px] leading-relaxed text-ink-2 marker:text-ink-3">
+        <li>Post real weather you saw yourself. No fake or exaggerated reports.</li>
+        <li>Be respectful. No harassment, hate, threats or sexual content.</li>
+        <li>Don&apos;t share anyone&apos;s private information, or photos of people without their consent.</li>
+        <li>No spam or advertising.</li>
+      </ul>
+      <p className={PROSE}>
+        Use the <span className="font-medium text-ink">⋯</span> menu to report a post, comment or account, or to block someone. Reported content is hidden
+        once several people report it, and moderators can remove it and suspend accounts.
+      </p>
+    </div>
+  );
+}
+
 const ABOUT = [
   { title: "How confirmation works", Body: HowItWorks },
   { title: "Ranks", Body: Ranks },
+  { title: "Community guidelines", Body: Guidelines },
   { title: "Privacy", Body: Privacy },
 ] as const;
 

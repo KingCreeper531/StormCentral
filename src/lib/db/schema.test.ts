@@ -5,7 +5,7 @@ import { createClient } from "@libsql/client";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { afterAll, describe, expect, it } from "vitest";
-import { comments, media, passwordResets, posts, SCHEMA_SQL, schema, sessions, users, verifications } from "./schema";
+import { blocks, comments, flags, media, passwordResets, posts, SCHEMA_SQL, schema, sessions, users, verifications } from "./schema";
 
 const dir = mkdtempSync(path.join(tmpdir(), "sc-db-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -29,6 +29,10 @@ describe("schema drift", () => {
     await db.insert(posts).values({ id: "p1", userId: "u1", body: "Hail!", category: "hail", severity: 2, lat: 35.2, lon: -97.4, mediaId: "m1", createdAt: now });
     await db.insert(verifications).values({ postId: "p1", userId: "u1", createdAt: now });
     await db.insert(comments).values({ id: "c1", postId: "p1", userId: "u1", body: "Confirmed", createdAt: now });
+    await db.insert(users).values({ id: "u3", username: "Bob", email: "c@x.io", passwordHash: "h", displayName: "Bob", avatarHue: 3, createdAt: now, suspendedUntil: now + 1000 });
+    await db.insert(blocks).values({ blockerId: "u1", blockedId: "u3", createdAt: now });
+    await db.insert(flags).values({ id: "f1", reporterId: "u3", targetType: "post", targetId: "p1", reason: "spam", createdAt: now });
+    await expect(db.insert(flags).values({ id: "f2", reporterId: "u3", targetType: "post", targetId: "p1", reason: "hate", createdAt: now })).rejects.toThrow(); // one flag per person per target
 
     const [m] = await db.select().from(media).where(eq(media.id, "m1"));
     expect(Buffer.from(m!.bytes)).toEqual(Buffer.from([1, 2, 3]));
@@ -36,6 +40,12 @@ describe("schema drift", () => {
     expect(v).toBeDefined();
     const [u] = await db.select().from(users).where(eq(users.username, "ALICE"));
     expect(u?.id).toBe("u1");
+    expect(u?.suspendedUntil).toBeNull();
+    const [p] = await db.select().from(posts).where(eq(posts.id, "p1"));
+    expect(p?.hidden).toBe(0); // defaults to visible
+    const [f] = await db.select().from(flags).where(eq(flags.id, "f1"));
+    expect(f?.status).toBe("open");
+    expect(await db.select().from(blocks)).toHaveLength(1);
     client.close();
   });
 });

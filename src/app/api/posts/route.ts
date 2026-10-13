@@ -2,7 +2,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { conditionsSchema, firstIssue, isGenericPlace, MAX_IMAGE_BYTES, postSchema } from "@/lib/community";
 import { placeNameAt } from "@/lib/server/reverse-geocode";
 import { createPost, listPosts, type FeedQuery } from "@/lib/server/community-repo";
-import { forbidden, sameOrigin, tooMany, unauthorized } from "@/lib/server/guard";
+import { forbidden, sameOrigin, suspended, tooMany, unauthorized } from "@/lib/server/guard";
 import { imageSize, sniffImage, stripMetadata } from "@/lib/server/image";
 import { rateLimit } from "@/lib/server/rate-limit";
 import { badRequest } from "@/lib/server/respond";
@@ -41,6 +41,8 @@ export async function POST(req: Request) {
   if (!sameOrigin(req)) return forbidden();
   const user = await getSessionUser({ refresh: true });
   if (!user) return unauthorized();
+  const blocked = suspended(user);
+  if (blocked) return blocked;
   const rl = rateLimit(`post:${user.id}`, 10, 15 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
 
