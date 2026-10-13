@@ -246,7 +246,9 @@ jobs:
   # The Microsoft Store needs an installer URL that doesn't redirect, which
   # GitHub release downloads always do. GitHub Pages serves the files directly:
   #   https://<owner>.github.io/<repo>/download/<version>/StormCentral-Setup-<version>.exe
-  # One-time setup: Settings → Pages → Source: GitHub Actions.
+  # One-time setup: Settings → Pages → Source: GitHub Actions. Files are
+  # deployed as a Pages artifact, not committed, so git's 100 MB file limit
+  # doesn't apply.
   store-download:
     name: Publish the Store download
     needs: [check, release]

@@ -38,9 +38,6 @@ const config = {
   // electron-updater is plain JS; nothing to rebuild for Electron's ABI.
   npmRebuild: false,
   electronLanguages: ["en-US"],
-  // LZMA at its strongest: a smaller download, and it keeps the installer under
-  // the 100 MB per-file limit for the Store download on GitHub Pages.
-  compression: "maximum",
   win: {
     target: [{ target: "nsis", arch: ["x64"] }],
     icon: "icon.png",
