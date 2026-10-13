@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Forecast } from "@/lib/api/open-meteo";
 import { CATEGORIES, CATEGORY_IDS, SEVERITY_LABELS, type Category, isGenericPlace } from "@/lib/community";
+import { getFreshPosition } from "@/lib/device-position";
 import { preparePhoto } from "@/lib/image-client";
 import { currentHourIndex } from "@/lib/weather/view";
 import { cn } from "@/lib/utils";
@@ -68,7 +69,7 @@ export function Composer() {
     mutationFn: async () => {
       let { lat, lon } = loc;
       if (precise && "geolocation" in navigator) {
-        const pos = await new Promise<GeolocationPosition>((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 10_000 }));
+        const pos = await getFreshPosition(navigator.geolocation, { timeoutMs: 15_000, goodAccuracyM: 50 });
         lat = pos.coords.latitude;
         lon = pos.coords.longitude;
       }
