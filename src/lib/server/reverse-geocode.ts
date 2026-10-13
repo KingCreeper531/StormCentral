@@ -1,6 +1,7 @@
 import "server-only";
 import { USER_AGENT } from "../feeds/upstream";
 import { withTimeout } from "../api/http";
+import { civilName } from "../place-name";
 
 /**
  * Town name for a report's coordinates, e.g. "Moore, OK", from OpenStreetMap's
@@ -13,7 +14,10 @@ export async function placeNameAt(lat: number, lon: number): Promise<string | nu
     const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, "Accept-Language": "en" }, signal: withTimeout(undefined, 4000) });
     if (!res.ok) return null;
     const a = ((await res.json()) as { address?: Record<string, string> }).address ?? {};
-    const name = a.city || a.town || a.village || a.hamlet || a.municipality || a.county;
+    const town = a.city || a.town || a.village || a.hamlet;
+    // Only a township: say which county's, since many share a name ("Wayne Township, Noble County").
+    const civil = !town && a.municipality ? civilName(a.municipality) : null;
+    const name = town || (civil ? (civil.township && a.county ? `${civil.name}, ${a.county}` : civil.name) : a.county);
     if (!name) return null;
     const region = a["ISO3166-2-lvl4"]?.split("-")[1] ?? a.state;
     return (region ? `${name}, ${region}` : name).slice(0, 80);
