@@ -5,7 +5,7 @@ import { BadgeCheck, EyeOff, Loader2, MessageSquare, Trash2 } from "lucide-react
 import Link from "next/link";
 import { useState } from "react";
 import { getJson } from "@/lib/api/http";
-import { CATEGORIES, SEVERITY_LABELS, tierFor, type CommentDto, type PostDto, isGenericPlace } from "@/lib/community";
+import { badgeFor, CATEGORIES, DEVELOPER_BADGE, SEVERITY_LABELS, type CommentDto, type PostDto, isGenericPlace } from "@/lib/community";
 import { timeAgo } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { describeCode } from "@/lib/weather/wmo";
@@ -61,7 +61,7 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
   const blockUser = useBlock();
   const [verified, setVerified] = useState({ on: post.viewerVerified, n: post.verifications });
   const cat = CATEGORIES[post.category] ?? CATEGORIES.observation;
-  const tier = tierFor(post.author.reputation);
+  const tier = badgeFor(post.author);
   const swatch = SEVERITY_SWATCH[post.severity] ?? null;
   const showHandle = post.author.displayName.toLowerCase() !== post.author.username.toLowerCase();
 
@@ -292,6 +292,12 @@ function Comments({ postId, now }: { postId: string; now: number }) {
               <div className="min-w-0 flex-1">
                 <p className="flex min-w-0 items-baseline gap-2 text-[13px] leading-5">
                   <span className="truncate font-semibold text-ink">{c.author.displayName}</span>
+                  {c.author.developer && (
+                    <span className="inline-flex shrink-0 items-center gap-1 text-xs text-ink-3">
+                      <span aria-hidden className="size-1.5 rounded-full" style={{ background: DEVELOPER_BADGE.color }} />
+                      {DEVELOPER_BADGE.name}
+                    </span>
+                  )}
                   <span className="shrink-0 text-xs text-ink-3 tabular">{timeAgo(c.createdAt, now)}</span>
                 </p>
                 <p className="text-[13px] leading-relaxed break-words whitespace-pre-wrap text-ink-2">{c.body}</p>

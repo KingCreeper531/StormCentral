@@ -112,6 +112,7 @@ That's all you need. A SQLite database is created at `./data/stormcentral.db` on
 | `DATABASE_URL` | `file:./data/stormcentral.db` (default) or a `libsql://` Turso URL for serverless deploys |
 | `DATABASE_AUTH_TOKEN` | Turso auth token |
 | `MODERATORS` | Comma-separated usernames who can review reported content and suspend accounts (see below) |
+| `DEVELOPERS` | Comma-separated usernames shown with a **Developer** badge instead of their rank (default: `StormCentral_Official`) |
 | `NEXT_PUBLIC_MAPTILER_KEY` | Optional; switches the basemap to MapTiler `dataviz-dark` |
 | `NWS_USER_AGENT` | Contact string sent to api.weather.gov (required by NWS policy) |
 

@@ -32,10 +32,19 @@ export interface SessionUser {
   suspendedUntil: number | null;
 }
 
+const usernames = (value: string | undefined) => (value ?? "").split(",").map((u) => u.trim().toLowerCase()).filter(Boolean);
+
 /** Moderators are named by username in the MODERATORS environment variable (comma-separated). */
 export function isModerator(username: string) {
-  const list = (process.env.MODERATORS ?? "").split(",").map((u) => u.trim().toLowerCase()).filter(Boolean);
-  return list.includes(username.toLowerCase());
+  return usernames(process.env.MODERATORS).includes(username.toLowerCase());
+}
+
+/** The project's official account, badged as Developer unless DEVELOPERS says otherwise. */
+const DEFAULT_DEVELOPERS = "StormCentral_Official";
+
+/** Accounts shown with the Developer badge: DEVELOPERS (comma-separated usernames). */
+export function isDeveloper(username: string) {
+  return usernames(process.env.DEVELOPERS ?? DEFAULT_DEVELOPERS).includes(username.toLowerCase());
 }
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
