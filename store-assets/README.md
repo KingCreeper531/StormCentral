@@ -10,5 +10,6 @@ Upload these in Partner Center → the Storm Central submission → Store listin
 | Store display images → 1:1 App tile icon 300×300 | `app-tile-icon-300x300.png` |
 | Store display images → 1:1 150×150 | `tile-150x150.png` |
 | Store display images → 1:1 71×71 | `tile-71x71.png` |
+| Trailers → thumbnail (1920×1080) | `trailer-thumbnail-1920x1080.png` |
 
 Screenshots are from the live site (storm-central-pi.vercel.app) with real weather for Oklahoma City.
