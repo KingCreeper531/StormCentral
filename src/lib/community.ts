@@ -33,6 +33,14 @@ export function tierFor(reputation: number) {
   return TIERS.find((t) => reputation >= t.min) ?? TIERS[TIERS.length - 1]!;
 }
 
+/** Shown instead of the rank for the people who build StormCentral. */
+export const DEVELOPER_BADGE = { name: "Developer", color: "#5b9cf6" } as const;
+
+/** The badge next to someone's name: Developer, or their rank. */
+export function badgeFor(author: { reputation: number; developer?: boolean }) {
+  return author.developer ? DEVELOPER_BADGE : tierFor(author.reputation);
+}
+
 const username = z
   .string()
   .trim()
@@ -200,6 +208,8 @@ export interface PostAuthor {
   avatarHue: number;
   avatarUrl: string | null;
   reputation: number;
+  /** One of the app's developers (DEVELOPERS); shown as a badge instead of the rank. */
+  developer: boolean;
 }
 
 export interface PostDto {
