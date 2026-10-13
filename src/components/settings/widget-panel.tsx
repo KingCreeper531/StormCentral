@@ -18,7 +18,7 @@ const noSubscribe = () => () => {};
 
 /**
  * Android only: saves the home-screen widget's data now and reads it back, so
- * a widget stuck on "Open StormCentral to set up" shows what's going wrong.
+ * a widget stuck on "Open Storm Central to set up" shows what's going wrong.
  */
 export function WidgetPanel() {
   const native = useSyncExternalStore(noSubscribe, isNativeApp, () => false);
@@ -75,7 +75,7 @@ export function WidgetPanel() {
         </p>
       )}
       <p className="label mt-3">
-        Five styles: Weather, Clock and weather, Temperature, Hourly forecast and 5-day forecast. Long-press your home screen, tap Widgets, then StormCentral.
+        Five styles: Weather, Clock and weather, Temperature, Hourly forecast and 5-day forecast. Long-press your home screen, tap Widgets, then Storm Central.
         They follow your theme and clock settings and update when you leave the app.
       </p>
     </Panel>

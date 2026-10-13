@@ -1,7 +1,7 @@
 {
   "type": "theme",
   "name": "Solarized Dark",
-  "author": "StormCentral",
+  "author": "Storm Central",
   "description": "Ethan Schoonover's classic low-contrast dark.",
   "version": "1.0.0",
   "base": "dark",

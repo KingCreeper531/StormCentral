@@ -1,5 +1,5 @@
 /**
- * Add-ons made for StormCentral (examples/addons), bundled so they install
+ * Add-ons made for Storm Central (examples/addons), bundled so they install
  * with one tap and no network. Their ids are the GitHub raw URLs, the same as
  * installing them by link, so either way they replace each other.
  */

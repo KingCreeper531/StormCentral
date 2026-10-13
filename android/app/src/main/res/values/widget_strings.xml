@@ -13,7 +13,7 @@
     <string name="widget_label_daily">5-day forecast</string>
     <string name="widget_description_daily">Current conditions and highs and lows for five days</string>
 
-    <string name="widget_setup">Open StormCentral to set up</string>
+    <string name="widget_setup">Open Storm Central to set up</string>
     <string name="widget_setup_short">Open the app</string>
     <string name="widget_now">Now</string>
     <string name="widget_today">Today</string>

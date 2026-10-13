@@ -228,7 +228,7 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
         >
           <div className="h-full rounded-[2px] bg-ink-2 transition-[width] duration-200" style={{ width: `${pct}%` }} />
         </div>
-        <p className="label">The map steps through each frame while it is captured. Keep StormCentral open and on screen until the export finishes.</p>
+        <p className="label">The map steps through each frame while it is captured. Keep Storm Central open and on screen until the export finishes.</p>
       </div>
     );
     actions = <Button onClick={cancel}>Cancel export</Button>;

@@ -10,19 +10,19 @@ import type { CapacitorConfig } from "@capacitor/cli";
 export const RUNNER_LABEL = "io.github.kingcreeper531.stormcentral.alerts";
 
 /**
- * StormCentral for Android.
+ * Storm Central for Android.
  *
  * By default the app bundles the static export (`out/`, built by
  * `node scripts/build-native.mjs android`) and runs the weather feeds on the
  * phone. Accounts and reports need a server, so the spotter network is off.
- * Set STORMCENTRAL_URL when building to load a hosted StormCentral instead,
+ * Set STORMCENTRAL_URL when building to load a hosted Storm Central instead,
  * with everything enabled and one shared spotter network.
  */
 const remoteUrl = process.env.STORMCENTRAL_URL;
 
 const config: CapacitorConfig = {
   appId: "io.github.kingcreeper531.stormcentral",
-  appName: "StormCentral",
+  appName: "Storm Central",
   webDir: "out",
   backgroundColor: "#000000",
   ...(remoteUrl && { server: { url: remoteUrl } }),

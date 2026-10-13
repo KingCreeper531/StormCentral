@@ -256,7 +256,7 @@ function UpdatesPanel() {
   const legacyDesktop = host === "desktop" && !desktopBridge()?.checkForUpdates;
 
   return (
-    <Panel title="Updates" subtitle={version ? `StormCentral ${version}` : undefined}>
+    <Panel title="Updates" subtitle={version ? `Storm Central ${version}` : undefined}>
       <div className="flex flex-wrap items-center gap-3">
         {check.kind === "ready" ? (
           <Button variant="primary" onClick={() => void desktopBridge()?.installUpdate?.()}>

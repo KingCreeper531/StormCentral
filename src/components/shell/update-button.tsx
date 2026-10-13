@@ -9,7 +9,7 @@ type Phase = { kind: "idle" } | { kind: "permission" } | { kind: "downloading"; 
 
 /**
  * Android: "Update" downloads and installs in the app. The first time,
- * Android needs permission to install apps from StormCentral; this walks
+ * Android needs permission to install apps from Storm Central; this walks
  * through it. After installing, Android restarts the app on the new version.
  */
 export function UpdateButton({ version, size = "sm", onStatus }: { version: string; size?: "sm" | "md"; onStatus?: (text: string | null) => void }) {
@@ -22,9 +22,9 @@ export function UpdateButton({ version, size = "sm", onStatus }: { version: stri
           ? `Downloading ${version}: ${p.percent}%`
           : `Downloading ${version}…`
         : p.kind === "installing"
-          ? "Installing. If Android asks, tap Update; StormCentral reopens on the new version."
+          ? "Installing. If Android asks, tap Update; Storm Central reopens on the new version."
           : p.kind === "permission"
-            ? "Allow StormCentral to install apps, then come back and tap Update again. This is only needed once."
+            ? "Allow Storm Central to install apps, then come back and tap Update again. This is only needed once."
             : p.kind === "error"
               ? p.message
               : null,

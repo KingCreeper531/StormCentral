@@ -37,7 +37,7 @@ public class AppUpdaterPlugin extends Plugin {
         call.resolve();
     }
 
-    /** Opens "Install unknown apps" for StormCentral (Android 8+ asks once). */
+    /** Opens "Install unknown apps" for Storm Central (Android 8+ asks once). */
     @PluginMethod
     public void openInstallPermission(PluginCall call) {
         Context ctx = getContext();
@@ -53,7 +53,7 @@ public class AppUpdaterPlugin extends Plugin {
     public void install(PluginCall call) {
         Context ctx = getContext();
         if (!AppUpdater.canInstall(ctx)) {
-            call.reject("Allow StormCentral to install apps first.", "PERMISSION");
+            call.reject("Allow Storm Central to install apps first.", "PERMISSION");
             return;
         }
         new Thread(() -> {

@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "StormCentral",
-    short_name: "StormCentral",
+    name: "Storm Central",
+    short_name: "Storm Central",
     description: "Open-data weather, NEXRAD radar and a community spotter network.",
     start_url: "/",
     display: "standalone",

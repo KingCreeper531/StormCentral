@@ -125,7 +125,7 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
 
     // ---- Drawing -----------------------------------------------------------
 
-    /** Redraws every StormCentral widget, of every style, from the snapshot. */
+    /** Redraws every Storm Central widget, of every style, from the snapshot. */
     static void renderAll(Context context, JSONObject snapshot) {
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
         if (manager == null) return; // no widget support on this device

@@ -159,7 +159,7 @@ function parseLayer(raw: unknown, i: number): PluginLayer {
 
 /** Validate a parsed `stormcentral.json`. Throws `AddonError` with a readable reason. */
 export function parseAddon(raw: unknown, source: { id: string; homepage: string | null }): Addon {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new AddonError("That file isn't a StormCentral add-on.");
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new AddonError("That file isn't a Storm Central add-on.");
   const m = raw as Record<string, unknown>;
   const name = text(m.name, 60);
   if (!name) throw new AddonError('The add-on needs a "name".');

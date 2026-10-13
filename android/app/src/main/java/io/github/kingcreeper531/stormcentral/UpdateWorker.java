@@ -11,7 +11,7 @@ import java.io.File;
 /**
  * Automatic updates (Settings → App → Install updates automatically, on by
  * default): when a newer release is out and the app isn't on screen,
- * downloads and installs it. Where Android allows (StormCentral installed
+ * downloads and installs it. Where Android allows (Storm Central installed
  * itself before, Android 12+) it installs without asking and the person sees
  * an "updated" notification; otherwise a notification asks them to tap to
  * install. With automatic updates off, a notification says one is available.
@@ -34,8 +34,8 @@ public final class UpdateWorker extends Worker {
             if (!auto || !AppUpdater.canInstall(ctx)) {
                 if (!r.version.equals(announced)) {
                     AppUpdater.prefs(ctx).edit().putString("updateAnnounced", r.version).apply();
-                    Notifier.show(ctx, AlertsWorker.id("update-available"), Notifier.ALERTS, "StormCentral " + r.version + " is available",
-                            "Open StormCentral and tap Update to install it.");
+                    Notifier.show(ctx, AlertsWorker.id("update-available"), Notifier.ALERTS, "Storm Central " + r.version + " is available",
+                            "Open Storm Central and tap Update to install it.");
                 }
                 return Result.success();
             }

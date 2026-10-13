@@ -9,7 +9,7 @@ export default function NotFound() {
         <h1 className="mt-2 text-xl font-semibold text-ink sm:text-2xl">Page not found</h1>
         <p className="mt-2 text-sm text-ink-2">The page you&apos;re looking for doesn&apos;t exist.</p>
         <Link href="/" className={buttonClass("primary", "md", "mt-6")}>
-          Back to StormCentral
+          Back to Storm Central
         </Link>
       </div>
     </main>

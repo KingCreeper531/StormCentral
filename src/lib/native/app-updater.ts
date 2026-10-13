@@ -10,7 +10,7 @@
 import { Capacitor, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 
 export interface UpdaterStatus {
-  /** StormCentral may install apps ("Install unknown apps" is allowed). */
+  /** Storm Central may install apps ("Install unknown apps" is allowed). */
   canInstall: boolean;
   /** Android will install updates without a confirmation screen. */
   silent: boolean;

@@ -56,7 +56,7 @@ export function ThemePicker({ onBrowse }: { onBrowse: () => void }) {
   return (
     <div>
       <div role="radiogroup" aria-label="Color theme" className="grid gap-2 sm:grid-cols-2">
-        {option(null, "StormCentral", <Palette className="size-4 text-ink-3" aria-hidden />)}
+        {option(null, "Storm Central", <Palette className="size-4 text-ink-3" aria-hidden />)}
         {themes.map((t) => option(t.id, t.name, <Swatch theme={t} />))}
       </div>
       <button type="button" onClick={onBrowse} className="mt-2 text-xs text-ink-2 underline-offset-2 hover:underline">
@@ -291,7 +291,7 @@ function FeaturedPanel() {
   const wearTheme = (t: ThemeAddon) => (themes.some((x) => x.id === t.id) ? setActive(t.id) : install(t));
   const addPlugin = (p: PluginAddon) => install(p);
   return (
-    <Panel title="Featured" subtitle="Made for StormCentral. Tap a theme to wear it; add a plugin, then choose what it shows.">
+    <Panel title="Featured" subtitle="Made for Storm Central. Tap a theme to wear it; add a plugin, then choose what it shows.">
       <p className="label mb-2">Themes</p>
       <div role="radiogroup" aria-label="Featured themes" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {FEATURED_THEMES.map((t) => {
@@ -316,7 +316,7 @@ function FeaturedPanel() {
           );
         })}
       </div>
-      <p className="label mt-1.5">Tap the theme in use again to go back to StormCentral&apos;s own colours.</p>
+      <p className="label mt-1.5">Tap the theme in use again to go back to Storm Central&apos;s own colours.</p>
 
       <p className="label mt-5 mb-1">Plugins</p>
       <ul className="divide-y divide-line">

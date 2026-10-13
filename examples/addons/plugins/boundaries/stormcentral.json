@@ -1,7 +1,7 @@
 {
   "type": "plugin",
   "name": "Map boundaries",
-  "author": "StormCentral",
+  "author": "Storm Central",
   "description": "US county and state lines over the radar.",
   "version": "1.0.0",
   "layers": [

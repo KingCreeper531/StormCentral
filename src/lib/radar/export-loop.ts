@@ -66,7 +66,7 @@ export interface ExportLoopOptions {
 export const EXPORT_WIDTHS = [480, 720] as const;
 export type ExportWidth = (typeof EXPORT_WIDTHS)[number];
 
-export const EXPORT_CREDIT = "StormCentral · NEXRAD via Iowa Environmental Mesonet";
+export const EXPORT_CREDIT = "Storm Central · NEXRAD via Iowa Environmental Mesonet";
 
 /** MediaRecorder types in order of preference (MP4 plays and shares most widely). */
 export const VIDEO_MIME_TYPES = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"] as const;
@@ -645,7 +645,7 @@ export async function exportRadarLoop(opts: ExportLoopOptions): Promise<LoopExpo
         ctx.fillRect(0, 0, size.width, size.height);
         ctx.drawImage(map.getCanvas(), size.sx, size.sy, size.sw, size.sh, 0, 0, size.width, size.height);
       });
-      if (!painted) throw new Error("The map stopped drawing. Keep StormCentral on screen while the loop exports.");
+      if (!painted) throw new Error("The map stopped drawing. Keep Storm Central on screen while the loop exports.");
       drawCaption(ctx, size.width, size.height, {
         time: `${frame.approximate ? "~" : ""}${clockIn(opts.timeZone, frame.time)}`,
         date: dateLabel(frame.time, opts.timeZone),

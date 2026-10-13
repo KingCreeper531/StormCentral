@@ -1,10 +1,10 @@
-# StormCentral
+# Storm Central
 
-**Open-data weather for people who actually watch the sky.** StormCentral pairs a quiet, instrument-style interface (with a live, weather-reactive sky behind it) with professional meteorological tooling: live NEXRAD radar with storm-track projections, a drone pilot's go/no-go board, an angler's solunar and river dashboard, air-quality heatmaps, and a community **Spotter Network** where people post and verify ground-truth reports.
+**Open-data weather for people who actually watch the sky.** Storm Central pairs a quiet, instrument-style interface (with a live, weather-reactive sky behind it) with professional meteorological tooling: live NEXRAD radar with storm-track projections, a drone pilot's go/no-go board, an angler's solunar and river dashboard, air-quality heatmaps, and a community **Spotter Network** where people post and verify ground-truth reports.
 
 Every data source is free and open. No paid weather API keys are required.
 
-> ⚠️ StormCentral is not an official warning system. Always follow the National Weather Service and local emergency management.
+> ⚠️ Storm Central is not an official warning system. Always follow the National Weather Service and local emergency management.
 
 ## Download
 
@@ -19,7 +19,7 @@ Free code signing provided by [SignPath.io](https://about.signpath.io/), certifi
 
 - **Windows:** the installer isn't code-signed yet, so SmartScreen may say "Windows protected your PC". Choose **More info → Run anyway**. It installs for your user only, with no admin prompt.
 - **Android:** open the APK on your phone and allow your browser to install apps when asked.
-- **Self-contained:** both apps work with no server. The Windows app runs StormCentral's own server on your PC, so every feature works, including accounts and reports (stored on that PC). The Android app runs the weather feeds on the phone. The spotter network needs a shared server, so it's turned off there until one is set up (see [Desktop and Android apps](#desktop-and-android-apps)).
+- **Self-contained:** both apps work with no server. The Windows app runs Storm Central's own server on your PC, so every feature works, including accounts and reports (stored on that PC). The Android app runs the weather feeds on the phone. The spotter network needs a shared server, so it's turned off there until one is set up (see [Desktop and Android apps](#desktop-and-android-apps)).
 
 ---
 
@@ -139,7 +139,7 @@ The shared spotter network needs one hosted copy of the web app. Vercel's free p
 
 **Moderation.** People can block each other and report reports, comments and accounts from the ⋯ menu. Content reported by three different people is hidden until someone reviews it. To review it yourself, set `MODERATORS` to your username (comma-separate several) in the project's environment variables and redeploy. Moderators get a **Moderation queue** link in Settings → Account, where they can keep or remove reported content and suspend accounts for 1, 7 or 30 days, or permanently. Suspended accounts can still read, but can't post, comment, confirm or edit their profile, and their content is hidden while the suspension lasts.
 
-**Password reset emails.** Add `SMTP_URL` in the project's environment variables. A Gmail app password works: `smtps://you%40gmail.com:APPPASSWORD@smtp.gmail.com:465` (optionally `MAIL_FROM`, e.g. `StormCentral <you@gmail.com>`). Environment variables only reach new deployments, so redeploy **Production** after adding it. Without it, signed-in users can still change their password in Settings, but "Forgot your password?" says email isn't set up.
+**Password reset emails.** Add `SMTP_URL` in the project's environment variables. A Gmail app password works: `smtps://you%40gmail.com:APPPASSWORD@smtp.gmail.com:465` (optionally `MAIL_FROM`, e.g. `Storm Central <you@gmail.com>`). Environment variables only reach new deployments, so redeploy **Production** after adding it. Without it, signed-in users can still change their password in Settings, but "Forgot your password?" says email isn't set up.
 
 **Forecast source and Google.** The **Forecast from** picker at the top of the Daily page chooses where the whole app's forecast comes from: Open-Meteo's best match for the area (the default), one model through Open-Meteo (ECMWF, ECMWF AI, NOAA GFS, the NWS National Blend, DWD ICON, GEM, UK Met Office, Météo-France, JMA), or Google. When a regional model has nothing for the location, the app falls back to the best match and says so. Google needs the person's own Weather API key (Google Cloud: enable the Weather API, create a key; the first 10,000 calls a month are free), entered right under the picker. The key stays on their device and goes straight from the browser to Google; Google's current conditions, next 48 hours and 10 days are laid over the Open-Meteo forecast, which still supplies what Google doesn't (15-minute rain, winds aloft).
 
@@ -152,7 +152,7 @@ One codebase, three packages. `BUILD_TARGET` in `next.config.ts` picks the outpu
 | Package | Build | How it runs |
 |---|---|---|
 | **Web** | `next build` | Any Node host or Vercel. |
-| **Windows** | `standalone` server + Electron (`desktop/`) | The app starts StormCentral's own Next.js server on `127.0.0.1` in a background process and shows it in a window. The database lives in `%APPDATA%\StormCentral`, so updates never touch accounts or reports. |
+| **Windows** | `standalone` server + Electron (`desktop/`) | The app starts Storm Central's own Next.js server on `127.0.0.1` in a background process and shows it in a window. The database lives in `%APPDATA%\Storm Central`, so updates never touch accounts or reports. |
 | **Android** | static export + Capacitor (`android/`) | No server. The weather routes (`/api/alerts`, `/api/gnss`, …) run on the phone: the same feed code as the server (`src/lib/feeds/`), with native HTTP so government APIs that don't send CORS headers still work. |
 
 **Notifications.** One alert engine (`src/lib/alerting/`) runs in two places. On the web and in the Windows app it runs in the page (one tab at a time); the Windows window hides to the tray on close so checks continue (switchable in Alerts and places). On Android it also runs in a Capacitor background runner (`src/native/runner/background.ts`, bundled to `out/runners/background.js` by `npm run android:build`), which checks warnings and custom alerts about every 15 minutes and refreshes the home-screen widget.
@@ -189,11 +189,11 @@ Optional repository secrets:
 
 ### Microsoft Store
 
-Releases can also build `StormCentral-<version>-store.appx`, an MSIX package for the Microsoft Store. The Store signs it, so it needs no certificate.
+Releases also build `StormCentral-<version>-store.appx`, an MSIX package for the Microsoft Store. The Store signs it, so it needs no certificate.
 
 1. In [Partner Center](https://partner.microsoft.com/dashboard), create the app as an **MSIX or PWA app** and reserve its name.
 2. Open **Product management → Product identity** and copy `Package/Identity/Name`, `Package/Identity/Publisher` and `Package/Properties/PublisherDisplayName`.
-3. Add them as repository variables (Settings → Secrets and variables → Actions → Variables): `MSIX_IDENTITY_NAME`, `MSIX_PUBLISHER` and `MSIX_PUBLISHER_DISPLAY_NAME`.
+3. Put them in `MSIX` in `electron-builder.config.mjs` (Storm Central's own listing is already there). Alternatively, set the repository variables `MSIX_IDENTITY_NAME`, `MSIX_PUBLISHER`, `MSIX_PUBLISHER_DISPLAY_NAME` and `MSIX_DISPLAY_NAME`, which override it. The display name must match the name reserved in Partner Center.
 4. Publish a release. Upload the `-store.appx` file from the release to a new Store submission under **Packages**.
 
 The Store version updates through the Store, so its own updater is off. It also can't add itself to Windows startup, so that setting is hidden.
@@ -277,7 +277,7 @@ Only the Windows installer built by the **Release apps** workflow (`.github/work
 
 **Privacy policy**
 
-This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. To show weather, it sends the coordinates of the places you look at to the public weather data services listed under [Data sources](#data-sources). It checks GitHub Releases for app updates. Google receives requests only if you add your own Google Weather API key, and a spotter network server only if you sign in to one. StormCentral has no analytics, tracking or advertising.
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. To show weather, it sends the coordinates of the places you look at to the public weather data services listed under [Data sources](#data-sources). It checks GitHub Releases for app updates. Google receives requests only if you add your own Google Weather API key, and a spotter network server only if you sign in to one. Storm Central has no analytics, tracking or advertising.
 
 ## Credits
 

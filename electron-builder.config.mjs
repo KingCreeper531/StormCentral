@@ -15,15 +15,17 @@ const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), 
 
 /**
  * Microsoft Store package (MSIX/AppX). The identity comes from Partner Center
- * → the app → Product management → Product identity. It isn't secret; set it
- * here or as the MSIX_* repository variables. Until it is set, only the
- * installer is built (a package with the wrong identity can't be uploaded).
- * The Store signs the package itself, so no certificate is needed.
+ * → the app → Product management → Product identity. It isn't secret (every
+ * Store package carries it); the MSIX_* environment variables override it,
+ * e.g. for a fork with its own Store listing. The Store signs the package
+ * itself, so no certificate is needed.
  */
 const MSIX = {
-  identityName: process.env.MSIX_IDENTITY_NAME || "",
-  publisher: process.env.MSIX_PUBLISHER || "",
-  publisherDisplayName: process.env.MSIX_PUBLISHER_DISPLAY_NAME || "",
+  identityName: process.env.MSIX_IDENTITY_NAME || "StormCentral.8571E95C8232",
+  publisher: process.env.MSIX_PUBLISHER || "CN=52BC6B8C-96DD-4277-9BD0-4F00E72C021D",
+  publisherDisplayName: process.env.MSIX_PUBLISHER_DISPLAY_NAME || "StormCentral",
+  // Must match the name reserved in Partner Center.
+  displayName: process.env.MSIX_DISPLAY_NAME || "Storm Central",
 };
 const buildMsix = !!(MSIX.identityName && MSIX.publisher && MSIX.publisherDisplayName);
 const repo = process.env.GITHUB_REPOSITORY || "KingCreeper531/StormCentral";
@@ -33,14 +35,14 @@ const [owner, name] = repo.split("/");
 const config = {
   appId: "io.github.kingcreeper531.stormcentral",
   // stormcentral:// links (the website's "Open in app" button) launch or focus the app.
-  protocols: [{ name: "StormCentral", schemes: ["stormcentral"] }],
+  protocols: [{ name: "Storm Central", schemes: ["stormcentral"] }],
   productName: "StormCentral",
   copyright: "© 2026 KingCreeper531 · MIT License",
   directories: { app: "desktop", output: "dist/desktop", buildResources: "desktop/resources" },
   // One version for the web app and the desktop shell: the root package.json.
   extraMetadata: {
     version: pkg.version,
-    // Build-time switch: point the app at a hosted StormCentral instead of the local server.
+    // Build-time switch: point the app at a hosted Storm Central instead of the local server.
     stormcentral: { remoteUrl: process.env.STORMCENTRAL_URL || null, repo },
   },
   files: ["**/*", "!resources{,/**}"],
@@ -62,8 +64,8 @@ const config = {
     oneClick: true,
     perMachine: false,
     artifactName: "StormCentral-Setup-${version}.${ext}",
-    shortcutName: "StormCentral",
-    uninstallDisplayName: "StormCentral",
+    shortcutName: "Storm Central",
+    uninstallDisplayName: "Storm Central",
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
     // Keep accounts, reports and settings if the app is uninstalled and reinstalled.
@@ -73,10 +75,10 @@ const config = {
   // Tile and logo images are in desktop/resources/appx/.
   appx: {
     applicationId: "StormCentral",
-    displayName: "StormCentral",
-    identityName: MSIX.identityName || "StormCentral",
-    publisher: MSIX.publisher || "CN=StormCentral",
-    publisherDisplayName: MSIX.publisherDisplayName || "StormCentral",
+    displayName: MSIX.displayName,
+    identityName: MSIX.identityName,
+    publisher: MSIX.publisher,
+    publisherDisplayName: MSIX.publisherDisplayName,
     backgroundColor: "#0b1a33",
     languages: ["en-US"],
     showNameOnTiles: false,

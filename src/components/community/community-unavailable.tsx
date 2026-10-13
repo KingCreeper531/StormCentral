@@ -9,7 +9,7 @@ export function CommunityUnavailable() {
   return (
     <Panel>
       <EmptyState icon={<Users className="size-5 text-ink-3" aria-hidden />} title="The spotter network isn't available in this app">
-        <p>Accounts and reports need the StormCentral server, and this version runs without one. Weather, radar and every mode work as usual.</p>
+        <p>Accounts and reports need the Storm Central server, and this version runs without one. Weather, radar and every mode work as usual.</p>
         <Link href="/" className={buttonClass("secondary", "sm", "mt-3")}>
           Back to weather
         </Link>

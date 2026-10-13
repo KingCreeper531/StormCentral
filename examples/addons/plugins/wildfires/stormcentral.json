@@ -1,7 +1,7 @@
 {
   "type": "plugin",
   "name": "Wildfires",
-  "author": "StormCentral",
+  "author": "Storm Central",
   "description": "Active US wildfire perimeters and fire starts (NIFC).",
   "version": "1.0.0",
   "layers": [

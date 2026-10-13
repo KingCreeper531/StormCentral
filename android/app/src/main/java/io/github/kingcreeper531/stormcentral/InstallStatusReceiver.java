@@ -32,7 +32,7 @@ public class InstallStatusReceiver extends BroadcastReceiver {
             } else {
                 PendingIntent tap = PendingIntent.getActivity(ctx, 7, confirm, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
                 Notifier.showWithIntent(ctx, AlertsWorker.id("update-ready"), Notifier.ALERTS,
-                        "StormCentral update ready", "Tap to install the new version. Your settings stay.", tap);
+                        "Storm Central update ready", "Tap to install the new version. Your settings stay.", tap);
             }
         } else if (status == PackageInstaller.STATUS_SUCCESS) {
             AppUpdater.prefs(ctx).edit().putString(AppUpdater.PREF_STATE, "installed").remove(AppUpdater.PREF_ERROR).apply();

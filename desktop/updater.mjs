@@ -58,13 +58,13 @@ export function initAutoUpdates(opts) {
     state.downloading = true;
     if (!manualCheck) return;
     manualCheck = false;
-    void show({ type: "info", message: `Downloading StormCentral ${info.version}`, detail: "You'll be asked to restart when it's ready." });
+    void show({ type: "info", message: `Downloading Storm Central ${info.version}`, detail: "You'll be asked to restart when it's ready." });
   });
   autoUpdater.on("update-not-available", (info) => {
     state.latest = info?.version ?? app.getVersion();
     if (!manualCheck) return;
     manualCheck = false;
-    void show({ type: "info", message: "StormCentral is up to date", detail: `Version ${app.getVersion()} is the latest release.` });
+    void show({ type: "info", message: "Storm Central is up to date", detail: `Version ${app.getVersion()} is the latest release.` });
   });
   autoUpdater.on("error", (err) => {
     state.downloading = false;
@@ -84,7 +84,7 @@ export function initAutoUpdates(opts) {
       buttons: ["Restart now", "Later"],
       defaultId: 0,
       cancelId: 1,
-      message: `StormCentral ${info.version} is ready to install`,
+      message: `Storm Central ${info.version} is ready to install`,
       detail: "Restart to finish updating. If you choose Later, the update installs the next time you quit.",
     });
     if (response === 0) setImmediate(() => autoUpdater.quitAndInstall());
@@ -101,7 +101,7 @@ export function checkForUpdatesFromMenu() {
     return;
   }
   if (storeBuild) {
-    void show({ type: "info", message: "StormCentral updates through the Microsoft Store", detail: "New versions install automatically. To check now, open the Store's Library." });
+    void show({ type: "info", message: "Storm Central updates through the Microsoft Store", detail: "New versions install automatically. To check now, open the Store's Library." });
     return;
   }
   manualCheck = true;

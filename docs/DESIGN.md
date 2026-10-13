@@ -1,6 +1,6 @@
-# StormCentral design system
+# Storm Central design system
 
-StormCentral should read like a **professional instrument**: RadarScope, Windy, an aircraft EFB, Linear. It is a tool people trust during dangerous weather, so the UI stays quiet and the data carries the visual weight. Colour lives in data (radar, charts, warnings, status), not in chrome.
+Storm Central should read like a **professional instrument**: RadarScope, Windy, an aircraft EFB, Linear. It is a tool people trust during dangerous weather, so the UI stays quiet and the data carries the visual weight. Colour lives in data (radar, charts, warnings, status), not in chrome.
 
 Tokens live in `src/app/globals.css` (`@theme`). Primitives live in `src/components/ui/`.
 

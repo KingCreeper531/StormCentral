@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- StormCentral is dark-only. Black window backgrounds mean nothing flashes white before the WebView paints. -->
+    <!-- Storm Central is dark-only. Black window backgrounds mean nothing flashes white before the WebView paints. -->
     <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
         <item name="android:windowBackground">@android:color/black</item>
     </style>

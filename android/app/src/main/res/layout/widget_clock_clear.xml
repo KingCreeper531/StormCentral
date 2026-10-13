@@ -3,7 +3,7 @@
 <!--
     "Clock" widget (StyledWidgetProvider): a large clock and the date, then the
     weather. TextClock keeps time on its own, so the widget needs no per-minute
-    updates. A tap anywhere opens StormCentral. widget_clock_clear.xml is its
+    updates. A tap anywhere opens Storm Central. widget_clock_clear.xml is its
     transparent twin.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"

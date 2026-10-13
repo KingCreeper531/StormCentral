@@ -8,12 +8,12 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "StormCentral — Open-data weather, radar & spotter network",
-    template: "%s · StormCentral",
+    default: "Storm Central — Open-data weather, radar & spotter network",
+    template: "%s · Storm Central",
   },
   description:
     "Immersive forecasts, live NEXRAD radar, severe-weather warnings, drone & angler modes, air quality, and a community spotter network — built entirely on open data.",
-  applicationName: "StormCentral",
+  applicationName: "Storm Central",
   // The Android app bundle has no manifest route (and doesn't need one).
   manifest: IS_STATIC_BUNDLE ? undefined : "/manifest.webmanifest",
 };

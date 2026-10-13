@@ -4,7 +4,7 @@ import { GITHUB_REPO } from "@/lib/platform";
 
 export const metadata: Metadata = {
   title: "Privacy policy",
-  description: "What StormCentral handles, why, and the control you have over it.",
+  description: "What Storm Central handles, why, and the control you have over it.",
 };
 
 const EFFECTIVE = "October 13, 2026";
@@ -32,20 +32,20 @@ export default function PrivacyPage() {
           <h1 className="text-xl font-semibold text-ink sm:text-2xl">Privacy policy</h1>
           <p className="text-[13px] text-ink-3">Effective {EFFECTIVE}</p>
           <p className={P}>
-            StormCentral is a free, open-source weather app for the web, Windows and Android. This policy explains what information StormCentral handles, why,
-            and the control you have over it. The short version: StormCentral has no ads, no analytics and no tracking, and it doesn&apos;t sell or share your
+            Storm Central is a free, open-source weather app for the web, Windows and Android. This policy explains what information Storm Central handles, why,
+            and the control you have over it. The short version: Storm Central has no ads, no analytics and no tracking, and it doesn&apos;t sell or share your
             information.
           </p>
         </header>
 
         <Section title="Information that stays on your device">
-          <p className={P}>Most of what you do in StormCentral never leaves your device, including:</p>
+          <p className={P}>Most of what you do in Storm Central never leaves your device, including:</p>
           <ul className={UL}>
             <li>Your settings and preferences, such as theme, units, layout, widget style and chosen forecast source.</li>
             <li>Your saved places and custom alerts.</li>
             <li>Your Google Weather API key, if you add one. It is stored only on your device and sent only to Google.</li>
             <li>
-              Your location. When you allow it, StormCentral uses your device&apos;s location to show local weather, warnings and widgets. It isn&apos;t stored on
+              Your location. When you allow it, Storm Central uses your device&apos;s location to show local weather, warnings and widgets. It isn&apos;t stored on
               our servers unless you include it in a report you choose to post.
             </li>
           </ul>
@@ -54,17 +54,17 @@ export default function PrivacyPage() {
 
         <Section title="Information sent to weather data services">
           <p className={P}>
-            To show weather, StormCentral requests data from public weather services such as the U.S. National Weather Service, NOAA and Open-Meteo, and loads
+            To show weather, Storm Central requests data from public weather services such as the U.S. National Weather Service, NOAA and Open-Meteo, and loads
             map and radar images from map providers. These requests include the coordinates of the places you view and, like any internet request, your IP
-            address. StormCentral doesn&apos;t send your name, account or other personal details with them. Each service handles requests under its own privacy
+            address. Storm Central doesn&apos;t send your name, account or other personal details with them. Each service handles requests under its own privacy
             policy.
           </p>
           <p className={P}>
-            On Android, StormCentral checks for weather warnings in the background so it can notify you and update widgets. These checks run on your phone and
-            contact the same weather services directly; no StormCentral server is involved.
+            On Android, Storm Central checks for weather warnings in the background so it can notify you and update widgets. These checks run on your phone and
+            contact the same weather services directly; no Storm Central server is involved.
           </p>
           <p className={P}>
-            If you choose Google as your forecast source, StormCentral sends the coordinates of the places you view to Google&apos;s Weather API using your own
+            If you choose Google as your forecast source, Storm Central sends the coordinates of the places you view to Google&apos;s Weather API using your own
             key, under Google&apos;s privacy policy.
           </p>
         </Section>
@@ -78,7 +78,7 @@ export default function PrivacyPage() {
           </ul>
           <p className={P}>
             When you post to the Spotter Network, the following is <strong className="font-semibold text-ink">public</strong> and visible to anyone using
-            StormCentral:
+            Storm Central:
           </p>
           <ul className={UL}>
             <li>Your report&apos;s text, category and photo.</li>
@@ -111,7 +111,7 @@ export default function PrivacyPage() {
 
         <Section title="Service providers">
           <p className={P}>
-            The StormCentral website and its database are hosted by third-party providers (currently Vercel), which store and process data only to run the
+            The Storm Central website and its database are hosted by third-party providers (currently Vercel), which store and process data only to run the
             service. Password reset emails are sent through an email delivery service. Like most web hosts, the hosting provider may keep basic technical logs,
             such as IP addresses and request times, for security and reliability.
           </p>
@@ -134,14 +134,14 @@ export default function PrivacyPage() {
 
         <Section title="Security">
           <p className={P}>
-            Connections to StormCentral use HTTPS, passwords are hashed, and sign-in cookies are restricted to the StormCentral website. No system is perfectly
+            Connections to Storm Central use HTTPS, passwords are hashed, and sign-in cookies are restricted to the Storm Central website. No system is perfectly
             secure, but we take reasonable steps to protect your information.
           </p>
         </Section>
 
         <Section title="Children">
           <p className={P}>
-            StormCentral isn&apos;t directed at children under 13, and we don&apos;t knowingly collect personal information from them. If you believe a child has
+            Storm Central isn&apos;t directed at children under 13, and we don&apos;t knowingly collect personal information from them. If you believe a child has
             created an account, contact us and we&apos;ll delete it.
           </p>
         </Section>

@@ -79,10 +79,10 @@ export function createTray({ onOpen, onCheckForUpdates, onQuit, log }) {
   if (defaultImage.isEmpty()) log(`tray: couldn't load ${TRAY_ICON}`);
   const icon = new Tray(defaultImage);
   tray = icon;
-  icon.setToolTip("StormCentral");
+  icon.setToolTip("Storm Central");
   icon.setContextMenu(
     Menu.buildFromTemplate([
-      { label: "Open StormCentral", click: onOpen },
+      { label: "Open Storm Central", click: onOpen },
       { label: "Check for updates…", click: onCheckForUpdates },
       { type: "separator" },
       { label: "Quit", click: onQuit },
@@ -104,7 +104,7 @@ export function createTray({ onOpen, onCheckForUpdates, onQuit, log }) {
      */
     setStatus(status) {
       if (icon.isDestroyed()) return;
-      const tooltip = (status.tooltip || "StormCentral").slice(0, MAX_TOOLTIP);
+      const tooltip = (status.tooltip || "Storm Central").slice(0, MAX_TOOLTIP);
       if (tooltip !== lastTooltip) icon.setToolTip((lastTooltip = tooltip));
       if (process.platform === "darwin" && status.text !== lastText) icon.setTitle((lastText = status.text));
 
