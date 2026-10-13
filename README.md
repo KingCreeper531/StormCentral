@@ -174,6 +174,7 @@ cd android && ./gradlew assembleRelease    # → android/app/build/outputs/apk/r
 1. Bump `version` in `package.json` (it is the version of the web app, the Windows app and the APK), commit and push.
 2. Tag it: `git tag v0.2.0 && git push origin v0.2.0`. You can also run **Release apps** from the Actions tab with **publish** ticked.
 3. The workflow checks the code, builds the installer and the APK, and publishes the GitHub release. Installed Windows apps update themselves from it, and Android apps offer the new APK.
+4. It also copies the installer to GitHub Pages at `https://kingcreeper531.github.io/StormCentral/download/<version>/StormCentral-Setup-<version>.exe`. The Microsoft Store needs a download link that doesn't redirect, which GitHub release links always do. Turn this on once under **Settings → Pages → Source: GitHub Actions**. The newest release and the one before it are kept, so the Store's link keeps working until the listing is updated.
 
 Optional repository secrets:
 

@@ -227,15 +227,62 @@ jobs:
             gh release create "$tag" assets/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
               --title "StormCentral $VERSION" --notes-file notes.md --latest
           fi
-      # Only the newest release stays on the Releases page; the apps update from it.
+      # The Releases page keeps the newest release (the apps update from it)
+      # and the one before, whose Store download link must keep working until
+      # the Microsoft Store listing moves to the new version.
       - name: Remove older releases
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.check.outputs.version }}
         run: |
-          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName --jq '.[].tagName' | while read -r old; do
-            if [ -n "$old" ] && [ "$old" != "v$VERSION" ]; then
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName --jq '.[].tagName' \
+            | grep -vx "v$VERSION" | tail -n +2 | while read -r old; do
+            if [ -n "$old" ]; then
               echo "Deleting release $old"
               gh release delete "$old" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag
             fi
           done
+
+  # The Microsoft Store needs an installer URL that doesn't redirect, which
+  # GitHub release downloads always do. GitHub Pages serves the files directly:
+  #   https://<owner>.github.io/<repo>/download/<version>/StormCentral-Setup-<version>.exe
+  # One-time setup: Settings → Pages → Source: GitHub Actions. Files are
+  # deployed as a Pages artifact, not committed, so git's 100 MB file limit
+  # doesn't apply.
+  store-download:
+    name: Publish the Store download
+    needs: [check, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Collect the installers of the releases on the Releases page
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p site/download
+          {
+            echo '<!doctype html><meta charset="utf-8"><title>StormCentral downloads</title>'
+            echo '<h1>StormCentral downloads</h1><ul>'
+          } > site/index.html
+          for tag in $(gh release list --repo "$GITHUB_REPOSITORY" --limit 10 --json tagName --jq '.[].tagName'); do
+            v="${tag#v}"
+            file="StormCentral-Setup-$v.exe"
+            mkdir -p "site/download/$v"
+            if gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern "$file" --dir "site/download/$v"; then
+              echo "<li><a href=\"download/$v/$file\">$file</a></li>" >> site/index.html
+            fi
+          done
+          echo '</ul>' >> site/index.html
+          touch site/.nojekyll
+          find site -type f -exec ls -la {} \;
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
