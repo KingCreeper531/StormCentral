@@ -93,9 +93,18 @@ export default function PrivacyPage() {
           </p>
         </Section>
 
+        <Section title="Blocking, reports and moderation">
+          <p className={P}>
+            If you block someone, we store that you blocked them so neither of you sees the other&apos;s posts. If you report a post, comment or account, we
+            store your report, including the reason, any details you add and your username, so moderators can review it. The person you report isn&apos;t
+            told who reported them. Moderators can hide or remove content and suspend accounts that break the community guidelines.
+          </p>
+        </Section>
+
         <Section title="How we use information">
           <p className={P}>
-            Account information is used only to run the Spotter Network: signing you in, showing your reports and profile, and resetting your password. It
+            Account information is used only to run the Spotter Network: signing you in, showing your reports and profile, resetting your password and
+            keeping the community safe. It
             isn&apos;t used for advertising, profiling or marketing, and it isn&apos;t sold, rented or traded.
           </p>
         </Section>
@@ -118,7 +127,7 @@ export default function PrivacyPage() {
         <Section title="Keeping and deleting your information">
           <p className={P}>
             Your account and reports are kept until you delete them. You can delete your account at any time in Settings → Account, which permanently removes
-            your profile, reports, photos, comments and sign-in sessions from our servers. Information stored on your device stays until you clear it, remove it
+            your profile, reports, photos, comments, blocks, the reports you sent and sign-in sessions from our servers. Information stored on your device stays until you clear it, remove it
             in Settings or uninstall the app.
           </p>
         </Section>

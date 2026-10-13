@@ -1,3 +1,5 @@
+import { suspensionText } from "../community";
+
 /**
  * CSRF defence for cookie-authenticated mutations: browsers always send
  * `Origin` on cross-site POST/DELETE, so requiring it to match our host
@@ -31,3 +33,9 @@ export const tooMany = (retryAfterSec: number) =>
     { error: "Too many requests — slow down." },
     { status: 429, headers: { "Retry-After": String(retryAfterSec), "Cache-Control": "no-store" } },
   );
+
+/** Writes from a suspended account are refused with the suspension's end date. */
+export function suspended(user: { suspendedUntil: number | null }): Response | null {
+  if (user.suspendedUntil == null) return null;
+  return Response.json({ error: suspensionText(user.suspendedUntil) }, { status: 403, headers: { "Cache-Control": "no-store" } });
+}
