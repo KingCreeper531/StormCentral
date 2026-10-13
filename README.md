@@ -15,7 +15,7 @@ Free code signing provided by [SignPath.io](https://about.signpath.io/), certifi
 | Device | File | Updates |
 |---|---|---|
 | **Windows 10 / 11** (64-bit) | `StormCentral-Setup-<version>.exe` | Automatic. The app downloads new releases in the background and asks to restart. |
-| **Android 7.0+** | `StormCentral-<version>.apk` | The app shows a notice when a new release is out; tap **Download** and install it over the old one. |
+| **Android 7.0+** | `StormCentral-<version>.apk` | In the app (0.4.3 and newer). Tap **Update** and it downloads and installs itself; Android asks once to allow it. With automatic updates on (Settings → App), new versions install in the background, and on Android 12+ without a prompt after the first in-app update. |
 
 - **Windows:** the installer isn't code-signed yet, so SmartScreen may say "Windows protected your PC". Choose **More info → Run anyway**. It installs for your user only, with no admin prompt.
 - **Android:** open the APK on your phone and allow your browser to install apps when asked.
