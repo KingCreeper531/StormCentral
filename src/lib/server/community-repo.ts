@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, gte, inArray, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import type { CommentDto, ConditionsSnapshot, FeedResponse, PostDto } from "../community";
 import { avatarUrl, conditionsSchema } from "../community";
+import { isDeveloper } from "../auth/session";
 import { getDb } from "../db/client";
 import { comments, flags, media, posts, users, verifications } from "../db/schema";
 import { haversineKm, type BBox, type LatLon } from "../geo";
@@ -120,7 +121,14 @@ export async function listPosts(q: FeedQuery, viewerId: string | null): Promise<
     createdAt: r.post.createdAt,
     image: r.post.mediaId ? { url: `/api/media/${r.post.mediaId}`, width: r.mediaWidth, height: r.mediaHeight } : null,
     conditions: parseConditions(r.post.conditions),
-    author: { username: r.username, displayName: r.displayName, avatarHue: r.avatarHue, avatarUrl: avatarUrl(r.avatarMediaId), reputation: Number(r.reputation) },
+    author: {
+      username: r.username,
+      displayName: r.displayName,
+      avatarHue: r.avatarHue,
+      avatarUrl: avatarUrl(r.avatarMediaId),
+      reputation: Number(r.reputation),
+      developer: isDeveloper(r.username),
+    },
     verifications: Number(r.verifications),
     comments: Number(r.comments),
     viewerVerified: mine.has(r.post.id),
@@ -249,7 +257,7 @@ export async function listComments(postId: string, viewerId: string | null): Pro
     id: r.c.id,
     body: r.c.body,
     createdAt: r.c.createdAt,
-    author: { username: r.username, displayName: r.displayName, avatarHue: r.avatarHue, avatarUrl: avatarUrl(r.avatarMediaId) },
+    author: { username: r.username, displayName: r.displayName, avatarHue: r.avatarHue, avatarUrl: avatarUrl(r.avatarMediaId), developer: isDeveloper(r.username) },
     isOwn: r.c.userId === viewerId,
     hidden: r.c.hidden !== 0,
   }));
@@ -299,5 +307,12 @@ export async function getProfile(username: string) {
   if (!row) return null;
   // An expired suspension reads as none.
   const suspendedUntil = row.suspendedUntil != null && row.suspendedUntil > Date.now() ? row.suspendedUntil : null;
-  return { ...row, suspendedUntil, avatarUrl: avatarUrl(row.avatarMediaId), reputation: Number(row.reputation), posts: Number(row.posts) };
+  return {
+    ...row,
+    suspendedUntil,
+    avatarUrl: avatarUrl(row.avatarMediaId),
+    reputation: Number(row.reputation),
+    posts: Number(row.posts),
+    developer: isDeveloper(row.username),
+  };
 }

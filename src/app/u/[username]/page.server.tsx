@@ -7,7 +7,7 @@ import { Meter } from "@/components/ui/meter";
 import { Avatar, Stat } from "@/components/ui/misc";
 import { Panel } from "@/components/ui/panel";
 import { getSessionUser } from "@/lib/auth/session";
-import { suspensionText, tierFor, TIERS } from "@/lib/community";
+import { badgeFor, suspensionText, tierFor, TIERS } from "@/lib/community";
 import { getProfile } from "@/lib/server/community-repo";
 import { blockedBetween, isBlocking } from "@/lib/server/moderation-repo";
 
@@ -30,6 +30,7 @@ export default async function ProfilePage({ params }: Params) {
   // Suspended accounts' reports are hidden from everyone but themselves and moderators.
   const showFeed = !separated && (!suspendedNow || isSelf || !!viewer?.moderator);
   const tier = tierFor(profile.reputation);
+  const badge = badgeFor(profile);
   const nextTier = [...TIERS].reverse().find((t) => t.min > profile.reputation);
   const joined = new Date(profile.createdAt).toLocaleDateString(undefined, { month: "long", year: "numeric" });
   const toNext = nextTier ? nextTier.min - profile.reputation : 0;
@@ -47,8 +48,8 @@ export default async function ProfilePage({ params }: Params) {
               @{profile.username} · Joined {joined}
             </p>
             <p className="mt-1 inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-2">
-              <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: tier.color }} />
-              {tier.name}
+              <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: badge.color }} />
+              {badge.name}
             </p>
           </div>
           <div className="self-start">
