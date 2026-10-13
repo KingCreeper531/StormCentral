@@ -4,6 +4,7 @@ import { Bell, ChevronDown, ChevronRight, Download, Monitor, Moon, RefreshCw, Su
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { checkForUpdate, installedVersion, type AvailableUpdate } from "@/lib/native/app-update";
+import { appUpdater, appUpdaterAvailable, type UpdaterStatus } from "@/lib/native/app-updater";
 import { desktopBridge, type DesktopUpdateStatus } from "@/lib/native/desktop";
 import { GITHUB_REPO, isNativeApp } from "@/lib/platform";
 import { deviceZone, type ClockPref, type ZonePref } from "@/lib/clock";
@@ -22,6 +23,7 @@ import { AccountSection } from "./account-panel";
 import { AddonsSection, ThemePicker } from "./addons-panel";
 import { DesktopSettings } from "./desktop-settings";
 import { WidgetPanel } from "./widget-panel";
+import { UpdateButton } from "../shell/update-button";
 
 type Preset = "imperial" | "metric" | "custom";
 
@@ -178,11 +180,32 @@ const fromDesktop = (s: DesktopUpdateStatus): Check =>
         ? { kind: "error" }
         : { kind: "current", latest: s.latest };
 
+/** Android 0.4.3+: in-app install and the automatic-updates switch. */
+function useInAppUpdates(host: Host) {
+  const available = useSyncExternalStore(noSubscribe, appUpdaterAvailable, () => false) && host === "android";
+  const [status, setStatus] = useState<UpdaterStatus | null>(null);
+  useEffect(() => {
+    if (!available) return;
+    let live = true;
+    void appUpdater.status().then((s) => live && setStatus(s), () => {});
+    return () => {
+      live = false;
+    };
+  }, [available]);
+  const setAuto = (enabled: boolean) => {
+    setStatus((s) => (s ? { ...s, auto: enabled } : s));
+    void appUpdater.setAuto({ enabled }).catch(() => {});
+  };
+  return { available, status, setAuto };
+}
+
 /** Installed version and a "Check for updates" button (Windows and Android apps). */
 function UpdatesPanel() {
   const host = useSyncExternalStore(noSubscribe, hostSnapshot, () => "web" as Host);
   const [version, setVersion] = useState<string | null>(null);
   const [check, setCheck] = useState<Check>({ kind: "idle" });
+  const inApp = useInAppUpdates(host);
+  const [installText, setInstallText] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -237,6 +260,8 @@ function UpdatesPanel() {
             <Download className="size-4" aria-hidden />
             Restart to install {check.latest}
           </Button>
+        ) : check.kind === "available" && inApp.available ? (
+          <UpdateButton version={check.update.version} size="md" onStatus={setInstallText} />
         ) : check.kind === "available" ? (
           <a href={check.update.apkUrl} className={buttonClass("primary")}>
             <Download className="size-4" aria-hidden />
@@ -256,14 +281,30 @@ function UpdatesPanel() {
           {check.kind === "current" && "You have the latest version."}
           {check.kind === "downloading" && `Downloading ${check.latest ?? "the update"}. You'll be asked to restart when it's ready.`}
           {check.kind === "ready" && "The update is downloaded."}
-          {check.kind === "available" && `Version ${check.update.version} is available. Install it over this one; your settings stay.`}
+          {check.kind === "available" &&
+            (installText ?? (inApp.available ? `Version ${check.update.version} is available. Your settings stay.` : `Version ${check.update.version} is available. Install it over this one; your settings stay.`))}
           {check.kind === "error" && "Couldn't reach GitHub. Check your connection and try again."}
         </p>
       </div>
+      {inApp.available && inApp.status && (
+        <div className="mt-3 border-t border-line pt-1">
+          <Toggle label="Install updates automatically" checked={inApp.status.auto} onChange={inApp.setAuto} />
+          <p className="label">
+            {inApp.status.auto
+              ? inApp.status.silent
+                ? "New versions install in the background while you're not using the app."
+                : "New versions download in the background; Android asks you to tap Install. After the first in-app update, Android 12 and newer install them without asking."
+              : "You'll get a notification when a new version is out."}
+          </p>
+          {inApp.status.state === "failed" && inApp.status.error && <p className="mt-1 text-xs text-nogo">{inApp.status.error}</p>}
+        </div>
+      )}
       <p className="label mt-3">
         {host === "desktop"
           ? "The app also checks on its own when it starts and every few hours."
-          : "The app also checks when it opens and shows a notice when a new version is out."}
+          : inApp.available
+            ? "The app checks every few hours, and when it opens."
+            : "The app also checks when it opens and shows a notice when a new version is out."}
       </p>
     </Panel>
   );

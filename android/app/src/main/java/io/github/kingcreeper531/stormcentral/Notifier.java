@@ -62,14 +62,19 @@ final class Notifier {
         return NotificationManagerCompat.from(context).areNotificationsEnabled();
     }
 
-    /** Shows a notification; returns false when Android won't allow it. */
+    /** Shows a notification that opens the app; returns false when Android won't allow it. */
     static boolean show(Context context, int id, String channel, String title, String body) {
-        ensureChannels(context);
-        if (!allowed(context)) return false;
         Intent open = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
         if (open == null) open = new Intent(context, MainActivity.class);
         open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent tap = PendingIntent.getActivity(context, id, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        return showWithIntent(context, id, channel, title, body, tap);
+    }
+
+    /** Shows a notification with its own tap action. */
+    static boolean showWithIntent(Context context, int id, String channel, String title, String body, PendingIntent tap) {
+        ensureChannels(context);
+        if (!allowed(context)) return false;
 
         boolean urgent = WARNINGS.equals(channel) || LIGHTNING.equals(channel);
         NotificationCompat.Builder b = new NotificationCompat.Builder(context, channel)
