@@ -59,7 +59,7 @@ export function DesktopSettings() {
             checked={settings.closeToTray}
             onChange={(closeToTray) => change({ closeToTray })}
           />
-          {loginLabel && (
+          {loginLabel && settings.launchAtLoginSupported !== false && (
             <Toggle label={loginLabel} checked={settings.launchAtLogin} onChange={(launchAtLogin) => change({ launchAtLogin })} />
           )}
         </div>

@@ -10,6 +10,8 @@ import updaterPkg from "electron-updater";
  */
 const { autoUpdater } = updaterPkg;
 const CHECK_EVERY_MS = 4 * 3_600_000;
+/** The Microsoft Store version: the Store installs updates, so this updater stays off. */
+export const storeBuild = !!process.windowsStore;
 
 /** @type {(m: string) => void} */
 let log = () => {};
@@ -41,6 +43,10 @@ export function initAutoUpdates(opts) {
   log = opts.log;
   if (!app.isPackaged) {
     log("updates: disabled in development builds");
+    return;
+  }
+  if (storeBuild) {
+    log("updates: handled by the Microsoft Store");
     return;
   }
   autoUpdater.logger = { info: (m) => log(`updates: ${m}`), warn: (m) => log(`updates: ${m}`), error: (m) => log(`updates: ${m}`), debug: () => {} };
@@ -94,18 +100,23 @@ export function checkForUpdatesFromMenu() {
     void show({ type: "info", message: "Updates are disabled in development builds" });
     return;
   }
+  if (storeBuild) {
+    void show({ type: "info", message: "StormCentral updates through the Microsoft Store", detail: "New versions install automatically. To check now, open the Store's Library." });
+    return;
+  }
   manualCheck = true;
   void check();
 }
 
 /**
- * @typedef {{ state: "current" | "downloading" | "ready" | "error" | "unsupported", current: string, latest: string | null }} UpdateStatus
+ * @typedef {{ state: "current" | "downloading" | "ready" | "error" | "unsupported" | "store", current: string, latest: string | null }} UpdateStatus
  */
 
 /** @returns {UpdateStatus} */
 function status() {
   const current = app.getVersion();
   if (!app.isPackaged) return { state: "unsupported", current, latest: null };
+  if (storeBuild) return { state: "store", current, latest: null };
   if (state.ready) return { state: "ready", current, latest: state.latest };
   if (state.downloading) return { state: "downloading", current, latest: state.latest };
   return { state: "current", current, latest: state.latest ?? current };
@@ -117,7 +128,7 @@ function status() {
  * @returns {Promise<UpdateStatus>}
  */
 export async function checkForUpdatesFromPage() {
-  if (!app.isPackaged || state.ready) return status();
+  if (!app.isPackaged || storeBuild || state.ready) return status();
   try {
     const result = await autoUpdater.checkForUpdates();
     const latest = result?.updateInfo?.version ?? null;

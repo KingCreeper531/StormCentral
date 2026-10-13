@@ -169,10 +169,13 @@ type Check =
   | { kind: "downloading"; latest: string | null }
   | { kind: "ready"; latest: string | null }
   | { kind: "available"; update: AvailableUpdate }
+  | { kind: "store" }
   | { kind: "error" };
 
 const fromDesktop = (s: DesktopUpdateStatus): Check =>
-  s.state === "ready"
+  s.state === "store"
+    ? { kind: "store" }
+    : s.state === "ready"
     ? { kind: "ready", latest: s.latest }
     : s.state === "downloading"
       ? { kind: "downloading", latest: s.latest }
@@ -267,7 +270,7 @@ function UpdatesPanel() {
             <Download className="size-4" aria-hidden />
             Download {check.update.version}
           </a>
-        ) : legacyDesktop ? (
+        ) : check.kind === "store" ? null : legacyDesktop ? (
           <a href={releases} target="_blank" rel="noreferrer" className={buttonClass("secondary")}>
             Open the Releases page
           </a>
@@ -279,6 +282,7 @@ function UpdatesPanel() {
         )}
         <p role="status" className="text-sm text-ink-2">
           {check.kind === "current" && "You have the latest version."}
+          {check.kind === "store" && "This copy updates through the Microsoft Store, which installs new versions automatically."}
           {check.kind === "downloading" && `Downloading ${check.latest ?? "the update"}. You'll be asked to restart when it's ready.`}
           {check.kind === "ready" && "The update is downloaded."}
           {check.kind === "available" &&
@@ -300,7 +304,9 @@ function UpdatesPanel() {
         </div>
       )}
       <p className="label mt-3">
-        {host === "desktop"
+        {host === "desktop" && check.kind === "store"
+          ? "Microsoft Store apps update in the background."
+          : host === "desktop"
           ? "The app also checks on its own when it starts and every few hours."
           : inApp.available
             ? "The app checks every few hours, and when it opens."

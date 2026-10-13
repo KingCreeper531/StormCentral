@@ -187,6 +187,17 @@ Optional repository secrets:
 | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | Sign the APK with your own key. Without them, APKs are signed with the shared development key in `android/app/debug.keystore`. That key isn't secret: it keeps builds installable over each other, but anyone could sign an APK with it. Create a key with `keytool -genkeypair -v -keystore release.jks -alias stormcentral -keyalg RSA -keysize 4096 -validity 10000` and store `base64 -w0 release.jks` as `ANDROID_KEYSTORE_BASE64`. Android only installs an update signed with the same key, so after switching keys, users reinstall once. |
 | `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` | A code-signing certificate (base64 `.pfx`). Signed installers skip the SmartScreen warning. |
 
+### Microsoft Store
+
+Releases can also build `StormCentral-<version>-store.appx`, an MSIX package for the Microsoft Store. The Store signs it, so it needs no certificate.
+
+1. In [Partner Center](https://partner.microsoft.com/dashboard), create the app as an **MSIX or PWA app** and reserve its name.
+2. Open **Product management → Product identity** and copy `Package/Identity/Name`, `Package/Identity/Publisher` and `Package/Properties/PublisherDisplayName`.
+3. Add them as repository variables (Settings → Secrets and variables → Actions → Variables): `MSIX_IDENTITY_NAME`, `MSIX_PUBLISHER` and `MSIX_PUBLISHER_DISPLAY_NAME`.
+4. Publish a release. Upload the `-store.appx` file from the release to a new Store submission under **Packages**.
+
+The Store version updates through the Store, so its own updater is off. It also can't add itself to Windows startup, so that setting is hidden.
+
 ## Project structure
 
 ```
