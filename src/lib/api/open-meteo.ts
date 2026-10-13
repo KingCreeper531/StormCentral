@@ -9,6 +9,7 @@
 import type { BBox } from "../geo";
 import { latFromMercatorY, mercatorY } from "../geo";
 import { getJson, HttpError, qs } from "./http";
+import { type BdcPlace, placeLabel } from "../place-name";
 
 const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
 const AIR_URL = "https://air-quality-api.open-meteo.com/v1/air-quality";
@@ -392,13 +393,11 @@ export async function searchPlaces(query: string, signal?: AbortSignal): Promise
   }));
 }
 
-/** Keyless client-side reverse geocoding (BigDataCloud's free client endpoint). */
+/** Keyless client-side reverse geocoding (BigDataCloud's free client endpoint), named by placeLabel. */
 export async function reverseGeocode(lat: number, lon: number, signal?: AbortSignal): Promise<string> {
-  const r = await getJson<{ city?: string; locality?: string; principalSubdivisionCode?: string; countryCode?: string }>(
-    `https://api.bigdatacloud.net/data/reverse-geocode-client?${qs({ latitude: lat, longitude: lon, localityLanguage: "en" })}`,
-    { signal, timeoutMs: 8000 },
-  );
-  const name = r.city || r.locality || "My location";
-  const region = r.principalSubdivisionCode?.split("-")[1];
-  return region ? `${name}, ${region}` : name;
+  const r = await getJson<BdcPlace>(`https://api.bigdatacloud.net/data/reverse-geocode-client?${qs({ latitude: lat, longitude: lon, localityLanguage: "en" })}`, {
+    signal,
+    timeoutMs: 8000,
+  });
+  return placeLabel(r);
 }
