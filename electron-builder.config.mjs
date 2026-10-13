@@ -12,6 +12,20 @@
 import { readFileSync } from "node:fs";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+
+/**
+ * Microsoft Store package (MSIX/AppX). The identity comes from Partner Center
+ * → the app → Product management → Product identity. It isn't secret; set it
+ * here or as the MSIX_* repository variables. Until it is set, only the
+ * installer is built (a package with the wrong identity can't be uploaded).
+ * The Store signs the package itself, so no certificate is needed.
+ */
+const MSIX = {
+  identityName: process.env.MSIX_IDENTITY_NAME || "",
+  publisher: process.env.MSIX_PUBLISHER || "",
+  publisherDisplayName: process.env.MSIX_PUBLISHER_DISPLAY_NAME || "",
+};
+const buildMsix = !!(MSIX.identityName && MSIX.publisher && MSIX.publisherDisplayName);
 const repo = process.env.GITHUB_REPOSITORY || "KingCreeper531/StormCentral";
 const [owner, name] = repo.split("/");
 
@@ -39,7 +53,7 @@ const config = {
   npmRebuild: false,
   electronLanguages: ["en-US"],
   win: {
-    target: [{ target: "nsis", arch: ["x64"] }],
+    target: [{ target: "nsis", arch: ["x64"] }, ...(buildMsix ? [{ target: "appx", arch: ["x64"] }] : [])],
     icon: "icon.png",
     // Optional signing: set CSC_LINK / CSC_KEY_PASSWORD secrets and electron-builder signs automatically.
   },
@@ -54,6 +68,21 @@ const config = {
     createStartMenuShortcut: true,
     // Keep accounts, reports and settings if the app is uninstalled and reinstalled.
     deleteAppDataOnUninstall: false,
+  },
+  // The Store package: same app; updates come from the Store (desktop/updater.mjs checks process.windowsStore).
+  // Tile and logo images are in desktop/resources/appx/.
+  appx: {
+    applicationId: "StormCentral",
+    displayName: "StormCentral",
+    identityName: MSIX.identityName || "StormCentral",
+    publisher: MSIX.publisher || "CN=StormCentral",
+    publisherDisplayName: MSIX.publisherDisplayName || "StormCentral",
+    backgroundColor: "#0b1a33",
+    languages: ["en-US"],
+    showNameOnTiles: false,
+    // Location for "Use my location"; network access is part of a full-trust desktop app.
+    capabilities: ["internetClient", "location"],
+    artifactName: "StormCentral-${version}-store.${ext}",
   },
   // Lets contributors on Linux run the packaged app locally (`npm run desktop:dist -- --linux dir`).
   linux: { target: ["AppImage"], category: "Science", icon: "icon.png" },
