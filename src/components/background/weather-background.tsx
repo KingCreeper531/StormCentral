@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useMemo } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { skyPhase, sunPosition } from "@/lib/astro/sun";
 import { describeCode } from "@/lib/weather/wmo";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -71,18 +71,47 @@ const BUBBLES = [
  * measured rate, lightning for convective codes. Kept deliberately dim so it
  * reads as atmosphere behind the hero, never as decoration competing with data.
  */
+/**
+ * Whether a vivid-sky theme is on, read from <html data-sky> rather than the
+ * add-ons store: the boot script sets it before the page paints, so the very
+ * first client render already shows the theme's sky (no dark sky behind a
+ * light page while the store loads).
+ */
+function subscribeSky(cb: () => void) {
+  const mo = new MutationObserver(cb);
+  mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-sky"] });
+  return () => mo.disconnect();
+}
+const skySnapshot = () => document.documentElement.dataset.sky === "vivid";
+
+/** Gradient layers fade over each other when the sky itself changes; a theme switch swaps instantly. */
+const GRADIENT_VARIANTS = {
+  hidden: { opacity: 0 },
+  shown: (instant: boolean) => ({ opacity: 1, transition: { duration: instant ? 0 : 1.5, ease: "easeInOut" as const } }),
+  gone: (instant: boolean) => ({ opacity: 0, transition: { duration: instant ? 0 : 1.5, ease: "easeInOut" as const } }),
+};
+
 export function WeatherBackground({ lat, lon, code, cloudPct, windMs, windDirDeg, precipMm, hidden }: Props) {
   const now = useNow(5 * 60_000);
   // Hydration-safe (false on the server); animated nodes are keyed on it so they remount cleanly.
   const reduced = useMediaQuery("(prefers-reduced-motion: reduce)");
   const light = useResolvedTheme() === "light";
   // Themes can ask for full, saturated skies (e.g. the "Sky" theme): see vividSkyGradient.
-  const vivid = useAddonsStore((s) => selectActiveTheme(s)?.sky === "vivid");
+  const vividTheme = useAddonsStore((s) => selectActiveTheme(s)?.sky === "vivid");
+  const vividDoc = useSyncExternalStore(subscribeSky, skySnapshot, () => false);
+  const vivid = vividDoc || vividTheme;
   const sun = useMemo(() => sunPosition(new Date(now), lat, lon), [now, lat, lon]);
   const phase = skyPhase(sun.altitude);
   const info = describeCode(code);
   const scene = info.scene;
   const gradient = vivid ? vividSkyGradient(scene, phase) : skyGradient(scene, phase);
+  // Fade only when the weather or time of day changes the sky; a theme change (or the
+  // first render after loading) swaps at once. Remembered per gradient change, so the
+  // fade's speed doesn't change mid-way.
+  const skyKey = `${scene}|${phase}`;
+  const [shown, setShown] = useState({ gradient, skyKey, instant: true });
+  if (shown.gradient !== gradient) setShown({ gradient, skyKey, instant: reduced || shown.skyKey === skyKey });
+  const instant = shown.gradient === gradient ? shown.instant : true;
   const isNight = phase === "night" || phase === "astronomical" || phase === "nautical";
 
   const kind: PrecipKind =
@@ -119,15 +148,16 @@ export function WeatherBackground({ lat, lon, code, cloudPct, windMs, windDirDeg
       className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-canvas transition-opacity duration-700"
       style={{ opacity: hidden ? 0 : 1 }}
     >
-      <AnimatePresence initial={false}>
+      <AnimatePresence initial={false} custom={instant}>
         <motion.div
           key={gradient}
           className="absolute inset-0"
           style={{ background: gradient }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: reduced ? 0 : 1.5, ease: "easeInOut" }}
+          custom={instant}
+          variants={GRADIENT_VARIANTS}
+          initial="hidden"
+          animate="shown"
+          exit="gone"
         />
       </AnimatePresence>
 
