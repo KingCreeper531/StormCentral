@@ -1,7 +1,7 @@
 {
   "type": "plugin",
   "name": "Earth from space",
-  "author": "StormCentral",
+  "author": "Storm Central",
   "description": "NASA imagery: yesterday's true-colour Earth, city lights and sea temperatures.",
   "version": "1.0.0",
   "layers": [

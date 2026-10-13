@@ -69,7 +69,7 @@ export async function startLocalServer({ log, onCrash }) {
 
   const child = utilityProcess.fork(path.join(dir, "server.js"), [], {
     cwd: dir,
-    serviceName: "StormCentral server",
+    serviceName: "Storm Central server",
     stdio: "pipe",
     env: {
       ...process.env,

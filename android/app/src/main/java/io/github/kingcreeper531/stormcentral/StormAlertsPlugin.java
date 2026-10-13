@@ -41,7 +41,7 @@ public class StormAlertsPlugin extends Plugin {
 
     @PluginMethod
     public void test(PluginCall call) {
-        boolean shown = Notifier.show(getContext(), 1, Notifier.WARNINGS, "StormCentral notifications are working",
+        boolean shown = Notifier.show(getContext(), 1, Notifier.WARNINGS, "Storm Central notifications are working",
                 "Warnings, lightning and nearby reports for your places will look like this, even when the app is closed.");
         JSObject r = new JSObject();
         r.put("shown", shown);

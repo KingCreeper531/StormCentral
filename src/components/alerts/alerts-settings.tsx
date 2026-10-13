@@ -82,10 +82,10 @@ function NativeStatus({ status }: { status: NativeAlertsStatus }) {
         <span className="font-medium text-ink">Background checks:</span>{" "}
         {status.lastRun ? `last ran ${timeAgo(status.lastRun, now)}${status.lastResult ? ` (${status.lastResult})` : ""}.` : "waiting for the first run (needs a network connection)."}
       </p>
-      {!status.allowed && <p className="text-nogo">Android is blocking StormCentral&apos;s notifications. Turn them on in notification settings.</p>}
+      {!status.allowed && <p className="text-nogo">Android is blocking Storm Central&apos;s notifications. Turn them on in notification settings.</p>}
       {!status.batteryUnrestricted && (
         <p>
-          Battery optimization can delay checks by an hour or more on some phones. Allow StormCentral to run in the background so warnings arrive on time.
+          Battery optimization can delay checks by an hour or more on some phones. Allow Storm Central to run in the background so warnings arrive on time.
         </p>
       )}
       <div className="flex flex-wrap gap-2 pt-0.5">
@@ -118,7 +118,7 @@ function NotificationsPanel() {
   };
   const test = async () => {
     if (perm !== "granted" && (await request()) !== "granted") return;
-    const n = { id: 1, title: "StormCentral", body: "Notifications are working. Warnings for your places will look like this.", kind: "test" as const };
+    const n = { id: 1, title: "Storm Central", body: "Notifications are working. Warnings for your places will look like this.", kind: "test" as const };
     try {
       // Android 0.4.3+: through the same native path real alerts use.
       if (nativeChecks.available) setTested((await nativeAlerts.test()).shown ? "sent" : "failed");
@@ -134,14 +134,14 @@ function NotificationsPanel() {
 
   const status =
     perm === "denied"
-      ? "Notifications are blocked. Allow them for StormCentral in your browser or system settings."
+      ? "Notifications are blocked. Allow them for Storm Central in your browser or system settings."
       : perm === "unsupported"
         ? "This browser can't show notifications."
         : settings.enabled && perm !== "granted"
           ? "Allow notifications when your device asks, or tap Send a test notification."
         : native
           ? "Checked about every 15 minutes, even when the app is closed."
-          : "Checked every 2 minutes while StormCentral is open (the Windows app keeps checking from the tray).";
+          : "Checked every 2 minutes while Storm Central is open (the Windows app keeps checking from the tray).";
 
   return (
     <Panel title="Notifications" subtitle="NWS warnings for your places, and your custom alerts">
@@ -181,7 +181,7 @@ function NotificationsPanel() {
         <Bell className="size-4" aria-hidden />
         {tested === "sent" ? "Sent" : "Send a test notification"}
       </Button>
-      {tested === "failed" && <p className="mt-2 text-xs text-nogo">Couldn&apos;t show a notification. Check that StormCentral&apos;s notifications are allowed in your phone&apos;s settings.</p>}
+      {tested === "failed" && <p className="mt-2 text-xs text-nogo">Couldn&apos;t show a notification. Check that Storm Central&apos;s notifications are allowed in your phone&apos;s settings.</p>}
       {nativeChecks.available && nativeChecks.status && settings.enabled && <NativeStatus status={nativeChecks.status} />}
     </Panel>
   );

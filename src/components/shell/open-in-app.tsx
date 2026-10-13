@@ -54,12 +54,12 @@ export function OpenInApp() {
   return (
     <div
       role="region"
-      aria-label="StormCentral app"
+      aria-label="Storm Central app"
       className="surface fixed inset-x-4 bottom-[calc(var(--tabbar-h)_+_12px)] z-50 flex items-center gap-3 py-2 pr-2 pl-3 md:inset-x-auto md:right-6 md:bottom-6 md:w-[420px]"
     >
       <Smartphone className="size-4 shrink-0 text-ink-3" aria-hidden />
       <p className="min-w-0 flex-1 text-[13px] text-ink-2">
-        <span className="font-medium text-ink">StormCentral app</span> adds warning notifications{target === "android" ? " and a widget" : " and a tray icon"}.
+        <span className="font-medium text-ink">Storm Central app</span> adds warning notifications{target === "android" ? " and a widget" : " and a tray icon"}.
       </p>
       <a href={open} className={buttonClass("primary", "sm")}>
         Open

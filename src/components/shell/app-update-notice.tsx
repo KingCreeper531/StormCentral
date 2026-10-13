@@ -51,7 +51,7 @@ export function AppUpdateNotice() {
       <p className="min-w-0 flex-1 text-[13px] text-ink-2" aria-live="polite">
         {status ?? (
           <>
-            <span className="font-medium text-ink">StormCentral {update.version}</span> is available.
+            <span className="font-medium text-ink">Storm Central {update.version}</span> is available.
           </>
         )}
       </p>

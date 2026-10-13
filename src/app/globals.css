@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * StormCentral design tokens — see docs/DESIGN.md.
+ * Storm Central design tokens — see docs/DESIGN.md.
  * Instrument-panel aesthetic: true-black canvas, solid neutral surfaces with
  * hairline borders, one interactive accent, colour reserved for data and
  * status. All text tokens are checked ≥ 4.5:1 on surface-1/2.

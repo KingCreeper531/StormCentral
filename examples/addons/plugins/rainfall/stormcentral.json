@@ -1,7 +1,7 @@
 {
   "type": "plugin",
   "name": "Rainfall totals",
-  "author": "StormCentral",
+  "author": "Storm Central",
   "description": "Radar-estimated rain totals (NOAA MRMS). Pick the time window.",
   "version": "1.0.0",
   "layers": [

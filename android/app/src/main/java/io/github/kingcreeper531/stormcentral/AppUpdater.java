@@ -26,7 +26,7 @@ import java.net.URL;
  * GitHub and installs it through a PackageInstaller session.
  *
  * <p>Android asks the person to confirm the first update (the app was
- * installed by a browser or file manager). Once StormCentral has installed
+ * installed by a browser or file manager). Once Storm Central has installed
  * itself, Android 12+ lets later updates go through without asking
  * ({@code USER_ACTION_NOT_REQUIRED}; on Android 14+ with the
  * UPDATE_PACKAGES_WITHOUT_USER_ACTION permission). Android only accepts an
@@ -110,7 +110,7 @@ final class AppUpdater {
         }
     }
 
-    /** Whether the person has let StormCentral install apps (Android 8+ asks once). */
+    /** Whether the person has let Storm Central install apps (Android 8+ asks once). */
     static boolean canInstall(Context ctx) {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.O || ctx.getPackageManager().canRequestPackageInstalls();
     }
@@ -166,12 +166,12 @@ final class AppUpdater {
         return out;
     }
 
-    /** Checks the file is a newer StormCentral before handing it to Android. */
+    /** Checks the file is a newer Storm Central before handing it to Android. */
     static void verify(Context ctx, File apk) throws IOException {
         PackageManager pm = ctx.getPackageManager();
         PackageInfo info = pm.getPackageArchiveInfo(apk.getAbsolutePath(), 0);
         if (info == null) throw new IOException("the download isn't a valid app");
-        if (!ctx.getPackageName().equals(info.packageName)) throw new IOException("the download isn't StormCentral");
+        if (!ctx.getPackageName().equals(info.packageName)) throw new IOException("the download isn't Storm Central");
         long code = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? info.getLongVersionCode() : info.versionCode;
         try {
             if (code <= installedCode(ctx)) throw new IOException("the download isn't newer than this version");

@@ -1,5 +1,5 @@
 /*
- * StormCentral service worker — persistent radar tile cache.
+ * Storm Central service worker — persistent radar tile cache.
  *
  * IEM RIDGE tiles addressed by scan timestamp (ridge::SITE-PROD-YYYYMMDDHHMM)
  * are immutable, so they're served cache-first. That makes radar loops

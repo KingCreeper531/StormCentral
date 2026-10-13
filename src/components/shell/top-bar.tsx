@@ -29,12 +29,12 @@ export function TopBar() {
       <div className={cn("mx-auto flex h-full max-w-[1600px] items-center gap-2 md:gap-3 lg:gap-4", GUTTER)}>
         <Link
           href="/"
-          aria-label="StormCentral home"
+          aria-label="Storm Central home"
           className="-ml-1 flex h-9 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] px-1 pointer-coarse:h-11 pointer-coarse:min-w-11"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/icon.svg" alt="" width={24} height={24} className="size-6" />
-          <span className="hidden text-sm font-semibold text-ink min-[1440px]:inline">StormCentral</span>
+          <span className="hidden text-sm font-semibold text-ink min-[1440px]:inline">Storm Central</span>
         </Link>
 
         <button

@@ -55,7 +55,7 @@ async function googleCall(path: string, params: Record<string, string>, key: str
             : /billing/i.test(message)
               ? "Google needs a billing account on this key's project (the free tier still applies)."
               : /referer|restricted|not authorized/i.test(message)
-                ? "This key's restrictions block StormCentral. Allow this website (or no website restriction) for the key."
+                ? "This key's restrictions block Storm Central. Allow this website (or no website restriction) for the key."
                 : message,
     );
   }
