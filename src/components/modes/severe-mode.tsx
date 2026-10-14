@@ -138,6 +138,7 @@ export function SevereMode() {
   const radar = useAppStore((s) => s.radar);
   const setRadar = useAppStore((s) => s.setRadar);
   const radiusKm = useAppStore((s) => s.radiusKm);
+  const placeName = loc.name === "My location" ? t(loc.name) : loc.name;
   const now = useNow(30_000);
   const fmt = useFormat();
   // Times (warning expiry, radar frames) read in the selected location's zone, like the rest of the app.
@@ -385,7 +386,7 @@ export function SevereMode() {
   } else if (national.error) {
     peek = { color: null, title: t("Warnings unavailable"), sub: t("NWS alerts could not be loaded") };
   } else {
-    peek = { color: null, title: t("No warnings nearby"), sub: t("Within {distance} of {place}", { distance: fmt.distanceKm(radiusKm), place: loc.name }) };
+    peek = { color: null, title: t("No warnings nearby"), sub: t("Within {distance} of {place}", { distance: fmt.distanceKm(radiusKm), place: placeName }) };
   }
   // Tapping the peek opens what it shows: the top warning's details, or the sheet.
   const onPeek = () => {
@@ -522,7 +523,7 @@ export function SevereMode() {
               : everyWarning
                 ? "Every active NWS warning. Reports are NWS local storm reports from the last {n} hours (trained spotters, chasers, emergency managers)."
                 : "Within {distance} of {place}. Reports are NWS local storm reports from the last {n} hours (trained spotters, chasers, emergency managers).",
-            { distance: fmt.distanceKm(radiusKm), place: loc.name, n: LSR_HOURS },
+            { distance: fmt.distanceKm(radiusKm), place: placeName, n: LSR_HOURS },
           )}
         </p>
       )}
@@ -660,7 +661,7 @@ export function SevereMode() {
               loop={loop}
               speed={radar.speed}
               title={isSite && site ? `${site.icao} ${sentenceCaseFamily}` : t("NEXRAD mosaic, reflectivity")}
-              subtitle={loc.name}
+              subtitle={placeName}
               timeZone={timeZone}
             />
           }

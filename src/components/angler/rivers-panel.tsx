@@ -2,6 +2,7 @@
 
 import { ArrowDown, ArrowUp } from "lucide-react";
 import type { RiverSite } from "@/lib/api/types";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
 import { MAX_GAUGE_RADIUS_KM, useAppStore } from "@/store/app-store";
@@ -37,21 +38,24 @@ export function RiversPanel({
   timeZone: string;
   className?: string;
 }) {
+  const t = useT();
   const fmt = useFormat();
   const radiusKm = useAppStore((s) => s.radiusKm);
   const wide = useMediaQuery("(min-width: 1024px)");
 
   return (
-    <Panel title="Rivers near you" subtitle="USGS real-time stream gauges" className={className}>
+    <Panel title={t("Rivers near you")} subtitle={t("USGS real-time stream gauges")} className={className}>
       {error ? (
         <ErrorNote error={error} what="river gauges" />
       ) : loading ? (
         <Skeleton className="h-40" />
       ) : !sites.length ? (
-        <EmptyState title={`No active stream gauges within ${fmt.distanceKm(Math.min(MAX_GAUGE_RADIUS_KM, radiusKm))}`}>USGS gauges cover the United States. Try a location near a river.</EmptyState>
+        <EmptyState title={t("No active stream gauges within {distance}", { distance: fmt.distanceKm(Math.min(MAX_GAUGE_RADIUS_KM, radiusKm)) })}>
+          {t("USGS gauges cover the United States. Try a location near a river.")}
+        </EmptyState>
       ) : (
         <div className="-mx-4 -mb-4 grid grid-cols-1 border-t border-line sm:-mx-5 sm:-mb-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-          <ul aria-label="Stream gauges" className="divide-y divide-line lg:border-r lg:border-line">
+          <ul aria-label={t("Stream gauges")} className="divide-y divide-line lg:border-r lg:border-line">
             {sites.map((s) => {
               const active = s.id === selected?.id;
               return (
@@ -67,11 +71,11 @@ export function RiversPanel({
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-[13px] font-medium text-ink">{s.name}</span>
-                      <span className="block text-xs text-ink-3 tabular">{fmt.distanceKm(s.distanceKm)} away</span>
+                      <span className="block text-xs text-ink-3 tabular">{t("{distance} away", { distance: fmt.distanceKm(s.distanceKm) })}</span>
                     </span>
                     <span className="text-right">
                       <span className="block text-[13px] font-medium whitespace-nowrap text-ink tabular">
-                        {s.discharge ? `${Math.round(s.discharge.latest).toLocaleString()} ${unitLabel(s.discharge.unit)}` : "—"}
+                        {s.discharge ? `${Math.round(s.discharge.latest).toLocaleString(t.locale)} ${unitLabel(s.discharge.unit)}` : "—"}
                       </span>
                       {s.discharge?.change24h != null && <ChangeText v={s.discharge.change24h} />}
                     </span>
@@ -98,19 +102,21 @@ export function RiversPanel({
 
 /** 24 h discharge change: arrow + percentage; colour is only a secondary cue. */
 function ChangeText({ v }: { v: number }) {
+  const t = useT();
   const pct = Math.round(v * 100);
-  if (pct === 0) return <span className="block text-xs text-ink-3">Steady</span>;
+  if (pct === 0) return <span className="block text-xs text-ink-3">{t("Steady")}</span>;
   const Icon = pct > 0 ? ArrowUp : ArrowDown;
   return (
     <span className={cn("flex items-center justify-end gap-0.5 text-xs whitespace-nowrap tabular", Math.abs(pct) < 5 ? "text-ink-3" : "text-ink-2")}>
       <Icon className="size-3 shrink-0" aria-hidden />
-      <span className="sr-only">{pct > 0 ? "Up" : "Down"}</span>
-      {Math.abs(pct)}% in 24 h
+      <span className="sr-only">{pct > 0 ? t("Up") : t("Down")}</span>
+      {t("{pct}% in 24 h", { pct: Math.abs(pct) })}
     </span>
   );
 }
 
 function RiverDetail({ site, timeZone, showName = false }: { site: RiverSite; timeZone: string; showName?: boolean }) {
+  const t = useT();
   const fmt = useFormat();
   const q = site.discharge;
   const h = site.gageHeight;
@@ -120,29 +126,29 @@ function RiverDetail({ site, timeZone, showName = false }: { site: RiverSite; ti
       <p className={cn("font-mono text-xs text-ink-3", showName && "mt-0.5")}>USGS {site.id}</p>
       <div className="mt-3 grid grid-cols-3 gap-3">
         <Stat
-          label="Discharge"
-          value={q ? `${Math.round(q.latest).toLocaleString()} ${unitLabel(q.unit)}` : "—"}
-          sub={q?.change24h != null ? `${signed(q.change24h * 100, 0)}% in 24 h` : undefined}
+          label={t("Discharge")}
+          value={q ? `${Math.round(q.latest).toLocaleString(t.locale)} ${unitLabel(q.unit)}` : "—"}
+          sub={q?.change24h != null ? t("{pct}% in 24 h", { pct: signed(q.change24h * 100, 0) }) : undefined}
         />
         <Stat
-          label="Gage height"
+          label={t("Gage height")}
           value={h ? `${h.latest.toFixed(2)} ${h.unit}` : "—"}
-          sub={h?.delta24h != null ? `${signed(h.delta24h, 2)} in 24 h` : undefined}
+          sub={h?.delta24h != null ? t("{delta} in 24 h", { delta: signed(h.delta24h, 2) }) : undefined}
         />
-        <Stat label="Water temp" value={site.waterTemp ? fmt.temp(site.waterTemp.latest, true) : "—"} />
+        <Stat label={t("Water temp")} value={site.waterTemp ? fmt.temp(site.waterTemp.latest, true) : "—"} />
       </div>
       {q && q.series.length > 2 && (
         <div className="mt-4 border-t border-line pt-3">
-          <p className="label mb-1">Discharge, last 48 hours ({unitLabel(q.unit)})</p>
+          <p className="label mb-1">{t("Discharge, last 48 hours ({unit})", { unit: unitLabel(q.unit) })}</p>
           <TimeSeriesChart
-            ariaLabel={`Discharge at ${site.name}, last 48 hours`}
+            ariaLabel={t("Discharge at {site}, last 48 hours", { site: site.name })}
             times={q.series.map((p) => p.t)}
             height={130}
             timeZone={timeZone}
             series={[
               {
                 key: "q",
-                label: `Discharge (${unitLabel(q.unit)})`,
+                label: t("Discharge ({unit})", { unit: unitLabel(q.unit) }),
                 color: "var(--color-series-1)",
                 values: q.series.map((p) => p.v),
                 kind: "area",

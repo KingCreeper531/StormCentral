@@ -51,7 +51,7 @@ export function CurrentHero({ f, now, className }: { f: Forecast; now: number; c
       )}
     >
       <div className="min-w-0">
-        <p className="truncate text-sm text-ink-2">{name}</p>
+        <p className="truncate text-sm text-ink-2">{name === "My location" ? t(name) : name}</p>
         <motion.p
           key={Math.round(c.temp ?? 0)}
           initial={{ opacity: 0, y: 4 }}
