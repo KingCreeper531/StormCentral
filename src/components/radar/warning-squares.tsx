@@ -59,6 +59,8 @@ export function WarningSquares({
           r.maxWindMph ? t("{speed} wind", { speed: fmt.wind(r.maxWindMph * 0.44704) }) : null,
         ].filter(Boolean);
         const selected = selectedId === a.id;
+        const reports = r.reports.length > 0;
+        const tag = reports ? null : a.tags[0];
         return (
           <li key={a.id} className="aspect-square min-w-0">
             <button
@@ -73,12 +75,14 @@ export function WarningSquares({
               style={{ background: `linear-gradient(160deg, color-mix(in srgb, ${a.color} 30%, var(--color-surface-1)) 0%, var(--color-surface-1) 75%)` }}
             >
               <span className="absolute inset-x-0 top-0 h-1" style={{ background: a.color }} aria-hidden />
-              <span className="mt-1 line-clamp-3 text-[13px] leading-[1.2] font-semibold text-ink">{event}</span>
-              {a.tags[0] && <span className="mt-1 truncate text-[10px] font-medium tracking-wide text-ink-2 uppercase">{t(tagLabel(a.tags[0]))}</span>}
-              <span className="mt-auto truncate text-[11px] text-ink-2">{firstArea(a.areaDesc)}</span>
-              <span className="truncate text-[11px] text-ink-3 tabular">{timeLeft(a, now, t)}</span>
-              {r.reports.length > 0 && (
-                <span className="mt-1 flex min-w-0 items-center gap-1 text-[11px] font-medium text-ink tabular">
+              {/* A fixed-size square: the name gets two lines when more rows follow (long names, e.g. in Spanish,
+                  would otherwise push rows over each other), and the damage tag gives way to spotter reports. */}
+              <span className={cn("mt-1 min-h-0 text-[13px] leading-[1.2] font-semibold text-ink", tag || reports ? "line-clamp-2" : "line-clamp-3")}>{event}</span>
+              {tag && <span className="mt-1 shrink-0 truncate text-[10px] font-medium tracking-wide text-ink-2 uppercase">{t(tagLabel(tag))}</span>}
+              <span className="mt-auto shrink-0 truncate text-[11px] text-ink-2">{firstArea(a.areaDesc)}</span>
+              <span className="shrink-0 truncate text-[11px] text-ink-3 tabular">{timeLeft(a, now, t)}</span>
+              {reports && (
+                <span className="mt-1 flex min-w-0 shrink-0 items-center gap-1 text-[11px] font-medium text-ink tabular">
                   <Radio className="size-3 shrink-0 text-accent" aria-hidden />
                   <span className="truncate">
                     {t.plural(r.reports.length, "{n} report", "{n} reports")}
