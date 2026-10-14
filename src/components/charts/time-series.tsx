@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { monotonePath, niceTicks, roundedBar, segments, type Pt } from "@/lib/charts";
 import { useMeasure } from "@/hooks/use-measure";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 import { timeTicks } from "./time-ticks";
 import { fmtIn } from "@/lib/weather/view";
@@ -149,6 +150,7 @@ export function TimeSeriesChart({
   className,
   tickEvery,
 }: Props) {
+  const t = useT();
   const [ref, { width }] = useMeasure<HTMLDivElement>();
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   // Touch/pen: a tap pins the readout until the next tap outside the chart.
@@ -187,12 +189,12 @@ export function TimeSeriesChart({
   const xTicks = useMemo(() => {
     if (compact || !times.length) return [];
     if (tickEvery || t1 <= t0) {
-      const fmt = fmtIn(timeZone, { hour: "numeric" });
-      return times.filter((_, i) => i % (tickEvery || 1) === 0).map((t) => ({ t, label: fmt.format(t) }));
+      const fmt = fmtIn(timeZone, { hour: "numeric" }, t.locale);
+      return times.filter((_, i) => i % (tickEvery || 1) === 0).map((at) => ({ t: at, label: fmt.format(at) }));
     }
     // Round local hours (or midnights) spaced by time, at least ~64 px apart.
-    return timeTicks(t0, t1, Math.max(2, Math.floor(innerW / 64)), timeZone);
-  }, [times, compact, t0, t1, innerW, timeZone, tickEvery]);
+    return timeTicks(t0, t1, Math.max(2, Math.floor(innerW / 64)), timeZone, t.locale);
+  }, [times, compact, t0, t1, innerW, timeZone, tickEvery, t]);
 
   const thresholdLabels =
     compact || width <= 0
@@ -228,9 +230,9 @@ export function TimeSeriesChart({
     const box = e.currentTarget.getBoundingClientRect();
     const span = Math.max(1, box.width - 2 * geo.inset);
     const frac = Math.max(0, Math.min(1, (e.clientX - box.left - geo.inset) / span));
-    const t = geo.t0 + frac * (geo.t1 - geo.t0);
+    const at = geo.t0 + frac * (geo.t1 - geo.t0);
     let best = 0;
-    for (let i = 1; i < times.length; i++) if (Math.abs(times[i]! - t) < Math.abs(times[best]! - t)) best = i;
+    for (let i = 1; i < times.length; i++) if (Math.abs(times[i]! - at) < Math.abs(times[best]! - at)) best = i;
     setHoverIdx(best);
   };
   const onPointerDown = (e: React.PointerEvent<SVGRectElement>) => {
@@ -246,7 +248,7 @@ export function TimeSeriesChart({
     setHoverIdx(null);
   };
 
-  const fmtTime = useMemo(() => fmtIn(timeZone, { weekday: "short", hour: "numeric", minute: "2-digit" }), [timeZone]);
+  const fmtTime = useMemo(() => fmtIn(timeZone, { weekday: "short", hour: "numeric", minute: "2-digit" }, t.locale), [timeZone, t]);
   // Guard against a stale index after the data shrinks.
   const hover = hoverIdx != null && hoverIdx < times.length ? hoverIdx : null;
   const hx = hover != null ? geo.sx(times[hover]!) : 0;
@@ -260,7 +262,7 @@ export function TimeSeriesChart({
   return (
     <div className={cn("relative w-full select-none", className)}>
       {(showLegend || legendThresholds.length > 0) && (
-        <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-2" aria-label="Legend">
+        <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-2" aria-label={t("Legend")}>
           {(showLegend ? series : []).map((s) => (
             <li key={s.key} className="flex min-w-0 items-center gap-1.5">
               {/* The key mirrors the mark: a square for bars/areas, a short stroke for lines. */}
@@ -301,11 +303,11 @@ export function TimeSeriesChart({
                 </text>
               </g>
             ))}
-            {xTicks.map(({ t, label }) => {
-              const x = geo.sx(t);
+            {xTicks.map(({ t: at, label }) => {
+              const x = geo.sx(at);
               // Keep a tick at the right edge inside the plot instead of half-clipped.
               return (
-                <text key={t} x={x} y={height - 6} textAnchor={x > width - pad.right - 12 ? "end" : "middle"} className="fill-ink-3 text-[10px] tabular">
+                <text key={at} x={x} y={height - 6} textAnchor={x > width - pad.right - 12 ? "end" : "middle"} className="fill-ink-3 text-[10px] tabular">
                   {label}
                 </text>
               );

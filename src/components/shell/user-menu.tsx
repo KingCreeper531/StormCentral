@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { qk, useSession } from "@/hooks/queries";
+import { useT } from "@/lib/i18n/use-t";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { buttonClass } from "../ui/button";
@@ -27,6 +28,7 @@ const DIVIDER = "my-1 border-t border-line";
  * Without the server (the Android app's bundled build) it only holds the units switch.
  */
 export function UserMenu() {
+  const t = useT();
   const { data: user, isLoading } = useSession();
   const qc = useQueryClient();
   const pathname = usePathname();
@@ -86,20 +88,20 @@ export function UserMenu() {
 
   const units = (
     <div className="flex items-center justify-between gap-3 py-1 pr-1 pl-2.5">
-      <span className="text-[13px] text-ink-2">Units</span>
+      <span className="text-[13px] text-ink-2">{t("Units")}</span>
       <UnitsToggle />
     </div>
   );
 
   const spotterLink = (
     <Link href="/community" onClick={close} aria-current={pathname.startsWith("/community") ? "page" : undefined} className={ITEM}>
-      <Users className="size-4 shrink-0" aria-hidden /> Spotter network
+      <Users className="size-4 shrink-0" aria-hidden /> {t("Spotter network")}
     </Link>
   );
 
   const alertsLink = (
     <Link href="/alerts" onClick={close} aria-current={pathname.startsWith("/alerts") ? "page" : undefined} className={ITEM}>
-      <Bell className="size-4 shrink-0" aria-hidden /> Alerts and places
+      <Bell className="size-4 shrink-0" aria-hidden /> {t("Alerts and places")}
     </Link>
   );
 
@@ -107,7 +109,7 @@ export function UserMenu() {
     <>
       {COMMUNITY_ENABLED && !user && !onLogin && !onRegister && (
         <Link href={`/login${next}`} className={buttonClass("ghost", "sm", "hidden lg:inline-flex")}>
-          Sign in
+          {t("Sign in")}
         </Link>
       )}
 
@@ -116,7 +118,7 @@ export function UserMenu() {
           ref={triggerRef}
           type="button"
           onClick={() => setOpen((o) => !o)}
-          aria-label={user ? "Account menu" : "Account"}
+          aria-label={user ? t("Account menu") : t("Account")}
           aria-expanded={open}
           aria-controls={open ? panelId : undefined}
           className={cn(
@@ -140,7 +142,7 @@ export function UserMenu() {
                   <p className="truncate text-xs text-ink-3">@{user.username}</p>
                 </div>
                 <Link href={`/u/${user.username}`} onClick={close} className={ITEM}>
-                  <User className="size-4 shrink-0" aria-hidden /> Profile
+                  <User className="size-4 shrink-0" aria-hidden /> {t("Profile")}
                 </Link>
                 {spotterLink}
                 {alertsLink}
@@ -151,19 +153,19 @@ export function UserMenu() {
                 </div>
                 <div className={DIVIDER} />
                 <button type="button" onClick={signOut} className={ITEM}>
-                  <LogOut className="size-4 shrink-0" aria-hidden /> Sign out
+                  <LogOut className="size-4 shrink-0" aria-hidden /> {t("Sign out")}
                 </button>
               </>
             ) : (
               <>
                 {COMMUNITY_ENABLED && !onLogin && (
                   <Link href={`/login${next}`} onClick={close} className={ITEM}>
-                    <LogIn className="size-4 shrink-0" aria-hidden /> Sign in
+                    <LogIn className="size-4 shrink-0" aria-hidden /> {t("Sign in")}
                   </Link>
                 )}
                 {COMMUNITY_ENABLED && !onRegister && (
                   <Link href={`/register${next}`} onClick={close} className={ITEM}>
-                    <UserPlus className="size-4 shrink-0" aria-hidden /> Create account
+                    <UserPlus className="size-4 shrink-0" aria-hidden /> {t("Create account")}
                   </Link>
                 )}
                 {COMMUNITY_ENABLED && spotterLink}

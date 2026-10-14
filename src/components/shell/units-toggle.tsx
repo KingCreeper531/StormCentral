@@ -1,15 +1,17 @@
 "use client";
 
+import { useT } from "@/lib/i18n/use-t";
 import { useAppStore } from "@/store/app-store";
 import { Segmented } from "../ui/segmented";
 
 /** °F / °C switch. Inline in the top bar at lg+, and inside the account menu below that. */
 export function UnitsToggle({ className, stretch }: { className?: string; stretch?: boolean }) {
+  const t = useT();
   const units = useAppStore((s) => s.units);
   const setUnits = useAppStore((s) => s.setUnits);
   return (
     <Segmented
-      ariaLabel="Temperature units"
+      ariaLabel={t("Temperature units")}
       size="sm"
       stretch={stretch}
       value={units.temp}

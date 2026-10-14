@@ -7,6 +7,8 @@ import { alertCategory, alertMatchesLevel } from "@/lib/alerting/engine";
 import { clockFromIso } from "@/lib/alerting/format";
 import { useFormat } from "@/hooks/use-format";
 import { useNow } from "@/hooks/use-now";
+import { eventName } from "@/lib/i18n/nws-events";
+import { useT } from "@/lib/i18n/use-t";
 import { desktopBridge, type TrayStatus } from "@/lib/native/desktop";
 import { convertTemp, type TempUnit } from "@/lib/weather/units";
 import { describeCode } from "@/lib/weather/wmo";
@@ -105,6 +107,7 @@ function temperatureIcon(label: string, badge: Badge | null = null): string | un
  * the tray shows would change. Renders nothing.
  */
 export function DesktopTraySync() {
+  const t = useT();
   const forecast = useForecast();
   const alerts = useLocalAlerts().data?.alerts;
   const place = useAppStore((s) => s.location.name);
@@ -123,11 +126,14 @@ export function DesktopTraySync() {
 
   const status = useMemo(() => {
     if (!hasData) return null;
-    const lead = warning ? `${warning.alert.event} until ${clockFromIso(warning.alert.ends ?? warning.alert.expires)}\n` : "";
+    const lead = warning
+      ? `${t("{event} until {time}", { event: eventName(t.lang, warning.alert.event), time: clockFromIso(warning.alert.ends ?? warning.alert.expires, t.lang) })}\n`
+      : "";
+    const placeName = place === "My location" ? t(place) : place;
     const room = MAX_PLACE - Math.max(0, lead.length - 40);
-    const name = place.length > room ? `${place.slice(0, room - 1)}…` : place;
+    const name = placeName.length > room ? `${placeName.slice(0, room - 1)}…` : placeName;
     if (tempC == null) return { text: "", tooltip: lead + name, label: null, badge: warning?.badge ?? null };
-    const condition = describeCode(code).label;
+    const condition = t(describeCode(code).label);
     const temp = fmt.temp(tempC, true);
     return {
       text: temp,
@@ -135,7 +141,7 @@ export function DesktopTraySync() {
       label: iconLabel(tempC, fmt.units.temp),
       badge: warning?.badge ?? null,
     };
-  }, [hasData, place, tempC, code, fmt, warning]);
+  }, [hasData, place, tempC, code, fmt, warning, t]);
 
   useEffect(() => {
     const bridge = desktopBridge();
