@@ -553,8 +553,8 @@ public final class AlertsWorker extends Worker {
         int offset = f.optInt("utc_offset_seconds", 0);
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
         c.setTimeInMillis((time.optLong(best) + offset) * 1000);
-        int h = c.get(Calendar.HOUR_OF_DAY);
-        return (h % 12 == 0 ? 12 : h % 12) + " " + Lang.ampm(es, h < 12);
+        int hour = c.get(Calendar.HOUR_OF_DAY);
+        return (hour % 12 == 0 ? 12 : hour % 12) + " " + Lang.ampm(es, hour < 12);
     }
 
     private static String temp(double c, boolean f) {
