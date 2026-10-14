@@ -27,6 +27,9 @@ final class Notifier {
     static final String SPOTTER = "sc_spotter";
     static final String BRIEFING = "sc_briefing";
     static final String ALERTS = "sc_alerts";
+    static final String RAIN = "sc_rain";
+    static final String STORMS = "sc_storms";
+    static final String ACTIVITY = "sc_activity";
 
     private static final int ACCENT = 0xFF5B9CF6;
 
@@ -37,11 +40,16 @@ final class Notifier {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         NotificationManager nm = context.getSystemService(NotificationManager.class);
         if (nm == null) return;
-        nm.createNotificationChannel(channel(WARNINGS, "Weather warnings", "NWS warnings for your places", NotificationManager.IMPORTANCE_HIGH));
-        nm.createNotificationChannel(channel(LIGHTNING, "Lightning nearby", "Lightning detected near your places", NotificationManager.IMPORTANCE_HIGH));
-        nm.createNotificationChannel(channel(SPOTTER, "Nearby spotter reports", "Severe weather reported by spotters near you", NotificationManager.IMPORTANCE_DEFAULT));
-        nm.createNotificationChannel(channel(BRIEFING, "Morning briefing", "Your daily forecast summary", NotificationManager.IMPORTANCE_DEFAULT));
-        nm.createNotificationChannel(channel(ALERTS, "Custom alerts", "Your custom weather alerts and tests", NotificationManager.IMPORTANCE_DEFAULT));
+        // Names follow the app's language (Android keeps the user's sound and importance choices).
+        boolean es = Lang.spanish(context);
+        nm.createNotificationChannel(channel(WARNINGS, Lang.pick(es, "Weather warnings", "Avisos meteorológicos"), Lang.pick(es, "NWS warnings for your places", "Avisos del NWS para tus lugares"), NotificationManager.IMPORTANCE_HIGH));
+        nm.createNotificationChannel(channel(STORMS, Lang.pick(es, "Storms heading your way", "Tormentas que se acercan"), Lang.pick(es, "Strong storms on radar due to reach your places", "Tormentas fuertes en el radar que llegarán a tus lugares"), NotificationManager.IMPORTANCE_HIGH));
+        nm.createNotificationChannel(channel(LIGHTNING, Lang.pick(es, "Lightning nearby", "Rayos cerca"), Lang.pick(es, "Lightning detected near your places", "Rayos detectados cerca de tus lugares"), NotificationManager.IMPORTANCE_HIGH));
+        nm.createNotificationChannel(channel(RAIN, Lang.pick(es, "Rain starting soon", "Lluvia en camino"), Lang.pick(es, "Rain or snow about to start where you are", "Lluvia o nieve a punto de empezar donde estás"), NotificationManager.IMPORTANCE_DEFAULT));
+        nm.createNotificationChannel(channel(SPOTTER, Lang.pick(es, "Nearby spotter reports", "Reportes de observadores cercanos"), Lang.pick(es, "Severe weather reported by spotters near you", "Tiempo severo reportado por observadores cerca de ti"), NotificationManager.IMPORTANCE_DEFAULT));
+        nm.createNotificationChannel(channel(ACTIVITY, Lang.pick(es, "Activity on your reports", "Actividad en tus reportes"), Lang.pick(es, "Confirmations and comments on reports you posted", "Confirmaciones y comentarios en tus reportes"), NotificationManager.IMPORTANCE_DEFAULT));
+        nm.createNotificationChannel(channel(BRIEFING, Lang.pick(es, "Morning briefing", "Resumen matutino"), Lang.pick(es, "Your daily forecast summary", "Tu resumen diario del pronóstico"), NotificationManager.IMPORTANCE_DEFAULT));
+        nm.createNotificationChannel(channel(ALERTS, Lang.pick(es, "Custom alerts", "Alertas personalizadas"), Lang.pick(es, "Your custom weather alerts and tests", "Tus alertas personalizadas y pruebas"), NotificationManager.IMPORTANCE_DEFAULT));
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -76,7 +84,7 @@ final class Notifier {
         ensureChannels(context);
         if (!allowed(context)) return false;
 
-        boolean urgent = WARNINGS.equals(channel) || LIGHTNING.equals(channel);
+        boolean urgent = WARNINGS.equals(channel) || LIGHTNING.equals(channel) || STORMS.equals(channel);
         NotificationCompat.Builder b = new NotificationCompat.Builder(context, channel)
                 .setSmallIcon(R.drawable.ic_stat_stormcentral)
                 .setColor(ACCENT)

@@ -99,7 +99,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       client={queryClient}
       persistOptions={{
         persister,
-        maxAge: 24 * 3_600_000,
+        // Three days: with no signal the saved forecast still covers the days ahead (the Daily page labels it as saved).
+        maxAge: 72 * 3_600_000,
         // Bump when a persisted query's shape changes, so data saved by an older version is dropped.
         buster: "v2",
         dehydrateOptions: {

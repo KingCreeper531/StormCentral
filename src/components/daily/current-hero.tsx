@@ -1,11 +1,15 @@
 "use client";
 
+import { WifiOff } from "lucide-react";
 import { motion } from "motion/react";
 import type { Forecast } from "@/lib/api/open-meteo";
 import { describeCode, iconName } from "@/lib/weather/wmo";
 import { todayIndex } from "@/lib/weather/view";
 import { forecastSource, isForecastSourceId } from "@/lib/forecast-sources";
+import { useForecast } from "@/hooks/queries";
 import { useFormat } from "@/hooks/use-format";
+import { useOnline } from "@/hooks/use-online";
+import { fmtIn } from "@/lib/weather/view";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
 import { WeatherIcon } from "../ui/weather-icon";
@@ -23,6 +27,11 @@ export function CurrentHero({ f, now, className }: { f: Forecast; now: number; c
   const info = describeCode(c.code);
   const icon = iconName(c.code, c.isDay === 1, { gustMs: c.windGust ?? undefined });
   const updated = Math.max(0, Math.round((now - f.fetchedAt) / 60_000));
+  // No signal (a lake, a basement): the forecast saved on this device, labelled with when it was saved.
+  const online = useOnline();
+  const failed = useForecast().isError;
+  const saved = !online || (failed && updated > 15);
+  const savedAt = fmtIn(undefined, updated > 18 * 60 ? { weekday: "short", hour: "numeric", minute: "2-digit" } : { hour: "numeric", minute: "2-digit" }).format(f.fetchedAt);
 
   const facts: [string, string][] = [
     ["Feels like", fmt.temp(c.feelsLike)],
@@ -61,9 +70,16 @@ export function CurrentHero({ f, now, className }: { f: Forecast; now: number; c
             ))}
           </dl>
         </div>
-        <p className="label mt-2 [@media(max-height:500px)]:mt-1">
-          Updated {updated === 0 ? "just now" : `${updated} min ago`} · {f.source && isForecastSourceId(f.source) ? forecastSource(f.source).short : "Open-Meteo"}
-        </p>
+        {saved ? (
+          <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-caution [@media(max-height:500px)]:mt-1">
+            <WifiOff className="size-3.5" aria-hidden />
+            {online ? "Can't reach the forecast" : "Offline"} · showing the forecast saved at {savedAt}
+          </p>
+        ) : (
+          <p className="label mt-2 [@media(max-height:500px)]:mt-1">
+            Updated {updated === 0 ? "just now" : `${updated} min ago`} · {f.source && isForecastSourceId(f.source) ? forecastSource(f.source).short : "Open-Meteo"}
+          </p>
+        )}
       </div>
       <WeatherIcon name={icon} size={160} fluid label={info.label} className="w-24 sm:w-32 [@media(max-height:500px)]:w-16" />
     </section>

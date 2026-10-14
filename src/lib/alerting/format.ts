@@ -7,14 +7,18 @@ import type { TempUnit, WindUnit } from "../weather/units";
 
 const pad = (n: number) => (n < 10 ? `0${n}` : String(n));
 
-/** "3 PM" / "3:30 PM" for an epoch time at a fixed UTC offset (seconds). */
-export function clockAt(epochMs: number, utcOffsetSec: number): string {
+/** "3 PM" / "3:30 PM" (Spanish: "3 p. m.") for an epoch time at a fixed UTC offset (seconds). */
+export function clockAt(epochMs: number, utcOffsetSec: number, lang: "en" | "es" = "en"): string {
   const d = new Date(epochMs + utcOffsetSec * 1000);
   const h = d.getUTCHours();
   const m = d.getUTCMinutes();
   const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}${m ? `:${pad(m)}` : ""} ${h < 12 ? "AM" : "PM"}`;
+  const ampm = lang === "es" ? (h < 12 ? "a. m." : "p. m.") : h < 12 ? "AM" : "PM";
+  return `${h12}${m ? `:${pad(m)}` : ""} ${ampm}`;
 }
+
+/** The device's UTC offset (seconds) at an instant. */
+export const deviceOffsetSec = (epochMs: number) => -new Date(epochMs).getTimezoneOffset() * 60;
 
 /** Calendar day ("2026-10-07") of an epoch time at a fixed UTC offset. */
 export function dayKeyAt(epochMs: number, utcOffsetSec: number): string {

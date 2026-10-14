@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.webkit.CookieManager;
 
 import androidx.annotation.NonNull;
 import androidx.work.Worker;
@@ -40,7 +41,10 @@ import java.util.TimeZone;
  *   <li>NWS warnings (api.weather.gov), each announced once;</li>
  *   <li>lightning nearby (NOAA nowCOAST strike density, last 15 minutes);</li>
  *   <li>severe spotter reports nearby (the Storm Central server, when there is one);</li>
- *   <li>the morning briefing, once a day at the chosen time.</li>
+ *   <li>the morning briefing, once a day at the chosen time;</li>
+ *   <li>rain or snow about to start at your location (Open-Meteo 15-minute forecast);</li>
+ *   <li>strong radar storms heading for a place (the Storm Central server's /api/storm-eta);</li>
+ *   <li>confirmations and comments on your own reports (/api/activity, with the app's sign-in cookie).</li>
  * </ul>
  *
  * Custom forecast alerts stay with the JavaScript engine (the page and the
@@ -60,6 +64,11 @@ public final class AlertsWorker extends Worker {
     private static final String SEEN_REPORTS = "native-seen-reports";
     private static final String LIGHTNING_AT = "native-lightning-at";
     private static final String BRIEFING_DAY = "native-briefing-day";
+    private static final String RAIN_AT = "native-rain-at";
+    private static final String STORMS_SEEN = "native-storms-seen";
+    private static final String ACTIVITY_SINCE = "native-activity-since";
+    /** The checks this build runs, reported to the page (StormAlertsPlugin.status) so it skips them. */
+    static final String[] FEATURES = {"warnings", "lightning", "spotter", "briefing", "rain", "storms", "activity"};
     static final String LAST_RUN = "native-last-run";
     static final String LAST_RESULT = "native-last-result";
 
@@ -70,6 +79,12 @@ public final class AlertsWorker extends Worker {
     private static final long REPORT_MAX_AGE_MS = 60 * 60_000L;
     /** A briefing missed by more than this (phone off, no network) is skipped for the day. */
     private static final long BRIEFING_WINDOW_MS = 3 * HOUR;
+    /** One rain-soon notification per spell (lib/alerting/extras.ts RAIN_COOLDOWN_MS). */
+    private static final long RAIN_COOLDOWN_MS = 90 * 60_000L;
+    /** The same storm isn't announced twice for a place within this long. */
+    private static final long STORM_REPEAT_MS = 90 * 60_000L;
+    /** Below this many mm in 15 minutes it's dry (lib/weather/rain-outlook.ts WET_MM). */
+    private static final double WET_MM = 0.1;
 
     public AlertsWorker(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);
@@ -211,6 +226,35 @@ public final class AlertsWorker extends Worker {
             }
         }
 
+        JSONObject rain = settings.optJSONObject("rain");
+        if (rain != null && rain.optBoolean("enabled", false)) {
+            try {
+                if (checkRain(ctx, cfg, rain, all, now)) sent++;
+            } catch (Exception e) {
+                problems.append(" rain check failed;");
+            }
+        }
+
+        String server = serverBase(cfg);
+        JSONObject storms = settings.optJSONObject("storms");
+        if (storms != null && storms.optBoolean("enabled", false) && server != null) {
+            try {
+                sent += checkStorms(ctx, cfg, server, warningPlaces, now);
+            } catch (Exception e) {
+                problems.append(" storm check failed;");
+            }
+        }
+
+        JSONObject activity = settings.optJSONObject("activity");
+        if (activity != null && activity.optBoolean("enabled", false) && community != null && !str(community, "username").isEmpty()) {
+            String base = cleanBase(community.optString("url", ""));
+            try {
+                if (base != null) sent += checkActivity(ctx, cfg, base, now);
+            } catch (Exception e) {
+                problems.append(" report activity failed;");
+            }
+        }
+
         String summary = warningPlaces.isEmpty()
                 ? "no places to watch"
                 : (warnings == 0 ? "no active warnings" : warnings + " active warning" + (warnings == 1 ? "" : "s"))
@@ -266,14 +310,15 @@ public final class AlertsWorker extends Worker {
             if (seen.has(key)) continue;
             seen.put(key, ends == WeatherWidgetData.NO_TIME ? now + 6 * HOUR : ends);
 
+            boolean es = Lang.spanish(cfg);
             StringBuilder body = new StringBuilder();
-            if (emergency) body.append(text.contains("TORNADO EMERGENCY") ? "Tornado emergency. " : "Flash flood emergency. ");
-            if (text.contains("PARTICULARLY DANGEROUS SITUATION")) body.append("Particularly dangerous situation. ");
-            if (ends != WeatherWidgetData.NO_TIME) body.append("Until ").append(clock(ends)).append(". ");
+            if (emergency) body.append(text.contains("TORNADO EMERGENCY") ? Lang.pick(es, "Tornado emergency. ", "Emergencia de tornado. ") : Lang.pick(es, "Flash flood emergency. ", "Emergencia de inundación repentina. "));
+            if (text.contains("PARTICULARLY DANGEROUS SITUATION")) body.append(Lang.pick(es, "Particularly dangerous situation. ", "Situación particularmente peligrosa. "));
+            if (ends != WeatherWidgetData.NO_TIME) body.append(Lang.pick(es, "Until ", "Hasta las ")).append(clock(ends, es)).append(". ");
             String detail = (str(props, "headline").isEmpty() ? str(props, "areaDesc") : str(props, "headline")).replaceAll("\\s+", " ").trim();
             if (detail.length() > 160) detail = detail.substring(0, 157) + "…";
             body.append(detail);
-            if (Notifier.show(ctx, id("warn:" + key), Notifier.WARNINGS, event + ": " + p.name, body.toString().trim())) sent++;
+            if (Notifier.show(ctx, id("warn:" + key), Notifier.WARNINGS, Lang.event(es, event) + ": " + p.name, body.toString().trim())) sent++;
         }
         // Forget warnings an hour after they end.
         Iterator<String> it = seen.keys();
@@ -301,11 +346,16 @@ public final class AlertsWorker extends Worker {
         last.put(p.id, now);
         writeJson(ctx, LIGHTNING_AT, last);
         boolean mi = imperial(cfg);
+        boolean es = Lang.spanish(cfg);
         double d = mi ? nearest / 1.609 : nearest;
-        String dist = d < 1.5 ? (mi ? "within a mile" : "within a kilometre") : "about " + Math.round(d) + (mi ? " mi" : " km") + " away";
+        String unit = mi ? "mi" : "km";
+        String dist = d < 1.5
+                ? (mi ? Lang.pick(es, "within a mile", "a menos de una milla") : Lang.pick(es, "within a kilometre", "a menos de un kilómetro"))
+                : Lang.fill(Lang.pick(es, "about {n} {unit} away", "a unos {n} {unit}"), "n", Math.round(d), "unit", unit);
         return Notifier.show(ctx, id("lightning:" + p.id + ":" + (now / LIGHTNING_COOLDOWN_MS)), Notifier.LIGHTNING,
-                "Lightning near " + p.name,
-                "Lightning detected " + dist + " in the last 15 minutes. When thunder roars, go indoors.");
+                Lang.fill(Lang.pick(es, "Lightning near {place}", "Rayos cerca de {place}"), "place", p.name),
+                Lang.fill(Lang.pick(es, "Lightning detected {distance} in the last 15 minutes. When thunder roars, go indoors.",
+                        "Se detectaron rayos {distance} en los últimos 15 minutos. Si oyes truenos, entra a un lugar cerrado."), "distance", dist));
     }
 
     /** Distance in km to the nearest lightning within the radius, or null. */
@@ -340,10 +390,12 @@ public final class AlertsWorker extends Worker {
 
     private static final String[] SEVERE_CATEGORIES = {"tornado", "hail", "wind", "flooding"};
     private static final String[] CATEGORY_LABELS = {"Tornado or funnel cloud", "Hail", "Wind damage", "Flooding"};
+    private static final String[] CATEGORY_LABELS_ES = {"Tornado o nube embudo", "Granizo", "Daños por viento", "Inundación"};
 
     private static int checkSpotter(Context ctx, JSONObject cfg, JSONObject community, List<Place> places, double radiusKm, long now) throws Exception {
-        String base = community.optString("url").replaceAll("/+$", "");
-        if (!base.startsWith("https://") && !base.startsWith("http://127.0.0.1")) return 0;
+        String base = cleanBase(community.optString("url"));
+        if (base == null) return 0;
+        boolean es = Lang.spanish(cfg);
         String self = str(community, "username").toLowerCase(Locale.US);
         JSONArray mutedArr = community.optJSONArray("muted");
         List<String> muted = new ArrayList<>();
@@ -372,12 +424,16 @@ public final class AlertsWorker extends Worker {
                 seen.put(postId, created);
                 double km = post.optDouble("distanceKm", 0);
                 double d = mi ? km / 1.609 : km;
-                String what = idx >= 0 ? CATEGORY_LABELS[idx] : (severity >= 3 ? "Dangerous weather" : "Significant weather");
-                String where = d < 1 ? "nearby" : Math.round(d) + (mi ? " mi" : " km") + " from " + p.name;
+                String what = idx >= 0 ? (es ? CATEGORY_LABELS_ES[idx] : CATEGORY_LABELS[idx])
+                        : (severity >= 3 ? Lang.pick(es, "Dangerous weather", "Tiempo peligroso") : Lang.pick(es, "Significant weather", "Tiempo significativo"));
+                String title = d < 1
+                        ? Lang.fill(Lang.pick(es, "{what} reported nearby", "{what} reportado cerca"), "what", what)
+                        : Lang.fill(Lang.pick(es, "{what} reported {n} {unit} from {place}", "{what} reportado a {n} {unit} de {place}"),
+                                "what", what, "n", Math.round(d), "unit", mi ? "mi" : "km", "place", p.name);
                 String text = str(post, "body").replaceAll("\\s+", " ").trim();
                 if (text.length() > 140) text = text.substring(0, 137) + "…";
-                String name = str(author, "displayName").isEmpty() ? "A spotter" : str(author, "displayName");
-                if (Notifier.show(ctx, id("report:" + postId), Notifier.SPOTTER, what + " reported " + where, name + ": " + text)) sent++;
+                String name = str(author, "displayName").isEmpty() ? Lang.pick(es, "A spotter", "Un observador") : str(author, "displayName");
+                if (Notifier.show(ctx, id("report:" + postId), Notifier.SPOTTER, title, name + ": " + text)) sent++;
             }
         }
         Iterator<String> it = seen.keys();
@@ -430,7 +486,8 @@ public final class AlertsWorker extends Worker {
 
         String body = briefingText(cfg, place, prefs.getString("forecastModel", ""));
         prefs.edit().putString(BRIEFING_DAY, today).apply();
-        return Notifier.show(ctx, id("briefing:" + today), Notifier.BRIEFING, "Today in " + place.name, body);
+        return Notifier.show(ctx, id("briefing:" + today), Notifier.BRIEFING,
+                Lang.fill(Lang.pick(Lang.spanish(cfg), "Today in {place}", "Hoy en {place}"), "place", place.name), body);
     }
 
     static String briefingText(JSONObject cfg, Place p, String model) throws Exception {
@@ -441,36 +498,41 @@ public final class AlertsWorker extends Worker {
         JSONObject f = new JSONObject(get(url, "application/json"));
         JSONObject d = f.getJSONObject("daily");
         boolean mi = imperial(cfg);
+        boolean es = Lang.spanish(cfg);
         JSONObject units = cfg.optJSONObject("units");
         String wind = units == null ? "mph" : units.optString("wind", "mph");
 
         StringBuilder s = new StringBuilder();
         int code = d.getJSONArray("weather_code").optInt(0, -1);
-        if (code >= 0) s.append(WeatherWidgetData.describe(code)).append(". ");
+        if (code >= 0) s.append(es ? WeatherWidgetData.describeEs(code) : WeatherWidgetData.describe(code)).append(". ");
         double hi = d.getJSONArray("temperature_2m_max").optDouble(0, Double.NaN);
         double lo = d.getJSONArray("temperature_2m_min").optDouble(0, Double.NaN);
-        if (!Double.isNaN(hi)) s.append("High ").append(temp(hi, mi));
-        if (!Double.isNaN(lo)) s.append(Double.isNaN(hi) ? "Low " : ", low ").append(temp(lo, mi));
-        if (!Double.isNaN(hi) || !Double.isNaN(lo)) s.append(". ");
+        if (!Double.isNaN(hi) && !Double.isNaN(lo)) {
+            s.append(Lang.fill(Lang.pick(es, "High {hi}, low {lo}.", "Máxima de {hi}, mínima de {lo}."), "hi", temp(hi, mi), "lo", temp(lo, mi))).append(" ");
+        } else if (!Double.isNaN(hi)) {
+            s.append(Lang.fill(Lang.pick(es, "High {hi}.", "Máxima de {hi}."), "hi", temp(hi, mi))).append(" ");
+        }
 
         int pop = d.getJSONArray("precipitation_probability_max").optInt(0, 0);
         if (pop >= 20) {
-            s.append(pop).append("% chance of rain");
-            String peak = peakRainHour(f);
-            if (peak != null && pop >= 40) s.append(", most likely around ").append(peak);
-            s.append(". ");
+            String peak = peakRainHour(f, es);
+            s.append(peak != null && pop >= 40
+                    ? Lang.fill(Lang.pick(es, "{pop}% chance of rain, most likely around {time}.", "{pop}% de probabilidad de lluvia, sobre todo cerca de las {time}."), "pop", pop, "time", peak)
+                    : Lang.fill(Lang.pick(es, "{pop}% chance of rain.", "{pop}% de probabilidad de lluvia."), "pop", pop)).append(" ");
         } else {
-            s.append("Little chance of rain. ");
+            s.append(Lang.pick(es, "Little chance of rain.", "Poca probabilidad de lluvia.")).append(" ");
         }
         double gust = d.getJSONArray("wind_gusts_10m_max").optDouble(0, Double.NaN);
-        if (!Double.isNaN(gust) && gust >= 40) s.append("Gusts to ").append(windText(gust, wind)).append(". ");
+        if (!Double.isNaN(gust) && gust >= 40) s.append(Lang.fill(Lang.pick(es, "Gusts to {wind}.", "Ráfagas de hasta {wind}."), "wind", windText(gust, wind))).append(" ");
         double uv = d.getJSONArray("uv_index_max").optDouble(0, Double.NaN);
-        if (!Double.isNaN(uv) && uv >= 6) s.append("UV ").append(Math.round(uv)).append(uv >= 8 ? " (very high)" : " (high)").append(". ");
+        if (!Double.isNaN(uv) && uv >= 6) {
+            s.append(Lang.fill(uv >= 8 ? Lang.pick(es, "UV {uv} (very high).", "UV {uv} (muy alto).") : Lang.pick(es, "UV {uv} (high).", "UV {uv} (alto)."), "uv", Math.round(uv))).append(" ");
+        }
         return s.toString().trim();
     }
 
-    /** The hour with the highest rain chance still ahead today, as "3 PM". */
-    private static String peakRainHour(JSONObject f) {
+    /** The hour with the highest rain chance still ahead today, as "3 PM" (or "3 p. m."). */
+    private static String peakRainHour(JSONObject f, boolean es) {
         JSONObject h = f.optJSONObject("hourly");
         if (h == null) return null;
         JSONArray time = h.optJSONArray("time");
@@ -489,9 +551,10 @@ public final class AlertsWorker extends Worker {
         }
         if (best < 0) return null;
         int offset = f.optInt("utc_offset_seconds", 0);
-        SimpleDateFormat hourFmt = new SimpleDateFormat("h a", Locale.US);
-        hourFmt.setTimeZone(TimeZone.getTimeZone("UTC"));
-        return hourFmt.format(new Date((time.optLong(best) + offset) * 1000));
+        Calendar c = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        c.setTimeInMillis((time.optLong(best) + offset) * 1000);
+        int h = c.get(Calendar.HOUR_OF_DAY);
+        return (h % 12 == 0 ? 12 : h % 12) + " " + Lang.ampm(es, h < 12);
     }
 
     private static String temp(double c, boolean f) {
@@ -507,6 +570,207 @@ public final class AlertsWorker extends Worker {
         }
     }
 
+    // ---- Rain starting soon -------------------------------------------------
+
+    /**
+     * Port of lib/weather/rain-outlook.ts rainOutlook for the "starting" case:
+     * {startsInMin, endsInMin (-1 past the forecast), peakMm, horizonMin}, or
+     * null when it isn't about to start. Each value is the 15 minutes before its time.
+     */
+    static double[] rainStart(JSONArray times, JSONArray precip, long now) {
+        int n = Math.min(times.length(), precip.length());
+        int first = -1;
+        for (int i = 0; i < n; i++) {
+            if (times.optLong(i) * 1000 > now) {
+                first = i;
+                break;
+            }
+        }
+        if (first < 0) return null;
+        int start = first;
+        while (start < n && precip.optDouble(start, 0) < WET_MM) start++;
+        if (start >= n || start == first) return null; // dry, or already raining
+        int stop = start;
+        double peak = 0;
+        while (stop < n && precip.optDouble(stop, 0) >= WET_MM) peak = Math.max(peak, precip.optDouble(stop++, 0));
+        double startsIn = Math.max(0, (times.optLong(start) * 1000 - 15 * 60_000L - now) / 60_000.0);
+        double endsIn = stop < n ? Math.max(0, (times.optLong(stop - 1) * 1000 - now) / 60_000.0) : -1;
+        double horizon = Math.max(0, (times.optLong(n - 1) * 1000 - now) / 60_000.0);
+        return new double[] {startsIn, endsIn, peak, horizon};
+    }
+
+    private static boolean checkRain(Context ctx, JSONObject cfg, JSONObject rain, List<Place> all, long now) throws Exception {
+        SharedPreferences prefs = prefs(ctx);
+        long last;
+        try {
+            last = Long.parseLong(prefs.getString(RAIN_AT, "0"));
+        } catch (Exception e) {
+            last = 0;
+        }
+        if (now - last < RAIN_COOLDOWN_MS) return false;
+        Place place = null;
+        for (Place p : all) if (CURRENT_PLACE.equals(p.id)) place = p;
+        if (place == null && !all.isEmpty()) place = all.get(0);
+        if (place == null) return false;
+
+        String url = "https://api.open-meteo.com/v1/forecast?latitude=" + fmt(place.lat) + "&longitude=" + fmt(place.lon)
+                + "&minutely_15=precipitation&forecast_minutely_15=13&past_minutely_15=1&current=temperature_2m&timeformat=unixtime&timezone=auto";
+        JSONObject f = new JSONObject(get(url, "application/json"));
+        JSONObject m = f.optJSONObject("minutely_15");
+        if (m == null || m.optJSONArray("time") == null || m.optJSONArray("precipitation") == null) return false;
+        double[] o = rainStart(m.getJSONArray("time"), m.getJSONArray("precipitation"), now);
+        double lead = clamp(rain.optDouble("leadMin", 30), 15, 60);
+        if (o == null || o[0] > lead) return false;
+
+        boolean es = Lang.spanish(cfg);
+        JSONObject current = f.optJSONObject("current");
+        double t = current == null ? Double.NaN : current.optDouble("temperature_2m", Double.NaN);
+        int kind = Double.isNaN(t) ? 0 : t <= 0 ? 1 : t <= 2 ? 2 : 0; // 0 rain, 1 snow, 2 mix
+        int intensity = o[2] < 0.6 ? 0 : o[2] < 2 ? 1 : 2;
+        String[][] soonEn = {{"Rain starting in about {n} min", "Rain starting in a few minutes"}, {"Snow starting in about {n} min", "Snow starting in a few minutes"}, {"Rain or snow starting in about {n} min", "Rain or snow starting in a few minutes"}};
+        String[][] soonEs = {{"Lluvia en unos {n} min", "Lluvia en pocos minutos"}, {"Nieve en unos {n} min", "Nieve en pocos minutos"}, {"Lluvia o nieve en unos {n} min", "Lluvia o nieve en pocos minutos"}};
+        String[][] whatEn = {{"Light rain", "Moderate rain", "Heavy rain"}, {"Light snow", "Moderate snow", "Heavy snow"}, {"Light rain or snow", "Rain or snow", "Heavy rain or snow"}};
+        String[][] whatEs = {{"Lluvia ligera", "Lluvia moderada", "Lluvia fuerte"}, {"Nieve ligera", "Nieve moderada", "Nieve fuerte"}, {"Lluvia o nieve ligera", "Lluvia o nieve", "Lluvia o nieve fuerte"}};
+        String[] soon = (es ? soonEs : soonEn)[kind];
+        String title = o[0] < 5 ? soon[1] : Lang.fill(soon[0], "n", roundMinutes(o[0]));
+        String what = (es ? whatEs : whatEn)[kind][intensity];
+        String body = o[1] < 0
+                ? Lang.fill(Lang.pick(es, "{what} at {place}, lasting at least {h} hours.", "{what} en {place}, durante al menos {h} horas."),
+                        "what", what, "place", place.name, "h", Math.max(1, Math.round((o[3] - o[0]) / 60)))
+                : Lang.fill(Lang.pick(es, "{what} at {place}, lasting about {n} min.", "{what} en {place}, durante unos {n} min."),
+                        "what", what, "place", place.name, "n", roundMinutes(Math.max(15, o[1] - o[0])));
+        prefs.edit().putString(RAIN_AT, String.valueOf(now)).apply();
+        long startAt = now + Math.round(o[0] * 60_000);
+        return Notifier.show(ctx, id("rain:" + place.id + ":" + Math.round(startAt / 900_000.0)), Notifier.RAIN, title, body);
+    }
+
+    // ---- Storms heading your way -------------------------------------------
+
+    private static final String[] COMPASS_EN = {"north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"};
+    private static final String[] COMPASS_ES = {"el norte", "el noreste", "el este", "el sureste", "el sur", "el suroeste", "el oeste", "el noroeste"};
+
+    /** For each place, the soonest strong storm due within the hour (from our server), announced once. */
+    private static int checkStorms(Context ctx, JSONObject cfg, String server, List<Place> places, long now) throws Exception {
+        JSONObject seen = readJson(ctx, STORMS_SEEN);
+        boolean es = Lang.spanish(cfg);
+        boolean mi = imperial(cfg);
+        JSONObject units = cfg.optJSONObject("units");
+        String windUnit = units == null ? "mph" : units.optString("wind", "mph");
+        int sent = 0;
+        for (Place p : places) {
+            JSONArray storms = new JSONObject(get(server + "/api/storm-eta?lat=" + fmt(p.lat) + "&lon=" + fmt(p.lon), "application/json")).optJSONArray("storms");
+            JSONObject s = storms == null ? null : storms.optJSONObject(0);
+            if (s == null) continue;
+            String key = p.id + ":" + str(s, "id");
+            if (now - seen.optLong(key, 0) < STORM_REPEAT_MS) continue;
+            seen.put(key, now);
+
+            boolean tvs = !str(s, "tvs").isEmpty();
+            int level = s.optInt("level", 0);
+            double hail = s.isNull("maxHailIn") ? 0 : s.optDouble("maxHailIn", 0);
+            boolean meso = !s.isNull("meso") && s.optInt("meso", 0) > 0;
+            String titleEn;
+            String titleEs;
+            if (tvs) {
+                titleEn = "Storm with rotation heading for {place}";
+                titleEs = "Tormenta con rotación se dirige a {place}";
+            } else if (meso && level >= 3) {
+                titleEn = "Rotating storm heading for {place}";
+                titleEs = "Tormenta rotatoria se dirige a {place}";
+            } else if (hail >= 1 || level == 2) {
+                titleEn = "Hailstorm heading for {place}";
+                titleEs = "Tormenta con granizo se dirige a {place}";
+            } else {
+                titleEn = "Strong storm heading for {place}";
+                titleEs = "Tormenta fuerte se dirige a {place}";
+            }
+            long arrives = s.optLong("arrivesAt", now);
+            int eta = Math.max(1, s.optInt("etaMin", 1));
+            StringBuilder body = new StringBuilder(Lang.fill(Lang.pick(es, "Arriving around {time} (in about {n} min).", "Llega cerca de las {time} (en unos {n} min)."),
+                    "time", clock(arrives, es), "n", roundMinutes(eta)));
+            if (hail >= 0.5) {
+                String size = mi ? (Math.round(hail * 100) / 100.0) + " in" : Math.round(hail * 25.4) + " mm";
+                body.append(" ").append(Lang.fill(Lang.pick(es, "Hail up to {size} possible.", "Posible granizo de hasta {size}."), "size", size));
+            }
+            double kt = s.optDouble("speedKt", 0);
+            if (kt >= 3) {
+                int i = (int) (Math.round(((s.optDouble("headingDeg", 0) % 360 + 360) % 360) / 45) % 8);
+                body.append(" ").append(Lang.fill(Lang.pick(es, "Moving {dir} at {speed}.", "Se mueve hacia {dir} a {speed}."),
+                        "dir", es ? COMPASS_ES[i] : COMPASS_EN[i], "speed", windText(kt * 1.852, windUnit)));
+            }
+            if (tvs) body.append(" ").append(Lang.pick(es, "Watch for a tornado warning and be ready to take shelter.", "Esté atento a un aviso de tornado y listo para refugiarse."));
+            if (Notifier.show(ctx, id("storm:" + key), Notifier.STORMS, Lang.fill(Lang.pick(es, titleEn, titleEs), "place", p.name), body.toString())) sent++;
+        }
+        Iterator<String> it = seen.keys();
+        List<String> stale = new ArrayList<>();
+        while (it.hasNext()) {
+            String k = it.next();
+            if (now - seen.optLong(k, 0) > 6 * HOUR) stale.add(k);
+        }
+        for (String k : stale) seen.remove(k);
+        writeJson(ctx, STORMS_SEEN, seen);
+        return sent;
+    }
+
+    // ---- Activity on your reports ------------------------------------------
+
+    /** Confirmations and comments since the last check, using the sign-in cookie the app's web view holds. */
+    private static int checkActivity(Context ctx, JSONObject cfg, String base, long now) throws Exception {
+        SharedPreferences prefs = prefs(ctx);
+        String raw = prefs.getString(ACTIVITY_SINCE, "");
+        if (raw.isEmpty()) {
+            // First run: start from now instead of announcing old activity.
+            prefs.edit().putString(ACTIVITY_SINCE, String.valueOf(now)).apply();
+            return 0;
+        }
+        long since;
+        try {
+            since = Long.parseLong(raw);
+        } catch (Exception e) {
+            since = now;
+        }
+        String cookie = null;
+        try {
+            cookie = CookieManager.getInstance().getCookie(base);
+        } catch (Exception ignored) {
+            // No web view data yet.
+        }
+        if (cookie == null || cookie.isEmpty()) return 0;
+        JSONArray items = new JSONObject(getWithCookie(base + "/api/activity?since=" + since, cookie)).optJSONArray("items");
+        if (items == null) return 0;
+        boolean es = Lang.spanish(cfg);
+        long latest = since;
+        int sent = 0;
+        for (int i = 0; i < items.length(); i++) latest = Math.max(latest, items.optJSONObject(i) == null ? 0 : items.optJSONObject(i).optLong("at", 0));
+        prefs.edit().putString(ACTIVITY_SINCE, String.valueOf(latest)).apply();
+        if (items.length() > 5) {
+            String title = Lang.fill(items.length() == 1 ? Lang.pick(es, "{n} new reaction to your reports", "{n} nueva reacción a tus reportes")
+                    : Lang.pick(es, "{n} new reactions to your reports", "{n} nuevas reacciones a tus reportes"), "n", items.length());
+            return Notifier.show(ctx, id("activity:batch:" + latest), Notifier.ACTIVITY, title,
+                    Lang.pick(es, "Open Storm Central to see who confirmed or commented.", "Abre Storm Central para ver quién confirmó o comentó.")) ? 1 : 0;
+        }
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject a = items.optJSONObject(i);
+            if (a == null) continue;
+            JSONObject actor = a.optJSONObject("actor");
+            String who = str(actor, "displayName").isEmpty() ? str(actor, "username") : str(actor, "displayName");
+            String title;
+            String body;
+            if ("confirm".equals(str(a, "kind"))) {
+                title = Lang.fill(Lang.pick(es, "{who} confirmed your report", "{who} confirmó tu reporte"), "who", who);
+                String what = str(a, "postPreview");
+                if (what.length() > 60) what = what.substring(0, 57) + "…";
+                body = what.isEmpty() ? Lang.pick(es, "Your report is being confirmed by spotters nearby.", "Observadores cercanos están confirmando tu reporte.") : "“" + what + "”";
+            } else {
+                title = Lang.fill(Lang.pick(es, "{who} commented on your report", "{who} comentó tu reporte"), "who", who);
+                body = str(a, "text").replaceAll("\\s+", " ").trim();
+                if (body.length() > 140) body = body.substring(0, 137) + "…";
+            }
+            if (Notifier.show(ctx, id("activity:" + str(a, "id")), Notifier.ACTIVITY, title, body)) sent++;
+        }
+        return sent;
+    }
+
     // ---- Helpers ------------------------------------------------------------
 
     /** A string field, or "" when missing or JSON null (optString would return the text "null"). */
@@ -514,8 +778,28 @@ public final class AlertsWorker extends Worker {
         return o == null || o.isNull(key) ? "" : o.optString(key, "");
     }
 
-    private static String clock(long ms) {
-        return new SimpleDateFormat("h:mm a", Locale.US).format(new Date(ms));
+    /** "4:05 PM" / "4:05 p. m." on the phone's clock. */
+    static String clock(long ms, boolean es) {
+        Calendar c = Calendar.getInstance();
+        c.setTimeInMillis(ms);
+        int h = c.get(Calendar.HOUR_OF_DAY);
+        return String.format(Locale.US, "%d:%02d %s", h % 12 == 0 ? 12 : h % 12, c.get(Calendar.MINUTE), Lang.ampm(es, h < 12));
+    }
+
+    /** "https://site" without a trailing slash, or null for anything but HTTPS (or the local test server). */
+    static String cleanBase(String url) {
+        String base = url == null ? "" : url.replaceAll("/+$", "");
+        return base.startsWith("https://") || base.startsWith("http://127.0.0.1") ? base : null;
+    }
+
+    /** Storm Central's own server from the config, or null. */
+    private static String serverBase(JSONObject cfg) {
+        return cfg.isNull("server") ? null : cleanBase(cfg.optString("server", ""));
+    }
+
+    /** "About 25 min" rounding: exact under 10, then to 5 minutes (lib/weather/rain-outlook.ts roundMinutes). */
+    static long roundMinutes(double m) {
+        return m < 10 ? Math.max(1, Math.round(m)) : Math.round(m / 5) * 5;
     }
 
     private static String fmt(double v) {
@@ -552,12 +836,22 @@ public final class AlertsWorker extends Worker {
         return new String(getBytes(url, accept), "UTF-8");
     }
 
+    /** A JSON GET that sends the given Cookie header (our own server only). */
+    private static String getWithCookie(String url, String cookie) throws IOException {
+        return new String(getBytes(url, "application/json", cookie), "UTF-8");
+    }
+
     static byte[] getBytes(String url, String accept) throws IOException {
+        return getBytes(url, accept, null);
+    }
+
+    private static byte[] getBytes(String url, String accept, String cookie) throws IOException {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setConnectTimeout(TIMEOUT_MS);
         c.setReadTimeout(TIMEOUT_MS);
         c.setRequestProperty("User-Agent", UA);
         c.setRequestProperty("Accept", accept);
+        if (cookie != null) c.setRequestProperty("Cookie", cookie);
         try {
             int code = c.getResponseCode();
             if (code < 200 || code >= 300) throw new IOException("HTTP " + code);

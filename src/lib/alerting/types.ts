@@ -1,3 +1,4 @@
+import type { Lang } from "../i18n/lang";
 import type { TempUnit, WindUnit } from "../weather/units";
 
 /** A place the user wants warnings and custom alerts for. */
@@ -62,11 +63,20 @@ export interface AlertSettings {
   lightning?: { enabled: boolean; radiusKm: number };
   /** Severe spotter reports within `radiusKm` of a watched place. Missing means off. */
   spotter?: { enabled: boolean; radiusKm: number };
+  /** Rain (or snow) about to start at your location, up to `leadMin` ahead. Missing means off. */
+  rain?: { enabled: boolean; leadMin: number };
+  /** A strong radar storm cell heading for a watched place within the hour. Missing means off. */
+  storms?: { enabled: boolean };
+  /** Confirmations and comments on your own spotter reports. Missing means off. */
+  activity?: { enabled: boolean };
 }
 
 export const DEFAULT_BRIEFING = { enabled: false, time: "07:00" } as const;
 export const DEFAULT_LIGHTNING = { enabled: false, radiusKm: 16 } as const;
 export const DEFAULT_SPOTTER = { enabled: false, radiusKm: 40 } as const;
+export const DEFAULT_RAIN = { enabled: false, leadMin: 30 } as const;
+/** How far ahead a rain-soon notification may come. */
+export const RAIN_LEAD_CHOICES = [15, 30, 60] as const;
 
 /**
  * Everything the alert engine needs, as plain JSON. The page builds it from
@@ -85,6 +95,10 @@ export interface WatchConfig {
    * the accounts they blocked. Null without a spotter network.
    */
   community?: { url: string; username: string | null; muted: string[] } | null;
+  /** Storm Central's own server (radar storm tracking), e.g. the site's origin. Missing: not available. */
+  server?: string | null;
+  /** Language for notification text. Missing means English. */
+  lang?: Lang;
 }
 
 /** A notification the engine wants shown. `id` is a stable 31-bit integer. */
@@ -92,5 +106,5 @@ export interface AppNotification {
   id: number;
   title: string;
   body: string;
-  kind: "warning" | "custom" | "test" | "lightning" | "spotter" | "briefing";
+  kind: "warning" | "custom" | "test" | "lightning" | "spotter" | "briefing" | "rain" | "storm" | "activity";
 }

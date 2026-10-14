@@ -7,12 +7,13 @@ import { searchPlaces } from "@/lib/api/open-meteo";
 import { fromDisplay, METRICS, metricDef, toDisplay, unitLabel, describeRule, type MetricGroup } from "@/lib/alerting/metrics";
 import { nativePermission, showNativeNotification } from "@/lib/alerting/notify-native";
 import { announcePermission, requestWebPermission, showWebNotification, webPermission } from "@/lib/alerting/notify-web";
-import { ALERT_CATEGORIES, CURRENT_PLACE_ID, DEFAULT_BRIEFING, DEFAULT_LIGHTNING, DEFAULT_SPOTTER, type RuleMetric, type RuleOp } from "@/lib/alerting/types";
+import { ALERT_CATEGORIES, CURRENT_PLACE_ID, DEFAULT_BRIEFING, DEFAULT_LIGHTNING, DEFAULT_RAIN, DEFAULT_SPOTTER, RAIN_LEAD_CHOICES, type RuleMetric, type RuleOp } from "@/lib/alerting/types";
 import { nativeAlerts, nativeAlertsAvailable, type NativeAlertsStatus } from "@/lib/native/storm-alerts";
 import { runnerPermission } from "@/lib/native/runner-bridge";
 import { COMMUNITY_ENABLED, isNativeApp } from "@/lib/platform";
 import { timeAgo } from "@/lib/time";
 import { useNow } from "@/hooks/use-now";
+import { useSession } from "@/hooks/queries";
 import { MAX_PLACES, MAX_RULES, useAlertsStore } from "@/store/alerts-store";
 import { useAppStore } from "@/store/app-store";
 import { Button, IconButton } from "../ui/button";
@@ -215,10 +216,33 @@ function MoreAlertsPanel() {
   const briefing = settings.briefing ?? DEFAULT_BRIEFING;
   const lightning = settings.lightning ?? DEFAULT_LIGHTNING;
   const spotter = settings.spotter ?? DEFAULT_SPOTTER;
+  const rain = settings.rain ?? DEFAULT_RAIN;
+  const storms = settings.storms ?? { enabled: false };
+  const activity = settings.activity ?? { enabled: false };
+  const { data: session } = useSession();
   const off = !settings.enabled;
   return (
     <Panel title="More notifications" subtitle={off ? "Turn on Notify me above to use these" : "For your watched places"}>
       <div className="divide-y divide-line">
+        <OptionRow label="Rain starting soon" hint="When rain or snow is about to start where you are, once per spell (15-minute forecast)">
+          <select
+            aria-label="How far ahead"
+            value={String(rain.leadMin)}
+            disabled={off || !rain.enabled}
+            onChange={(e) => setSettings({ rain: { ...rain, leadMin: Number(e.target.value) } })}
+            className={SELECT}
+          >
+            {RAIN_LEAD_CHOICES.map((m) => (
+              <option key={m} value={m}>
+                {m === 60 ? "Up to 1 hour ahead" : `Up to ${m} min ahead`}
+              </option>
+            ))}
+          </select>
+          <Toggle hideLabel label="Rain starting soon" checked={rain.enabled} onChange={(enabled) => setSettings({ rain: { ...rain, enabled } })} />
+        </OptionRow>
+        <OptionRow label="Storms heading your way" hint="A strong storm on radar (hail, rotation or heavy core) due to reach a watched place within the hour, with its arrival time">
+          <Toggle hideLabel label="Storms heading your way" checked={storms.enabled} onChange={(enabled) => setSettings({ storms: { enabled } })} />
+        </OptionRow>
         <OptionRow label="Morning briefing" hint="Today's high and low, rain chance and anything notable, once a day">
           <input
             type="time"
@@ -262,6 +286,11 @@ function MoreAlertsPanel() {
               ))}
             </select>
             <Toggle hideLabel label="Nearby spotter reports" checked={spotter.enabled} onChange={(enabled) => setSettings({ spotter: { ...spotter, enabled } })} />
+          </OptionRow>
+        )}
+        {COMMUNITY_ENABLED && (
+          <OptionRow label="Activity on your reports" hint={session ? "When someone confirms or comments on a report you posted" : "Sign in to the spotter network to use this"}>
+            <Toggle hideLabel label="Activity on your reports" checked={activity.enabled} onChange={(enabled) => setSettings({ activity: { enabled } })} />
           </OptionRow>
         )}
       </div>

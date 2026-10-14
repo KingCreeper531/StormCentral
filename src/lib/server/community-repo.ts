@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, gte, inArray, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
-import type { CommentDto, ConditionsSnapshot, FeedResponse, PostDto } from "../community";
+import type { ActivityItem, CommentDto, ConditionsSnapshot, FeedResponse, PostDto } from "../community";
 import { avatarUrl, conditionsSchema } from "../community";
 import { isDeveloper } from "../auth/session";
 import { getDb } from "../db/client";
@@ -242,6 +242,56 @@ export async function toggleVerification(postId: string, userId: string) {
     .from(verifications)
     .where(eq(verifications.postId, postId));
   return { verified: !existing.length, count: Number(row?.n ?? 0) };
+}
+
+/**
+ * Confirmations and visible comments by other people on `userId`'s reports
+ * since `since` (epoch ms), newest last, skipping accounts either side blocked.
+ */
+export async function listActivity(userId: string, since: number, limit = 30): Promise<ActivityItem[]> {
+  const db = await getDb();
+  const now = Date.now();
+  const preview = (body: string) => body.replace(/\s+/g, " ").trim().slice(0, 80);
+  const shownUser = or(isNull(users.suspendedUntil), lte(users.suspendedUntil, now));
+  const [confirms, replies] = await Promise.all([
+    db
+      .select({ postId: verifications.postId, at: verifications.createdAt, body: posts.body, username: users.username, displayName: users.displayName })
+      .from(verifications)
+      .innerJoin(posts, eq(posts.id, verifications.postId))
+      .innerJoin(users, eq(users.id, verifications.userId))
+      .where(and(eq(posts.userId, userId), sql`${verifications.userId} <> ${userId}`, gte(verifications.createdAt, since), shownUser, notBlocked(userId, sql`${verifications.userId}`)))
+      .orderBy(desc(verifications.createdAt))
+      .limit(limit),
+    db
+      .select({ id: comments.id, postId: comments.postId, at: comments.createdAt, text: comments.body, body: posts.body, username: users.username, displayName: users.displayName })
+      .from(comments)
+      .innerJoin(posts, eq(posts.id, comments.postId))
+      .innerJoin(users, eq(users.id, comments.userId))
+      .where(and(eq(posts.userId, userId), sql`${comments.userId} <> ${userId}`, gte(comments.createdAt, since), eq(comments.hidden, 0), shownUser, notBlocked(userId, comments.userId)))
+      .orderBy(desc(comments.createdAt))
+      .limit(limit),
+  ]);
+  const items: ActivityItem[] = [
+    ...confirms.map((r) => ({
+      id: `v:${r.postId}:${r.username}`,
+      kind: "confirm" as const,
+      at: r.at,
+      postId: r.postId,
+      postPreview: preview(r.body),
+      actor: { username: r.username, displayName: r.displayName },
+      text: null,
+    })),
+    ...replies.map((r) => ({
+      id: `c:${r.id}`,
+      kind: "comment" as const,
+      at: r.at,
+      postId: r.postId,
+      postPreview: preview(r.body),
+      actor: { username: r.username, displayName: r.displayName },
+      text: r.text.slice(0, 300),
+    })),
+  ];
+  return items.sort((a, b) => a.at - b.at).slice(-limit);
 }
 
 export async function listComments(postId: string, viewerId: string | null): Promise<CommentDto[]> {

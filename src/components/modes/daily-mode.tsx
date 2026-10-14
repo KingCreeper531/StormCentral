@@ -18,6 +18,7 @@ import { FireSmokePanel } from "../daily/fire-smoke-panel";
 import { ForecastSourceBar } from "../daily/forecast-source-bar";
 import { ForecasterNotesPanel } from "../daily/forecaster-notes-panel";
 import { HourlyPanel } from "../daily/hourly-panel";
+import { IncomingStormsPanel } from "../daily/incoming-storms-panel";
 import { NowcastCard } from "../daily/nowcast-card";
 import { RadarPreview } from "../daily/radar-preview";
 import { RainfallPanel } from "../daily/rainfall-panel";
@@ -35,6 +36,7 @@ interface Ctx {
 
 /** Every Daily panel by id. Panels size to their column; several render nothing when they don't apply. */
 const RENDER: Record<DailyPanelId, (c: Ctx) => React.ReactNode> = {
+  storms: () => <IncomingStormsPanel />,
   hero: ({ f, now }) => <CurrentHero f={f} now={now} />,
   nowcast: ({ f, now }) => <NowcastCard f={f} now={now} />,
   hourly: ({ f, now }) => <HourlyPanel f={f} now={now} />,

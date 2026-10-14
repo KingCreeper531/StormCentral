@@ -15,6 +15,8 @@ export interface NativeAlertsStatus {
   batteryUnrestricted: boolean;
   lastRun: number | null;
   lastResult: string | null;
+  /** Checks this build runs natively (0.4.5+); missing means warnings, lightning, spotter and briefing. */
+  features?: string[];
 }
 
 interface StormAlertsPlugin {

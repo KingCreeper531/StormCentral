@@ -2,28 +2,38 @@
 
 import type { Forecast } from "@/lib/api/open-meteo";
 import { useFormat } from "@/hooks/use-format";
+import { precipKind, rainOutlook, roundMinutes, type PrecipKind, type RainIntensity } from "@/lib/weather/rain-outlook";
 import { TimeSeriesChart } from "../charts/time-series";
 import { Panel } from "../ui/panel";
 
-/** Next 3 hours of 15-minute precipitation with a plain-language summary. */
+const WHAT: Record<PrecipKind, Record<RainIntensity, string>> = {
+  rain: { light: "Light rain", moderate: "Rain", heavy: "Heavy rain" },
+  snow: { light: "Light snow", moderate: "Snow", heavy: "Heavy snow" },
+  mix: { light: "Light rain or snow", moderate: "Rain or snow", heavy: "Heavy rain or snow" },
+};
+
+/** Next 3 hours of 15-minute precipitation with a plain-language summary (the same reading as the rain-soon alert). */
 export function NowcastCard({ f, now, className }: { f: Forecast; now: number; className?: string }) {
   const fmt = useFormat();
   const m = f.minutely15;
   if (!m || !m.time.length) return null;
-  const start = m.time.findIndex((t) => t * 1000 + 15 * 60_000 > now);
+  // Each value is the 15 minutes before its time, so the slot we're in is the first that ends after now.
+  const start = m.time.findIndex((t) => t * 1000 > now);
   const idx = start < 0 ? [] : m.time.map((_, i) => i).slice(start, start + 12);
   const times = idx.map((i) => m.time[i]! * 1000);
   const vals = idx.map((i) => m.precip[i] ?? null);
-  const firstWet = vals.findIndex((v) => (v ?? 0) >= 0.1);
-  const wetNow = (vals[0] ?? 0) >= 0.1;
-  const lastWet = wetNow ? vals.findIndex((v) => (v ?? 0) < 0.1) : -1;
-  const summary = wetNow
-    ? lastWet > 0
-      ? `Precipitation easing in about ${lastWet * 15} min`
-      : "Precipitation continuing for the next few hours"
-    : firstWet > 0
-      ? `Precipitation starting in about ${firstWet * 15} min`
-      : "No precipitation expected in the next 3 hours";
+  const o = rainOutlook(m.time, m.precip, now);
+  const what = o ? WHAT[precipKind(f.current.temp)][o.intensity] : "";
+  const summary =
+    !o || o.state === "dry"
+      ? "No precipitation expected in the next 3 hours"
+      : o.state === "wet"
+        ? o.endsInMin != null
+          ? `${what} ending in about ${roundMinutes(o.endsInMin)} min`
+          : `${what} continuing for the next few hours`
+        : (o.startsInMin ?? 0) < 5
+          ? `${what} starting in a few minutes`
+          : `${what} starting in about ${roundMinutes(o.startsInMin ?? 0)} min`;
 
   return (
     <Panel

@@ -22,6 +22,7 @@ import type {
 } from "@/lib/api/types";
 import type { FeedResponse, PostDto } from "@/lib/community";
 import type { StormCellsResponse } from "@/lib/feeds/storm-cells";
+import type { StormEtaResponse } from "@/lib/storm-eta";
 import type { StormReportsResponse } from "@/lib/feeds/storm-reports";
 import type { TropicalResponse } from "@/lib/feeds/tropical";
 import type { BBox, LatLon } from "@/lib/geo";
@@ -416,4 +417,17 @@ export function prefetchMode(qc: QueryClient, mode: ModeId, loc: LatLon) {
   }
   if (mode === "angler")
     void qc.prefetchQuery({ queryKey: qk.rivers(loc), queryFn: ({ signal }) => getJson<RiversResponse>(`/api/rivers?lat=${loc.lat}&lon=${loc.lon}`, { signal }), ...opts });
+}
+
+/** Strong radar storms heading for the selected location within the hour (every 2 minutes while the page shows). */
+export function useIncomingStorms() {
+  const loc = useAppStore((s) => s.location);
+  const hydrated = useAppStore((s) => s.hydrated);
+  return useQuery({
+    queryKey: ["stormEta", r2(loc.lat), r2(loc.lon)] as const,
+    queryFn: ({ signal }) => getJson<StormEtaResponse>(`/api/storm-eta?lat=${loc.lat.toFixed(3)}&lon=${loc.lon.toFixed(3)}`, { signal }),
+    enabled: hydrated,
+    refetchInterval: 2 * 60_000,
+    staleTime: 60_000,
+  });
 }

@@ -419,7 +419,9 @@ async function start() {
   initAutoUpdates({ log });
 }
 
-if (process.platform === "win32") app.setAppUserModelId(APP_ID);
+// The Microsoft Store (MSIX) package already has an identity Windows ties its
+// notifications to; overriding it there can stop warning toasts from showing.
+if (process.platform === "win32" && !process.windowsStore) app.setAppUserModelId(APP_ID);
 // stormcentral:// opens the app (the installer registers it too; this covers portable runs).
 if (app.isPackaged) app.setAsDefaultProtocolClient("stormcentral");
 // Let Chromium fall back to software WebGL when the GPU is missing or blocklisted

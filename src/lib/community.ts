@@ -242,6 +242,20 @@ export interface CommentDto {
   hidden: boolean;
 }
 
+/** Someone confirmed or commented on one of your reports (GET /api/activity). */
+export interface ActivityItem {
+  /** Stable id: "c:<commentId>" or "v:<postId>:<username>". */
+  id: string;
+  kind: "confirm" | "comment";
+  at: number;
+  postId: string;
+  /** The start of your report's text. */
+  postPreview: string;
+  actor: { username: string; displayName: string };
+  /** The comment, for comments. */
+  text: string | null;
+}
+
 export interface FeedResponse {
   posts: PostDto[];
   nextCursor: string | null;
