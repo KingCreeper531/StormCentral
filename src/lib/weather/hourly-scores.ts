@@ -8,6 +8,7 @@ import { solunarForecast, type SolunarForecast, type SolunarPeriod } from "../as
 import { skyPhase, sunCrossings, sunPosition } from "../astro/sun";
 import { estimateCeiling, estimateWaterTempC } from "../science/atmosphere";
 import { tendencyAt } from "../science/pressure";
+import type { Translator } from "../i18n/core";
 import { biteIndex, droneFlyability, type BiteIndex, type DroneProfile, type ScoreResult } from "../science/scores";
 import { windAtHeight, type WindSample } from "../science/wind";
 import { mean } from "../utils";
@@ -41,6 +42,8 @@ export interface FlyabilityInputs {
   kp?: number | null;
   /** Satellites above the 10° mask, when known. */
   satellitesVisible?: number | null;
+  /** Language of the factor text; English when omitted. */
+  t?: Translator;
 }
 
 /** UAV flyability for hour `i`, plus the intermediate values the UAV mode charts. */
@@ -73,6 +76,7 @@ export function flyabilityAt(f: Forecast, i: number, o: FlyabilityInputs) {
       satellitesVisible: o.satellitesVisible ?? null,
     },
     o.profile,
+    o.t,
   );
   return { t, prof, atAlt, gustAtAlt, ceiling, result };
 }
@@ -90,7 +94,8 @@ export function anglerModel(
   now: number,
   lat: number,
   lon: number,
-  opts: { count?: number; gaugeWaterTempC?: number | null; flowChange24h?: number | null } = {},
+  /** `t`: language of the bite reasons; English when omitted. */
+  opts: { count?: number; gaugeWaterTempC?: number | null; flowChange24h?: number | null; t?: Translator } = {},
 ): AnglerModel {
   const solunar = solunarForecast(new Date(now - 2 * 3_600_000), 30, lat, lon);
   const sunEvents = sunCrossings(new Date(now - 3_600_000), 30, lat, lon, -0.833).map((c) => c.time.getTime());
@@ -113,7 +118,7 @@ export function anglerModel(
       waterTempC: waterTemp,
       weatherCode: f.hourly.code[i] ?? 0,
       flowChange24h: opts.flowChange24h ?? null,
-    });
+    }, opts.t);
     return { i, t, bite };
   });
   return { solunar, hours, waterTemp, waterTempIsEstimate: gaugeTemp == null };

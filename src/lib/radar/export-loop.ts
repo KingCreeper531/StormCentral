@@ -11,6 +11,7 @@
  */
 import type { Map as MlMap } from "maplibre-gl";
 import type { RadarLoop } from "@/hooks/use-radar-loop";
+import { translator, type Translator } from "@/lib/i18n/core";
 import { isNativeApp } from "@/lib/platform";
 import { clockIn } from "@/lib/weather/view";
 import type { RadarFrame } from "./frames";
@@ -53,6 +54,8 @@ export interface ExportLoopOptions {
   subtitle?: string;
   /** IANA zone the caption times read in (the selected location's). */
   timeZone?: string;
+  /** Locale of the caption's time and date (`t.locale`); the device's when omitted. */
+  locale?: string;
   /** Loop speed multiplier (1 = normal); sets the frame delay. */
   speed?: number;
   signal?: AbortSignal;
@@ -422,12 +425,12 @@ interface Caption {
   fontFamily: string;
 }
 
-function dateLabel(time: number, timeZone: string | undefined) {
+function dateLabel(time: number, timeZone: string | undefined, locale: string | undefined) {
   const opts = { month: "short", day: "numeric", year: "numeric" } as const;
   try {
-    return new Intl.DateTimeFormat(undefined, { ...opts, timeZone: zoneFor(timeZone) }).format(time);
+    return new Intl.DateTimeFormat(locale, { ...opts, timeZone: zoneFor(timeZone) }).format(time);
   } catch {
-    return new Intl.DateTimeFormat(undefined, opts).format(time);
+    return new Intl.DateTimeFormat(locale, opts).format(time);
   }
 }
 
@@ -647,8 +650,8 @@ export async function exportRadarLoop(opts: ExportLoopOptions): Promise<LoopExpo
       });
       if (!painted) throw new Error("The map stopped drawing. Keep Storm Central on screen while the loop exports.");
       drawCaption(ctx, size.width, size.height, {
-        time: `${frame.approximate ? "~" : ""}${clockIn(opts.timeZone, frame.time)}`,
-        date: dateLabel(frame.time, opts.timeZone),
+        time: `${frame.approximate ? "~" : ""}${clockIn(opts.timeZone, frame.time, opts.locale)}`,
+        date: dateLabel(frame.time, opts.timeZone, opts.locale),
         title: opts.title,
         subtitle: opts.subtitle,
         position: (k + 1) / todo.length,
@@ -703,12 +706,12 @@ function blobToBase64(blob: Blob): Promise<string> {
 }
 
 /** Android app: write the file to the app cache and open the system share sheet (which offers saving too). */
-async function shareNative(exp: LoopExport): Promise<void> {
+async function shareNative(exp: LoopExport, t: Translator): Promise<void> {
   const [{ Filesystem, Directory }, { Share }] = await Promise.all([import("@capacitor/filesystem"), import("@capacitor/share")]);
   const data = await blobToBase64(exp.blob);
   const { uri } = await Filesystem.writeFile({ path: exp.filename, data, directory: Directory.Cache });
   try {
-    await Share.share({ files: [uri], title: "Radar loop", dialogTitle: "Save or share radar loop" });
+    await Share.share({ files: [uri], title: t("Radar loop"), dialogTitle: t("Save or share radar loop") });
   } catch (err) {
     if (/cancel/i.test(err instanceof Error ? err.message : String(err))) return; // sheet dismissed
     throw err;
@@ -717,10 +720,11 @@ async function shareNative(exp: LoopExport): Promise<void> {
 
 /**
  * Save the export. Web and desktop: a download of `url` (an object URL for the
- * blob; one is made and released if omitted). Android app: the share sheet.
+ * blob; one is made and released if omitted). Android app: the share sheet
+ * (its title in `t`'s language).
  */
-export async function saveExport(exp: LoopExport, url?: string): Promise<void> {
-  if (isNativeApp()) return shareNative(exp);
+export async function saveExport(exp: LoopExport, url?: string, t: Translator = translator("en")): Promise<void> {
+  if (isNativeApp()) return shareNative(exp, t);
   const href = url ?? URL.createObjectURL(exp.blob);
   const a = document.createElement("a");
   a.href = href;
@@ -738,13 +742,13 @@ export async function saveExport(exp: LoopExport, url?: string): Promise<void> {
  * Android app. Call straight from a click handler (Web Share needs the user
  * gesture). Resolves false if the person dismissed the sheet.
  */
-export async function shareExport(exp: LoopExport): Promise<boolean> {
+export async function shareExport(exp: LoopExport, t: Translator = translator("en")): Promise<boolean> {
   if (isNativeApp()) {
-    await shareNative(exp);
+    await shareNative(exp, t);
     return true;
   }
   try {
-    await navigator.share({ files: [toFile(exp)], title: "Radar loop" });
+    await navigator.share({ files: [toFile(exp)], title: t("Radar loop") });
     return true;
   } catch (err) {
     if (isAbortError(err)) return false;

@@ -9,6 +9,7 @@ import { windAtHeight } from "../science/wind";
 import type { TempUnit, WindUnit } from "../weather/units";
 import { anglerModel, flyabilityAt, windProfileAt } from "../weather/hourly-scores";
 import { hourRange } from "../weather/view";
+import { translator, type Translator } from "../i18n/core";
 import { convertWindMs, formatTemp, WIND_LABEL, windToMs } from "./format";
 import type { RuleMetric, RuleOp } from "./types";
 
@@ -72,10 +73,11 @@ export function formatMetric(kind: ValueKind, v: number, units: UnitsLike): stri
   return unit === "%" ? `${n}%` : unit ? `${n} ${unit}` : String(n);
 }
 
-/** "Bite index above 70" */
-export function describeRule(metric: RuleMetric, op: RuleOp, value: number, units: UnitsLike): string {
+/** "Bite index above 70" (Spanish with `t`: "Índice de picada por encima de 70"). */
+export function describeRule(metric: RuleMetric, op: RuleOp, value: number, units: UnitsLike, t: Translator = translator("en")): string {
   const def = metricDef(metric);
-  return `${def.label} ${op} ${formatMetric(def.kind, value, units)}`;
+  const vars = { metric: t(def.label), value: formatMetric(def.kind, value, units) };
+  return op === "above" ? t("{metric} above {value}", vars) : t("{metric} below {value}", vars);
 }
 
 export interface MetricContext {

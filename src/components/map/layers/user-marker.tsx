@@ -2,6 +2,7 @@
 
 import { Marker } from "maplibre-gl";
 import { useEffect } from "react";
+import { useT } from "@/lib/i18n/use-t";
 import { mapAlive, useMapContext } from "../map-view";
 
 /**
@@ -14,12 +15,13 @@ import { mapAlive, useMapContext } from "../map-view";
  */
 export function UserMarker({ lat, lon }: { lat: number; lon: number }) {
   const { map } = useMapContext();
+  const t = useT();
   useEffect(() => {
     if (!map) return;
     const el = document.createElement("div");
     el.className = "pointer-events-none grid size-5 place-items-center rounded-full bg-white ring-1 ring-black/70";
     el.setAttribute("role", "img");
-    el.setAttribute("aria-label", "Selected location");
+    el.setAttribute("aria-label", t("Selected location"));
     const dot = document.createElement("span");
     dot.className = "block size-2.5 rounded-full bg-accent";
     el.append(dot);
@@ -27,6 +29,6 @@ export function UserMarker({ lat, lon }: { lat: number; lon: number }) {
     return () => {
       if (mapAlive(map)) marker.remove();
     };
-  }, [map, lat, lon]);
+  }, [map, lat, lon, t]);
   return null;
 }

@@ -4,11 +4,14 @@ import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-quer
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { qk, useSession } from "@/hooks/queries";
 import { getJson } from "@/lib/api/http";
-import { fetchAirQuality, fetchForecast, type Forecast } from "@/lib/api/open-meteo";
+import { fetchAirQuality, fetchForecast, fetchNowcast, type Forecast } from "@/lib/api/open-meteo";
 import type { AlertsResponse } from "@/lib/api/types";
 import { checkRules, checkWarnings, widgetSnapshot, type EngineIO } from "@/lib/alerting/engine";
-import { checkBriefing, checkLightning, checkSpotterReports, type ExtrasIO } from "@/lib/alerting/extras";
-import type { BlockedUserDto, FeedResponse } from "@/lib/community";
+import { checkActivity, checkBriefing, checkLightning, checkRainSoon, checkSpotterReports, checkStorms, type ExtrasIO } from "@/lib/alerting/extras";
+import type { ActivityItem, BlockedUserDto, FeedResponse } from "@/lib/community";
+import { translator, type Lang } from "@/lib/i18n/core";
+import { useLang } from "@/lib/i18n/use-t";
+import type { StormEtaResponse } from "@/lib/storm-eta";
 import { nativeAlerts, nativeAlertsAvailable } from "@/lib/native/storm-alerts";
 import { nativePermission, showNativeNotification } from "@/lib/alerting/notify-native";
 import { PERMISSION_EVENT, showWebNotification, subscribePermission, webPermission } from "@/lib/alerting/notify-web";
@@ -29,7 +32,10 @@ const RULES_EVERY_MS = 30 * 60_000;
 const EXTRAS_EVERY_MS = 5 * 60_000;
 const KV_PREFIX = "stormcentral:alerts:kv:";
 /** Engine state shared with the Android background runner, so a warning isn't announced twice. */
-const SHARED_KV_KEYS = ["seen-alerts", "fired-rules", "lightning-at", "seen-reports", "briefing-day"];
+const SHARED_KV_KEYS = ["seen-alerts", "fired-rules", "lightning-at", "seen-reports", "briefing-day", "rain-notified", "rain-checked", "storms-seen", "activity-since"];
+/** Checks the Android app may run natively (StormAlerts status().features); the page runs any it lacks while open. */
+type NativeFeature = "warnings" | "lightning" | "spotter" | "briefing" | "rain" | "storms" | "activity";
+const LEGACY_NATIVE: NativeFeature[] = ["warnings", "lightning", "spotter", "briefing"];
 
 /** The engine's view of the stores: saved places plus (optionally) the selected location. */
 export function useWatchConfig(): WatchConfig | null {
@@ -52,6 +58,7 @@ export function useWatchConfig(): WatchConfig | null {
   }).data;
   const username = session?.username ?? null;
   const mutedKey = (blocked ?? []).map((b) => b.username).join(",");
+  const lang = useLang();
   return useMemo(() => {
     if (!hydrated) return null;
     const usesCurrent = settings.watchCurrent || rules.some((r) => r.placeId === CURRENT_PLACE_ID);
@@ -67,18 +74,22 @@ export function useWatchConfig(): WatchConfig | null {
         COMMUNITY_ENABLED && typeof window !== "undefined"
           ? { url: window.location.origin, username, muted: mutedKey ? mutedKey.split(",") : [] }
           : null,
+      // Radar storm tracking lives on our own server (the site, or the Windows app's local one).
+      server: typeof window !== "undefined" && /^https?:$/.test(window.location.protocol) ? window.location.origin : null,
+      lang,
     };
-  }, [hydrated, places, settings, rules, location, units.temp, units.wind, drone.altitudeM, drone.profileId, username, mutedKey]);
+  }, [hydrated, places, settings, rules, location, units.temp, units.wind, drone.altitudeM, drone.profileId, username, mutedKey, lang]);
 }
 
 /** The widget snapshot for the selected location from whatever the app has loaded, with today's highlight. */
-export function buildWidget(qc: QueryClient, loc: AppLocation, unit: "F" | "C") {
+export function buildWidget(qc: QueryClient, loc: AppLocation, unit: "F" | "C", lang: Lang = "en") {
   const now = Date.now();
   const f = qc.getQueryData<Forecast>(qk.forecast(loc)) ?? null;
   const local = qc.getQueryData<AlertsResponse>(qk.localAlerts(loc))?.alerts ?? null;
   const climate = qc.getQueryData<ClimateResponse>(qk.climate(loc)) ?? null;
   const notes = qc.getQueryData<ForecasterNotesResponse>(qk.forecasterNotes(loc)) ?? null;
-  return widgetSnapshot({ id: CURRENT_PLACE_ID, name: loc.name, lat: loc.lat, lon: loc.lon }, unit, f, local, now, widgetNote(f, climate, notes, unit, now));
+  const note = widgetNote(f, climate, notes, unit, now, translator(lang));
+  return widgetSnapshot({ id: CURRENT_PLACE_ID, name: loc.name, lat: loc.lat, lon: loc.lon }, unit, f, local, now, note, lang);
 }
 
 /** Warning checks skip the current location unless the user asked to watch it. */
@@ -124,6 +135,9 @@ function extrasIO(io: EngineIO): ExtrasIO {
       (await getJson<{ nearestKm: number | null }>(`/api/lightning?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&radiusKm=${Math.round(radiusKm)}`)).nearestKm,
     fetchNearbyReports: async (lat, lon, radiusKm) =>
       (await getJson<FeedResponse>(`/api/posts?sort=nearby&lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&radiusKm=${Math.round(radiusKm)}`)).posts,
+    fetchNowcast: (lat, lon) => fetchNowcast(lat, lon),
+    fetchIncomingStorms: async (lat, lon) => (await getJson<StormEtaResponse>(`/api/storm-eta?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}`)).storms,
+    fetchActivity: async (since) => (await getJson<{ items: ActivityItem[] }>(`/api/activity?since=${Math.round(since)}`)).items,
     kvGet: io.kvGet,
     kvSet: io.kvSet,
     notify: io.notify,
@@ -200,7 +214,7 @@ export function AlertWatcher() {
   useEffect(() => {
     if (!isNativeApp() || !cfg) return;
     const t = setTimeout(() => {
-      void syncRunner(cfg, buildWidget(qc, location, unit))
+      void syncRunner(cfg, buildWidget(qc, location, unit, cfg.lang ?? "en"))
         .catch(() => {})
         // Native notifications (0.4.3+): reschedule and check with the new settings.
         .then(() => (nativeAlertsAvailable() ? nativeAlerts.sync() : undefined))
@@ -242,7 +256,7 @@ export function AlertWatcher() {
       if (kind !== "forecast" && kind !== "climate" && kind !== "forecasterNotes") return;
       const loc = useAppStore.getState().location;
       if (!qc.getQueryData<Forecast>(qk.forecast(loc))) return;
-      void syncRunner(cfgRef.current, buildWidget(qc, loc, useAppStore.getState().units.temp)).catch(() => {});
+      void syncRunner(cfgRef.current, buildWidget(qc, loc, useAppStore.getState().units.temp, cfgRef.current.lang ?? "en")).catch(() => {});
     });
   }, [qc]);
 
@@ -259,6 +273,20 @@ export function AlertWatcher() {
     nativeAlertsAvailable,
     () => false,
   );
+  // Which checks this Android build does natively (older builds: the original four).
+  const [nativeFeatures, setNativeFeatures] = useState<NativeFeature[]>(LEGACY_NATIVE);
+  useEffect(() => {
+    if (!nativeChecks) return;
+    let live = true;
+    void nativeAlerts
+      .status()
+      .then((s) => live && Array.isArray(s.features) && setNativeFeatures(s.features as NativeFeature[]))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [nativeChecks]);
+  const nativeKey = nativeChecks ? nativeFeatures.join(",") : "";
 
   // ── Run the engine in the page: web, Windows, and Android while open ──
   // Starts as soon as both the setting and the permission are on (the
@@ -274,20 +302,34 @@ export function AlertWatcher() {
       // Android checks only while the app is in front; the runner covers the rest.
       const active = () => !native || document.visibilityState === "visible";
       const run = (fn: (io: EngineIO) => Promise<unknown>) => (native ? withNativeIO(fn) : fn(pageIO));
+      // Checks Android already runs natively are skipped here.
+      const byNative = new Set(nativeKey ? (nativeKey.split(",") as NativeFeature[]) : []);
+      const mine = (f: NativeFeature) => !byNative.has(f);
       const warnings = () => {
         const c = cfgRef.current;
-        if (c && !stopped && active() && !nativeChecks) void run((io) => checkWarnings(warningConfig(c), io)).catch(() => {});
+        if (c && !stopped && active() && mine("warnings")) void run((io) => checkWarnings(warningConfig(c), io)).catch(() => {});
       };
       const extras = () => {
         const c = cfgRef.current;
-        if (!c || stopped || !active() || nativeChecks) return;
+        if (!c || stopped || !active()) return;
         const s = c.settings;
-        if (!s.briefing?.enabled && !s.lightning?.enabled && !(s.spotter?.enabled && c.community)) return;
+        const want = {
+          lightning: !!s.lightning?.enabled && mine("lightning"),
+          spotter: !!(s.spotter?.enabled && c.community) && mine("spotter"),
+          briefing: !!s.briefing?.enabled && mine("briefing"),
+          rain: !!s.rain?.enabled && mine("rain"),
+          storms: !!s.storms?.enabled && !!c.server && mine("storms"),
+          activity: !!(s.activity?.enabled && c.community?.username) && mine("activity"),
+        };
+        if (!Object.values(want).some(Boolean)) return;
         void run(async (io) => {
           const x = extrasIO(io);
-          await checkLightning(c, x).catch(() => {});
-          await checkSpotterReports(c, x).catch(() => {});
-          await checkBriefing(c, x).catch(() => {});
+          if (want.lightning) await checkLightning(c, x).catch(() => {});
+          if (want.spotter) await checkSpotterReports(c, x).catch(() => {});
+          if (want.briefing) await checkBriefing(c, x).catch(() => {});
+          if (want.rain) await checkRainSoon(c, x).catch(() => {});
+          if (want.storms) await checkStorms(c, x).catch(() => {});
+          if (want.activity) await checkActivity(c, x).catch(() => {});
         }).catch(() => {});
       };
       const rules = () => {
@@ -328,7 +370,7 @@ export function AlertWatcher() {
       cleanups.forEach((f) => f());
       release?.();
     };
-  }, [enabled, allowed, native, nativeChecks]);
+  }, [enabled, allowed, native, nativeKey]);
 
   return null;
 }

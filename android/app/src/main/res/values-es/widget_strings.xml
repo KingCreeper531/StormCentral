@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spanish widget text, used when the phone is set to Spanish. -->
+<resources>
+    <string name="widget_label">Tiempo</string>
+    <string name="widget_description">Condiciones actuales y avisos activos para tu lugar guardado</string>
+    <string name="widget_label_compact">Temperatura</string>
+    <string name="widget_description_compact">Solo la temperatura y el cielo, para una o dos celdas</string>
+    <string name="widget_label_hourly">Pronóstico por hora</string>
+    <string name="widget_description_hourly">Condiciones actuales y las próximas cinco horas</string>
+    <string name="widget_label_clock">Reloj y tiempo</string>
+    <string name="widget_description_clock">La hora y la fecha con las condiciones actuales y la máxima y mínima de hoy</string>
+    <string name="widget_label_daily">Pronóstico de 5 días</string>
+    <string name="widget_description_daily">Condiciones actuales y máximas y mínimas de cinco días</string>
+    <string name="widget_setup">Abre Storm Central para configurarlo</string>
+    <string name="widget_setup_short">Abre la app</string>
+    <string name="widget_now">Ahora</string>
+    <string name="widget_today">Hoy</string>
+    <string name="widget_no_data">Aún no hay datos</string>
+    <string name="widget_temp">%1$d°</string>
+    <string name="widget_hilo">Máx %1$d° Mín %2$d°</string>
+    <string name="widget_alert_until">%1$s hasta las %2$s</string>
+    <string name="widget_updated">Actualizado %1$s</string>
+    <string name="widget_day_time">%1$s %2$s</string>
+    <string name="widget_cond_clear">Despejado</string>
+    <string name="widget_cond_mostly_clear">Mayormente despejado</string>
+    <string name="widget_cond_partly_cloudy">Parcialmente nublado</string>
+    <string name="widget_cond_overcast">Nublado</string>
+    <string name="widget_cond_fog">Niebla</string>
+    <string name="widget_cond_drizzle">Llovizna</string>
+    <string name="widget_cond_rain">Lluvia</string>
+    <string name="widget_cond_freezing_rain">Lluvia helada</string>
+    <string name="widget_cond_snow">Nieve</string>
+    <string name="widget_cond_showers">Chubascos</string>
+    <string name="widget_cond_thunderstorm">Tormenta eléctrica</string>
+    <string name="widget_preview_condition">Parcialmente nublado</string>
+    <string name="widget_preview_date">lun, 12 oct</string>
+    <string name="widget_preview_updated">Actualizado 2:05 p. m.</string>
+</resources>

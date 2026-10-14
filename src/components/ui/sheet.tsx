@@ -4,6 +4,7 @@ import { animate, motion, useDragControls, useMotionValue } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { useMeasure } from "@/hooks/use-measure";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
 export type Detent = "peek" | "half" | "full";
@@ -67,6 +68,7 @@ function useViewportLayout() {
  * content and scrolls once it reaches its max height.
  */
 export function Sheet({ detent, onDetentChange, header, children, ariaLabel, peekHeight = 76, desktopClassName, accessory, onLayout }: SheetProps) {
+  const t = useT();
   const desktop = useIsDesktop();
   const { vh, top, bottom } = useViewportLayout();
   const [headerRef, headerSize] = useMeasure<HTMLDivElement>();
@@ -142,7 +144,7 @@ export function Sheet({ detent, onDetentChange, header, children, ariaLabel, pee
             type="button"
             onClick={cycle}
             className="flex h-5 w-full items-center justify-center pointer-coarse:h-7"
-            aria-label={detent === "full" ? "Collapse panel" : "Expand panel"}
+            aria-label={detent === "full" ? t("Collapse panel") : t("Expand panel")}
           >
             <span className="h-1 w-9 rounded-full bg-line-strong" />
           </button>

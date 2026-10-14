@@ -31,8 +31,9 @@ interface LocalParts {
  * @returns ticks on local hours that are multiples of the chosen step. On
  *   charts spanning more than a day, local midnight reads as the weekday
  *   ("12 PM · Thu · 12 PM · Fri") so the day boundary is visible.
+ * @param locale for the labels (Intl), e.g. "es-US"; English by default
  */
-export function timeTicks(t0: number, t1: number, maxTicks: number, timeZone?: string): TimeTick[] {
+export function timeTicks(t0: number, t1: number, maxTicks: number, timeZone?: string, locale?: string): TimeTick[] {
   if (!Number.isFinite(t0) || !Number.isFinite(t1) || t1 <= t0) return [];
   const spanH = (t1 - t0) / HOUR;
   const fit = Math.max(1, maxTicks);
@@ -50,8 +51,8 @@ export function timeTicks(t0: number, t1: number, maxTicks: number, timeZone?: s
   if (start < t0) start += HOUR;
 
   const multiDay = spanH > 24;
-  const hourFmt = fmtIn(timeZone, { hour: "numeric" });
-  const dayFmt = fmtIn(timeZone, { weekday: "short" });
+  const hourFmt = fmtIn(timeZone, { hour: "numeric" }, locale);
+  const dayFmt = fmtIn(timeZone, { weekday: "short" }, locale);
   const out: TimeTick[] = [];
   for (let t = start, n = 0; t <= t1 && n < MAX_SCAN; t += HOUR, n++) {
     const { dayIndex, hour, minute } = local(t);

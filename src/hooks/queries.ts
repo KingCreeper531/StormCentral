@@ -10,6 +10,8 @@ import { getJson } from "@/lib/api/http";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { fetchAirGrid, fetchAirQuality, fetchRecentPrecip, type GridVariable } from "@/lib/api/open-meteo";
 import { keyTag, loadForecast } from "@/lib/forecast-load";
+import { translator } from "@/lib/i18n/core";
+import { currentLang } from "@/lib/i18n/use-t";
 import type {
   AlertsResponse,
   GnssResponse,
@@ -22,6 +24,7 @@ import type {
 } from "@/lib/api/types";
 import type { FeedResponse, PostDto } from "@/lib/community";
 import type { StormCellsResponse } from "@/lib/feeds/storm-cells";
+import type { StormEtaResponse } from "@/lib/storm-eta";
 import type { StormReportsResponse } from "@/lib/feeds/storm-reports";
 import type { TropicalResponse } from "@/lib/feeds/tropical";
 import type { BBox, LatLon } from "@/lib/geo";
@@ -37,7 +40,11 @@ const r2 = (v: number) => Math.round(v * 100) / 100;
 const r1 = (v: number) => Math.round(v * 10) / 10;
 
 export const qk = {
-  /** Includes the chosen source (and, for Google, which key), so switching never shows the wrong one. */
+  /**
+   * Includes the chosen source (and, for Google, which key), so switching never shows the wrong one.
+   * Not the language: switching it mustn't refetch or lose the forecast saved for offline use (a
+   * fallback notice catches up on the next refresh).
+   */
   forecast: (p: LatLon) => {
     const { forecastSource, googleKey } = useAppStore.getState();
     return ["forecast", r2(p.lat), r2(p.lon), forecastSource, forecastSource === "google" ? keyTag(googleKey.trim()) : ""] as const;
@@ -80,7 +87,7 @@ export function useForecast() {
   const google = source === "google" && !!googleKey;
   return useQuery({
     queryKey: qk.forecast(loc),
-    queryFn: ({ signal }) => loadForecast(loc.lat, loc.lon, source, googleKey, signal),
+    queryFn: ({ signal }) => loadForecast(loc.lat, loc.lon, source, googleKey, signal, translator(currentLang())),
     enabled,
     refetchInterval: google && refetchInterval ? Math.max(refetchInterval, 30 * 60_000) : refetchInterval,
     staleTime: google ? 30 * 60_000 : 5 * 60_000,
@@ -416,4 +423,17 @@ export function prefetchMode(qc: QueryClient, mode: ModeId, loc: LatLon) {
   }
   if (mode === "angler")
     void qc.prefetchQuery({ queryKey: qk.rivers(loc), queryFn: ({ signal }) => getJson<RiversResponse>(`/api/rivers?lat=${loc.lat}&lon=${loc.lon}`, { signal }), ...opts });
+}
+
+/** Strong radar storms heading for the selected location within the hour (every 2 minutes while the page shows). */
+export function useIncomingStorms() {
+  const loc = useAppStore((s) => s.location);
+  const hydrated = useAppStore((s) => s.hydrated);
+  return useQuery({
+    queryKey: ["stormEta", r2(loc.lat), r2(loc.lon)] as const,
+    queryFn: ({ signal }) => getJson<StormEtaResponse>(`/api/storm-eta?lat=${loc.lat.toFixed(3)}&lon=${loc.lon.toFixed(3)}`, { signal }),
+    enabled: hydrated,
+    refetchInterval: 2 * 60_000,
+    staleTime: 60_000,
+  });
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useHotkeys } from "@/hooks/use-hotkeys";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 import { MODE_IDS, MODES } from "@/modes/registry";
 import { useModeNav } from "./use-mode-nav";
@@ -15,11 +16,12 @@ import { useModeNav } from "./use-mode-nav";
  */
 export function ModeSwitcher({ className }: { className?: string }) {
   const { active, select, warm } = useModeNav();
+  const t = useT();
 
   useHotkeys(Object.fromEntries(MODE_IDS.map((id) => [MODES[id].hotkey, () => select(id)])));
 
   return (
-    <nav aria-label="Operating mode" className={cn("items-stretch", className)}>
+    <nav aria-label={t("Operating mode")} className={cn("items-stretch", className)}>
       {MODE_IDS.map((id) => {
         const m = MODES[id];
         const Icon = m.Icon;
@@ -32,15 +34,15 @@ export function ModeSwitcher({ className }: { className?: string }) {
             onPointerEnter={() => warm(id)}
             onFocus={() => warm(id)}
             aria-current={on ? "page" : undefined}
-            title={`${m.label} — ${m.tagline} (${m.hotkey})`}
+            title={`${t(m.label)} — ${t(m.tagline)} (${m.hotkey})`}
             className={cn(
               "relative flex flex-col items-center justify-center gap-1 px-2 font-medium whitespace-nowrap transition-colors pointer-coarse:min-w-11 xl:flex-row xl:gap-1.5 xl:px-2.5",
               on ? "text-ink" : "text-ink-3 hover:text-ink-2",
             )}
           >
             <Icon className="size-4 shrink-0" aria-hidden />
-            <span className="text-[11px] leading-none xl:hidden">{m.short}</span>
-            <span className="hidden text-[13px] xl:inline">{m.label}</span>
+            <span className="text-[11px] leading-none xl:hidden">{t(m.short)}</span>
+            <span className="hidden text-[13px] xl:inline">{t(m.label)}</span>
             {on && <span aria-hidden className="absolute inset-x-2.5 bottom-0 h-0.5 bg-accent" />}
           </button>
         );

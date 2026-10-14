@@ -4,6 +4,7 @@
  * and its ArcGIS service rename attributes with little notice, and a storm
  * without a cone beats no storm at all.
  */
+import { translator, type Translator } from "../i18n/core";
 import type { Feature, LineString, MultiPolygon, Polygon, Position } from "geojson";
 import type { TropicalForecastPoint, TropicalStorm } from "./tropical";
 
@@ -105,22 +106,30 @@ export function intensityLabel(stage: StageKey | null, windKt: number | null, ss
   return windKt >= 64 ? `H${saffirSimpson(windKt)}` : windKt >= 34 ? "TS" : "TD";
 }
 
-/** Title prefix by NHC classification code ("Hurricane Milton"). */
-const TITLE: Record<string, string> = {
-  HU: "Hurricane",
-  TY: "Typhoon",
-  STY: "Super Typhoon",
-  TS: "Tropical Storm",
-  TD: "Tropical Depression",
-  STS: "Subtropical Storm",
-  SS: "Subtropical Storm",
-  STD: "Subtropical Depression",
-  SD: "Subtropical Depression",
-  PTC: "Post-Tropical Cyclone",
-  PC: "Potential Tropical Cyclone",
+const BASINS: Record<string, string> = { AT: "Atlantic", AL: "Atlantic", EP: "Eastern Pacific", CP: "Central Pacific" };
+
+/** Title by NHC classification code ("Hurricane Milton"), as templates so each language can word the whole title ("Huracán {name}"). */
+const TITLE_TEMPLATE: Record<string, string> = {
+  HU: "Hurricane {name}",
+  TY: "Typhoon {name}",
+  STY: "Super Typhoon {name}",
+  TS: "Tropical Storm {name}",
+  TD: "Tropical Depression {name}",
+  STS: "Subtropical Storm {name}",
+  SS: "Subtropical Storm {name}",
+  STD: "Subtropical Depression {name}",
+  SD: "Subtropical Depression {name}",
+  PTC: "Post-Tropical Cyclone {name}",
+  PC: "Potential Tropical Cyclone {name}",
 };
 
-const BASINS: Record<string, string> = { AT: "Atlantic", AL: "Atlantic", EP: "Eastern Pacific", CP: "Central Pacific" };
+/**
+ * A storm's title in the person's language: `stormTitle(s.classification, s.name, t)`
+ * ("Huracán Milton"). The parsed `title` field stays English; this rebuilds it.
+ */
+export function stormTitle(classification: string | null | undefined, name: string, t: Translator = translator("en")): string {
+  return t(TITLE_TEMPLATE[classification ?? ""] ?? "Tropical Cyclone {name}", { name });
+}
 
 // ─── Coordinates ───────────────────────────────────────────────────────────
 
@@ -189,7 +198,7 @@ export function parseCurrentStorms(raw: unknown): TropicalStorm[] | null {
       id,
       name,
       classification,
-      title: `${TITLE[classification] ?? "Tropical Cyclone"} ${name}`,
+      title: stormTitle(classification, name),
       category: stage === "HU" ? (saffirSimpson(windKt) ?? (windKt != null ? 1 : null)) : null,
       windKt,
       pressureMb: pressure != null && pressure > 850 && pressure < 1100 ? pressure : null,

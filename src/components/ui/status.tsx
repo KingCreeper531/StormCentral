@@ -1,5 +1,6 @@
 import { CircleAlert, CircleCheck, CircleX } from "lucide-react";
 import type { FactorStatus } from "@/lib/science/scores";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
 const MAP = {
@@ -10,12 +11,13 @@ const MAP = {
 
 /** Status = coloured icon + plain label. Never a filled pill, never colour alone. */
 export function StatusText({ status, label, className }: { status: FactorStatus; label?: string; className?: string }) {
+  const t = useT();
   const m = MAP[status];
   const Icon = m.icon;
   return (
     <span className={cn("inline-flex items-center gap-1.5 text-[13px] font-medium whitespace-nowrap text-ink", className)}>
       <Icon className="size-4 shrink-0" style={{ color: m.color }} aria-hidden />
-      {label ?? m.label}
+      {label ?? t(m.label)}
     </span>
   );
 }

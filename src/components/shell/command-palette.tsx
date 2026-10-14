@@ -7,6 +7,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { searchPlaces, type Place } from "@/lib/api/open-meteo";
 import { useGeolocate } from "@/hooks/use-geolocate";
 import { useHotkeys } from "@/hooks/use-hotkeys";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 import type { SavedPlace } from "@/lib/alerting/types";
 import { useAlertsStore } from "@/store/alerts-store";
@@ -24,12 +25,13 @@ const KBD = "rounded-[4px] border border-line px-1.5 font-mono text-[11px] leadi
 
 /** Save or unsave a place without choosing it (the row itself picks it). */
 function BookmarkButton({ saved, label, onToggle }: { saved: boolean; label: string; onToggle: () => void }) {
+  const t = useT();
   return (
     <button
       type="button"
-      aria-label={saved ? `Remove ${label} from saved places` : `Save ${label}`}
+      aria-label={saved ? t("Remove {place} from saved places", { place: label }) : t("Save {place}", { place: label })}
       aria-pressed={saved}
-      title={saved ? "Saved" : "Save place"}
+      title={saved ? t("Saved") : t("Save place")}
       onClick={(e) => {
         e.stopPropagation();
         onToggle();
@@ -56,6 +58,7 @@ function useDebounced<T>(value: T, ms: number) {
  * Phones get a full-screen sheet; md+ a centred panel.
  */
 export function CommandPalette() {
+  const t = useT();
   const open = useAppStore((s) => s.paletteOpen);
   const setOpen = useAppStore((s) => s.setPaletteOpen);
   const setLocation = useAppStore((s) => s.setLocation);
@@ -94,8 +97,8 @@ export function CommandPalette() {
 
   // Empty search: your location and saved places. Typing: matching saved places, then search results.
   const items = useMemo<Item[]>(() => {
-    const t = term.trim().toLowerCase();
-    const savedHits = saved.filter((p) => !t || p.name.toLowerCase().includes(t)).map<Item>((place) => ({ kind: "saved", place }));
+    const needle = term.trim().toLowerCase();
+    const savedHits = saved.filter((p) => !needle || p.name.toLowerCase().includes(needle)).map<Item>((place) => ({ kind: "saved", place }));
     const results = (places.data ?? []).map<Item>((place) => ({ kind: "place", place }));
     return [{ kind: "gps" }, ...savedHits, ...results];
   }, [places.data, term, saved]);
@@ -124,9 +127,9 @@ export function CommandPalette() {
   }, [open]);
 
   const status = places.isFetching
-    ? "Searching…"
+    ? t("Searching…")
     : q.length >= 2 && places.data?.length === 0
-      ? `No places match “${q}”.`
+      ? t("No places match “{q}”.", { q })
       : "";
 
   return (
@@ -144,7 +147,7 @@ export function CommandPalette() {
           <div
             role="dialog"
             aria-modal="true"
-            aria-label="Search places"
+            aria-label={t("Search places")}
             onKeyDown={(e) => e.key === "Escape" && close()}
             className="flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-canvas pt-[env(safe-area-inset-top)] md:max-w-[560px] md:flex-none md:rounded-[var(--radius-panel)] md:border md:border-line md:bg-surface-1 md:pt-0"
           >
@@ -169,7 +172,7 @@ export function CommandPalette() {
                     choose(items[cursor]);
                   }
                 }}
-                placeholder="Search a city, ZIP or landmark"
+                placeholder={t("Search a city, ZIP or landmark")}
                 enterKeyHint="search"
                 autoComplete="off"
                 autoCorrect="off"
@@ -190,7 +193,7 @@ export function CommandPalette() {
                 onClick={close}
                 className="h-11 shrink-0 rounded-[var(--radius-control)] px-2 text-sm font-medium text-accent md:hidden"
               >
-                Cancel
+                {t("Cancel")}
               </button>
             </div>
 
@@ -202,12 +205,12 @@ export function CommandPalette() {
             <ul
               id="palette-list"
               role="listbox"
-              aria-label="Results"
+              aria-label={t("Results")}
               className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5 pb-[calc(env(safe-area-inset-bottom)_+_8px)] md:max-h-[min(440px,60vh)] md:flex-none md:pb-1.5"
             >
               {items.map((item, i) => {
                 const heading =
-                  item.kind !== "gps" && (i === 0 || items[i - 1]!.kind !== item.kind) ? (item.kind === "place" ? "Places" : "Saved") : null;
+                  item.kind !== "gps" && (i === 0 || items[i - 1]!.kind !== item.kind) ? (item.kind === "place" ? t("Places") : t("Saved")) : null;
                 const selected = i === cursor;
                 return (
                   <Fragment key={item.kind === "gps" ? "gps" : `${item.kind}-${item.place.id}`}>
@@ -232,7 +235,7 @@ export function CommandPalette() {
                           <span className="grid w-7 shrink-0 place-items-center text-ink-3">
                             <Crosshair className="size-4" aria-hidden />
                           </span>
-                          <span className="min-w-0 flex-1 truncate">Use my current location</span>
+                          <span className="min-w-0 flex-1 truncate">{t("Use my current location")}</span>
                         </>
                       ) : item.kind === "saved" ? (
                         <>

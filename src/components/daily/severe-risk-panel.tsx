@@ -7,6 +7,8 @@ import { useNow } from "@/hooks/use-now";
 import type { OutlookFeature, OutlookKind, OutlookResponse } from "@/lib/api/types";
 import { SPC_CATEGORICAL, SPC_PROB_STEPS, type SpcCategory, type SpcHazard } from "@/lib/feeds/parse";
 import { geometryContains, type LatLon } from "@/lib/geo";
+import type { Translator } from "@/lib/i18n/core";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 import { clockIn, fmtIn } from "@/lib/weather/view";
 import { useAppStore } from "@/store/app-store";
@@ -66,12 +68,12 @@ function impliedLevel(kind: SpcHazard, pct: number): number {
 }
 
 /** "7:00 AM", or "Thu 7:00 AM" when the outlook ends on another day there (Day 1 runs to 12Z tomorrow). */
-function untilLabel(expires: string, now: number, timeZone?: string): string {
-  const clock = clockIn(timeZone, expires);
+function untilLabel(expires: string, now: number, timeZone: string | undefined, t: Translator): string {
+  const clock = clockIn(timeZone, expires, t.locale);
   try {
-    const date = fmtIn(timeZone, { year: "numeric", month: "numeric", day: "numeric" });
+    const date = fmtIn(timeZone, { year: "numeric", month: "numeric", day: "numeric" }, t.locale);
     if (date.format(new Date(expires)) === date.format(now)) return clock;
-    return `${fmtIn(timeZone, { weekday: "short" }).format(new Date(expires))} ${clock}`;
+    return `${fmtIn(timeZone, { weekday: "short" }, t.locale).format(new Date(expires))} ${clock}`;
   } catch {
     return clock; // unknown zone name: clockIn has already fallen back to the device clock
   }
@@ -83,6 +85,7 @@ function untilLabel(expires: string, now: number, timeZone?: string): string {
  * radar. Renders nothing outside any thunderstorm area or when SPC is unreachable.
  */
 export function SevereRiskPanel({ className, timeZone }: { className?: string; timeZone?: string }) {
+  const t = useT();
   const loc = useAppStore((s) => s.location);
   const setRadar = useAppStore((s) => s.setRadar);
   const setMode = useAppStore((s) => s.setMode);
@@ -117,7 +120,7 @@ export function SevereRiskPanel({ className, timeZone }: { className?: string; t
   const loading = [categorical, tornado, hail, wind].some((q) => q.data === undefined && !q.isError);
   if (loading)
     return (
-      <Panel title="Severe weather outlook" subtitle="SPC Day 1" aria-busy="true" className={className}>
+      <Panel title={t("Severe weather outlook")} subtitle={t("SPC Day 1")} aria-busy="true" className={className}>
         <Skeleton className="h-5 w-48" />
         <Skeleton className="mt-3 h-1.5 w-full" />
         <div className="mt-4 grid grid-cols-3 gap-3">
@@ -134,7 +137,7 @@ export function SevereRiskPanel({ className, timeZone }: { className?: string; t
 
   const code = level && level.properties.label in SPC_CATEGORICAL ? (level.properties.label as SpcCategory) : null;
   const levelNum = code ? SPC_CATEGORICAL[code].rank - 1 : 0; // TSTM is 0: below the numbered levels
-  const headline = code ? SPC_CATEGORICAL[code].name : "No severe risk";
+  const headline = code ? t(SPC_CATEGORICAL[code].name) : t("No severe risk");
 
   // The hazard implying the highest level opens on the map; ties go to tornado, then hail, then wind.
   let target: OutlookKind = "categorical";
@@ -148,13 +151,13 @@ export function SevereRiskPanel({ className, timeZone }: { className?: string; t
     }
   }
 
-  const until = expires ? untilLabel(expires, now, timeZone) : null;
+  const until = expires ? untilLabel(expires, now, timeZone, t) : null;
 
   return (
     <Panel
       className={className}
-      title="Severe weather outlook"
-      subtitle={until ? `SPC Day 1, valid until ${until}` : "SPC Day 1"}
+      title={t("Severe weather outlook")}
+      subtitle={until ? t("SPC Day 1, valid until {time}", { time: until }) : t("SPC Day 1")}
       action={
         <Button
           size="sm"
@@ -164,16 +167,16 @@ export function SevereRiskPanel({ className, timeZone }: { className?: string; t
           }}
         >
           <MapIcon className="size-3.5" aria-hidden />
-          Show on map
+          {t("Show on map")}
         </Button>
       }
     >
       <p className="text-lg font-medium text-ink">
         {headline}
-        {levelNum > 0 && <span className="font-normal text-ink-3">, level {levelNum} of 5</span>}
+        {levelNum > 0 && <span className="font-normal text-ink-3">{t(", level {n} of 5", { n: levelNum })}</span>}
       </p>
       {/* Five steps, each in SPC's colour for that level; unreached steps stay neutral. */}
-      <div role="meter" aria-label="SPC risk level" aria-valuenow={levelNum} aria-valuemin={0} aria-valuemax={5} aria-valuetext={headline} className="mt-2 grid grid-cols-5 gap-1">
+      <div role="meter" aria-label={t("SPC risk level")} aria-valuenow={levelNum} aria-valuemin={0} aria-valuemax={5} aria-valuetext={headline} className="mt-2 grid grid-cols-5 gap-1">
         {LEVELS.map((c, i) => (
           <span
             key={c}
@@ -192,7 +195,7 @@ export function SevereRiskPanel({ className, timeZone }: { className?: string; t
           return (
             <Stat
               key={kind}
-              label={label}
+              label={t(label)}
               value={
                 failed || !h ? (
                   "—"
@@ -207,15 +210,15 @@ export function SevereRiskPanel({ className, timeZone }: { className?: string; t
               }
               sub={
                 failed ? (
-                  "Unavailable"
+                  t("Unavailable")
                 ) : h?.significant ? (
                   <span
                     className="inline-flex items-center gap-1 rounded-[4px] border border-line px-1.5 py-px text-[11px] font-medium text-ink-2"
-                    title={h.significant.properties.name}
+                    title={t(h.significant.properties.name)}
                   >
                     <span aria-hidden className="size-2 shrink-0 rounded-[1px]" style={HATCH_SWATCH} />
-                    <span aria-hidden>Significant</span>
-                    <span className="sr-only">{h.significant.properties.name}</span>
+                    <span aria-hidden>{t("Significant")}</span>
+                    <span className="sr-only">{t(h.significant.properties.name)}</span>
                   </span>
                 ) : undefined
               }
@@ -223,7 +226,7 @@ export function SevereRiskPanel({ className, timeZone }: { className?: string; t
           );
         })}
       </div>
-      <p className="mt-3 text-xs text-ink-3">Chance of each hazard within 25 miles of this location.</p>
+      <p className="mt-3 text-xs text-ink-3">{t("Chance of each hazard within 25 miles of this location.")}</p>
     </Panel>
   );
 }

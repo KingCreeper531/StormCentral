@@ -9,6 +9,7 @@ import type { Speed } from "@/lib/radar/playback";
 import { DEFAULT_FORECAST_SOURCE, isForecastSourceId, type ForecastSourceId } from "@/lib/forecast-sources";
 import { defaultDailyLayout, normalizeDailyLayout, type DailyItem } from "@/lib/daily-layout";
 import { isValidClock, isValidZone, setTimePrefs, type ClockPref, type ZonePref } from "@/lib/clock";
+import { isLangPref, type LangPref } from "@/lib/i18n/lang";
 import type { ThemePref } from "@/lib/theme";
 import { defaultUnitsForLocale, UNIT_PRESETS, type UnitPrefs } from "@/lib/weather/units";
 import { isModeId, type ModeId } from "@/modes/registry";
@@ -96,6 +97,8 @@ export interface AppState {
   googleKey: string;
   /** Daily page panels: order, column and visibility. */
   dailyLayout: DailyItem[];
+  /** App language: a fixed one, or the device's ("auto"). */
+  language: LangPref;
   composerOpen: boolean;
   paletteOpen: boolean;
   setMode: (mode: ModeId) => void;
@@ -113,6 +116,7 @@ export interface AppState {
   setForecastSource: (s: ForecastSourceId) => void;
   setDailyLayout: (layout: DailyItem[]) => void;
   setGoogleKey: (key: string) => void;
+  setLanguage: (l: LangPref) => void;
   setComposerOpen: (open: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
 }
@@ -177,6 +181,7 @@ export const useAppStore = create<AppState>()(
       forecastSource: DEFAULT_FORECAST_SOURCE,
       dailyLayout: defaultDailyLayout(),
       googleKey: "",
+      language: "auto",
       composerOpen: false,
       paletteOpen: false,
       setMode: (mode) => {
@@ -204,6 +209,7 @@ export const useAppStore = create<AppState>()(
       setForecastSource: (forecastSource) => set({ forecastSource }),
       setDailyLayout: (layout) => set({ dailyLayout: normalizeDailyLayout(layout) }),
       setGoogleKey: (googleKey) => set({ googleKey: googleKey.trim().slice(0, 200) }),
+      setLanguage: (language) => set({ language }),
       setComposerOpen: (composerOpen) => set({ composerOpen }),
       setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
     }),
@@ -213,7 +219,7 @@ export const useAppStore = create<AppState>()(
       // Rehydrated from a client effect so SSR markup and first client render match.
       skipHydration: true,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ mode: s.mode, location: s.location, units: s.units, theme: s.theme, radar: s.radar, drone: s.drone, airLayer: s.airLayer, radiusKm: s.radiusKm, clock: s.clock, timeZoneMode: s.timeZoneMode, followLocation: s.followLocation, widgetBackground: s.widgetBackground, forecastSource: s.forecastSource, dailyLayout: s.dailyLayout, googleKey: s.googleKey }),
+      partialize: (s) => ({ mode: s.mode, location: s.location, units: s.units, theme: s.theme, radar: s.radar, drone: s.drone, airLayer: s.airLayer, radiusKm: s.radiusKm, clock: s.clock, timeZoneMode: s.timeZoneMode, followLocation: s.followLocation, widgetBackground: s.widgetBackground, forecastSource: s.forecastSource, dailyLayout: s.dailyLayout, googleKey: s.googleKey, language: s.language }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<AppState>;
         return {
@@ -232,6 +238,7 @@ export const useAppStore = create<AppState>()(
           forecastSource: isForecastSourceId(p.forecastSource) ? p.forecastSource : current.forecastSource,
           dailyLayout: normalizeDailyLayout(p.dailyLayout),
           googleKey: typeof p.googleKey === "string" ? p.googleKey.slice(0, 200) : "",
+          language: isLangPref(p.language) ? p.language : current.language,
         };
       },
       onRehydrateStorage: () => (state) => {

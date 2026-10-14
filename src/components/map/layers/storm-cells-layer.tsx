@@ -17,6 +17,7 @@ const SRC = "storm-cells";
  * weak signals pale grey, ordinary cells dark grey.
  */
 export const CELL_COLORS: Record<CellLevel, string> = { 4: "#ff2dd4", 3: "#ff9f0a", 2: "#ffd60a", 1: "#c7c7cc", 0: "#8e8e93" };
+/** English labels (the translation keys): show them with `t(CELL_LEVEL_LABEL[level])`. */
 export const CELL_LEVEL_LABEL: Record<CellLevel, string> = { 4: "Tornado vortex signature", 3: "Mesocyclone", 2: "Severe hail likely", 1: "Hail or weak rotation", 0: "Storm cell" };
 
 const LEVEL = ["get", "level"] as unknown as ExpressionSpecification;

@@ -3,6 +3,7 @@ import { bestOutdoorWindow, pm25ToAqi, pollenLevel, usAqiCategory } from "./air"
 import { dewPoint, estimateCeiling, lclHeightM } from "./atmosphere";
 import { computeDop, invert4 } from "./dop";
 import { classifyTendency, tendencyAt } from "./pressure";
+import { translator } from "../i18n/core";
 import { biteIndex, DRONE_PROFILES, droneFlyability, type DroneConditions } from "./scores";
 import { angleDiff, bulkShear, fromUV, toUV, windAtHeight } from "./wind";
 
@@ -132,6 +133,12 @@ describe("scores", () => {
     expect(r.factors.filter((f) => f.status === "no-go").map((f) => f.key)).toEqual(["wind", "gust", "kp"]);
   });
 
+  it("explains in Spanish when asked", () => {
+    const r = droneFlyability({ ...calm, windAtAltitudeMs: 8 }, mini, translator("es"));
+    expect(r.factors.find((f) => f.key === "wind")).toMatchObject({ label: "Viento en altitud", detail: "75% del límite de la aeronave" });
+    expect(droneFlyability(calm, mini).factors[0]!.label).toBe("Wind at altitude");
+  });
+
   it("enforces Part 107 cloud clearance", () => {
     const r = droneFlyability({ ...calm, ceilingM: 200 }, mini);
     expect(r.factors.find((f) => f.key === "ceiling")?.status).toBe("no-go");
@@ -169,5 +176,15 @@ describe("scores", () => {
     });
     expect(r.label).toBe("Poor");
     expect(r.safety).toMatch(/Lightning/);
+  });
+
+  it("gives bite reasons in Spanish, keeping the label an English id", () => {
+    const r = biteIndex(
+      { tendency: null, inMajorPeriod: false, inMinorPeriod: false, solunarDayRating: 2, hoursFromSunEvent: 5, cloudPct: 0, windMs: 0, waterTempC: null, weatherCode: 95, flowChange24h: null },
+      translator("es"),
+    );
+    expect(r.label).toBe("Poor");
+    expect(r.reasons.map((x) => x.text)).toEqual(["Tormentas eléctricas", "Calificación de fase lunar 2/4"]);
+    expect(r.safety).toBe("Riesgo de rayos: sal del agua cuando oigas truenos.");
   });
 });

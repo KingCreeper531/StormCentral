@@ -3,6 +3,7 @@
 import { familiesAvailable, FAMILIES, FAMILY_ORDER, resolveTilts, type ProductFamily, type TiltPrefix } from "@/lib/radar/products";
 import { nearestSites, type RadarSite } from "@/lib/radar/site-utils";
 import { useFormat } from "@/hooks/use-format";
+import { useT } from "@/lib/i18n/use-t";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import type { RadarSettings } from "@/store/app-store";
@@ -51,6 +52,7 @@ export function RadarControls({
   location: { lat: number; lon: number };
 }) {
   const fmt = useFormat();
+  const t = useT();
   const isSite = settings.source === "site";
   const families = isSite ? familiesAvailable(available) : (["reflectivity"] as ProductFamily[]);
   const tilts = isSite ? resolveTilts(settings.family, available) : [];
@@ -59,22 +61,22 @@ export function RadarControls({
 
   return (
     <div className="space-y-5 text-sm">
-      <Group title="Radar">
-        <Field label="Source">
+      <Group title={t("Radar")}>
+        <Field label={t("Source")}>
           <Segmented
-            ariaLabel="Radar source"
+            ariaLabel={t("Radar source")}
             stretch
             value={settings.source}
             onChange={(source) => onChange({ source, ...(source === "mosaic" ? { family: "reflectivity" as const } : {}) })}
             options={[
-              { value: "mosaic", label: "National mosaic" },
-              { value: "site", label: "Single site" },
+              { value: "mosaic", label: t("National mosaic") },
+              { value: "site", label: t("Single site") },
             ]}
           />
         </Field>
 
         {isSite && (
-          <Field label="Radar site" htmlFor="radar-site">
+          <Field label={t("Radar site")} htmlFor="radar-site">
             <select
               id="radar-site"
               aria-describedby="radar-site-hint"
@@ -82,7 +84,7 @@ export function RadarControls({
               onChange={(e) => onChange({ site: e.target.value || null })}
               className={INPUT}
             >
-              <option value="">Nearest to location</option>
+              <option value="">{t("Nearest to location")}</option>
               {nearby.map((s) => (
                 <option key={s.icao} value={s.icao}>
                   {s.icao} — {s.place}, {s.state} ({fmt.distanceKm(s.distanceKm)})
@@ -95,12 +97,12 @@ export function RadarControls({
               )}
             </select>
             <p id="radar-site-hint" className="label mt-1.5">
-              You can also select a site on the map.
+              {t("You can also select a site on the map.")}
             </p>
           </Field>
         )}
 
-        <Field label="Product" aside={sentenceCase(FAMILIES[activeFamily].label)}>
+        <Field label={t("Product")} aside={sentenceCase(t(FAMILIES[activeFamily].label))}>
           <div className="grid grid-cols-3 gap-0.5 rounded-[var(--radius-control)] border border-line bg-surface-2 p-0.5">
             {FAMILY_ORDER.map((fam) => {
               const enabled = families.includes(fam);
@@ -109,7 +111,7 @@ export function RadarControls({
                 <button
                   key={fam}
                   type="button"
-                  title={sentenceCase(FAMILIES[fam].label)}
+                  title={sentenceCase(t(FAMILIES[fam].label))}
                   aria-pressed={active}
                   onClick={() => onChange(isSite ? { family: fam } : { source: "site", family: fam })}
                   disabled={isSite && !enabled}
@@ -123,35 +125,35 @@ export function RadarControls({
               );
             })}
           </div>
-          {!isSite && <p className="label mt-1.5">Velocity and dual-pol products switch to single-site data.</p>}
+          {!isSite && <p className="label mt-1.5">{t("Velocity and dual-pol products switch to single-site data.")}</p>}
         </Field>
 
         {isSite && tilts.length > 0 && (
-          <Field label="Elevation tilt">
+          <Field label={t("Elevation tilt")}>
             <Segmented
-              ariaLabel="Elevation tilt"
+              ariaLabel={t("Elevation tilt")}
               size="sm"
               stretch
-              value={tilts.some((t) => t.prefix === settings.tilt) ? settings.tilt : tilts[0]!.prefix}
+              value={tilts.some((x) => x.prefix === settings.tilt) ? settings.tilt : tilts[0]!.prefix}
               onChange={(tilt: TiltPrefix) => onChange({ tilt })}
-              options={tilts.map((t) => ({ value: t.prefix, label: <span className="tabular">{t.angle}°</span>, title: t.code }))}
+              options={tilts.map((x) => ({ value: x.prefix, label: <span className="tabular">{x.angle}°</span>, title: x.code }))}
             />
           </Field>
         )}
       </Group>
 
-      <Group title="Display">
+      <Group title={t("Display")}>
         <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-          <Field label="Frames" htmlFor="radar-frames">
+          <Field label={t("Frames")} htmlFor="radar-frames">
             <select id="radar-frames" value={settings.frames} onChange={(e) => onChange({ frames: Number(e.target.value) })} className={INPUT}>
               {[6, 12, 18, 24].map((n) => (
                 <option key={n} value={n}>
-                  {n} frames
+                  {t("{n} frames", { n })}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="Opacity" htmlFor="radar-opacity" aside={`${Math.round(settings.opacity * 100)}%`}>
+          <Field label={t("Opacity")} htmlFor="radar-opacity" aside={`${Math.round(settings.opacity * 100)}%`}>
             <input
               id="radar-opacity"
               type="range"
@@ -164,77 +166,77 @@ export function RadarControls({
             />
           </Field>
         </div>
-        <Field label="Loop history">
+        <Field label={t("Loop history")}>
           <Segmented
-            ariaLabel="Loop history"
+            ariaLabel={t("Loop history")}
             size="sm"
             stretch
             value={settings.history}
             onChange={(history) => onChange({ history })}
             options={[
-              { value: "latest", label: "Latest scans" },
-              { value: "2h", label: "2 hours" },
-              { value: "4h", label: "4 hours" },
+              { value: "latest", label: t("Latest scans") },
+              { value: "2h", label: t("2 hours") },
+              { value: "4h", label: t("4 hours") },
             ]}
           />
-          <p className="label mt-1.5">Longer histories spread the same number of frames over more time, to see how storms evolved.</p>
+          <p className="label mt-1.5">{t("Longer histories spread the same number of frames over more time, to see how storms evolved.")}</p>
         </Field>
         <div>
-          <Toggle label="Smoothed radar" checked={settings.smooth} onChange={(smooth) => onChange({ smooth })} />
-          <p className="label">Blends pixels when zoomed in for a cleaner picture. Velocity and dual-pol stay sharp.</p>
+          <Toggle label={t("Smoothed radar")} checked={settings.smooth} onChange={(smooth) => onChange({ smooth })} />
+          <p className="label">{t("Blends pixels when zoomed in for a cleaner picture. Velocity and dual-pol stay sharp.")}</p>
         </div>
-        <Toggle label="Smooth cross-fade" checked={settings.crossfade} onChange={(crossfade) => onChange({ crossfade })} />
+        <Toggle label={t("Smooth cross-fade")} checked={settings.crossfade} onChange={(crossfade) => onChange({ crossfade })} />
         <div>
-          <Toggle label="Future radar (next 6 hours)" checked={settings.future} onChange={(future) => onChange({ future })} />
-          <p className="label">{isSite ? "Shown with the national mosaic only." : "HRRR model forecast after the live scans, marked in orange on the timeline."}</p>
+          <Toggle label={t("Future radar (next 6 hours)")} checked={settings.future} onChange={(future) => onChange({ future })} />
+          <p className="label">{isSite ? t("Shown with the national mosaic only.") : t("HRRR model forecast after the live scans, marked in orange on the timeline.")}</p>
         </div>
-        <Field label="GOES satellite">
+        <Field label={t("GOES satellite")}>
           <Segmented
-            ariaLabel="Satellite imagery"
+            ariaLabel={t("Satellite imagery")}
             size="sm"
             stretch
             value={settings.satellite}
             onChange={(satellite) => onChange({ satellite })}
             options={[
-              { value: "off", label: "Off" },
-              { value: "infrared", label: "Infrared" },
-              { value: "visible", label: "Visible" },
+              { value: "off", label: t("Off") },
+              { value: "infrared", label: t("Infrared") },
+              { value: "visible", label: t("Visible") },
             ]}
           />
-          {settings.satellite === "visible" && <p className="label mt-1.5">Visible imagery is dark at night; infrared works around the clock.</p>}
+          {settings.satellite === "visible" && <p className="label mt-1.5">{t("Visible imagery is dark at night; infrared works around the clock.")}</p>}
         </Field>
       </Group>
 
-      <Group title="Overlays">
+      <Group title={t("Overlays")}>
         <div className="-mt-1 divide-y divide-line">
-          <Toggle label="NWS warnings" checked={settings.showWarnings} onChange={(showWarnings) => onChange({ showWarnings })} />
-          <Toggle label="Projected storm tracks" checked={settings.showTracks} onChange={(showTracks) => onChange({ showTracks })} />
-          <Toggle label="Lightning (last 15 min)" checked={settings.showLightning} onChange={(showLightning) => onChange({ showLightning })} />
-          <Toggle label="Radar storm cells" checked={settings.showCells} onChange={(showCells) => onChange({ showCells })} />
-          <Toggle label="NWS storm reports" checked={settings.showStormReports} onChange={(showStormReports) => onChange({ showStormReports })} />
-          <Toggle label="Hurricanes and tropical storms" checked={settings.showTropical} onChange={(showTropical) => onChange({ showTropical })} />
-          <Toggle label="SPC Day 1 outlook" checked={settings.showOutlook} onChange={(showOutlook) => onChange({ showOutlook })} />
+          <Toggle label={t("NWS warnings")} checked={settings.showWarnings} onChange={(showWarnings) => onChange({ showWarnings })} />
+          <Toggle label={t("Projected storm tracks")} checked={settings.showTracks} onChange={(showTracks) => onChange({ showTracks })} />
+          <Toggle label={t("Lightning (last 15 min)")} checked={settings.showLightning} onChange={(showLightning) => onChange({ showLightning })} />
+          <Toggle label={t("Radar storm cells")} checked={settings.showCells} onChange={(showCells) => onChange({ showCells })} />
+          <Toggle label={t("NWS storm reports")} checked={settings.showStormReports} onChange={(showStormReports) => onChange({ showStormReports })} />
+          <Toggle label={t("Hurricanes and tropical storms")} checked={settings.showTropical} onChange={(showTropical) => onChange({ showTropical })} />
+          <Toggle label={t("SPC Day 1 outlook")} checked={settings.showOutlook} onChange={(showOutlook) => onChange({ showOutlook })} />
           {settings.showOutlook && (
             <div className="py-2.5">
               <Segmented
-                ariaLabel="Outlook hazard"
+                ariaLabel={t("Outlook hazard")}
                 size="sm"
                 stretch
                 value={settings.outlookKind}
                 onChange={(outlookKind) => onChange({ outlookKind })}
                 options={[
-                  { value: "categorical", label: "Risk" },
-                  { value: "tornado", label: "Tornado" },
-                  { value: "hail", label: "Hail" },
-                  { value: "wind", label: "Wind" },
+                  { value: "categorical", label: t("Risk") },
+                  { value: "tornado", label: t("Tornado") },
+                  { value: "hail", label: t("Hail") },
+                  { value: "wind", label: t("Wind") },
                 ]}
               />
             </div>
           )}
           {COMMUNITY_ENABLED && (
-            <Toggle label="Spotter reports (6 h)" checked={settings.showReports} onChange={(showReports) => onChange({ showReports })} />
+            <Toggle label={t("Spotter reports (6 h)")} checked={settings.showReports} onChange={(showReports) => onChange({ showReports })} />
           )}
-          <Toggle label="Radar sites" checked={settings.showSites} onChange={(showSites) => onChange({ showSites })} />
+          <Toggle label={t("Radar sites")} checked={settings.showSites} onChange={(showSites) => onChange({ showSites })} />
         </div>
       </Group>
     </div>
