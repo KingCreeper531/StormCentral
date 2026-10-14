@@ -1,0 +1,182 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="short.css" />
+<script src="vendor/d3-array.min.js"></script>
+<script src="vendor/d3-geo.min.js"></script>
+<script src="vendor/topojson-client.min.js"></script>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script src="common.js"></script>
+<script>
+/*
+ * A hurricane or tropical storm update (about 30 s). DATA:
+ *   { world, states, logo,
+ *     storm: { title, basin, classification, category, label: "H1" | "TS" | …, stage: "Category 1 hurricane",
+ *              windMph, pressureMb, moving: "NW at 10 mph" | null, lat, lon, advisory,
+ *              ahead: "Forecast to reach Category 3" | null,
+ *              cone: Polygon | MultiPolygon | null, track: LineString | null, past: LineString | null,
+ *              forecast: [{ lat, lon, label, stage, windMph, when: "Thu 2 PM" }] } }
+ */
+const { ctx, D, C, PANEL, MAP, clamp, seg, easeOut, easeInOut, lerp, rr, text, fitSize } = SC;
+const S = D.storm;
+const STAGE_COLORS = { TD: "#5ab4ff", SD: "#5ab4ff", TS: "#30d158", SS: "#30d158", H1: "#ffe066", H2: "#ffb547", H3: "#ff7a45", H4: "#ff453a", H5: "#ee66ee" };
+const colorOf = (label) => STAGE_COLORS[label] ?? "#c8d2e0";
+
+/** d3-geo wants polygons wound clockwise; GeoJSON from ArcGIS can come either way. */
+function d3Wound(geom) {
+  if (!geom) return null;
+  const fix = (rings) => (d3.geoArea({ type: "Polygon", coordinates: rings }) > 2 * Math.PI ? rings.map((r) => r.slice().reverse()) : rings);
+  if (geom.type === "Polygon") return { type: "Polygon", coordinates: fix(geom.coordinates) };
+  if (geom.type === "MultiPolygon") return { type: "MultiPolygon", coordinates: geom.coordinates.map(fix) };
+  return geom;
+}
+const cone = d3Wound(S.cone);
+const feature = (geometry) => ({ type: "Feature", properties: {}, geometry });
+
+// Frame the storm, its past track, cone and forecast, with room around them.
+const pts = [[S.lon, S.lat], ...S.forecast.map((p) => [p.lon, p.lat])];
+const pad = [[S.lon - 5, S.lat - 3.5], [S.lon + 5, S.lat + 3.5]];
+const frame = { type: "FeatureCollection", features: [feature({ type: "MultiPoint", coordinates: [...pts, ...pad] }), ...(cone ? [feature(cone)] : []), ...(S.past ? [feature(S.past)] : [])] };
+const projection = d3.geoMercator().rotate([-S.lon, 0]).fitExtent([[MAP.x + 70, MAP.y + 60], [MAP.x + MAP.w - 70, MAP.y + MAP.h - 70]], frame);
+const map = SC.makeMap(projection, { base: "world", source: "Source: National Hurricane Center" });
+const wide = { k: 0.5, c: map.home.c };
+const seen = new Set();
+const places = [...SC.TROPICAL_CITIES, ...SC.CITIES].filter(([n]) => (seen.has(n) ? false : seen.add(n)));
+
+const FC0 = 14.6, FC_EACH = 1.7;
+const END = S.forecast.length ? FC0 + S.forecast.length * FC_EACH + 1.2 : 15.5;
+
+function stormIcon(x, y, t, label, scale = 1) {
+  const r = 17 * scale, col = colorOf(label), spin = -t * 2.2;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(spin);
+  ctx.fillStyle = col; ctx.strokeStyle = "rgba(0,0,0,0.6)"; ctx.lineWidth = 2;
+  if (/^H|TS|SS/.test(label || "")) {
+    for (const s of [1, -1]) {
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.55 * s);
+      ctx.quadraticCurveTo(r * 1.6 * s, -r * 1.4 * s, r * 2.0 * s, -r * 0.2 * s);
+      ctx.quadraticCurveTo(r * 1.1 * s, -r * 0.9 * s, r * 0.55 * s, 0);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  }
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.38, 0, Math.PI * 2); ctx.fillStyle = C.water; ctx.fill();
+  ctx.restore();
+}
+
+function forecastIndex(t) {
+  const i = Math.floor((t - FC0) / FC_EACH);
+  return t >= FC0 && i < S.forecast.length ? i : -1;
+}
+
+function overlay(t, cam) {
+  map.cities(cam, 0.85 * easeOut(seg(t, 5.0, 5.8)), places);
+  // Forecast points, one by one, the current one ringed during the forecast panel.
+  const cur = forecastIndex(t);
+  // Labels only where they don't crowd the storm or the last label (slow storms bunch their points).
+  const home = map.screen([S.lon, S.lat], cam);
+  const labelled = home ? [home] : [];
+  S.forecast.forEach((p, i) => {
+    const a = easeOut(seg(t, 6.8 + i * 0.3, 7.2 + i * 0.3));
+    const xy = map.screen([p.lon, p.lat], cam);
+    if (!xy || a <= 0) return;
+    ctx.save(); ctx.globalAlpha *= a;
+    ctx.beginPath(); ctx.arc(xy[0], xy[1], 11, 0, Math.PI * 2); ctx.fillStyle = colorOf(p.label); ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = "rgba(0,0,0,0.7)"; ctx.stroke();
+    if (p.label && labelled.every((q) => Math.hypot(q[0] - xy[0], q[1] - xy[1]) > 40)) {
+      labelled.push(xy);
+      ctx.font = `700 22px "SC Inter"`; ctx.lineWidth = 5; ctx.strokeStyle = "rgba(3,6,13,0.9)"; ctx.lineJoin = "round";
+      ctx.strokeText(p.label, xy[0] + 16, xy[1] + 8); ctx.fillStyle = "#fff"; ctx.fillText(p.label, xy[0] + 16, xy[1] + 8);
+    }
+    if (i === cur) {
+      const s = FC0 + i * FC_EACH, ra = easeOut(seg(t, s, s + 0.4)) * (1 - easeOut(seg(t, s + FC_EACH - 0.3, s + FC_EACH)));
+      const pulse = ((t - s) % 1.0) / 1.0;
+      ctx.globalAlpha = a * ra;
+      ctx.beginPath(); ctx.arc(xy[0], xy[1], 24, 0, Math.PI * 2); ctx.lineWidth = 4; ctx.strokeStyle = "#fff"; ctx.stroke();
+      ctx.globalAlpha = a * ra * (1 - pulse);
+      ctx.beginPath(); ctx.arc(xy[0], xy[1], 24 + pulse * 36, 0, Math.PI * 2); ctx.lineWidth = 3; ctx.strokeStyle = colorOf(p.label); ctx.stroke();
+    }
+    ctx.restore();
+  });
+  const at = map.screen([S.lon, S.lat], cam);
+  const ia = easeOut(seg(t, 4.3, 4.9));
+  if (at && ia > 0) { ctx.save(); ctx.globalAlpha *= ia; stormIcon(at[0], at[1], t, S.label, lerp(1.6, 1, ia)); ctx.restore(); }
+  if (cone) text("Cone: the likely path of the center", MAP.x + 24, MAP.y + MAP.h - 22, { size: 22, weight: 500, color: C.ink3, alpha: easeOut(seg(t, 6.2, 7.0)) });
+}
+
+function statsPanel(t) {
+  const a = easeOut(seg(t, 5.0, 5.7)) * (1 - easeOut(seg(t, FC0 - 0.4, FC0)) * (S.forecast.length ? 1 : 0));
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  const y = PANEL.y + (1 - easeOut(seg(t, 5.0, 5.7))) * 24;
+  text(`${S.basin} · ${S.advisory}`, PANEL.x + 10, y + 40, { size: fitSize(`${S.basin} · ${S.advisory}`, PANEL.w - 20, 30, 500), weight: 500, color: C.ink3 });
+  const stage = (S.stage || "").toUpperCase();
+  text(stage, PANEL.x + 10, y + 118, { size: fitSize(stage, PANEL.w - 20, 72, 800), weight: 800, color: colorOf(S.label), spacing: -1 });
+  const cards = [
+    ["Max winds", S.windMph != null ? `${S.windMph} mph` : "—"],
+    ["Pressure", S.pressureMb != null ? `${S.pressureMb} mb` : "—"],
+    ["Moving", S.moving ?? "Nearly still"],
+  ];
+  cards.forEach(([label, value], i) => {
+    const ca = easeOut(seg(t, 5.6 + i * 0.25, 6.2 + i * 0.25));
+    const x = PANEL.x + i * 340, cy = y + 160;
+    ctx.save(); ctx.globalAlpha *= ca;
+    rr(x, cy, 320, 180, 22); ctx.fillStyle = "rgba(255,255,255,0.05)"; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.line; ctx.stroke();
+    text(label, x + 26, cy + 56, { size: 30, weight: 600, color: C.ink2 });
+    text(value, x + 26, cy + 132, { size: fitSize(value, 270, 54, 800), weight: 800 });
+    ctx.restore();
+  });
+  if (S.ahead) text(`▲ ${S.ahead}`, PANEL.x + 10, y + 392, { size: 32, weight: 700, color: colorOf(`H${(S.ahead.match(/\d/) || ["1"])[0]}`), alpha: easeOut(seg(t, 6.6, 7.2)) });
+  ctx.restore();
+}
+
+function forecastPanel(t) {
+  if (!S.forecast.length) return;
+  const a = easeOut(seg(t, FC0, FC0 + 0.6)) * (1 - easeOut(seg(t, END - 0.3, END)));
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  text("Forecast", PANEL.x + 10, PANEL.y + 44, { size: 34, weight: 600, color: C.ink2 });
+  const cur = forecastIndex(t), rowH = Math.min(66, 340 / S.forecast.length);
+  S.forecast.forEach((p, i) => {
+    const y = PANEL.y + 70 + i * rowH, on = i === cur ? 1 : 0;
+    const ra = easeOut(seg(t, FC0 + 0.2 + i * 0.12, FC0 + 0.6 + i * 0.12));
+    ctx.save(); ctx.globalAlpha *= ra * (on ? 1 : 0.6);
+    if (on) { rr(PANEL.x, y, PANEL.w, rowH - 8, 16); ctx.fillStyle = "rgba(91,156,246,0.16)"; ctx.fill(); }
+    const mid = y + (rowH - 8) / 2 + 13;
+    ctx.beginPath(); ctx.arc(PANEL.x + 30, mid - 13, 10, 0, Math.PI * 2); ctx.fillStyle = colorOf(p.label); ctx.fill();
+    text(p.when, PANEL.x + 58, mid, { size: 36, weight: 700 });
+    text(p.stage, PANEL.x + 300, mid, { size: fitSize(p.stage, 470, 36, 600), weight: 600, color: C.ink2 });
+    if (p.windMph != null) text(`${p.windMph} mph`, PANEL.x + PANEL.w - 24, mid, { size: 36, weight: 800, align: "right" });
+    ctx.restore();
+  });
+  ctx.restore();
+}
+
+window.render = function (t) {
+  SC.background();
+  SC.introRadar(t);
+  const ma = easeOut(seg(t, 2.8, 3.6));
+  if (ma > 0) {
+    ctx.save(); ctx.globalAlpha = ma;
+    const cam = map.mix(wide, map.home, easeInOut(seg(t, 3.0, 5.0)));
+    const layers = [
+      cone && { features: [feature(cone)], alpha: easeOut(seg(t, 5.6, 6.4)), fill: () => "rgba(255,255,255,0.16)", stroke: () => "rgba(255,255,255,0.75)", lineWidth: 2.5 },
+      S.past && { features: [feature(S.past)], alpha: easeOut(seg(t, 4.0, 4.8)), stroke: () => "rgba(200,210,225,0.85)", lineWidth: 4, dash: [10, 8] },
+      S.track && { features: [feature(S.track)], alpha: easeOut(seg(t, 6.0, 6.8)), stroke: () => "#ffffff", lineWidth: 3.5 },
+    ].filter(Boolean);
+    map.draw(cam, layers, (c) => overlay(t, c));
+    ctx.restore();
+  }
+  const words = S.title.split(" ");
+  const lines = words.length > 1 ? [words.slice(0, -1).join(" "), words.at(-1)] : [S.title];
+  SC.header(t, { kicker: "TROPICAL UPDATE", lines, title: S.title, date: S.advisory });
+  statsPanel(t); forecastPanel(t);
+  SC.endCard(t, END, "Follow for hurricane updates");
+};
+window.DUR = Math.ceil(END + 6);
+</script>
+</body>
+</html>

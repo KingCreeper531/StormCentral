@@ -1,0 +1,176 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="short.css" />
+<script src="vendor/d3-array.min.js"></script>
+<script src="vendor/d3-geo.min.js"></script>
+<script src="vendor/topojson-client.min.js"></script>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script src="common.js"></script>
+<script>
+/*
+ * The evening storm report recap (33 s). DATA:
+ *   { states, logo, date: "Tuesday, October 13",
+ *     reports: [{ k: "tornado" | "wind" | "hail", t: epoch ms, lat, lon, big }],   (oldest first)
+ *     counts: { tornado, wind, hail },
+ *     highlights: [{ label, value, place, lat, lon, kind }] }
+ */
+const { ctx, D, C, PANEL, clamp, seg, easeOut, easeInOut, lerp, rr, text, fitSize } = SC;
+const DUR = 33;
+const map = SC.makeMap(SC.usProjection(), { source: "Source: NWS local storm reports via IEM" });
+const KINDS = [
+  { k: "tornado", name: "Tornado", color: C.tornado },
+  { k: "wind", name: "Damaging wind", color: C.wind },
+  { k: "hail", name: "Large hail", color: C.hail },
+];
+const COLOR = Object.fromEntries(KINDS.map((x) => [x.k, x.color]));
+
+// The reports' extent, without the odd outlier far from the rest dragging the camera out.
+const reports = D.reports;
+const lons = reports.map((r) => r.lon).sort((a, b) => a - b), lats = reports.map((r) => r.lat).sort((a, b) => a - b);
+const q = (arr, p) => arr[Math.min(arr.length - 1, Math.max(0, Math.round((arr.length - 1) * p)))];
+const lo = reports.length > 12 ? 0.03 : 0, hi = 1 - lo;
+const zoomed = reports.length
+  ? map.fit({ type: "MultiPoint", coordinates: [[q(lons, lo) - 1.2, q(lats, lo) - 1], [q(lons, hi) + 1.2, q(lats, hi) + 1]] }, { frac: 0.86, maxK: 2.4 })
+  : map.home;
+
+// Reports play out in time order over 5-16 s.
+const PLAY0 = 5.0, PLAY1 = 16.0;
+const t0 = reports.length ? reports[0].t : 0, t1 = reports.length ? reports[reports.length - 1].t : 1;
+const span = Math.max(t1 - t0, 1);
+const showAt = (r) => PLAY0 + ((r.t - t0) / span) * (PLAY1 - PLAY0 - 0.6);
+reports.forEach((r) => (r.at = showAt(r)));
+const clockAt = (t) => t0 + clamp((t - PLAY0) / (PLAY1 - PLAY0 - 0.6)) * span;
+const clock = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+
+const HL0 = 16.6, HL_EACH = 3.3;
+const highlights = D.highlights;
+const END = Math.max(HL0 + highlights.length * HL_EACH + 0.4, 23.0);
+
+function drawReport(x, y, r, a, pop) {
+  const s = (r.k === "tornado" ? 13 : r.big ? 10 : 7.5) * (1 + 0.8 * (1 - pop));
+  ctx.save(); ctx.globalAlpha *= a;
+  if (pop < 1) {
+    ctx.save(); ctx.globalAlpha *= 1 - pop;
+    ctx.beginPath(); ctx.arc(x, y, s + 30 * pop, 0, Math.PI * 2);
+    ctx.strokeStyle = COLOR[r.k]; ctx.lineWidth = 3; ctx.stroke();
+    ctx.restore();
+  }
+  ctx.beginPath();
+  if (r.k === "tornado") { ctx.moveTo(x, y + s); ctx.lineTo(x - s * 1.05, y - s * 0.75); ctx.lineTo(x + s * 1.05, y - s * 0.75); ctx.closePath(); }
+  else ctx.arc(x, y, s, 0, Math.PI * 2);
+  ctx.fillStyle = COLOR[r.k]; ctx.fill();
+  ctx.lineWidth = r.k === "tornado" ? 2.5 : 1.5; ctx.strokeStyle = r.k === "tornado" ? "#fff" : "rgba(0,0,0,0.55)"; ctx.stroke();
+  ctx.restore();
+}
+
+function reportsOverlay(t, cam) {
+  // Tornadoes on top.
+  for (const pass of ["hail", "wind", "tornado"]) {
+    for (const r of reports) {
+      if (r.k !== pass || t < r.at) continue;
+      const p = map.screen([r.lon, r.lat], cam);
+      if (p) drawReport(p[0], p[1], r, easeOut(seg(t, r.at, r.at + 0.25)), easeOut(seg(t, r.at, r.at + 0.7)));
+    }
+  }
+}
+
+function highlightIndex(t) {
+  const i = Math.floor((t - HL0) / HL_EACH);
+  return t >= HL0 && i < highlights.length ? i : -1;
+}
+
+function countsPanel(t) {
+  const a = easeOut(seg(t, 4.4, 5.0)) * (highlights.length ? 1 - easeOut(seg(t, HL0 - 0.4, HL0)) : 1);
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  const shown = t >= PLAY1 ? reports.length : reports.filter((r) => t >= r.at).length;
+  text(t >= PLAY1 - 0.6 ? "All of today's severe reports" : "Reports as the day went on", PANEL.x + 10, PANEL.y + 46, { size: 34, weight: 500, color: C.ink2 });
+  if (reports.length) text(clock.format(clockAt(t)), PANEL.x + PANEL.w - 10, PANEL.y + 46, { size: 34, weight: 600, color: C.accent, align: "right" });
+  text(String(shown), PANEL.x + 10, PANEL.y + 160, { size: 108, weight: 800, spacing: -1 });
+  ctx.font = `800 108px "SC Inter"`;
+  const w = ctx.measureText(String(shown)).width;
+  text(shown === 1 ? "severe report" : "severe reports", PANEL.x + 30 + w, PANEL.y + 160, { size: 44, weight: 600, color: C.ink2 });
+  KINDS.forEach((kd, i) => {
+    const n = reports.filter((r) => r.k === kd.k && (t >= PLAY1 || t >= r.at)).length;
+    const x = PANEL.x + i * 340, y = PANEL.y + 210;
+    rr(x, y, 320, 150, 22); ctx.fillStyle = "rgba(255,255,255,0.05)"; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.line; ctx.stroke();
+    drawReport(x + 40, y + 48, { k: kd.k, big: true }, 1, 1);
+    text(kd.name, x + 66, y + 58, { size: fitSize(kd.name, 240, 30, 600), weight: 600, color: C.ink2 });
+    text(String(n), x + 28, y + 128, { size: 64, weight: 800, color: kd.color });
+  });
+  ctx.restore();
+}
+
+function highlightPanel(t) {
+  const i = highlightIndex(t);
+  if (i < 0) return;
+  const h = highlights[i], s = HL0 + i * HL_EACH;
+  const a = easeOut(seg(t, s, s + 0.5)) * (1 - easeOut(seg(t, s + HL_EACH - 0.35, s + HL_EACH)));
+  ctx.save(); ctx.globalAlpha = a;
+  const y = PANEL.y + (1 - easeOut(seg(t, s, s + 0.5))) * 24;
+  text(h.label, PANEL.x + 10, y + 56, { size: 40, weight: 600, color: C.ink2 });
+  text(h.value, PANEL.x + 10, y + 196, { size: fitSize(h.value, PANEL.w - 20, 132, 800), weight: 800, color: COLOR[h.kind] ?? C.ink, spacing: -1 });
+  if (h.place) text(h.lat == null ? h.place : `near ${h.place}`, PANEL.x + 10, y + 276, { size: fitSize(h.place, PANEL.w - 140, 48, 600), weight: 600 });
+  ctx.restore();
+}
+
+/** The camera: the US, the reports from 3.6 s, each highlight in turn, back to the reports. */
+function camera(t) {
+  let cam = map.mix(map.home, zoomed, easeInOut(seg(t, 3.6, 5.0)));
+  const i = highlightIndex(t);
+  if (i >= 0 && highlights[i].lat != null) {
+    const h = highlights[i], s = HL0 + i * HL_EACH;
+    const p = map.projection([h.lon, h.lat]);
+    const target = { k: Math.max(zoomed.k * 1.5, 2.6), c: p };
+    cam = map.mix(cam, target, easeInOut(seg(t, s, s + 0.9)) * (1 - easeInOut(seg(t, s + HL_EACH - 0.7, s + HL_EACH + 0.2))));
+  }
+  return cam;
+}
+
+function highlightMarker(t, cam) {
+  const i = highlightIndex(t);
+  if (i < 0 || highlights[i].lat == null) return;
+  const h = highlights[i], s = HL0 + i * HL_EACH;
+  const p = map.screen([h.lon, h.lat], cam);
+  if (!p) return;
+  const a = easeOut(seg(t, s + 0.6, s + 1.0)) * (1 - easeOut(seg(t, s + HL_EACH - 0.6, s + HL_EACH - 0.2)));
+  const pulse = ((t - s) % 1.1) / 1.1;
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.beginPath(); ctx.arc(p[0], p[1], 26, 0, Math.PI * 2); ctx.lineWidth = 5; ctx.strokeStyle = "#fff"; ctx.stroke();
+  ctx.globalAlpha = a * (1 - pulse);
+  ctx.beginPath(); ctx.arc(p[0], p[1], 26 + pulse * 46, 0, Math.PI * 2); ctx.lineWidth = 4; ctx.strokeStyle = COLOR[h.kind] ?? "#fff"; ctx.stroke();
+  ctx.restore();
+}
+
+window.render = function (t) {
+  SC.background();
+  SC.introRadar(t);
+  const ma = easeOut(seg(t, 2.8, 3.6));
+  if (ma > 0) {
+    ctx.save(); ctx.globalAlpha = ma;
+    const cam = camera(t);
+    const zIn = easeInOut(seg(t, 3.6, 5.0));
+    // City names fade while the reports play (they'd hide them), back for the highlights.
+    const cityA = zIn * 0.9 * (1 - easeOut(seg(t, PLAY0 + 0.6, PLAY0 + 1.4))) + (highlightIndex(t) >= 0 ? 0.9 * easeOut(seg(t, HL0, HL0 + 0.8)) : 0);
+    map.draw(cam, [], (c) => {
+      // Older reports dim while a highlight is up.
+      ctx.save(); ctx.globalAlpha *= 1 - 0.45 * easeOut(seg(t, HL0, HL0 + 0.6));
+      reportsOverlay(t, c);
+      ctx.restore();
+      map.cities(c, cityA);
+      highlightMarker(t, c);
+    });
+    ctx.restore();
+  }
+  SC.header(t, { lines: ["Today's storm", "reports"], title: "Today's storm reports", date: D.date });
+  countsPanel(t); highlightPanel(t);
+  SC.endCard(t, END + 0.2, "Follow for the storm report every night");
+};
+window.DUR = Math.ceil(END + 6.4);
+</script>
+</body>
+</html>

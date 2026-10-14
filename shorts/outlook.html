@@ -1,0 +1,122 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="short.css" />
+<script src="vendor/d3-array.min.js"></script>
+<script src="vendor/d3-geo.min.js"></script>
+<script src="vendor/topojson-client.min.js"></script>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script src="common.js"></script>
+<script>
+/*
+ * The daily outlook Short (33 s). DATA:
+ *   { states, cat, torn, wind, hail, logo,
+ *     outlook: { risk: "Slight" | null, code: "SLGT" | null, level: 0-5, region, summary, date } }
+ */
+const { ctx, D, C, RISK_COLORS, PANEL, clamp, seg, easeOut, easeInOut, lerp, rr, text, fitText } = SC;
+const DUR = 33;
+const map = SC.makeMap(SC.usProjection(), { source: "Source: NOAA Storm Prediction Center" });
+const topRisk = D.cat.features.filter((f) => f.properties.LABEL === D.outlook.code);
+const zoomed = topRisk.length ? map.fit({ type: "FeatureCollection", features: topRisk }) : map.home;
+
+const catOrder = ["TSTM", "MRGL", "SLGT", "ENH", "MDT", "HIGH"];
+const catLayer = (t, alpha) => ({
+  features: D.cat.features, alpha,
+  featureAlpha: (f) => easeOut(seg(t, 3.6 + catOrder.indexOf(f.properties.LABEL) * 0.8, 4.3 + catOrder.indexOf(f.properties.LABEL) * 0.8)) * 0.9,
+  fill: (f) => f.properties.fill, stroke: (f) => f.properties.stroke,
+});
+const probLayer = (fc, alpha) => ({
+  features: fc.features.filter((f) => /^0\./.test(f.properties.LABEL)), alpha: alpha * 0.9,
+  fill: (f) => f.properties.fill, stroke: (f) => f.properties.stroke,
+});
+const HAZ = [
+  { key: "torn", name: "Tornado", t0: 10.0 },
+  { key: "wind", name: "Damaging wind", t0: 13.4 },
+  { key: "hail", name: "Large hail", t0: 16.8 },
+];
+const maxProb = (fc) => Math.max(0, ...fc.features.map((f) => Number(f.properties.LABEL)).filter((n) => !Number.isNaN(n))) * 100;
+const words = (key, p) => {
+  if (!p) return "Not expected";
+  if (key === "torn") return p >= 15 ? "Significant" : p >= 10 ? "Elevated" : p >= 5 ? "A few possible" : "Brief, isolated";
+  return p >= 45 ? "Significant" : p >= 30 ? "Elevated" : p >= 15 ? "Scattered" : "Isolated";
+};
+HAZ.forEach((h) => (h.p = maxProb(D[h.key])));
+
+function riskPanel(t) {
+  const a = easeOut(seg(t, 6.6, 7.4)) * (1 - easeOut(seg(t, 9.6, 10.0)));
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  const y = PANEL.y + lerp(30, 0, easeOut(seg(t, 6.6, 7.4)));
+  text("Today's highest risk", PANEL.x + 10, y + 50, { size: 34, weight: 500, color: C.ink2 });
+  const riskName = D.outlook.risk ? `${D.outlook.risk.toUpperCase()} RISK` : "NO SEVERE RISK";
+  text(riskName, PANEL.x + 10, y + 160, { size: D.outlook.risk ? 108 : 92, weight: 800, color: RISK_COLORS[(D.outlook.risk ?? "").toUpperCase()] ?? C.ink, spacing: -1 });
+  text(`Level ${D.outlook.level} of 5`, PANEL.x + 10, y + 228, { size: 44, weight: 600 });
+  for (let i = 0; i < 5; i++) {
+    const fill = easeOut(seg(t, 7.6 + i * 0.18, 7.9 + i * 0.18));
+    const x = PANEL.x + 10 + i * 196;
+    rr(x, y + 262, 180, 22, 11); ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.fill();
+    if (i < D.outlook.level) { ctx.save(); rr(x, y + 262, 180 * fill, 22, 11); ctx.fillStyle = Object.values(RISK_COLORS)[i]; ctx.fill(); ctx.restore(); }
+  }
+  if (D.outlook.region) text(D.outlook.region, PANEL.x + 10, y + 350, { size: 40, weight: 600, color: C.ink2 });
+  ctx.restore();
+}
+
+function hazardPanel(t) {
+  const a = easeOut(seg(t, 9.9, 10.5)) * (1 - easeOut(seg(t, 20.0, 20.5)));
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  text("Chance within 25 miles of a point", PANEL.x + 10, PANEL.y + 44, { size: 30, weight: 500, color: C.ink3 });
+  HAZ.forEach((h, i) => {
+    const y = PANEL.y + 80 + i * 108;
+    const on = clamp(seg(t, h.t0, h.t0 + 0.4) - seg(t, h.t0 + 3.4, h.t0 + 3.8) * (i < 2 ? 1 : 0));
+    const show = easeOut(seg(t, h.t0 - 0.2, h.t0 + 0.4));
+    rr(PANEL.x, y, PANEL.w, 96, 20);
+    ctx.fillStyle = `rgba(91,156,246,${0.16 * on})`; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = `rgba(91,156,246,${0.15 + 0.5 * on})`; ctx.stroke();
+    ctx.save(); ctx.globalAlpha *= lerp(0.45, 1, on);
+    text(h.name, PANEL.x + 30, y + 46, { size: 40, weight: 700 });
+    text(words(h.key, h.p), PANEL.x + 30, y + 80, { size: 28, weight: 500, color: C.ink2 });
+    text(`${Math.round(h.p * easeOut(seg(t, h.t0, h.t0 + 1.0)))}%`, PANEL.x + PANEL.w - 30, y + 66, { size: 60, weight: 800, align: "right", alpha: show });
+    ctx.restore();
+  });
+  ctx.restore();
+}
+
+function summaryPanel(t) {
+  const a = easeOut(seg(t, 20.3, 21.0)) * (1 - easeOut(seg(t, 26.6, 27.2)));
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  text("What to expect", PANEL.x + 10, PANEL.y + 50, { size: 34, weight: 500, color: C.ink2 });
+  const { size, lines } = fitText(D.outlook.summary, PANEL.w - 20, PANEL.h - 80);
+  lines.forEach((l, i) => {
+    const la = easeOut(seg(t, 20.8 + i * 0.35, 21.3 + i * 0.35));
+    text(l, PANEL.x + 10, PANEL.y + 120 + i * size * 1.3 + (1 - la) * 16, { size, weight: 600, alpha: la });
+  });
+  ctx.restore();
+}
+
+window.render = function (t) {
+  SC.background();
+  SC.introRadar(t);
+  const ma = easeOut(seg(t, 2.8, 3.6));
+  if (ma > 0) {
+    ctx.save(); ctx.globalAlpha = ma;
+    // Camera: the whole US, the highest risk 7-9 s, back out 20-22 s.
+    const z = easeInOut(seg(t, 7.0, 9.0)) * (1 - easeInOut(seg(t, 20.2, 22.2)));
+    const cam = map.mix(map.home, zoomed, z);
+    // Categorical, swapped for each hazard's probabilities while it's highlighted.
+    const hz = HAZ.map((h, i) => clamp(seg(t, h.t0, h.t0 + 0.5) - seg(t, h.t0 + 3.4, h.t0 + 3.9) * (i < 2 ? 1 : 0) - (i === 2 ? seg(t, 20.0, 20.5) : 0)));
+    map.draw(cam, [catLayer(t, 1 - Math.max(...hz)), ...HAZ.map((h, i) => probLayer(D[h.key], hz[i]))], (c) => map.cities(c, z * 1.4));
+    ctx.restore();
+  }
+  SC.header(t, { lines: ["Severe weather", "outlook"], title: "Severe weather outlook", date: D.outlook.date });
+  riskPanel(t); hazardPanel(t); summaryPanel(t);
+  SC.endCard(t, 27.0, "Follow for the outlook every morning");
+};
+window.DUR = DUR;
+</script>
+</body>
+</html>

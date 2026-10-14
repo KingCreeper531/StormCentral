@@ -1,7 +1,8 @@
 /**
  * Uploading to the Storm Central channel with the YouTube Data API: an access
- * token from the stored refresh token (OAuth), then a resumable upload. Node's
- * fetch only, no SDK. Setup: shorts/README.md.
+ * token from the stored refresh token (OAuth), a resumable upload with the
+ * Spanish title and description as a localization, then the video added to
+ * its playlist. Node's fetch only, no SDK. Setup: shorts/README.md.
  */
 import { readFileSync, statSync } from "node:fs";
 
@@ -17,7 +18,11 @@ export interface VideoMeta {
   tags: string[];
   /** "public", "unlisted" or "private". */
   privacy: string;
+  /** Translated titles and descriptions by language ("es"). */
+  localizations?: Record<string, { title: string; description: string }>;
 }
+
+const API = "https://www.googleapis.com/youtube/v3";
 
 export class YouTubeError extends Error {
   constructor(
@@ -55,7 +60,7 @@ export async function accessToken(c: YouTubeCredentials): Promise<string> {
 /** Uploads the MP4; returns the video id. */
 export async function uploadVideo(file: string, meta: VideoMeta, token: string): Promise<string> {
   const size = statSync(file).size;
-  const start = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
+  const start = await fetch(`https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=${meta.localizations ? "snippet,status,localizations" : "snippet,status"}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -67,6 +72,7 @@ export async function uploadVideo(file: string, meta: VideoMeta, token: string):
       // Category 28: Science & Technology.
       snippet: { title: meta.title, description: meta.description, tags: meta.tags, categoryId: "28", defaultLanguage: "en", defaultAudioLanguage: "en" },
       status: { privacyStatus: meta.privacy, selfDeclaredMadeForKids: false, embeddable: true },
+      ...(meta.localizations ? { localizations: meta.localizations } : {}),
     }),
     signal: AbortSignal.timeout(30_000),
   });
@@ -84,4 +90,48 @@ export async function uploadVideo(file: string, meta: VideoMeta, token: string):
   const video = (await put.json()) as { id?: string; status?: { privacyStatus?: string } };
   if (!video.id) throw new YouTubeError("The upload gave no video id", 500);
   return video.id;
+}
+
+async function api<T>(token: string, path: string, what: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+  const res = await fetch(`${API}/${path}`, {
+    method: init.method ?? "GET",
+    headers: { Authorization: `Bearer ${token}`, ...(init.body ? { "Content-Type": "application/json; charset=UTF-8" } : {}) },
+    body: init.body ? JSON.stringify(init.body) : undefined,
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw await failure(res, what);
+  return (await res.json()) as T;
+}
+
+/** The channel's playlist with this title, created (public) when there is none; returns its id. */
+export async function playlistId(title: string, description: string, token: string): Promise<string> {
+  let pageToken = "";
+  do {
+    const page = await api<{ items?: { id: string; snippet?: { title?: string } }[]; nextPageToken?: string }>(
+      token,
+      `playlists?part=snippet&mine=true&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ""}`,
+      "Listing playlists",
+    );
+    const found = page.items?.find((p) => p.snippet?.title === title);
+    if (found) return found.id;
+    pageToken = page.nextPageToken ?? "";
+  } while (pageToken);
+  const created = await api<{ id: string }>(token, "playlists?part=snippet,status", "Creating a playlist", {
+    method: "POST",
+    body: { snippet: { title, description, defaultLanguage: "en" }, status: { privacyStatus: "public" } },
+  });
+  return created.id;
+}
+
+/**
+ * Adds the video to the playlist titled `title` (creating it). Needs the
+ * youtube scope, not just youtube.upload: without it this throws a 403
+ * YouTubeError (insufficient scopes), which callers treat as a warning.
+ */
+export async function addToPlaylist(videoId: string, title: string, description: string, token: string): Promise<void> {
+  const id = await playlistId(title, description, token);
+  await api(token, "playlistItems?part=snippet", "Adding to the playlist", {
+    method: "POST",
+    body: { snippet: { playlistId: id, resourceId: { kind: "youtube#video", videoId } } },
+  });
 }

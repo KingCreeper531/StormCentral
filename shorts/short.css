@@ -1,0 +1,4 @@
+html, body { margin: 0; background: #000; }
+canvas { display: block; }
+/* Inter (variable, with optical sizes), so the runner needs no installed fonts. */
+@font-face { font-family: "SC Inter"; src: url("vendor/inter.woff2") format("woff2"); font-weight: 100 900; }

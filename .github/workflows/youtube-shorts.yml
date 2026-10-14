@@ -1,24 +1,42 @@
-# The daily severe weather outlook Short (shorts/README.md): every morning,
-# once SPC's 13Z Day 1 outlook is out, it renders a 33-second vertical video
-# and uploads it to the Storm Central YouTube channel. Scheduled runs happen
-# only when the repository variable SHORTS_ENABLED is "true". "Run workflow"
-# renders the latest outlook to download from the run, and uploads only when
-# asked to.
+# The Storm Central YouTube Shorts (shorts/README.md): each kind renders a
+# vertical video from live NOAA data and uploads it to the Storm Central
+# channel, in English with a Spanish localization, into the kind's playlist.
+#
+#   outlook   every morning, once SPC's 13Z Day 1 outlook is out
+#   weekly    Sunday mornings, the next eight days
+#   tropical  late morning, one per named storm (none when the tropics are quiet)
+#   recap     late evening, the day's storm reports (active days only)
+#
+# Scheduled runs happen only when the repository variable SHORTS_ENABLED is
+# "true" (and SHORTS_KINDS, when set, lists the kind). "Run workflow" renders
+# the chosen kind from the latest data to download from the run, and uploads
+# only when asked to.
 name: YouTube Shorts
 
 on:
   schedule:
-    # 13:12 UTC (8:12 AM CDT, 7:12 AM CST); it then waits up to 50 minutes for the outlook.
+    # outlook: 13:12 UTC (8:12 AM CDT, 7:12 AM CST); it then waits up to 50 minutes for the outlook.
     - cron: "12 13 * * *"
+    # weekly: Sundays 13:40 UTC.
+    - cron: "40 13 * * 0"
+    # tropical: 15:40 UTC, after NHC's 15Z (11 AM EDT) advisories.
+    - cron: "40 15 * * *"
+    # recap: 03:15 UTC (10:15 PM CDT, 9:15 PM CST).
+    - cron: "15 3 * * *"
   workflow_dispatch:
     inputs:
+      kind:
+        description: Which Short
+        type: choice
+        options: [outlook, recap, weekly, tropical]
+        default: outlook
       upload:
         description: Upload to YouTube (otherwise only render it, to download from this run)
         type: boolean
         default: false
 
 concurrency:
-  group: youtube-shorts
+  group: youtube-shorts-${{ inputs.kind || github.event.schedule }}
   cancel-in-progress: false
 
 permissions:
@@ -29,32 +47,50 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || vars.SHORTS_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 80
+    env:
+      SHORTS_KIND: ${{ inputs.kind || (github.event.schedule == '15 3 * * *' && 'recap') || (github.event.schedule == '40 13 * * 0' && 'weekly') || (github.event.schedule == '40 15 * * *' && 'tropical') || 'outlook' }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
       - id: today
         run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-      # One Short a day: a marker in the Actions cache once today's is up.
+      # Scheduled kinds can be switched off one by one with SHORTS_KINDS ("outlook,recap").
+      - id: on
+        env:
+          KINDS: ${{ vars.SHORTS_KINDS }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] || [ -z "$KINDS" ] || echo ",${KINDS// /}," | grep -qi ",$SHORTS_KIND,"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "$SHORTS_KIND isn't in SHORTS_KINDS ($KINDS); skipping."
+          fi
+      # Each kind posts once a day: a marker in the Actions cache once it's up.
       - id: posted
+        if: steps.on.outputs.run == 'true'
         uses: actions/cache/restore@v4
         with:
           path: shorts/.posted
-          key: shorts-posted-${{ steps.today.outputs.date }}
+          key: shorts-posted-${{ env.SHORTS_KIND }}-${{ steps.today.outputs.date }}
           lookup-only: true
+      - id: go
+        if: steps.on.outputs.run == 'true' && (github.event_name == 'workflow_dispatch' || steps.posted.outputs.cache-hit != 'true')
+        run: echo "go=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5
+        if: steps.go.outputs.go == 'true'
+      - uses: actions/setup-node@v5
+        if: steps.go.outputs.go == 'true'
+        with:
+          node-version: 22
       - name: Install the renderer (Chromium and ffmpeg)
-        if: github.event_name == 'workflow_dispatch' || steps.posted.outputs.cache-hit != 'true'
+        if: steps.go.outputs.go == 'true'
         run: |
           npm install --prefix "$RUNNER_TEMP/shorts" --no-audit --no-fund playwright-core@1.56.1
           "$RUNNER_TEMP/shorts/node_modules/.bin/playwright-core" install --with-deps chromium
           command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
       - name: Build
-        if: github.event_name == 'workflow_dispatch' || steps.posted.outputs.cache-hit != 'true'
+        if: steps.go.outputs.go == 'true'
         run: npx --yes esbuild@0.28.2 shorts/main.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNNER_TEMP/shorts/shorts.mjs" --log-level=warning
       - name: Make the Short
         id: make
-        if: github.event_name == 'workflow_dispatch' || steps.posted.outputs.cache-hit != 'true'
+        if: steps.go.outputs.go == 'true'
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
@@ -63,14 +99,16 @@ jobs:
           SHORTS_LATEST: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
           SHORTS_PRIVACY: ${{ vars.SHORTS_PRIVACY || 'public' }}
           SHORTS_SKIP_QUIET: ${{ vars.SHORTS_SKIP_QUIET || 'false' }}
+          SHORTS_PLAYLISTS: ${{ vars.SHORTS_PLAYLISTS || 'true' }}
+          SHORTS_TROPICAL_MAX: ${{ vars.SHORTS_TROPICAL_MAX || '2' }}
         run: node "$RUNNER_TEMP/shorts/shorts.mjs"
       - uses: actions/upload-artifact@v4
-        if: always() && hashFiles('shorts/out/outlook.mp4') != ''
+        if: always() && hashFiles('shorts/out/*.mp4') != ''
         with:
-          name: outlook-short-${{ steps.today.outputs.date }}
+          name: ${{ env.SHORTS_KIND }}-short-${{ steps.today.outputs.date }}
           path: |
-            shorts/out/outlook.mp4
-            shorts/out/outlook.json
+            shorts/out/*.mp4
+            shorts/out/*.json
           retention-days: 7
       - name: Mark today as posted
         if: steps.make.outputs.uploaded == 'true'
@@ -79,4 +117,4 @@ jobs:
         if: steps.make.outputs.uploaded == 'true'
         with:
           path: shorts/.posted
-          key: shorts-posted-${{ steps.today.outputs.date }}
+          key: shorts-posted-${{ env.SHORTS_KIND }}-${{ steps.today.outputs.date }}
