@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Storm Central: free radar, severe weather alerts and forecasts</title>
+    <meta
+      name="description"
+      content="Storm Central is a free, open-source weather app for Windows, Android and the web: live NEXRAD radar, severe weather alerts with storm arrival times, and forecasts from eleven models."
+    />
+    <meta name="theme-color" content="#000000" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="assets/icon-180.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Storm Central" />
+    <meta property="og:title" content="Storm Central: free radar, severe weather alerts and forecasts" />
+    <meta
+      property="og:description"
+      content="Live NEXRAD radar, severe weather alerts with storm arrival times, and forecasts from eleven models. Free for Windows, Android and the web."
+    />
+    <meta property="og:image" content="https://raw.githubusercontent.com/KingCreeper531/StormCentral/main/website/assets/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <script>
+      document.documentElement.classList.add("js");
+    </script>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Storm Central",
+        "applicationCategory": "WeatherApplication",
+        "operatingSystem": "Windows 10, Windows 11, Android 7.0 or newer, Web",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "description": "Free, open-source weather app with live NEXRAD radar, severe weather alerts with storm arrival times, and forecasts from eleven models.",
+        "image": "https://raw.githubusercontent.com/KingCreeper531/StormCentral/main/website/assets/og.png",
+        "downloadUrl": "https://github.com/KingCreeper531/StormCentral/releases/latest"
+      }
+    </script>
+  </head>
+
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <div class="progress" aria-hidden="true"><span></span></div>
+
+    <header class="nav" id="nav">
+      <div class="nav-inner">
+        <a class="brand" href="#top" aria-label="Storm Central, back to top">
+          <img src="assets/icon.svg" alt="" width="28" height="28" />
+          <span>Storm Central</span>
+        </a>
+        <nav class="nav-links" aria-label="Sections">
+          <a href="#tour">Tour</a>
+          <a href="#alerts">Alerts</a>
+          <a href="#features">Features</a>
+          <a href="#download">Download</a>
+        </nav>
+        <div class="nav-end">
+          <a class="icon-link" href="https://github.com/KingCreeper531/StormCentral" aria-label="Source code on GitHub"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg></a>
+          <a class="btn btn-primary btn-sm" href="#download">Download</a>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- Hero: a live radar sweep behind the headline. -->
+      <section class="hero" id="top">
+        <canvas class="hero-radar" id="radar" aria-hidden="true"></canvas>
+        <div class="hero-shade" aria-hidden="true"></div>
+        <div class="hero-inner" id="hero-inner">
+          <p class="hero-kicker">
+            <span class="live-dot" aria-hidden="true"></span>
+            Free for Windows, Android and the web
+          </p>
+          <h1>Weather for people who watch the sky.</h1>
+          <p class="lead">
+            Live NEXRAD radar, severe weather alerts that tell you when the storm arrives, and forecasts from eleven models. Free, open source, with no
+            ads and no account needed.
+          </p>
+          <div class="cta">
+            <a class="btn btn-primary btn-lg" id="hero-primary" href="#download">
+              <span class="btn-icon" id="hero-primary-icon"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg></span>
+              <span id="hero-primary-label">Download Storm Central</span>
+            </a>
+            <a class="btn btn-secondary btn-lg" id="hero-secondary" href="https://storm-central-pi.vercel.app/">
+              <span>Open in your browser</span>
+              <span class="btn-icon"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+            </a>
+          </div>
+          <p class="hero-meta" id="hero-meta">Version 0.4.5 for Windows 10 and 11, Android 7 and newer, and any modern browser.</p>
+        </div>
+        <a class="scroll-cue" href="#showcase" aria-label="Scroll to the tour"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></a>
+      </section>
+
+      <!-- The app window tilts up into place as you scroll. -->
+      <section class="showcase" id="showcase" aria-label="Storm Central on the desktop">
+        <div class="showcase-stage">
+          <figure class="window" id="showcase-window">
+            <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i><span>Storm Central</span></div>
+            <img
+              src="assets/shots/radar-1600.webp"
+              srcset="assets/shots/radar-900.webp 900w, assets/shots/radar-1600.webp 1600w"
+              sizes="(max-width: 1200px) 94vw, 1120px"
+              width="1600"
+              height="900"
+              alt="Storm Central's radar mode: the NEXRAD mosaic over Oklahoma and Texas with storm tracks, a reflectivity legend and the future radar timeline."
+              fetchpriority="high"
+            />
+          </figure>
+        </div>
+      </section>
+
+      <!-- Tour: the steps scroll past a sticky screen that follows along. -->
+      <section class="tour" id="tour" aria-labelledby="tour-title">
+        <div class="section-head reveal">
+          <h2 id="tour-title">One app, five ways to read the sky</h2>
+          <p>Switch modes with a tap or the 1 to 5 keys. Each one is built around the questions you actually ask before you head out.</p>
+        </div>
+
+        <div class="tour-grid">
+          <div class="tour-steps">
+            <article class="step" data-step="0">
+              <p class="step-num">Daily</p>
+              <h3>Your day at a glance</h3>
+              <p>
+                A 15-minute nowcast, hourly and 10-day forecasts, and the forecasters' own notes from your local National Weather Service office, with
+                the jargon decoded. Pick from eleven forecast models, including ECMWF, GFS, the NWS Blend and ICON.
+              </p>
+              <ul class="ticks">
+                <li>Compared with normal: records, rainfall this month, the week's departures</li>
+                <li>Storm Prediction Center tornado, hail and wind odds when you're in a risk area</li>
+                <li>Rainfall and flooding, fire weather and smoke, river gauges</li>
+              </ul>
+              <img class="step-shot" src="assets/shots/daily-900.webp" width="900" height="506" loading="lazy" alt="" />
+            </article>
+
+            <article class="step" data-step="1">
+              <p class="step-num">Radar</p>
+              <h3>Radar that keeps up with storms</h3>
+              <p>
+                The national mosaic or any single NEXRAD site, with velocity, correlation coefficient and the rest. Warning polygons in official colors,
+                projected storm tracks with the arrival time at your location, and six hours of future radar after the live loop.
+              </p>
+              <ul class="ticks">
+                <li>Lightning, storm reports, hail cores and rotation from NEXRAD storm cells</li>
+                <li>Hurricane cones and tracks, and GOES satellite that loops with the radar</li>
+                <li>Export the loop as a GIF or video</li>
+              </ul>
+              <img class="step-shot" src="assets/shots/radar-900.webp" width="900" height="506" loading="lazy" alt="" />
+            </article>
+
+            <article class="step" data-step="2">
+              <p class="step-num">UAV pilot</p>
+              <h3>Know before you fly</h3>
+              <p>
+                A flyability score for your airframe, an hourly go/no-go strip, and wind at flight altitude against your drone's limit. Kp index, GNSS
+                satellites and precision, and the estimated cloud ceiling against the Part 107 clearance.
+              </p>
+              <ul class="ticks">
+                <li>Wind profile at 10, 80, 120 and 180 m, with shear and veer</li>
+                <li>Satellite sky plot with count, PDOP and HDOP</li>
+                <li>Visibility and density altitude</li>
+              </ul>
+              <img class="step-shot" src="assets/shots/uav-900.webp" width="900" height="506" loading="lazy" alt="" />
+            </article>
+
+            <article class="step" data-step="3">
+              <p class="step-num">Air and allergy</p>
+              <h3>Air you can plan around</h3>
+              <p>
+                An air quality heatmap across the map, current AQI with health guidance, and the cleanest two-hour window to be outside. Pollen and UV
+                forecasts, and a breakdown of each pollutant.
+              </p>
+              <ul class="ticks">
+                <li>48-hour AQI and UV forecast</li>
+                <li>Smoke and haze from wildfires</li>
+                <li>Angler mode, too: bite index, solunar periods and live river gauges</li>
+              </ul>
+              <img class="step-shot" src="assets/shots/air-900.webp" width="900" height="506" loading="lazy" alt="" />
+            </article>
+          </div>
+
+          <div class="tour-screen" aria-hidden="true">
+            <div class="tour-sticky">
+              <div class="window window-tour" id="tour-window" data-active="0">
+                <div class="window-bar"><i></i><i></i><i></i><span id="tour-caption">Daily</span></div>
+                <div class="tour-shots">
+                  <img src="assets/shots/daily-1600.webp" width="1600" height="900" alt="" data-shot="0" class="on" />
+                  <img src="assets/shots/radar-1600.webp" width="1600" height="900" alt="" data-shot="1" loading="lazy" />
+                  <img src="assets/shots/uav-1600.webp" width="1600" height="900" alt="" data-shot="2" loading="lazy" />
+                  <img src="assets/shots/air-1600.webp" width="1600" height="900" alt="" data-shot="3" loading="lazy" />
+                </div>
+              </div>
+              <ol class="tour-dots">
+                <li class="on"><span>Daily</span></li>
+                <li><span>Radar</span></li>
+                <li><span>UAV pilot</span></li>
+                <li><span>Air and allergy</span></li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Alerts: notifications arrive one by one as the section scrolls in. -->
+      <section class="alerts" id="alerts" aria-labelledby="alerts-title">
+        <div class="alerts-grid">
+          <div class="alerts-copy reveal">
+            <h2 id="alerts-title">Warned before the storm arrives</h2>
+            <p>
+              Save up to ten places and Storm Central watches them for you. Windows keeps checking from the tray, and Android checks about every 15
+              minutes in the background, even with the app closed.
+            </p>
+            <ul class="ticks">
+              <li>New warnings for any saved place, and whether you're inside the warned polygon, not just the county</li>
+              <li>Storms heading your way, with the arrival time, hail size and motion</li>
+              <li>Rain or snow starting soon, how hard and for how long</li>
+              <li>Lightning nearby, a morning briefing, and your own custom alerts</li>
+            </ul>
+          </div>
+
+          <div class="phone reveal" id="phone">
+            <div class="phone-screen">
+              <div class="phone-status"><span>4:47</span><span class="phone-island"></span><span>5G</span></div>
+              <p class="phone-date">Thursday, May 21</p>
+              <p class="phone-clock">4:47</p>
+              <ul class="notes" id="notes">
+                <li class="note note-red">
+                  <span class="note-app"><img src="assets/icon.svg" alt="" width="16" height="16" />Storm Central<time>now</time></span>
+                  <strong>Tornado Warning: Home</strong>
+                  <span>Cleveland County until 5:15 PM CDT. You are inside the warned area. Take shelter now.</span>
+                </li>
+                <li class="note note-orange">
+                  <span class="note-app"><img src="assets/icon.svg" alt="" width="16" height="16" />Storm Central<time>2 min ago</time></span>
+                  <strong>Storm heading toward Work</strong>
+                  <span>Arriving in about 18 min. Hail up to 1.75 in, moving northeast at 35 mph.</span>
+                </li>
+                <li class="note">
+                  <span class="note-app"><img src="assets/icon.svg" alt="" width="16" height="16" />Storm Central<time>12 min ago</time></span>
+                  <strong>Rain starting in about 20 min</strong>
+                  <span>Moderate rain, lasting about 45 min.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Numbers count up as they come into view. -->
+      <section class="numbers" aria-label="Storm Central in numbers">
+        <div class="numbers-grid">
+          <div class="num reveal"><span class="num-value" data-count="11">11</span><span class="num-label">forecast models to choose from</span></div>
+          <div class="num reveal"><span class="num-value" data-count="6">6</span><span class="num-label">radar products, from reflectivity to hydrometeor type</span></div>
+          <div class="num reveal"><span class="num-value" data-count="5">5</span><span class="num-label">modes: Daily, Radar, UAV pilot, Angler, Air</span></div>
+          <div class="num reveal"><span class="num-value" data-count="0">0</span><span class="num-label">ads, accounts or API keys required</span></div>
+        </div>
+      </section>
+
+      <!-- Features grid, revealed in a stagger. -->
+      <section class="features" id="features" aria-labelledby="features-title">
+        <div class="section-head reveal">
+          <h2 id="features-title">Everything else it does</h2>
+          <p>Built on free and open data from NOAA, the National Weather Service and Open-Meteo.</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
+            <h3>Storm arrival times</h3>
+            <p>The storm motion in each NWS warning becomes a projected track and a live arrival estimate for where you are.</p>
+          </article>
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>
+            <h3>Spotter network</h3>
+            <p>Post geotagged reports with photos, verify each other's, and see them on the radar. Locations are rounded for privacy.</p>
+          </article>
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+            <h3>Widgets and tray</h3>
+            <p>Five Android home-screen widgets with the top warning, and a Windows tray icon that shows the temperature and any warning.</p>
+          </article>
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/></svg>
+            <h3>Works offline</h3>
+            <p>The app is cached, and the last forecast stays readable for three days with no signal, labelled with when it was saved.</p>
+          </article>
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
+            <h3>English and Spanish</h3>
+            <p>Follows your device's language, or pick one in Settings. Notifications and widgets are translated too.</p>
+          </article>
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
+            <h3>Custom alerts</h3>
+            <p>"Wind at 120 m below 15 mph" or "AQI above 100": any number, for any saved place, once a day when the forecast crosses it.</p>
+          </article>
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/></svg>
+            <h3>Themes and add-ons</h3>
+            <p>Light, dark or system theme, every unit set separately, and themes or map layers installed from GitHub.</p>
+          </article>
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>
+            <h3>Open source</h3>
+            <p>Every line is on GitHub. No paid weather APIs, no tracking, and the Windows app runs its own server on your PC.</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Trailer. -->
+      <section class="trailer" id="trailer" aria-labelledby="trailer-title">
+        <div class="section-head reveal">
+          <h2 id="trailer-title">See it in motion</h2>
+          <p>A 50-second tour of the app.</p>
+        </div>
+        <div class="video reveal" id="video">
+          <video id="trailer-video" preload="none" playsinline poster="assets/trailer-poster.webp" width="1280" height="720">
+            <source src="assets/trailer.mp4" type="video/mp4" />
+          </video>
+          <button class="video-play" id="video-play" type="button" aria-label="Play the trailer"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg></button>
+        </div>
+      </section>
+
+      <!-- Downloads: links filled in from the latest GitHub release. -->
+      <section class="download" id="download" aria-labelledby="download-title">
+        <div class="section-head reveal">
+          <h2 id="download-title">Get Storm Central</h2>
+          <p>Free on every platform. The apps update themselves when a new version is out.</p>
+        </div>
+
+        <div class="dl-grid">
+          <article class="dl reveal" data-platform="windows">
+            <div class="dl-head">
+              <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+              <div>
+                <h3>Windows</h3>
+                <p class="dl-sub">Windows 10 and 11, 64-bit</p>
+              </div>
+            </div>
+            <a class="btn btn-primary dl-btn" href="https://apps.microsoft.com/detail/9P3SXT2T0CLQ">
+              <span class="btn-icon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 5.1 10.4 4v7.1H3zm8.3-1.2L21 2.5v8.6h-9.7zM3 12.9h7.4V20L3 18.9zm8.3 0H21v8.6l-9.7-1.4z" /></svg></span>
+              Get it from Microsoft Store
+            </a>
+            <a class="btn btn-secondary dl-btn" id="dl-exe" href="https://github.com/KingCreeper531/StormCentral/releases/latest">
+              <span class="btn-icon"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg></span>
+              <span>Download the installer <small class="dl-size" id="dl-exe-size"></small></span>
+            </a>
+            <p class="dl-note">
+              The installer isn't code-signed yet, so Windows may say "Windows protected your PC". Choose More info, then Run anyway. The Store version
+              installs without that step.
+            </p>
+          </article>
+
+          <article class="dl reveal" data-platform="android">
+            <div class="dl-head">
+              <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
+              <div>
+                <h3>Android</h3>
+                <p class="dl-sub">Android 7.0 and newer</p>
+              </div>
+            </div>
+            <a class="btn btn-primary dl-btn" id="dl-apk" href="https://github.com/KingCreeper531/StormCentral/releases/latest">
+              <span class="btn-icon"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg></span>
+              <span>Download the APK <small class="dl-size" id="dl-apk-size"></small></span>
+            </a>
+            <div class="dl-qr" id="dl-qr" hidden>
+              <canvas id="qr" width="132" height="132" aria-hidden="true"></canvas>
+              <p>On a computer? Scan this with your phone's camera to download it there.</p>
+            </div>
+            <p class="dl-note">Open the file on your phone and allow your browser to install apps when asked. After that, the app updates itself.</p>
+          </article>
+
+          <article class="dl reveal" data-platform="web">
+            <div class="dl-head">
+              <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+              <div>
+                <h3>Web</h3>
+                <p class="dl-sub">Any modern browser, including iPhone and iPad</p>
+              </div>
+            </div>
+            <a class="btn btn-primary dl-btn" href="https://storm-central-pi.vercel.app/">
+              <span class="btn-icon"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></span>
+              Open the web app
+            </a>
+            <p class="dl-note">On iPhone and iPad, open it in Safari and choose Share, then Add to Home Screen, to use it like an app.</p>
+          </article>
+        </div>
+
+        <p class="dl-foot reveal">
+          <span id="dl-version">Latest version: 0.4.5.</span>
+          <a href="https://github.com/KingCreeper531/StormCentral/releases">Release notes and older versions</a>.
+          Free code signing provided by <a href="https://about.signpath.io/">SignPath.io</a>, certificate by
+          <a href="https://signpath.org/">SignPath Foundation</a>.
+        </p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <a class="brand" href="#top"><img src="assets/icon.svg" alt="" width="28" height="28" /><span>Storm Central</span></a>
+          <p>
+            Storm Central is not an official warning system. Always follow the National Weather Service and your local emergency management.
+          </p>
+        </div>
+        <nav class="footer-links" aria-label="More">
+          <a href="https://storm-central-pi.vercel.app/">Web app</a>
+          <a href="https://github.com/KingCreeper531/StormCentral">GitHub</a>
+          <a href="https://github.com/KingCreeper531/StormCentral/releases">Releases</a>
+          <a href="https://storm-central-pi.vercel.app/privacy">Privacy</a>
+        </nav>
+      </div>
+      <p class="footer-fine">Data from NOAA, the National Weather Service, the Storm Prediction Center, the Iowa Environmental Mesonet and Open-Meteo.</p>
+    </footer>
+
+    <script src="vendor/lenis.min.js" defer></script>
+    <script src="vendor/qrcode.min.js" defer></script>
+    <script src="main.js" defer></script>
+  </body>
+</html>
