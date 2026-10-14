@@ -219,8 +219,6 @@ jobs:
             fi
             echo
             echo "The Windows installer isn't code-signed yet, so Windows may say \"Windows protected your PC\". Choose **More info → Run anyway**."
-            echo
-            echo "Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/)."
             if [ "$SIGNING" = "shared" ]; then
               echo
               echo "This APK is signed with the project's shared development key."
@@ -305,8 +303,7 @@ jobs:
           <h1>Storm Central downloads</h1>
           <p class="lead">Free, open-source weather for Windows and Android. The newest version is first.</p>
           <ul>$items</ul>
-          <footer>Release notes and source: <a href="https://github.com/$GITHUB_REPOSITORY/releases">GitHub Releases</a>.
-          Free code signing provided by <a href="https://about.signpath.io/">SignPath.io</a>, certificate by <a href="https://signpath.org/">SignPath Foundation</a>.</footer>
+          <footer>Release notes and source: <a href="https://github.com/$GITHUB_REPOSITORY/releases">GitHub Releases</a>.</footer>
           </main></body></html>
           HTML
           touch site/.nojekyll
