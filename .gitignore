@@ -32,3 +32,6 @@ npm-debug.log*
 
 # written by `next dev` (Next.js 16 agent hints)
 /AGENTS.md
+
+# X bot state (kept in the Actions cache)
+bot/.state/
