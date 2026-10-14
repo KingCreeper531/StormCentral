@@ -8,6 +8,8 @@ import { appUpdater, appUpdaterAvailable, type UpdaterStatus } from "@/lib/nativ
 import { desktopBridge, type DesktopUpdateStatus } from "@/lib/native/desktop";
 import { GITHUB_REPO, isNativeApp } from "@/lib/platform";
 import { deviceZone, type ClockPref, type ZonePref } from "@/lib/clock";
+import { LANGS, type LangPref } from "@/lib/i18n/lang";
+import { useT } from "@/lib/i18n/use-t";
 import type { ThemePref } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { selectActiveTheme, useAddonsStore } from "@/store/addons-store";
@@ -62,9 +64,22 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 function AppearancePanel({ onBrowse }: { onBrowse: () => void }) {
   const theme = useAppStore((s) => s.theme);
   const setTheme = useAppStore((s) => s.setTheme);
+  const language = useAppStore((s) => s.language);
+  const setLanguage = useAppStore((s) => s.setLanguage);
   const custom = useAddonsStore(selectActiveTheme);
+  const t = useT();
   return (
     <Panel title="Appearance">
+      {/* Both words, so the row is findable whichever language is showing. */}
+      <Row label={t.lang === "es" ? "Idioma" : "Language · Idioma"}>
+        <Segmented<LangPref>
+          ariaLabel={t("Language")}
+          stretch
+          value={language}
+          onChange={setLanguage}
+          options={LANGS.map((l) => ({ value: l.id, label: l.id === "auto" ? t("Automatic") : l.label }))}
+        />
+      </Row>
       <Row label="Mode">
         <Segmented<ThemePref>
           ariaLabel="Theme"

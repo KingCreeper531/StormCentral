@@ -15,6 +15,7 @@ import { applyCustomVars, applyTheme, resolveTheme } from "@/lib/theme";
 import { selectActiveTheme, useAddonsStore } from "@/store/addons-store";
 import { useAlertsStore } from "@/store/alerts-store";
 import { sunPosition } from "@/lib/astro/sun";
+import { useLang } from "@/lib/i18n/use-t";
 import { useAppStore } from "@/store/app-store";
 
 /** Only small, location-scoped feeds are persisted for instant cold starts. */
@@ -93,6 +94,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, [themePref, hydrated, custom, addonsHydrated]);
+
+  // <html lang> follows the app language (screen readers and hyphenation use it).
+  const lang = useLang();
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
 
   return (
     <PersistQueryClientProvider

@@ -55,7 +55,7 @@ export const NOTIFY: Record<string, string> = {
   "Arriving around {time} (in about {n} min).": "Llega cerca de las {time} (en unos {n} min).",
   "Hail up to {size} possible.": "Posible granizo de hasta {size}.",
   "Moving {dir} at {speed}.": "Se mueve hacia {dir} a {speed}.",
-  "Watch for a tornado warning and be ready to take shelter.": "Esté atento a un aviso de tornado y listo para refugiarse.",
+  "Watch for a tornado warning and be ready to take shelter.": "Mantente atento a un aviso de tornado y listo para refugiarte.",
   "{who} confirmed your report": "{who} confirmó tu reporte",
   "Your report is being confirmed by spotters nearby.": "Observadores cercanos están confirmando tu reporte.",
   "{who} commented on your report": "{who} comentó tu reporte",

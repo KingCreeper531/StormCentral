@@ -698,7 +698,7 @@ public final class AlertsWorker extends Worker {
                 body.append(" ").append(Lang.fill(Lang.pick(es, "Moving {dir} at {speed}.", "Se mueve hacia {dir} a {speed}."),
                         "dir", es ? COMPASS_ES[i] : COMPASS_EN[i], "speed", windText(kt * 1.852, windUnit)));
             }
-            if (tvs) body.append(" ").append(Lang.pick(es, "Watch for a tornado warning and be ready to take shelter.", "Esté atento a un aviso de tornado y listo para refugiarse."));
+            if (tvs) body.append(" ").append(Lang.pick(es, "Watch for a tornado warning and be ready to take shelter.", "Mantente atento a un aviso de tornado y listo para refugiarte."));
             if (Notifier.show(ctx, id("storm:" + key), Notifier.STORMS, Lang.fill(Lang.pick(es, titleEn, titleEs), "place", p.name), body.toString())) sent++;
         }
         Iterator<String> it = seen.keys();
