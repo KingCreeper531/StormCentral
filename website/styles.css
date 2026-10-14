@@ -237,6 +237,9 @@ p {
 .brand img {
   border-radius: 7px;
 }
+.brand span {
+  white-space: nowrap;
+}
 .nav-links {
   display: none;
   gap: 4px;
@@ -276,6 +279,24 @@ p {
 @media (min-width: 820px) {
   .nav-links {
     display: flex;
+  }
+}
+/* Small phones: keep the name on one line next to the two icons and the button. */
+@media (max-width: 400px) {
+  .nav-inner {
+    gap: 12px;
+  }
+  .nav-end {
+    gap: 2px;
+  }
+  .icon-link {
+    width: 36px;
+  }
+}
+/* The very smallest phones (320 px): the logo alone, so nothing overlaps. */
+@media (max-width: 359px) {
+  .nav .brand span {
+    display: none;
   }
 }
 
