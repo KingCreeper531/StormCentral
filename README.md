@@ -8,7 +8,7 @@ Every data source is free and open. No paid weather API keys are required.
 
 ## Download
 
-Get the newest version from **[Releases](https://github.com/KingCreeper531/StormCentral/releases/latest)**.
+Get it at **[stormcentralwx.com](https://www.stormcentralwx.com)**: Windows from the [Microsoft Store](https://apps.microsoft.com/detail/9P3SXT2T0CLQ) or as an installer, Android as an APK, or [in your browser](https://storm-central-pi.vercel.app). Every version is also on **[Releases](https://github.com/KingCreeper531/StormCentral/releases/latest)**.
 
 | Device | File | Updates |
 |---|---|---|
@@ -17,7 +17,7 @@ Get the newest version from **[Releases](https://github.com/KingCreeper531/Storm
 
 - **Windows:** the installer isn't code-signed yet, so SmartScreen may say "Windows protected your PC". Choose **More info → Run anyway**. It installs for your user only, with no admin prompt.
 - **Android:** open the APK on your phone and allow your browser to install apps when asked.
-- **Self-contained:** both apps work with no server. The Windows app runs Storm Central's own server on your PC, so every feature works, including accounts and reports (stored on that PC). The Android app runs the weather feeds on the phone. The spotter network needs a shared server, so it's turned off there until one is set up (see [Desktop and Android apps](#desktop-and-android-apps)).
+- **Self-contained:** both apps work with no server. The Windows app runs Storm Central's own server on your PC, so every feature works, including accounts and reports (stored on that PC). The Android app runs the weather feeds on the phone. The spotter network needs a shared server, so it's off in the Android app for now.
 
 ---
 
@@ -58,203 +58,65 @@ Install add-ons from GitHub under **Settings → Add-ons**: paste `owner/repo` o
 link to a `stormcentral.json`, or browse repositories tagged
 `stormcentral-theme` / `stormcentral-plugin`. Themes recolour the app; plugins
 add tile or GeoJSON layers to the Radar and Air maps. Add-ons are JSON only and
-never run code. Format and examples: [`examples/addons`](examples/addons).
+never run code.
 
-## Tech stack
+### Make your own
 
-| Layer | Choice |
-|---|---|
-| Framework | **Next.js 16** (App Router, Turbopack), **React 19**, TypeScript (strict) |
-| Styling and motion | **Tailwind CSS v4** design tokens ([docs/DESIGN.md](docs/DESIGN.md)), **Motion** (formerly Framer Motion), Canvas2D particle engine |
-| Maps | **MapLibre GL JS v6** (WebGL); CARTO Dark Matter basemap, or MapTiler with a key |
-| State | **Zustand** (persisted UI state and URL sync) + **TanStack Query** (server state, persisted cache) |
-| Data and auth | **Drizzle ORM** on **libSQL/SQLite** (Turso-ready), Node `crypto` scrypt, opaque DB sessions, **Zod** validation |
-| Science | Custom ephemerides, wind and thermodynamics, DOP; **satellite.js** (SGP4) on the server |
-| Icons | [Makin-Things/weather-icons](https://github.com/Makin-Things/weather-icons) (animated SVG, MIT) + Lucide for UI chrome |
-| Apps | **Electron 44** + **electron-updater** (Windows), **Capacitor 8** (Android), released by GitHub Actions |
-| Tests | **Vitest**: 269 unit tests across science, radar, parsers, feeds, alerting, security and the DB schema |
+1. Create a public GitHub repository (or a gist) with one file, `stormcentral.json`.
+2. For a **theme**, set the colours you want to change; anything left out comes from the dark or light base:
+
+   ```json
+   {
+     "type": "theme",
+     "name": "Nord",
+     "author": "you",
+     "base": "dark",
+     "colors": { "canvas": "#242933", "surface-1": "#2e3440", "ink": "#eceff4", "accent": "#88c0d0" }
+   }
+   ```
+
+   For a **plugin**, list up to 8 map layers: map tiles (`raster`) or shapes and points (`geojson`):
+
+   ```json
+   {
+     "type": "plugin",
+     "name": "My overlays",
+     "layers": [
+       { "type": "raster", "name": "Tiles", "tiles": ["https://example.com/tiles/{z}/{x}/{y}.png"], "opacity": 0.7, "attribution": "Source name" },
+       { "type": "geojson", "name": "Points or shapes", "url": "https://example.com/data.geojson", "color": "#ff9f0a" }
+     ]
+   }
+   ```
+
+3. Try it: **Settings → Add-ons → Install from GitHub**, paste `your-name/your-repo`.
+4. Share it: add the topic **`stormcentral-theme`** or **`stormcentral-plugin`** to the repository, and it shows up under **Browse community add-ons** in the app.
+
+Every colour slot and layer option, plus ready-made examples to copy (Nord, Dracula, Sky, rainfall totals, wildfires, earthquakes and more), are in [`examples/addons`](examples/addons).
 
 ## Data sources
 
-| Data | Source | Accessed from |
-|---|---|---|
-| Forecast, nowcast, recent rainfall, air quality and smoke, pollen, geocoding | [Open-Meteo](https://open-meteo.com) (CC BY 4.0) | Browser (CORS) |
-| Radar: MRMS national mosaic, super-resolution NEXRAD reflectivity and velocity | [NOAA/NWS GeoServer](https://opengeo.ncep.noaa.gov) (radar.weather.gov's backend) | Browser (WMS tiles) + `/api/radar/noaa` |
-| Other radar products, and radar fallback | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) | Browser (tiles) + `/api/radar/*` |
-| Watches, warnings, storm motion | [api.weather.gov](https://www.weather.gov/documentation/services-web-api) | `/api/alerts` |
-| Convective outlook and hazard probabilities | [Storm Prediction Center](https://www.spc.noaa.gov) | `/api/outlook` |
-| Local storm reports, NEXRAD storm-cell attributes | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) | `/api/storm-reports`, `/api/storm-cells` |
-| Tropical cyclones (positions, cone, track) | [National Hurricane Center](https://www.nhc.noaa.gov) + NOAA map services | `/api/tropical` |
-| Lightning strike density | [NOAA nowCOAST](https://nowcoast.noaa.gov) | Browser (WMS tiles) |
-| HRRR forecast reflectivity (future radar) | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/GIS/model.phtml) | Browser (tiles) |
-| GOES-East/West satellite imagery | [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api) | Browser (WMS tiles) |
-| Planetary Kp | [NOAA SWPC](https://www.swpc.noaa.gov) | `/api/space-weather` |
-| River discharge, stage, water temperature | [USGS Water Services](https://waterservices.usgs.gov) (OGC API fallback) | `/api/rivers` |
-| River forecast points, flood stages and forecast crests | [NOAA National Water Prediction Service](https://water.noaa.gov) | `/api/flood-gauges` |
-| Forecaster notes (Area Forecast Discussion) | [api.weather.gov](https://www.weather.gov/documentation/services-web-api) | `/api/forecaster-notes` |
-| Daily normals (1991–2020) and records | [NOAA ACIS](https://www.rcc-acis.org) (threaded NWS climate sites) | `/api/climate` |
-| Active wildfires | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | `/api/wildfires` |
-| GNSS orbital elements | [CelesTrak](https://celestrak.org) | `/api/gnss` |
-| Reverse geocoding | BigDataCloud free client API | Browser |
-| Forecast models you can pick (ECMWF, ECMWF AI, GFS, NBM, ICON, GEM, UK Met Office, Météo-France, JMA) | [Open-Meteo](https://open-meteo.com) | Browser |
-| Google forecast (each person's own key) | [Google Maps Platform Weather API](https://developers.google.com/maps/documentation/weather) | Browser, straight to Google |
-
-## Getting started
-
-```bash
-# Node 20.9+ required
-npm install          # also vendors the MapLibre worker into public/vendor
-npm run dev          # http://localhost:3000
-```
-
-That's all you need. A SQLite database is created at `./data/stormcentral.db` on first use. Copy `.env.example` to `.env.local` to customise:
-
-| Variable | Purpose |
+| Data | Source |
 |---|---|
-| `DATABASE_URL` | `file:./data/stormcentral.db` (default) or a `libsql://` Turso URL for serverless deploys |
-| `DATABASE_AUTH_TOKEN` | Turso auth token |
-| `MODERATORS` | Comma-separated usernames who can review reported content and suspend accounts (see below) |
-| `DEVELOPERS` | Comma-separated usernames shown with a **Developer** badge instead of their rank (default: `StormCentral_Official`) |
-| `NEXT_PUBLIC_MAPTILER_KEY` | Optional; switches the basemap to MapTiler `dataviz-dark` |
-| `NWS_USER_AGENT` | Contact string sent to api.weather.gov (required by NWS policy) |
-
-### Scripts
-
-| Command | |
-|---|---|
-| `npm run dev` / `build` / `start` | Develop, build, serve |
-| `npm test` | Vitest unit suite |
-| `npm run typecheck` / `lint` | `tsc --noEmit` / ESLint (incl. React Compiler rules) |
-| `npm run check` | All three of the above |
-| `npm run icons:sync` | Re-vendor the Makin-Things icon set |
-| `npm run desktop:start` | Build the desktop server bundle and open the Electron app |
-| `npm run desktop:dist` | Package the Windows installer into `dist/desktop/` (run on Windows) |
-| `npm run android:build` | Build the static bundle and sync it into `android/` |
-
-### Deploying
-
-The shared spotter network needs one hosted copy of the web app. Vercel's free plan works, and you only sign in once, with GitHub:
-
-1. On [vercel.com](https://vercel.com), choose **Continue with GitHub**, then **Add New → Project**, import this repository and click **Deploy**.
-2. In the project, open **Storage → Create Database → Turso**, create it and connect it to the project. Vercel adds `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` itself (`DATABASE_URL` / `DATABASE_AUTH_TOKEN` also work). Then **Deployments → Redeploy**.
-3. Point the apps at it: put the site's `https://` address in `STORMCENTRAL_URL` in `.github/workflows/release.yml` (or set a repository variable of that name) and publish a release.
-
-**Moderation.** People can block each other and report reports, comments and accounts from the ⋯ menu. Content reported by three different people is hidden until someone reviews it. To review it yourself, set `MODERATORS` to your username (comma-separate several) in the project's environment variables and redeploy. Moderators get a **Moderation queue** link in Settings → Account, where they can keep or remove reported content and suspend accounts for 1, 7 or 30 days, or permanently. Suspended accounts can still read, but can't post, comment, confirm or edit their profile, and their content is hidden while the suspension lasts.
-
-**Password reset emails.** Add `SMTP_URL` in the project's environment variables. A Gmail app password works: `smtps://you%40gmail.com:APPPASSWORD@smtp.gmail.com:465` (optionally `MAIL_FROM`, e.g. `Storm Central <you@gmail.com>`). Environment variables only reach new deployments, so redeploy **Production** after adding it. Without it, signed-in users can still change their password in Settings, but "Forgot your password?" says email isn't set up.
-
-**Forecast source and Google.** The **Forecast from** picker at the top of the Daily page chooses where the whole app's forecast comes from: Open-Meteo's best match for the area (the default), one model through Open-Meteo (ECMWF, ECMWF AI, NOAA GFS, the NWS National Blend, DWD ICON, GEM, UK Met Office, Météo-France, JMA), or Google. When a regional model has nothing for the location, the app falls back to the best match and says so. Google needs the person's own Weather API key (Google Cloud: enable the Weather API, create a key; the first 10,000 calls a month are free), entered right under the picker. The key stays on their device and goes straight from the browser to Google; Google's current conditions, next 48 hours and 10 days are laid over the Open-Meteo forecast, which still supplies what Google doesn't (15-minute rain, winds aloft).
-
-The schema is applied automatically on first request. Every proxy route sends `s-maxage` / `stale-while-revalidate`, so a CDN absorbs most traffic. Rate limiting is per instance; swap `src/lib/server/rate-limit.ts` for Redis/Upstash when you scale horizontally.
-
-## Desktop and Android apps
-
-One codebase, three packages. `BUILD_TARGET` in `next.config.ts` picks the output:
-
-| Package | Build | How it runs |
-|---|---|---|
-| **Web** | `next build` | Any Node host or Vercel. |
-| **Windows** | `standalone` server + Electron (`desktop/`) | The app starts Storm Central's own Next.js server on `127.0.0.1` in a background process and shows it in a window. The database lives in `%APPDATA%\Storm Central`, so updates never touch accounts or reports. |
-| **Android** | static export + Capacitor (`android/`) | No server. The weather routes (`/api/alerts`, `/api/gnss`, …) run on the phone: the same feed code as the server (`src/lib/feeds/`), with native HTTP so government APIs that don't send CORS headers still work. |
-
-**Notifications.** One alert engine (`src/lib/alerting/`) runs in two places. On the web and in the Windows app it runs in the page (one tab at a time); the Windows window hides to the tray on close so checks continue (switchable in Alerts and places). On Android it also runs in a Capacitor background runner (`src/native/runner/background.ts`, bundled to `out/runners/background.js` by `npm run android:build`), which checks warnings and custom alerts about every 15 minutes and refreshes the home-screen widget.
-
-**Sharing one spotter network.** Accounts and reports need one shared server. Deploy the web app (Vercel plus a free [Turso](https://turso.tech) database works), then add a repository variable **`STORMCENTRAL_URL`** (Settings → Secrets and variables → Actions → Variables) set to its `https://` address. The next release builds both apps to load that server, with everything enabled for every user.
-
-### Building locally
-
-```bash
-# Windows app (run on Windows; packaging the .exe needs Windows or Wine)
-npm install && npm install --prefix desktop
-npm run desktop:dist                       # → dist/desktop/StormCentral-Setup-<version>.exe
-
-# Android app (JDK 21 + Android SDK)
-npm run android:build
-cd android && ./gradlew assembleRelease    # → android/app/build/outputs/apk/release/app-release.apk
-```
-
-### Releases
-
-`.github/workflows/release.yml` builds both apps on every push that touches the packaging, and publishes a release for version tags:
-
-1. Bump `version` in `package.json` (it is the version of the web app, the Windows app and the APK), commit and push.
-2. Tag it: `git tag v0.2.0 && git push origin v0.2.0`. You can also run **Release apps** from the Actions tab with **publish** ticked.
-3. The workflow checks the code, builds the installer and the APK, and publishes the GitHub release. Installed Windows apps update themselves from it, and Android apps offer the new APK.
-4. It also publishes a download page at `https://kingcreeper531.github.io/StormCentral/` with the installer and APK of each release on the Releases page, e.g. `…/download/<version>/StormCentral-Setup-<version>.exe`. The Microsoft Store needs a download link that doesn't redirect, which GitHub release links always do. Turn this on once under **Settings → Pages → Source: GitHub Actions**. The newest release and the one before it are kept, so the Store's link keeps working until the listing is updated.
-
-Optional repository secrets:
-
-| Secret | Purpose |
-|---|---|
-| `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | Sign the APK with your own key. Without them, APKs are signed with the shared development key in `android/app/debug.keystore`. That key isn't secret: it keeps builds installable over each other, but anyone could sign an APK with it. Create a key with `keytool -genkeypair -v -keystore release.jks -alias stormcentral -keyalg RSA -keysize 4096 -validity 10000` and store `base64 -w0 release.jks` as `ANDROID_KEYSTORE_BASE64`. Android only installs an update signed with the same key, so after switching keys, users reinstall once. |
-| `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` | A code-signing certificate (base64 `.pfx`). Signed installers skip the SmartScreen warning. |
-
-### Microsoft Store
-
-Releases also build `StormCentral-<version>-store.appx`, an MSIX package for the Microsoft Store. The Store signs it, so it needs no certificate.
-
-1. In [Partner Center](https://partner.microsoft.com/dashboard), create the app as an **MSIX or PWA app** and reserve its name.
-2. Open **Product management → Product identity** and copy `Package/Identity/Name`, `Package/Identity/Publisher` and `Package/Properties/PublisherDisplayName`.
-3. Put them in `MSIX` in `electron-builder.config.mjs` (Storm Central's own listing is already there). Alternatively, set the repository variables `MSIX_IDENTITY_NAME`, `MSIX_PUBLISHER`, `MSIX_PUBLISHER_DISPLAY_NAME` and `MSIX_DISPLAY_NAME`, which override it. The display name must match the name reserved in Partner Center.
-4. Publish a release. Upload the `-store.appx` file from the release to a new Store submission under **Packages**.
-
-The Store version updates through the Store, so its own updater is off. It also can't add itself to Windows startup, so that setting is hidden.
-
-## Project structure
-
-```
-StormCentral/
-├─ ARCHITECTURE.md              ← state, polling, caching & radar pipeline in depth
-├─ docs/DESIGN.md               ← design system: tokens, banned patterns, recipes, mobile rules
-├─ next.config.ts               ← build targets (web / desktop / mobile), CSP & cache headers
-├─ .github/workflows/release.yml ← builds the Windows installer + APK, publishes releases
-├─ desktop/                     ← Electron app: local server, window, auto-updates
-├─ electron-builder.config.mjs  ← Windows installer (NSIS) + GitHub update feed
-├─ android/                     ← Capacitor Android project (icons, signing, permissions)
-├─ capacitor.config.ts          ← Android app config
-├─ public/
-│  ├─ sw.js                     ← bounded cache-first radar tile service worker
-│  ├─ icons/weather/            ← Makin-Things animated + static SVGs (MIT)
-│  └─ vendor/                   ← MapLibre worker (generated on install)
-├─ scripts/                     ← icon sync, MapLibre worker vendoring, native builds
-└─ src/
-   ├─ app/
-   │  ├─ page.tsx               ← dashboard (AppShell)
-   │  ├─ community/  login/  register/  u/[username]/
-   │  └─ api/
-   │     ├─ alerts/  outlook/  space-weather/  rivers/  gnss/
-   │     ├─ radar/{scans,products}/
-   │     ├─ auth/{register,login,logout,me}/
-   │     └─ posts/[id]/{verify,comments}/  media/[id]/
-   ├─ components/
-   │  ├─ shell/                 ← AppShell, TopBar, ModeSwitcher, mobile TabBar, CommandPalette, AlertBanner
-   │  ├─ background/            ← sky gradients, Canvas2D precipitation, lightning
-   │  ├─ modes/                 ← daily, severe, drone, angler, air (lazy-loaded)
-   │  ├─ map/                   ← MapView (z-order slots) + layers/: radar, warnings,
-   │  │                            tracks, outlook, sites, reports, heat, user marker
-   │  ├─ radar/                 ← timeline, controls, legend, alert list/detail
-   │  ├─ daily/  drone/         ← mode-specific panels
-   │  ├─ community/             ← composer, feed, post card, auth form
-   │  ├─ charts/                ← accessible SVG time-series (crosshair + tooltip)
-   │  └─ ui/                    ← Panel, Button, Segmented, Tabs, Sheet, StatusText, Meter, dials
-   ├─ hooks/                    ← queries (per-mode polling), radar loop, hotkeys, URL sync
-   ├─ modes/registry.ts         ← mode definitions + polling policy
-   ├─ store/app-store.ts        ← Zustand store (persisted, hydration-safe)
-   └─ lib/
-      ├─ radar/                 ← frames, products, playback, RadarLayerManager, sites
-      ├─ astro/                 ← sun, moon, solunar
-      ├─ science/               ← wind/shear, atmosphere, pressure, DOP, GNSS, scores,
-      │                            air & pollen, storm motion
-      ├─ api/                   ← Open-Meteo clients, shared response types
-      ├─ feeds/                 ← weather feeds behind /api (alerts, radar, Kp, rivers,
-      │                            GNSS, SPC): parsers + coalescing cache; run on the
-      │                            server and, in the Android app, on the phone
-      ├─ native/                ← Android: in-app /api dispatcher, native HTTP, update check
-      ├─ server/                ← route helpers, rate limit, CSRF guard, image
-      │                            sanitising, community repository
-      ├─ auth/  db/             ← scrypt, sessions, Drizzle schema
-      └─ weather/               ← units, WMO codes → icons/scenes, view helpers
-```
+| Forecast, nowcast, recent rainfall, air quality and smoke, pollen, geocoding | [Open-Meteo](https://open-meteo.com) (CC BY 4.0) |
+| Radar: MRMS national mosaic, super-resolution NEXRAD reflectivity and velocity | [NOAA/NWS GeoServer](https://opengeo.ncep.noaa.gov) (radar.weather.gov's backend) |
+| Other radar products, and radar fallback | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) |
+| Watches, warnings, storm motion | [api.weather.gov](https://www.weather.gov/documentation/services-web-api) |
+| Convective outlook and hazard probabilities | [Storm Prediction Center](https://www.spc.noaa.gov) |
+| Local storm reports, NEXRAD storm-cell attributes | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) |
+| Tropical cyclones (positions, cone, track) | [National Hurricane Center](https://www.nhc.noaa.gov) + NOAA map services |
+| Lightning strike density | [NOAA nowCOAST](https://nowcoast.noaa.gov) |
+| HRRR forecast reflectivity (future radar) | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/GIS/model.phtml) |
+| GOES-East/West satellite imagery | [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api) |
+| Planetary Kp | [NOAA SWPC](https://www.swpc.noaa.gov) |
+| River discharge, stage, water temperature | [USGS Water Services](https://waterservices.usgs.gov) (OGC API fallback) |
+| River forecast points, flood stages and forecast crests | [NOAA National Water Prediction Service](https://water.noaa.gov) |
+| Forecaster notes (Area Forecast Discussion) | [api.weather.gov](https://www.weather.gov/documentation/services-web-api) |
+| Daily normals (1991–2020) and records | [NOAA ACIS](https://www.rcc-acis.org) (threaded NWS climate sites) |
+| Active wildfires | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) |
+| GNSS orbital elements | [CelesTrak](https://celestrak.org) |
+| Reverse geocoding | BigDataCloud free client API |
+| Forecast models you can pick (ECMWF, ECMWF AI, GFS, NBM, ICON, GEM, UK Met Office, Météo-France, JMA) | [Open-Meteo](https://open-meteo.com) |
+| Google forecast (each person's own key) | [Google Maps Platform Weather API](https://developers.google.com/maps/documentation/weather) |
 
 ## Keyboard shortcuts
 
