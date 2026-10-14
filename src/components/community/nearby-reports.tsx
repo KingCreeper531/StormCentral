@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useFeed } from "@/hooks/queries";
 import { useFormat } from "@/hooks/use-format";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
 import { EmptyState } from "../ui/misc";
@@ -14,6 +15,7 @@ import { PostCard } from "./post-card";
 const LG_COLS = ["", "", "lg:grid-cols-2", "lg:grid-cols-3"];
 
 export function NearbyReports({ now }: { now: number }) {
+  const t = useT();
   const loc = useAppStore((s) => s.location);
   const nearbyKm = Math.round(useAppStore((s) => s.radiusKm));
   const radius = useFormat().distanceKm(nearbyKm);
@@ -21,14 +23,14 @@ export function NearbyReports({ now }: { now: number }) {
   const posts = (feed.data?.pages[0]?.posts ?? []).slice(0, 3);
   return (
     <Panel
-      title="Reports near you"
-      subtitle={`Spotter network · within ${radius}`}
+      title={t("Reports near you")}
+      subtitle={t("Spotter network · within {radius}", { radius })}
       action={
         <Link
           href="/community"
           className="-my-1 inline-flex h-8 items-center gap-1 text-[13px] font-medium text-accent hover:underline pointer-coarse:min-h-11"
         >
-          All reports <ArrowRight className="size-3.5" aria-hidden />
+          {t("All reports")} <ArrowRight className="size-3.5" aria-hidden />
         </Link>
       }
     >
@@ -41,8 +43,8 @@ export function NearbyReports({ now }: { now: number }) {
           ))}
         </ul>
       ) : (
-        <EmptyState title={feed.isLoading ? "Loading reports…" : `No reports within ${radius} recently`}>
-          Reports posted near this location appear here and on the radar map.
+        <EmptyState title={feed.isLoading ? t("Loading reports…") : t("No reports within {radius} recently", { radius })}>
+          {t("Reports posted near this location appear here and on the radar map.")}
         </EmptyState>
       )}
     </Panel>

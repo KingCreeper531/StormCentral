@@ -69,7 +69,7 @@ function AppearancePanel({ onBrowse }: { onBrowse: () => void }) {
   const custom = useAddonsStore(selectActiveTheme);
   const t = useT();
   return (
-    <Panel title="Appearance">
+    <Panel title={t("Appearance")}>
       {/* Both words, so the row is findable whichever language is showing. */}
       <Row label={t.lang === "es" ? "Idioma" : "Language · Idioma"}>
         <Segmented<LangPref>
@@ -80,9 +80,9 @@ function AppearancePanel({ onBrowse }: { onBrowse: () => void }) {
           options={LANGS.map((l) => ({ value: l.id, label: l.id === "auto" ? t("Automatic") : l.label }))}
         />
       </Row>
-      <Row label="Mode">
+      <Row label={t("Mode")}>
         <Segmented<ThemePref>
-          ariaLabel="Theme"
+          ariaLabel={t("Theme")}
           stretch
           value={theme}
           onChange={setTheme}
@@ -91,7 +91,7 @@ function AppearancePanel({ onBrowse }: { onBrowse: () => void }) {
               value: "system",
               label: (
                 <span className="inline-flex items-center gap-1.5">
-                  <Monitor className="size-3.5" aria-hidden /> System
+                  <Monitor className="size-3.5" aria-hidden /> {t("System")}
                 </span>
               ),
             },
@@ -99,7 +99,7 @@ function AppearancePanel({ onBrowse }: { onBrowse: () => void }) {
               value: "light",
               label: (
                 <span className="inline-flex items-center gap-1.5">
-                  <Sun className="size-3.5" aria-hidden /> Light
+                  <Sun className="size-3.5" aria-hidden /> {t("Light")}
                 </span>
               ),
             },
@@ -107,7 +107,7 @@ function AppearancePanel({ onBrowse }: { onBrowse: () => void }) {
               value: "dark",
               label: (
                 <span className="inline-flex items-center gap-1.5">
-                  <Moon className="size-3.5" aria-hidden /> Dark
+                  <Moon className="size-3.5" aria-hidden /> {t("Dark")}
                 </span>
               ),
             },
@@ -117,12 +117,14 @@ function AppearancePanel({ onBrowse }: { onBrowse: () => void }) {
       <p className="label">
         {custom
           ? custom.followSun
-            ? `"${custom.name}" is light while the sun is up and dark at night.`
-            : `"${custom.name}" sets its own ${custom.base} mode while it's on.`
-          : "System follows your device's light or dark setting."}
+            ? t("\"{name}\" is light while the sun is up and dark at night.", { name: custom.name })
+            : custom.base === "light"
+              ? t("\"{name}\" sets its own light mode while it's on.", { name: custom.name })
+              : t("\"{name}\" sets its own dark mode while it's on.", { name: custom.name })
+          : t("System follows your device's light or dark setting.")}
       </p>
       <div className="mt-4 border-t border-line pt-4">
-        <p className="mb-2 text-sm text-ink">Color theme</p>
+        <p className="mb-2 text-sm text-ink">{t("Color theme")}</p>
         <ThemePicker onBrowse={onBrowse} />
       </div>
     </Panel>
@@ -135,36 +137,37 @@ function UnitsPanel() {
   const preset = presetOf(units);
   const [open, setOpen] = useState(false);
   const expanded = open || preset === "custom";
+  const t = useT();
   return (
-    <Panel title="Units" subtitle={preset === "custom" ? "Custom mix" : undefined}>
-      <Row label="System">
+    <Panel title={t("Units")} subtitle={preset === "custom" ? t("Custom mix") : undefined}>
+      <Row label={t("System")}>
         <Segmented<Preset>
-          ariaLabel="Unit system"
+          ariaLabel={t("Unit system")}
           stretch
           value={preset}
           onChange={(p) => p !== "custom" && setUnits(p)}
           options={[
-            { value: "imperial", label: "US" },
-            { value: "metric", label: "Metric" },
-            { value: "custom", label: "Custom", disabled: preset !== "custom" },
+            { value: "imperial", label: t("US") },
+            { value: "metric", label: t("Metric") },
+            { value: "custom", label: t("Custom"), disabled: preset !== "custom" },
           ]}
         />
       </Row>
       {!expanded && (
         <button type="button" onClick={() => setOpen(true)} className="inline-flex items-center gap-1 text-xs text-ink-2 underline-offset-2 hover:underline">
-          Set each unit separately <ChevronDown className="size-3.5" aria-hidden />
+          {t("Set each unit separately")} <ChevronDown className="size-3.5" aria-hidden />
         </button>
       )}
       <div className={cn("divide-y divide-line border-t border-line", !expanded && "hidden")}>
         {UNIT_ROWS.map((r) => (
-          <Row key={r.key} label={r.label}>
+          <Row key={r.key} label={t(r.label)}>
             <Segmented
-              ariaLabel={r.label}
+              ariaLabel={t(r.label)}
               size="sm"
               stretch
               value={units[r.key] as string}
               onChange={(v) => setUnits({ [r.key]: v } as Partial<UnitPrefs>)}
-              options={r.options}
+              options={r.options.map((o) => ({ ...o, label: t(o.label) }))}
             />
           </Row>
         ))}
@@ -224,6 +227,7 @@ function UpdatesPanel() {
   const [check, setCheck] = useState<Check>({ kind: "idle" });
   const inApp = useInAppUpdates(host);
   const [installText, setInstallText] = useState<string | null>(null);
+  const t = useT();
 
   useEffect(() => {
     let live = true;
@@ -271,70 +275,76 @@ function UpdatesPanel() {
   const legacyDesktop = host === "desktop" && !desktopBridge()?.checkForUpdates;
 
   return (
-    <Panel title="Updates" subtitle={version ? `Storm Central ${version}` : undefined}>
+    <Panel title={t("Updates")} subtitle={version ? `Storm Central ${version}` : undefined}>
       <div className="flex flex-wrap items-center gap-3">
         {check.kind === "ready" ? (
           <Button variant="primary" onClick={() => void desktopBridge()?.installUpdate?.()}>
             <Download className="size-4" aria-hidden />
-            Restart to install {check.latest}
+            {t("Restart to install {version}", { version: check.latest ?? "" })}
           </Button>
         ) : check.kind === "available" && inApp.available ? (
           <UpdateButton version={check.update.version} size="md" onStatus={setInstallText} />
         ) : check.kind === "available" ? (
           <a href={check.update.apkUrl} className={buttonClass("primary")}>
             <Download className="size-4" aria-hidden />
-            Download {check.update.version}
+            {t("Download {version}", { version: check.update.version })}
           </a>
         ) : check.kind === "store" ? null : legacyDesktop ? (
           <a href={releases} target="_blank" rel="noreferrer" className={buttonClass("secondary")}>
-            Open the Releases page
+            {t("Open the Releases page")}
           </a>
         ) : (
           <Button onClick={() => void run()} disabled={check.kind === "checking" || check.kind === "downloading"}>
             <RefreshCw className={check.kind === "checking" ? "size-4 animate-spin" : "size-4"} aria-hidden />
-            {check.kind === "checking" ? "Checking" : "Check for updates"}
+            {check.kind === "checking" ? t("Checking") : t("Check for updates")}
           </Button>
         )}
         <p role="status" className="text-sm text-ink-2">
-          {check.kind === "current" && "You have the latest version."}
-          {check.kind === "store" && "This copy updates through the Microsoft Store, which installs new versions automatically."}
-          {check.kind === "downloading" && `Downloading ${check.latest ?? "the update"}. You'll be asked to restart when it's ready.`}
-          {check.kind === "ready" && "The update is downloaded."}
+          {check.kind === "current" && t("You have the latest version.")}
+          {check.kind === "store" && t("This copy updates through the Microsoft Store, which installs new versions automatically.")}
+          {check.kind === "downloading" &&
+            (check.latest
+              ? t("Downloading {version}. You'll be asked to restart when it's ready.", { version: check.latest })
+              : t("Downloading the update. You'll be asked to restart when it's ready."))}
+          {check.kind === "ready" && t("The update is downloaded.")}
           {check.kind === "available" &&
-            (installText ?? (inApp.available ? `Version ${check.update.version} is available. Your settings stay.` : `Version ${check.update.version} is available. Install it over this one; your settings stay.`))}
-          {check.kind === "error" && "Couldn't reach GitHub. Check your connection and try again."}
+            (installText ??
+              (inApp.available
+                ? t("Version {version} is available. Your settings stay.", { version: check.update.version })
+                : t("Version {version} is available. Install it over this one; your settings stay.", { version: check.update.version })))}
+          {check.kind === "error" && t("Couldn't reach GitHub. Check your connection and try again.")}
         </p>
       </div>
       {inApp.available && inApp.status && (
         <div className="mt-3 border-t border-line pt-1">
-          <Toggle label="Install updates automatically" checked={inApp.status.auto} onChange={inApp.setAuto} />
+          <Toggle label={t("Install updates automatically")} checked={inApp.status.auto} onChange={inApp.setAuto} />
           <p className="label">
             {inApp.status.auto
               ? inApp.status.silent
-                ? "New versions install in the background while you're not using the app."
-                : "New versions download in the background; Android asks you to tap Install. After the first in-app update, Android 12 and newer install them without asking."
-              : "You'll get a notification when a new version is out."}
+                ? t("New versions install in the background while you're not using the app.")
+                : t("New versions download in the background; Android asks you to tap Install. After the first in-app update, Android 12 and newer install them without asking.")
+              : t("You'll get a notification when a new version is out.")}
           </p>
           {inApp.status.state === "failed" && inApp.status.error && <p className="mt-1 text-xs text-nogo">{inApp.status.error}</p>}
         </div>
       )}
       <p className="label mt-3">
         {host === "desktop" && check.kind === "store"
-          ? "Microsoft Store apps update in the background."
+          ? t("Microsoft Store apps update in the background.")
           : host === "desktop"
-          ? "The app also checks on its own when it starts and every few hours."
+          ? t("The app also checks on its own when it starts and every few hours.")
           : inApp.available
-            ? "The app checks every few hours, and when it opens."
-            : "The app also checks when it opens and shows a notice when a new version is out."}
+            ? t("The app checks every few hours, and when it opens.")
+            : t("The app also checks when it opens and shows a notice when a new version is out.")}
       </p>
     </Panel>
   );
 }
 
 /** Readable zone name: "Central Daylight Time (America/Chicago)". */
-function zoneLabel(tz: string) {
+function zoneLabel(tz: string, locale?: string) {
   try {
-    const long = new Intl.DateTimeFormat(undefined, { timeZone: tz, timeZoneName: "long" }).formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value;
+    const long = new Intl.DateTimeFormat(locale, { timeZone: tz, timeZoneName: "long" }).formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value;
     return long ? `${long} (${tz.replaceAll("_", " ")})` : tz;
   } catch {
     return tz;
@@ -351,43 +361,49 @@ function TimePanel() {
   const forecast = useForecast();
   const placeZone = forecast.data?.timezone ?? null;
   const device = useSyncExternalStore(noSubscribe, deviceZone, () => null);
+  const t = useT();
+  const zone = (tz: string) => zoneLabel(tz, t.locale);
   // A fixed afternoon time, to show the clock style.
-  const sample = new Intl.DateTimeFormat(undefined, {
+  const sample = new Intl.DateTimeFormat(t.locale, {
     hour: "numeric",
     minute: "2-digit",
     ...(clock !== "auto" && { hourCycle: clock === "12" ? "h12" : "h23" }),
   }).format(new Date(2026, 0, 1, 15, 30));
 
   let note: string;
-  if (zoneMode === "device") note = device ? `Always ${zoneLabel(device)}, this device's zone.` : "Always this device's zone.";
-  else if (!placeZone) note = location.source === "gps" && device ? `Using ${zoneLabel(device)} until your location's forecast loads.` : "Times follow the zone of the place you're viewing.";
-  else if (location.source === "gps") note = `Detected from your location: ${zoneLabel(placeZone)}. It changes on its own when you cross into another zone.`;
-  else note = `Following ${location.name}: ${zoneLabel(placeZone)}. Turn on My location to use the zone you're in.`;
+  if (zoneMode === "device") note = device ? t("Always {zone}, this device's zone.", { zone: zone(device) }) : t("Always this device's zone.");
+  else if (!placeZone)
+    note =
+      location.source === "gps" && device
+        ? t("Using {zone} until your location's forecast loads.", { zone: zone(device) })
+        : t("Times follow the zone of the place you're viewing.");
+  else if (location.source === "gps") note = t("Detected from your location: {zone}. It changes on its own when you cross into another zone.", { zone: zone(placeZone) });
+  else note = t("Following {place}: {zone}. Turn on My location to use the zone you're in.", { place: location.name, zone: zone(placeZone) });
 
   return (
-    <Panel title="Time" subtitle={`Times look like ${sample}`}>
-      <Row label="Clock">
+    <Panel title={t("Time")} subtitle={t("Times look like {time}", { time: sample })}>
+      <Row label={t("Clock")}>
         <Segmented<ClockPref>
-          ariaLabel="Clock"
+          ariaLabel={t("Clock")}
           stretch
           value={clock}
           onChange={setClock}
           options={[
-            { value: "auto", label: "Automatic" },
-            { value: "12", label: "12-hour" },
-            { value: "24", label: "24-hour" },
+            { value: "auto", label: t("Automatic") },
+            { value: "12", label: t("12-hour") },
+            { value: "24", label: t("24-hour") },
           ]}
         />
       </Row>
-      <Row label="Time zone">
+      <Row label={t("Time zone")}>
         <Segmented<ZonePref>
-          ariaLabel="Time zone"
+          ariaLabel={t("Time zone")}
           stretch
           value={zoneMode}
           onChange={setZoneMode}
           options={[
-            { value: "auto", label: "Automatic" },
-            { value: "device", label: "This device" },
+            { value: "auto", label: t("Automatic") },
+            { value: "device", label: t("This device") },
           ]}
         />
       </Row>
@@ -401,13 +417,14 @@ function LocationPanel() {
   const follow = useAppStore((s) => s.followLocation);
   const setFollow = useAppStore((s) => s.setFollowLocation);
   const gps = useAppStore((s) => s.location.source === "gps");
+  const t = useT();
   return (
-    <Panel title="Location">
-      <Toggle label="Follow me as I move" checked={follow} onChange={setFollow} />
+    <Panel title={t("Location")}>
+      <Toggle label={t("Follow me as I move")} checked={follow} onChange={setFollow} />
       <p className="label mt-1">
         {gps
-          ? "With My location on, the forecast, warnings and town name update as you travel, about every 2 km."
-          : "Works when My location is selected: tap the search bar and choose Use my current location."}
+          ? t("With My location on, the forecast, warnings and town name update as you travel, about every 2 km.")
+          : t("Works when My location is selected: tap the search bar and choose Use my current location.")}
       </p>
     </Panel>
   );
@@ -418,6 +435,7 @@ function RadiusPanel() {
   const radiusKm = useAppStore((s) => s.radiusKm);
   const setRadiusKm = useAppStore((s) => s.setRadiusKm);
   const miles = useAppStore((s) => s.units.distance === "mi");
+  const t = useT();
   const options = miles
     ? RADIUS_MI.map((mi) => ({ value: Math.round(mi * 1.609344), label: `${mi} mi` }))
     : RADIUS_KM.map((km) => ({ value: km, label: `${km} km` }));
@@ -425,9 +443,9 @@ function RadiusPanel() {
   const current = options.reduce((best, o) => (Math.abs(o.value - radiusKm) < Math.abs(best.value - radiusKm) ? o : best)).value;
   const gaugeCap = miles ? `${Math.round(MAX_GAUGE_RADIUS_KM / 1.609344)} mi` : `${MAX_GAUGE_RADIUS_KM} km`;
   return (
-    <Panel title="Search radius" subtitle="How far to look for warnings, spotter reports and river gauges">
-      <Segmented<number> ariaLabel="Search radius" stretch size="sm" value={current} onChange={setRadiusKm} options={options} />
-      <p className="label mt-2">River gauges stop at {gaugeCap}.</p>
+    <Panel title={t("Search radius")} subtitle={t("How far to look for warnings, spotter reports and river gauges")}>
+      <Segmented<number> ariaLabel={t("Search radius")} stretch size="sm" value={current} onChange={setRadiusKm} options={options} />
+      <p className="label mt-2">{t("River gauges stop at {distance}.", { distance: gaugeCap })}</p>
     </Panel>
   );
 }
@@ -463,15 +481,16 @@ function openSection(s: Section) {
 }
 
 function SignedOutAccount() {
+  const t = useT();
   return (
     <Panel>
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
         <span className="grid size-9 shrink-0 place-items-center rounded-[var(--radius-control)] bg-surface-2 text-ink-2">
           <UserRound className="size-4" aria-hidden />
         </span>
-        <p className="min-w-0 flex-1 text-sm text-ink-2">Sign in to post spotter reports and set a profile picture, name and bio.</p>
+        <p className="min-w-0 flex-1 text-sm text-ink-2">{t("Sign in to post spotter reports and set a profile picture, name and bio.")}</p>
         <Link href="/login?next=%2Fsettings%23account" className={buttonClass("primary")}>
-          Sign in
+          {t("Sign in")}
         </Link>
       </div>
     </Panel>
@@ -484,19 +503,20 @@ export function AppSettings() {
   const section = useSyncExternalStore(subscribeHash, hashSection, () => "general" as Section);
   const host = useSyncExternalStore(noSubscribe, hostSnapshot, () => "web" as Host);
   const signedIn = !!useSession().data;
+  const t = useT();
   if (!hydrated) return <Skeleton className="h-96 w-full" />;
   const tabs = [
-    { value: "general" as const, label: "General" },
-    { value: "alerts" as const, label: "Alerts" },
-    { value: "account" as const, label: "Account" },
-    { value: "addons" as const, label: "Add-ons" },
-    ...(host === "web" ? [] : [{ value: "app" as const, label: "App" }]),
+    { value: "general" as const, label: t("General") },
+    { value: "alerts" as const, label: t("Alerts") },
+    { value: "account" as const, label: t("Account") },
+    { value: "addons" as const, label: t("Add-ons") },
+    ...(host === "web" ? [] : [{ value: "app" as const, label: t("App") }]),
   ];
-  const current = tabs.some((t) => t.value === section) ? section : "general";
+  const current = tabs.some((tab) => tab.value === section) ? section : "general";
   return (
     <div>
       <div className="-mx-4 mb-4 overflow-x-auto border-b border-line px-4 sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
-        <Tabs<Section> ariaLabel="Settings sections" items={tabs} value={current} onChange={openSection} className="gap-5" />
+        <Tabs<Section> ariaLabel={t("Settings sections")} items={tabs} value={current} onChange={openSection} className="gap-5" />
       </div>
       <div className="space-y-4" role="tabpanel">
         {current === "general" && (
@@ -510,7 +530,7 @@ export function AppSettings() {
         )}
         {current === "alerts" && (
           <>
-            <LinkRow href="/alerts" icon={<Bell className="size-4" aria-hidden />} title="Alerts and places" sub="Warning notifications, saved places and custom alerts" />
+            <LinkRow href="/alerts" icon={<Bell className="size-4" aria-hidden />} title={t("Alerts and places")} sub={t("Warning notifications, saved places and custom alerts")} />
             <WidgetPanel />
           </>
         )}
@@ -523,13 +543,13 @@ export function AppSettings() {
           </>
         )}
         <p className="text-xs text-ink-3">
-          Settings are saved on this device.{" "}
+          {t("Settings are saved on this device.")}{" "}
           <a href={`https://github.com/${GITHUB_REPO}/releases/latest`} target="_blank" rel="noreferrer" className="text-ink-2 underline-offset-2 hover:underline">
-            Latest version and release notes
+            {t("Latest version and release notes")}
           </a>
           {" · "}
           <Link href="/privacy" className="text-ink-2 underline-offset-2 hover:underline">
-            Privacy policy
+            {t("Privacy policy")}
           </Link>
         </p>
       </div>

@@ -9,6 +9,7 @@ import type { AlertsResponse } from "@/lib/api/types";
 import { checkRules, checkWarnings, widgetSnapshot, type EngineIO } from "@/lib/alerting/engine";
 import { checkActivity, checkBriefing, checkLightning, checkRainSoon, checkSpotterReports, checkStorms, type ExtrasIO } from "@/lib/alerting/extras";
 import type { ActivityItem, BlockedUserDto, FeedResponse } from "@/lib/community";
+import { translator, type Lang } from "@/lib/i18n/core";
 import { useLang } from "@/lib/i18n/use-t";
 import type { StormEtaResponse } from "@/lib/storm-eta";
 import { nativeAlerts, nativeAlertsAvailable } from "@/lib/native/storm-alerts";
@@ -81,13 +82,14 @@ export function useWatchConfig(): WatchConfig | null {
 }
 
 /** The widget snapshot for the selected location from whatever the app has loaded, with today's highlight. */
-export function buildWidget(qc: QueryClient, loc: AppLocation, unit: "F" | "C") {
+export function buildWidget(qc: QueryClient, loc: AppLocation, unit: "F" | "C", lang: Lang = "en") {
   const now = Date.now();
   const f = qc.getQueryData<Forecast>(qk.forecast(loc)) ?? null;
   const local = qc.getQueryData<AlertsResponse>(qk.localAlerts(loc))?.alerts ?? null;
   const climate = qc.getQueryData<ClimateResponse>(qk.climate(loc)) ?? null;
   const notes = qc.getQueryData<ForecasterNotesResponse>(qk.forecasterNotes(loc)) ?? null;
-  return widgetSnapshot({ id: CURRENT_PLACE_ID, name: loc.name, lat: loc.lat, lon: loc.lon }, unit, f, local, now, widgetNote(f, climate, notes, unit, now));
+  const note = widgetNote(f, climate, notes, unit, now, translator(lang));
+  return widgetSnapshot({ id: CURRENT_PLACE_ID, name: loc.name, lat: loc.lat, lon: loc.lon }, unit, f, local, now, note, lang);
 }
 
 /** Warning checks skip the current location unless the user asked to watch it. */
@@ -212,7 +214,7 @@ export function AlertWatcher() {
   useEffect(() => {
     if (!isNativeApp() || !cfg) return;
     const t = setTimeout(() => {
-      void syncRunner(cfg, buildWidget(qc, location, unit))
+      void syncRunner(cfg, buildWidget(qc, location, unit, cfg.lang ?? "en"))
         .catch(() => {})
         // Native notifications (0.4.3+): reschedule and check with the new settings.
         .then(() => (nativeAlertsAvailable() ? nativeAlerts.sync() : undefined))
@@ -254,7 +256,7 @@ export function AlertWatcher() {
       if (kind !== "forecast" && kind !== "climate" && kind !== "forecasterNotes") return;
       const loc = useAppStore.getState().location;
       if (!qc.getQueryData<Forecast>(qk.forecast(loc))) return;
-      void syncRunner(cfgRef.current, buildWidget(qc, loc, useAppStore.getState().units.temp)).catch(() => {});
+      void syncRunner(cfgRef.current, buildWidget(qc, loc, useAppStore.getState().units.temp, cfgRef.current.lang ?? "en")).catch(() => {});
     });
   }, [qc]);
 

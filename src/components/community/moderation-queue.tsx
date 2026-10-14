@@ -5,22 +5,20 @@ import { Check, EyeOff, Loader2, ShieldX, UserX } from "lucide-react";
 import Link from "next/link";
 import { getJson } from "@/lib/api/http";
 import { FLAG_REASONS, suspensionText, type ModerationAction, type QueueItemDto } from "@/lib/community";
+import { useT } from "@/lib/i18n/use-t";
 import { timeAgo } from "@/lib/time";
 import { useNow } from "@/hooks/use-now";
 import { Button } from "../ui/button";
 import { EmptyState, ErrorNote, Skeleton } from "../ui/misc";
 import { Avatar } from "../ui/misc";
-import { sendJson } from "./moderation";
+import { errorText, sendJson } from "./moderation";
 
-const KIND = { post: "Report", comment: "Comment", user: "Account" } as const;
-const SUSPEND = [
-  { days: 1, label: "1 day" },
-  { days: 7, label: "7 days" },
-  { days: 30, label: "30 days" },
-  { days: 0, label: "Permanently" },
-] as const;
+/** "Weather report", not "Report": that key is the verb (Reportar). */
+const KIND = { post: "Weather report", comment: "Comment", user: "Account" } as const;
+const SUSPEND_DAYS = [1, 7, 30, 0] as const;
 
 function QueueItem({ item, now }: { item: QueueItemDto; now: number }) {
+  const t = useT();
   const qc = useQueryClient();
   const act = useMutation({
     mutationFn: (a: ModerationAction) => sendJson("/api/moderation", "POST", a),
@@ -33,16 +31,14 @@ function QueueItem({ item, now }: { item: QueueItemDto; now: number }) {
   const busy = act.isPending;
 
   return (
-    <article className="space-y-3 p-4 sm:px-5" aria-label={`${KIND[item.type]} by ${a.displayName}`}>
+    <article className="space-y-3 p-4 sm:px-5" aria-label={t("{kind} by {name}", { kind: t(KIND[item.type]), name: a.displayName })}>
       <header className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-3">
-        <span className="rounded-[4px] border border-line px-1.5 py-px text-[11px] font-medium text-ink-2">{KIND[item.type]}</span>
-        <span>
-          {item.flags.length} report{item.flags.length === 1 ? "" : "s"} · first {timeAgo(item.firstFlaggedAt, now)}
-        </span>
+        <span className="rounded-[4px] border border-line px-1.5 py-px text-[11px] font-medium text-ink-2">{t(KIND[item.type])}</span>
+        <span>{t.plural(item.flags.length, "{n} report · first {time}", "{n} reports · first {time}", { time: timeAgo(item.firstFlaggedAt, now, t) })}</span>
         {item.hidden && (
           <span className="inline-flex items-center gap-1 text-ink-2">
             <EyeOff className="size-3.5" aria-hidden />
-            Hidden until reviewed
+            {t("Hidden until reviewed")}
           </span>
         )}
       </header>
@@ -55,23 +51,23 @@ function QueueItem({ item, now }: { item: QueueItemDto; now: number }) {
               {a.displayName}
             </Link>{" "}
             <span className="text-ink-3">@{a.username}</span>
-            {item.createdAt != null && item.type !== "user" && <span className="text-xs text-ink-3"> · posted {timeAgo(item.createdAt, now)}</span>}
+            {item.createdAt != null && item.type !== "user" && <span className="text-xs text-ink-3"> · {t("posted {time}", { time: timeAgo(item.createdAt, now, t) })}</span>}
           </p>
-          {a.suspendedUntil != null && <p className="text-xs text-nogo">{suspensionText(a.suspendedUntil)}</p>}
+          {a.suspendedUntil != null && <p className="text-xs text-nogo">{suspensionText(a.suspendedUntil, t)}</p>}
           {item.body ? (
             <p className="mt-1 text-sm leading-relaxed break-words whitespace-pre-wrap text-ink">{item.body}</p>
           ) : (
-            item.type === "user" && <p className="mt-1 text-sm text-ink-3">No bio.</p>
+            item.type === "user" && <p className="mt-1 text-sm text-ink-3">{t("No bio.")}</p>
           )}
           {item.image && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.image} alt="Attached image" loading="lazy" className="mt-2 max-h-72 rounded-[var(--radius-control)] border border-line object-contain" />
+            <img src={item.image} alt={t("Attached image")} loading="lazy" className="mt-2 max-h-72 rounded-[var(--radius-control)] border border-line object-contain" />
           )}
         </div>
       </div>
 
       <div className="rounded-[var(--radius-control)] bg-surface-2 px-3 py-2 text-[13px]">
-        <p className="text-ink-2">{reasons.map(([r, n]) => `${FLAG_REASONS[r as keyof typeof FLAG_REASONS]}${n > 1 ? ` (${n})` : ""}`).join(" · ")}</p>
+        <p className="text-ink-2">{reasons.map(([r, n]) => `${t(FLAG_REASONS[r as keyof typeof FLAG_REASONS])}${n > 1 ? ` (${n})` : ""}`).join(" · ")}</p>
         {item.flags.some((f) => f.details) && (
           <ul className="mt-1.5 space-y-1">
             {item.flags
@@ -88,45 +84,57 @@ function QueueItem({ item, now }: { item: QueueItemDto; now: number }) {
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" onClick={() => act.mutate({ action: "keep", type: item.type, id: item.id })} disabled={busy}>
           <Check className="size-4" aria-hidden />
-          {item.type === "user" ? "Dismiss" : "Keep"}
+          {item.type === "user" ? t("Dismiss") : t("Keep")}
         </Button>
         {item.type !== "user" && (
           <Button
             size="sm"
             variant="danger"
-            onClick={() => confirm(`Delete this ${item.type === "post" ? "report" : "comment"} for everyone?`) && act.mutate({ action: "remove", type: item.type as "post" | "comment", id: item.id })}
+            onClick={() =>
+              confirm(item.type === "post" ? t("Delete this report for everyone?") : t("Delete this comment for everyone?")) &&
+              act.mutate({ action: "remove", type: item.type as "post" | "comment", id: item.id })
+            }
             disabled={busy}
           >
             <ShieldX className="size-4" aria-hidden />
-            Remove
+            {t("Remove")}
           </Button>
         )}
         {a.suspendedUntil != null ? (
           <Button size="sm" variant="ghost" onClick={() => act.mutate({ action: "unsuspend", username: a.username })} disabled={busy}>
-            Lift suspension
+            {t("Lift suspension")}
           </Button>
         ) : (
           <label className="inline-flex items-center gap-1.5 text-[13px] text-ink-2">
             <UserX className="size-4 text-ink-3" aria-hidden />
-            <span className="sr-only sm:not-sr-only">Suspend</span>
+            <span className="sr-only sm:not-sr-only">{t("Suspend")}</span>
             <select
-              aria-label={`Suspend ${a.displayName}`}
+              aria-label={t("Suspend {name}", { name: a.displayName })}
               value=""
               disabled={busy}
               onChange={(e) => {
                 const days = Number(e.target.value) as 1 | 7 | 30 | 0;
-                const label = SUSPEND.find((s) => s.days === days)?.label.toLowerCase();
-                if (confirm(`Suspend ${a.displayName} ${days === 0 ? "permanently" : `for ${label}`}? Their reports and comments are hidden while suspended.`))
+                const name = a.displayName;
+                const question =
+                  days === 0
+                    ? t("Suspend {name} permanently? Their reports and comments are hidden while suspended.", { name })
+                    : t.plural(
+                        days,
+                        "Suspend {name} for {n} day? Their reports and comments are hidden while suspended.",
+                        "Suspend {name} for {n} days? Their reports and comments are hidden while suspended.",
+                        { name },
+                      );
+                if (confirm(question))
                   act.mutate({ action: "suspend", username: a.username, days });
               }}
               className="h-8 rounded-[var(--radius-control)] border border-line bg-surface-2 px-2 text-[13px] text-ink pointer-coarse:h-11"
             >
               <option value="" disabled>
-                Choose…
+                {t("Choose…")}
               </option>
-              {SUSPEND.map((s) => (
-                <option key={s.days} value={s.days}>
-                  {s.label}
+              {SUSPEND_DAYS.map((d) => (
+                <option key={d} value={d}>
+                  {d === 0 ? t("Permanently") : t.plural(d, "{n} day", "{n} days")}
                 </option>
               ))}
             </select>
@@ -136,7 +144,7 @@ function QueueItem({ item, now }: { item: QueueItemDto; now: number }) {
       </div>
       {act.error && (
         <p role="alert" className="text-xs text-ink-2">
-          {(act.error as Error).message}
+          {errorText(t, (act.error as Error).message)}
         </p>
       )}
     </article>
@@ -145,6 +153,7 @@ function QueueItem({ item, now }: { item: QueueItemDto; now: number }) {
 
 /** Everything with open reports, oldest first, with the actions a moderator can take. */
 export function ModerationQueue() {
+  const t = useT();
   const now = useNow(60_000);
   const queue = useQuery({
     queryKey: ["moderation"],
@@ -163,13 +172,13 @@ export function ModerationQueue() {
   if (!items.length)
     return (
       <div className="surface">
-        <EmptyState title="Nothing to review">
-          <p>Reported content and accounts show up here.</p>
+        <EmptyState title={t("Nothing to review")}>
+          <p>{t("Reported content and accounts show up here.")}</p>
         </EmptyState>
       </div>
     );
   return (
-    <section className="surface divide-y divide-line overflow-hidden" aria-label="Moderation queue">
+    <section className="surface divide-y divide-line overflow-hidden" aria-label={t("Moderation queue")}>
       {items.map((item) => (
         <QueueItem key={`${item.type}:${item.id}`} item={item} now={now} />
       ))}

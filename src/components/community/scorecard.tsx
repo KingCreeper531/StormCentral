@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { getJson } from "@/lib/api/http";
 import { CATEGORIES, SEVERITY_LABELS } from "@/lib/community";
+import type { Translator } from "@/lib/i18n/core";
+import { useT } from "@/lib/i18n/use-t";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
 import {
   DEFAULT_WINDOW,
@@ -52,35 +54,38 @@ function Swatch({ color }: { color: string }) {
 }
 
 function Overall({ data }: { data: ScorecardSummary }) {
+  const t = useT();
   const { overall } = data;
   const withoutData = overall.reports - overall.scored;
   return (
-    <Panel title="Overall" subtitle={`Last ${data.days} days`}>
+    <Panel title={t("Overall")} subtitle={t("Last {n} days", { n: data.days })}>
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] sm:gap-6">
         <div className="min-w-0">
           <p className="flex items-baseline gap-1">
             <span className="text-5xl font-light tracking-tight text-ink tabular">{overall.hitRate == null ? "—" : Math.round(overall.hitRate * 100)}</span>
             <span className="text-lg text-ink-3">%</span>
           </p>
-          <p className="label mt-0.5">Hit rate</p>
-          <Meter value={(overall.hitRate ?? 0) * 100} color={RATE_COLOR} ticks={[25, 50, 75]} label="Overall hit rate" className="mt-2" />
+          <p className="label mt-0.5">{t("Hit rate")}</p>
+          <Meter value={(overall.hitRate ?? 0) * 100} color={RATE_COLOR} ticks={[25, 50, 75]} label={t("Overall hit rate")} className="mt-2" />
         </div>
         <div className="grid grid-cols-3 content-start gap-4">
-          <Stat label="Scored" value={overall.scored} />
-          <Stat label="Hits" value={overall.hits} />
-          <Stat label="Misses" value={overall.scored - overall.hits} />
+          <Stat label={t("Scored")} value={overall.scored} />
+          <Stat label={t("Hits")} value={overall.hits} />
+          <Stat label={t("Misses")} value={overall.scored - overall.hits} />
         </div>
       </div>
       <div className="mt-4 space-y-1.5 border-t border-line pt-3 text-xs leading-relaxed text-ink-3">
         <p>
-          Each report is checked against the forecast model&apos;s conditions at that place when it was posted. It counts as a hit when the model
-          showed the reported weather, such as thunderstorms for hail or strong gusts for wind damage.
+          {t(
+            "Each report is checked against the forecast model's conditions at that place when it was posted. It counts as a hit when the model showed the reported weather, such as thunderstorms for hail or strong gusts for wind damage.",
+          )}
         </p>
         {(data.unscoredReports > 0 || withoutData > 0) && (
           <p className="tabular">
             {[
-              data.unscoredReports > 0 && `${data.unscoredReports} ${data.unscoredReports === 1 ? "observation or sky photo" : "observations and sky photos"} not scored.`,
-              withoutData > 0 && `${withoutData} ${withoutData === 1 ? "report has" : "reports have"} no forecast data.`,
+              data.unscoredReports > 0 &&
+                t.plural(data.unscoredReports, "{n} observation or sky photo not scored.", "{n} observations and sky photos not scored."),
+              withoutData > 0 && t.plural(withoutData, "{n} report has no forecast data.", "{n} reports have no forecast data."),
             ]
               .filter(Boolean)
               .join(" ")}
@@ -92,39 +97,41 @@ function Overall({ data }: { data: ScorecardSummary }) {
 }
 
 function CategoryRow({ c }: { c: CategoryScore }) {
+  const t = useT();
   const cat = CATEGORIES[c.category];
-  const detail = c.reports === 0 ? "No reports" : c.scored === 0 ? "No forecast data" : `${c.hits} of ${c.scored}`;
+  const detail = c.reports === 0 ? t("No reports") : c.scored === 0 ? t("No forecast data") : t("{hits} of {scored}", { hits: c.hits, scored: c.scored });
   return (
     <li className="py-2.5">
       <div className="flex items-baseline justify-between gap-4">
         <span className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-ink">
           <Swatch color={cat.color} />
-          <span className="truncate">{cat.label}</span>
+          <span className="truncate">{t(cat.label)}</span>
         </span>
         <span className={cn("shrink-0 text-[13px] font-medium tabular", c.hitRate == null ? "text-ink-3" : "text-ink")}>{pct(c.hitRate)}</span>
       </div>
       <div className="mt-0.5 flex items-baseline justify-between gap-4 text-xs text-ink-3">
-        <span className="min-w-0 truncate">{HIT_RULE[c.category]}</span>
+        <span className="min-w-0 truncate">{t(HIT_RULE[c.category])}</span>
         <span className="shrink-0 tabular">{detail}</span>
       </div>
-      {c.hitRate != null && <Meter value={c.hitRate * 100} color={RATE_COLOR} label={`${cat.label} hit rate`} className="mt-2" />}
+      {c.hitRate != null && <Meter value={c.hitRate * 100} color={RATE_COLOR} label={t("{category} hit rate", { category: t(cat.label) })} className="mt-2" />}
     </li>
   );
 }
 
 /** What the model showed, in the viewer's units: "Overcast, 18°C, gust 25 km/h". */
-function modelText(m: ModelSnapshot, fmt: ReturnType<typeof useFormat>) {
+function modelText(m: ModelSnapshot, fmt: ReturnType<typeof useFormat>, t: Translator) {
   const parts: string[] = [];
-  if (m.code != null) parts.push(describeCode(m.code).label);
+  if (m.code != null) parts.push(t(describeCode(m.code).label));
   if (m.tempC != null) parts.push(fmt.temp(m.tempC, true));
-  if (m.windMs != null) parts.push(`wind ${fmt.wind(m.windMs)}`);
-  if (m.gustMs != null) parts.push(`gust ${fmt.wind(m.gustMs)}`);
-  if (m.precipMm != null) parts.push(`${fmt.precip(m.precipMm)} precipitation`);
-  if (m.precipProb != null) parts.push(`${Math.round(m.precipProb)}% chance of precipitation`);
-  return parts.join(", ") || "No details";
+  if (m.windMs != null) parts.push(t("wind {speed}", { speed: fmt.wind(m.windMs) }));
+  if (m.gustMs != null) parts.push(t("gust {speed}", { speed: fmt.wind(m.gustMs) }));
+  if (m.precipMm != null) parts.push(t("{amount} precipitation", { amount: fmt.precip(m.precipMm) }));
+  if (m.precipProb != null) parts.push(t("{pct}% chance of precipitation", { pct: Math.round(m.precipProb) }));
+  return parts.join(", ") || t("No details");
 }
 
 function MissRow({ m, now, fmt }: { m: ScorecardMiss; now: number; fmt: ReturnType<typeof useFormat> }) {
+  const t = useT();
   const cat = CATEGORIES[m.category];
   const swatch = SEVERITY_SWATCH[m.severity] ?? null;
   return (
@@ -133,26 +140,26 @@ function MissRow({ m, now, fmt }: { m: ScorecardMiss; now: number; fmt: ReturnTy
         <span className="flex min-w-0 items-center gap-2">
           <span className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-ink">
             <Swatch color={cat.color} />
-            <span className="truncate">{cat.label}</span>
+            <span className="truncate">{t(cat.label)}</span>
           </span>
           <span className={cn(CHIP, "shrink-0", m.severity >= 3 && "text-ink")}>
             {swatch && <Swatch color={swatch} />}
-            {SEVERITY_LABELS[m.severity]}
+            {t(SEVERITY_LABELS[m.severity] ?? "")}
           </span>
         </span>
         <time dateTime={new Date(m.createdAt).toISOString()} className="shrink-0 text-xs text-ink-3 tabular">
-          {timeAgo(m.createdAt, now)}
+          {timeAgo(m.createdAt, now, t)}
         </time>
       </div>
       <p className="mt-0.5 flex min-w-0 items-baseline gap-1.5 text-xs whitespace-nowrap text-ink-3">
-        <span className="min-w-0 truncate">{m.place || "Unnamed place"}</span>
+        <span className="min-w-0 truncate">{m.place || t("Unnamed place")}</span>
         <Link href={`/u/${m.username}`} className="shrink-0 text-ink-2 hover:underline">
           @{m.username}
         </Link>
       </p>
       <p className="mt-0.5 text-xs text-ink-2">
-        <span className="text-ink-3">Model showed </span>
-        {modelText(m.model, fmt)}
+        <span className="text-ink-3">{t("Model showed")} </span>
+        {modelText(m.model, fmt, t)}
       </p>
     </li>
   );
@@ -180,6 +187,7 @@ function LoadingState() {
 
 /** Forecast vs. reality: hit rates of the forecast model against spotter reports. */
 export function Scorecard() {
+  const t = useT();
   const [days, setDays] = useState<ScorecardWindow>(DEFAULT_WINDOW);
   const q = useScorecard(days);
   const now = useNow(60_000);
@@ -190,12 +198,12 @@ export function Scorecard() {
   return (
     <div className="space-y-4">
       <Segmented<ScorecardWindow>
-        ariaLabel="Time window"
+        ariaLabel={t("Time window")}
         value={days}
         onChange={setDays}
         stretch
         className="sm:w-72"
-        options={SCORECARD_WINDOWS.map((d) => ({ value: d, label: `${d} days` }))}
+        options={SCORECARD_WINDOWS.map((d) => ({ value: d, label: t.plural(d, "{n} day", "{n} days") }))}
       />
 
       {q.isLoading && <LoadingState />}
@@ -209,10 +217,10 @@ export function Scorecard() {
         <div className={cn("space-y-4 transition-opacity", q.isPlaceholderData && "opacity-60")} aria-busy={q.isPlaceholderData}>
           {!enough ? (
             <Panel>
-              <EmptyState icon={<BarChart3 className="size-5 text-ink-3" aria-hidden />} title="Not enough reports with forecast data yet">
+              <EmptyState icon={<BarChart3 className="size-5 text-ink-3" aria-hidden />} title={t("Not enough reports with forecast data yet")}>
                 <p>
-                  The scorecard needs at least {MIN_SCORED} scored reports in the last {data.days} days.
-                  {data.days < 90 && " Try a longer window."}
+                  {t("The scorecard needs at least {min} scored reports in the last {n} days.", { min: MIN_SCORED, n: data.days })}
+                  {data.days < 90 && ` ${t("Try a longer window.")}`}
                 </p>
               </EmptyState>
             </Panel>
@@ -220,7 +228,7 @@ export function Scorecard() {
             <>
               <Overall data={data} />
 
-              <Panel title="By report type" subtitle="Share of scored reports where the model showed that weather">
+              <Panel title={t("By report type")} subtitle={t("Share of scored reports where the model showed that weather")}>
                 <ul className="-my-2.5 divide-y divide-line">
                   {data.categories.map((c) => (
                     <CategoryRow key={c.category} c={c} />
@@ -228,7 +236,7 @@ export function Scorecard() {
                 </ul>
               </Panel>
 
-              <Panel title="Recent misses" subtitle="Significant and dangerous reports the model didn't show">
+              <Panel title={t("Recent misses")} subtitle={t("Significant and dangerous reports the model didn't show")}>
                 {data.misses.length ? (
                   <ul className="-my-2.5 divide-y divide-line">
                     {data.misses.map((m) => (
@@ -236,7 +244,7 @@ export function Scorecard() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-[13px] text-ink-3">No significant reports were missed in this window.</p>
+                  <p className="text-[13px] text-ink-3">{t("No significant reports were missed in this window.")}</p>
                 )}
               </Panel>
             </>
