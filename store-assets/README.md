@@ -13,3 +13,5 @@ Upload these in Partner Center → the Storm Central submission → Store listin
 | Trailers → thumbnail (1920×1080) | `trailer-thumbnail-1920x1080.png` |
 
 Screenshots are from the live site (storm-central-pi.vercel.app) with real weather for Oklahoma City.
+
+Spanish (Mexico) versions are in [`es/`](es/).
