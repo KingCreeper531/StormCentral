@@ -29,6 +29,10 @@ on:
         description: Publish a release for the version in package.json
         type: boolean
         default: false
+      store_package:
+        description: Also build the Microsoft Store package (MSIX); untick to leave the Store on the current version
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -127,6 +131,8 @@ jobs:
           MSIX_IDENTITY_NAME: ${{ vars.MSIX_IDENTITY_NAME }}
           MSIX_PUBLISHER: ${{ vars.MSIX_PUBLISHER }}
           MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.MSIX_PUBLISHER_DISPLAY_NAME }}
+          # "Run workflow" with the Store package unticked skips it (the Store keeps its current version).
+          SKIP_MSIX: ${{ github.event_name == 'workflow_dispatch' && !inputs.store_package && '1' || '' }}
       - uses: actions/upload-artifact@v4
         with:
           name: windows
