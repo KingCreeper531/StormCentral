@@ -10,7 +10,7 @@ no build step. It's separate from the web app, which stays a Next.js project.
 | `styles.css` | The app's design tokens (docs/DESIGN.md) and the page's layout and motion |
 | `main.js` | Smooth scrolling, the hero radar, scroll effects, the trailer, and download links from the latest GitHub release |
 | `vendor/` | [Lenis](https://github.com/darkroomengineering/lenis) 1.3.26 (smooth scrolling) and [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) 2.0.4, both MIT |
-| `assets/` | Icon, screenshots (WebP, from `store-assets/`), trailer, social card |
+| `assets/` | Icon, screenshots (WebP, from `store-assets/`), the trailer (the version without music; it autoplays muted while on screen), social card |
 | `vercel.json` | Headers, caching and short links: `/app`, `/windows`, `/github`, `/privacy` |
 
 The download buttons fill themselves in from the latest GitHub release (version,
