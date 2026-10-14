@@ -157,6 +157,8 @@ export const SETTINGS: Record<string, string> = {
   "Community-made; check the repository before installing.": "Hechos por la comunidad; revisa el repositorio antes de instalar.",
   "Searching GitHub": "Buscando en GitHub",
   "Nothing tagged yet. Be the first: add the topic to your repository.": "Aún no hay nada etiquetado. Sé el primero: agrega la etiqueta a tu repositorio.",
+  "Just tagged yours? GitHub can take a few minutes to list it.": "¿Acabas de etiquetar el tuyo? GitHub puede tardar unos minutos en mostrarlo.",
+  "Search again": "Buscar de nuevo",
   "Open on GitHub": "Abrir en GitHub",
   "Remove {name}": "Quitar {name}",
   "Choose what it shows": "Elige qué muestra",
