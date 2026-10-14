@@ -71,17 +71,17 @@ export function DroneMode() {
   const kpCurrent = kp.data?.current?.kp ?? null;
   const hours = useMemo(() => {
     if (!f) return [];
-    const kpAt = (t: number) => {
+    const kpAt = (at: number) => {
       let best: number | null = null;
-      for (const p of kpSeries ?? []) if (Date.parse(p.time) <= t) best = p.kp;
+      for (const p of kpSeries ?? []) if (Date.parse(p.time) <= at) best = p.kp;
       return best ?? kpCurrent;
     };
     return hourRange(f, now, 24).idx.map((i, k) => {
-      const t = f.hourly.time[i]! * 1000;
+      const time = f.hourly.time[i]! * 1000;
       // Hour 0 uses the same current reading the Kp panel shows, rounded like the display.
-      const kpRaw = k === 0 && kpCurrent != null ? kpCurrent : kpAt(t);
+      const kpRaw = k === 0 && kpCurrent != null ? kpCurrent : kpAt(time);
       const kpHour = kpRaw != null ? roundKp(kpRaw) : null;
-      const tl = skyTimeline?.find((s) => Math.abs(s.time - t) < 1_800_000);
+      const tl = skyTimeline?.find((s) => Math.abs(s.time - time) < 1_800_000);
       const { prof, atAlt, gustAtAlt, ceiling, result: scored } = flyabilityAt(f, i, {
         altitudeM,
         profile,
@@ -105,7 +105,7 @@ export function DroneMode() {
               : fa,
         ),
       };
-      return { i, t, prof, atAlt, gustAtAlt, ceiling, result };
+      return { i, t: time, prof, atAlt, gustAtAlt, ceiling, result };
     });
   }, [f, now, altitudeM, profile, kpSeries, kpCurrent, skyTimeline, loc.lat, loc.lon, fmt, t]);
 
@@ -184,7 +184,7 @@ export function DroneMode() {
                   sub={t("{n} h of go conditions", { n: best.length })}
                 />
               ) : (
-                <Stat label={t("Best window")} value={t("None")} sub={t("No go hours in the next 24 h")} />
+                <Stat label={t("Best window")} value={t("No window")} sub={t("No go hours in the next 24 h")} />
               )}
             </div>
           </div>

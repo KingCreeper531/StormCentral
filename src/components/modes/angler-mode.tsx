@@ -115,7 +115,7 @@ export function AnglerMode() {
 
       <PressurePanel f={f} now={now} className="lg:col-span-4" />
 
-      <Panel title={t("Water")} subtitle={model.waterTempIsEstimate ? t("Estimated") : t("Gauge reading")} className="lg:col-span-4">
+      <Panel title={t("Water")} subtitle={model.waterTempIsEstimate ? t("Estimated temperature") : t("Gauge reading")} className="lg:col-span-4">
         <p className="label">{t("Water temperature")}</p>
         <p className="mt-0.5 text-3xl font-light text-ink tabular">{model.waterTemp != null ? fmt.temp(model.waterTemp, true) : "—"}</p>
         <p className="mt-1 text-xs text-ink-3">

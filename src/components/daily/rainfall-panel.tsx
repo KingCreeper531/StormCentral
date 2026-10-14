@@ -79,7 +79,7 @@ function GaugeRow({ g }: { g: FloodGauge }) {
           <span aria-hidden>·</span>
           <span className="shrink-0">{fmt.distanceKm(g.distanceKm)}</span>
         </span>
-        {st?.minor != null && <span className="shrink-0">{t("Floods at {stage} {unit}", { stage: st.minor.toFixed(0), unit: g.stageUnit })}</span>}
+        {st?.minor != null && <span className="shrink-0">{t("Floods at {stage} {unit}", { stage: st.minor.toFixed(0), unit: g.stageUnit ?? "" })}</span>}
       </div>
       {ladder.length > 0 && (
         <div className="relative mt-1.5 h-1.5 w-full overflow-hidden rounded-[2px] bg-surface-3" role="meter" aria-label={t("{name} stage", { name: g.name })} aria-valuenow={obs.value} aria-valuemin={0} aria-valuemax={top}>
