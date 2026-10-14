@@ -171,21 +171,39 @@
   }
 
   // ── Trailer ────────────────────────────────────────────────────────────
+  //
+  // The trailer has no sound, so it plays by itself (muted, looping) while
+  // it's on screen and pauses when scrolled away; with reduced motion it
+  // waits for the play button. Pausing it yourself stops the autoplay.
 
   const video = $("#trailer-video");
   const videoBox = $("#video");
   const play = $("#video-play");
   if (video && play) {
+    let autoplay = !reduceMotion;
+    let ours = false; // a pause the page made, not the viewer
+    const pauseQuietly = () => {
+      ours = true;
+      video.pause();
+      ours = false;
+    };
     play.addEventListener("click", () => {
       video.controls = true;
       video.play().catch(() => {});
     });
     video.addEventListener("play", () => videoBox.classList.add("playing"));
-    video.addEventListener("pause", () => videoBox.classList.remove("playing"));
-    video.addEventListener("ended", () => videoBox.classList.remove("playing"));
-    // Pause when scrolled away.
+    video.addEventListener("pause", () => {
+      videoBox.classList.remove("playing");
+      if (!ours) autoplay = false;
+    });
     if ("IntersectionObserver" in window) {
-      new IntersectionObserver(([e]) => !e.isIntersecting && !video.paused && video.pause(), { threshold: 0.2 }).observe(video);
+      new IntersectionObserver(
+        ([e]) => {
+          if (e.intersectionRatio >= 0.5 && autoplay && video.paused) video.play().catch(() => {});
+          else if (e.intersectionRatio < 0.2 && !video.paused) pauseQuietly();
+        },
+        { threshold: [0, 0.2, 0.5] },
+      ).observe(video);
     }
   }
 
