@@ -261,17 +261,30 @@ export function radarLink(a: WeatherAlert): string | null {
   return `${SITE}/?mode=severe&lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}`;
 }
 
-/** Characters as X counts them: each link 23, everything else 1 (the text has no emoji). */
+/** X's weight-1 code point ranges (Latin, punctuation and the like); everything else, "…" and emoji included, counts 2. */
+const LIGHT: readonly [number, number][] = [
+  [0, 4351],
+  [8192, 8205],
+  [8208, 8223],
+  [8242, 8247],
+];
+
+/** Characters as X counts them: each link 23, then by code point (see LIGHT). */
 export function weightedLength(text: string): number {
-  return text.replace(/https?:\/\/\S+/g, "x".repeat(LINK_WEIGHT)).length;
+  let n = 0;
+  for (const ch of text.replace(/https?:\/\/\S+/g, "x".repeat(LINK_WEIGHT))) {
+    const cp = ch.codePointAt(0)!;
+    n += LIGHT.some(([lo, hi]) => cp >= lo && cp <= hi) ? 1 : 2;
+  }
+  return n;
 }
 
 /** The post: headline and place, what to expect, what to do, until when, tags and a radar link. Always ≤ 280. */
-export function composePost(c: Candidate): string {
+export function composePost(c: Candidate, { links = true }: { links?: boolean } = {}): string {
   const a = c.alert;
   const states = c.watchStates ?? c.states;
   const until = localTime(a.ends ?? a.expires, states);
-  const link = radarLink(a);
+  const link = links ? radarLink(a) : null;
   const tags = hashtags(states);
 
   if (c.vtec?.significance === "A") {
@@ -282,7 +295,7 @@ export function composePost(c: Candidate): string {
       c.level !== "normal" ? "This is a particularly dangerous situation." : "",
       a.event === "Tornado Watch" ? "Conditions are favorable for tornadoes. Be ready to act if a warning is issued." : "Conditions are favorable for severe storms with damaging wind and hail.",
       tags,
-      `${SITE}/?mode=severe`,
+      links ? `${SITE}/?mode=severe` : "",
     ];
     return fit(lines);
   }
@@ -310,5 +323,5 @@ function fit(lines: string[]): string {
     parts.splice(parts.length - 2, 1);
     text = parts.join("\n");
   }
-  return weightedLength(text) <= MAX_POST ? text : text.slice(0, MAX_POST - 1) + "…";
+  return weightedLength(text) <= MAX_POST ? text : text.slice(0, MAX_POST - 2) + "…";
 }

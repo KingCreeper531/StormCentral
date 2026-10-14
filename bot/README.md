@@ -25,13 +25,38 @@ Take shelter now if you are in the warned area.
 https://storm-central-pi.vercel.app/?mode=severe&lat=35.280&lon=-97.480
 ```
 
-The link opens Storm Central's radar centred on the storm. Warnings more than
+The link opens Storm Central's radar centred on the storm.
+
+**Morning outlook.** Once a day, when NOAA's Storm Prediction Center issues
+its morning Day 1 Convective Outlook (the 13Z outlook, out around 8:45 AM
+Eastern / 7:45 AM Central), it posts the day's highest risk with SPC's
+summary and the outlook map:
+
+```
+Today's severe weather outlook: Slight Risk (level 2 of 5)
+
+Thunderstorms with severe wind gusts and some tornado threat are possible this afternoon and evening across parts of the southern Plains.
+
+Source: NOAA Storm Prediction Center #severewx
+https://storm-central-pi.vercel.app/?mode=severe
+```
+
+Quiet days get a short "no severe storms expected" post. The map appears a
+few minutes after the text, so the bot waits for it (up to 20 minutes, then
+posts without it); an outlook more than 3 hours old is never posted. It
+doesn't count against the daily limit. Set the repository variable
+`BOT_OUTLOOK` to `false` to stop these. Warnings more than
 20 minutes old (watches: 60) are never posted, and the first run only notes
 what's already in effect instead of posting a backlog.
 
 **Limits.** At most 16 posts a day by default (about 500 a month, X's free API
 tier) and 4 per run; emergencies are always posted. Change the daily limit
 with the repository variable `BOT_DAILY_LIMIT` if your X plan allows more.
+
+**Cost.** On X's pay-per-use API, a post with a link costs much more than
+one without (about $0.20 against $0.015 at the time of writing; check the
+developer portal). Set the repository variable `BOT_LINKS` to `false` to
+post without the Storm Central links.
 
 ## Set up
 
@@ -63,4 +88,6 @@ adds the "Automated" label X asks bot accounts to show.
 - What was posted is remembered in the Actions cache (`bot/.state`), so
   nothing is posted twice across runs.
 - Code: `select.ts` (what to post and the wording, tested in
-  `select.test.ts`), `x-client.ts` (signed posting), `main.ts` (one run).
+  `select.test.ts`), `outlook.ts` (the morning outlook post, tested in
+  `outlook.test.ts`), `x-client.ts` (signed posting and image upload),
+  `main.ts` (one run).

@@ -66,18 +66,55 @@ export class XError extends Error {
 }
 
 const TWEETS = "https://api.x.com/2/tweets";
+const MEDIA = "https://api.x.com/2/media/upload";
 
-/** Posts the text; returns the new post's id. */
-export async function postToX(text: string, creds: XCredentials): Promise<string> {
-  const res = await fetch(TWEETS, {
-    method: "POST",
-    headers: { Authorization: authHeader("POST", TWEETS, creds), "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
-    signal: AbortSignal.timeout(20_000),
+/** A signed request to the X API (OAuth 1.0a; JSON and multipart bodies aren't part of the signature). */
+async function xRequest<T>(url: string, creds: XCredentials, body?: { json: unknown } | { form: FormData }): Promise<T> {
+  const headers: Record<string, string> = { Authorization: authHeader("POST", url, creds) };
+  let payload: string | FormData | undefined;
+  if (body && "json" in body) {
+    headers["Content-Type"] = "application/json";
+    payload = JSON.stringify(body.json);
+  } else if (body) payload = body.form;
+  const res = await fetch(url, { method: "POST", headers, body: payload, signal: AbortSignal.timeout(30_000) });
+  const text = await res.text();
+  let parsed: { detail?: string; title?: string; errors?: { message?: string }[] } = {};
+  try {
+    parsed = text ? JSON.parse(text) : {};
+  } catch {
+    // Not JSON (an empty or HTML error page): the status says enough.
+  }
+  if (!res.ok) throw new XError(`X ${res.status}: ${parsed.detail ?? parsed.errors?.[0]?.message ?? parsed.title ?? "request failed"}`, res.status);
+  return parsed as T;
+}
+
+/** Posts the text, with up to 4 uploaded images; returns the new post's id. */
+export async function postToX(text: string, creds: XCredentials, mediaIds: string[] = []): Promise<string> {
+  const body = await xRequest<{ data?: { id?: string } }>(TWEETS, creds, {
+    json: mediaIds.length ? { text, media: { media_ids: mediaIds } } : { text },
   });
-  const body = (await res.json().catch(() => ({}))) as { data?: { id?: string }; detail?: string; title?: string };
-  if (!res.ok || !body.data?.id) throw new XError(`X ${res.status}: ${body.detail ?? body.title ?? "post failed"}`, res.status);
+  if (!body.data?.id) throw new XError("X: post failed (no id)", 500);
   return body.data.id;
+}
+
+const CHUNK = 1 << 20;
+
+/** Uploads an image (initialize, append in 1 MB chunks, finalize); returns its media id for postToX. */
+export async function uploadImage(bytes: Uint8Array, mediaType: string, creds: XCredentials): Promise<string> {
+  const init = await xRequest<{ data?: { id?: string } }>(`${MEDIA}/initialize`, creds, {
+    json: { media_type: mediaType, total_bytes: bytes.length, media_category: "tweet_image" },
+  });
+  const id = init.data?.id;
+  if (!id) throw new XError("X media: no id", 500);
+  for (let at = 0, segment = 0; at < bytes.length; at += CHUNK, segment++) {
+    const form = new FormData();
+    form.append("segment_index", String(segment));
+    form.append("media", new Blob([bytes.slice(at, at + CHUNK)], { type: mediaType }), "media");
+    await xRequest(`${MEDIA}/${id}/append`, creds, { form });
+  }
+  // Images are ready once finalized (only video comes back with processing to wait for).
+  await xRequest(`${MEDIA}/${id}/finalize`, creds);
+  return id;
 }
 
 /** Credentials from the environment (GitHub Actions secrets), or null when any is missing. */
