@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="short.css" />
+<script src="vendor/d3-array.min.js"></script>
+<script src="vendor/d3-geo.min.js"></script>
+<script src="vendor/topojson-client.min.js"></script>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script src="common.js"></script>
+<script>
+/*
+ * The week ahead (33 s): SPC's next eight days, one at a time, then the most
+ * active day. DATA:
+ *   { states, logo, range: "Oct 18 – Oct 25",
+ *     days: [{ label: "Sun, Oct 18", short: "Sun", n: 1-8, code: "SLGT" | null, prob: 0 | 15 | 30,
+ *              level: 0-5, risk: "Slight Risk (2 of 5)", features }] }
+ */
+const { ctx, D, C, RISK_COLORS, PANEL, clamp, seg, easeOut, easeInOut, lerp, rr, text, fitSize } = SC;
+const map = SC.makeMap(SC.usProjection(), { source: "Source: NOAA Storm Prediction Center" });
+const LEVEL_COLORS = ["rgba(255,255,255,0.14)", ...Object.values(RISK_COLORS)];
+const PROB_FILL = { 15: "#FFE066", 30: "#FFA366" };
+const fillOf = (d, f) => (d.code ? f.properties.fill : PROB_FILL[Math.round(parseFloat(f.properties.LABEL) * (parseFloat(f.properties.LABEL) <= 1 ? 100 : 1))] ?? "#FFE066");
+const strokeOf = (d, f) => (d.code && f.properties.stroke ? f.properties.stroke : "rgba(255,255,255,0.55)");
+
+const DAY0 = 3.4, EACH = 2.4;
+const SUM0 = DAY0 + D.days.length * EACH + 0.2;
+const END = SUM0 + 4.6;
+const busiest = D.days.reduce((b, d) => (d.level > (b ? b.level : 0) ? d : b), null);
+const dayAt = (t) => (t < DAY0 ? -1 : t >= SUM0 ? (busiest ? D.days.indexOf(busiest) : -1) : Math.min(D.days.length - 1, Math.floor((t - DAY0) / EACH)));
+const dayAlpha = (t, i) => {
+  if (t >= SUM0 - 0.4) return i === dayAt(t) ? easeOut(seg(t, SUM0, SUM0 + 0.6)) : 1 - easeOut(seg(t, SUM0 - 0.4, SUM0));
+  const s = DAY0 + i * EACH;
+  return easeOut(seg(t, s, s + 0.45)) * (1 - easeOut(seg(t, s + EACH - 0.1, s + EACH + 0.35)));
+};
+const zoomFor = (d) => {
+  const shapes = d && d.features.features.filter((f) => !d.code || f.properties.LABEL !== "TSTM");
+  return shapes && shapes.length ? map.fit({ type: "FeatureCollection", features: shapes }, { frac: 0.7, maxK: 1.8 }) : map.home;
+};
+const busyZoom = zoomFor(busiest);
+
+function strip(t) {
+  const a = easeOut(seg(t, 3.0, 3.6));
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  const cur = dayAt(t), gap = 10, w = (PANEL.w - gap * (D.days.length - 1)) / D.days.length, y = PANEL.y;
+  D.days.forEach((d, i) => {
+    const x = PANEL.x + i * (w + gap), on = cur === i ? 1 : 0;
+    rr(x, y, w, 128, 18); ctx.fillStyle = on ? "rgba(91,156,246,0.22)" : "rgba(255,255,255,0.05)"; ctx.fill();
+    ctx.lineWidth = on ? 3 : 2; ctx.strokeStyle = on ? C.accent : C.line; ctx.stroke();
+    text(d.short, x + w / 2, y + 48, { size: 30, weight: 700, align: "center", color: on ? C.ink : C.ink2 });
+    const shown = t >= DAY0 + i * EACH + 0.3;
+    rr(x + 16, y + 76, w - 32, 22, 11); ctx.fillStyle = shown ? LEVEL_COLORS[d.level] : "rgba(255,255,255,0.08)"; ctx.fill();
+  });
+  ctx.restore();
+}
+
+function dayPanel(t) {
+  const i = dayAt(t);
+  if (i < 0 || t >= SUM0 - 0.4) return;
+  const d = D.days[i], a = dayAlpha(t, i);
+  ctx.save(); ctx.globalAlpha = a;
+  const y = PANEL.y + 150 + (1 - easeOut(seg(t, DAY0 + i * EACH, DAY0 + i * EACH + 0.45))) * 18;
+  text(`${d.label} · Day ${d.n}`, PANEL.x + 10, y + 44, { size: 36, weight: 600, color: C.ink2 });
+  const risk = d.level ? d.risk : d.n <= 3 ? "No severe risk" : "Low chance";
+  text(risk, PANEL.x + 10, y + 132, { size: fitSize(risk, PANEL.w - 20, 76, 800), weight: 800, color: d.level ? LEVEL_COLORS[d.level] : C.ink });
+  const note = d.n <= 3 ? "Storm Prediction Center risk level" : d.prob ? "Chance of severe storms within 25 miles" : "Severe storms unlikely or too uncertain";
+  text(note, PANEL.x + 10, y + 188, { size: 30, weight: 500, color: C.ink3 });
+  ctx.restore();
+}
+
+function summaryPanel(t) {
+  const a = easeOut(seg(t, SUM0, SUM0 + 0.6)) * (1 - easeOut(seg(t, END - 0.3, END)));
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  const y = PANEL.y + 150;
+  text(busiest ? "Most active day" : "The week ahead", PANEL.x + 10, y + 44, { size: 36, weight: 600, color: C.ink2 });
+  if (busiest) {
+    text(busiest.label, PANEL.x + 10, y + 128, { size: 72, weight: 800 });
+    text(busiest.risk, PANEL.x + 10, y + 190, { size: fitSize(busiest.risk, PANEL.w - 20, 44, 700), weight: 700, color: LEVEL_COLORS[busiest.level] });
+  } else {
+    text("A quiet week", PANEL.x + 10, y + 128, { size: 72, weight: 800 });
+    text("No severe weather in the outlook yet", PANEL.x + 10, y + 190, { size: 40, weight: 600, color: C.ink2 });
+  }
+  ctx.restore();
+}
+
+window.render = function (t) {
+  SC.background();
+  SC.introRadar(t);
+  const ma = easeOut(seg(t, 2.8, 3.6));
+  if (ma > 0) {
+    ctx.save(); ctx.globalAlpha = ma;
+    const z = easeInOut(seg(t, SUM0, SUM0 + 1.4)) * (1 - easeInOut(seg(t, END - 0.6, END)));
+    const cam = map.mix(map.home, busyZoom, z);
+    const layers = D.days.map((d, i) => ({
+      features: d.features.features, alpha: dayAlpha(t, i) * 0.9,
+      fill: (f) => fillOf(d, f), stroke: (f) => strokeOf(d, f),
+    }));
+    map.draw(cam, layers, (c) => map.cities(c, z * 1.4));
+    ctx.restore();
+  }
+  SC.header(t, { lines: ["The week", "ahead"], title: "Severe weather: week ahead", date: D.range });
+  strip(t); dayPanel(t); summaryPanel(t);
+  SC.endCard(t, END, "Follow for the week ahead every Sunday");
+};
+window.DUR = Math.ceil(END + 6);
+</script>
+</body>
+</html>
