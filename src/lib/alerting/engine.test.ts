@@ -5,6 +5,7 @@ import { alertCategory, alertMatchesLevel, checkRules, checkWarnings, widgetSnap
 import { clockAt, clockFromIso, dayKeyAt, hashId } from "./format";
 import { describeRule, firstHit, fromDisplay, toDisplay } from "./metrics";
 import type { AppNotification, WatchConfig } from "./types";
+import { translator } from "../i18n/core";
 
 const NOW = Date.parse("2026-05-20T21:00:00Z");
 
@@ -116,6 +117,14 @@ describe("warning types", () => {
     expect(alertCategory("Dense Fog Advisory")).toBe("other");
   });
 
+  it("words warnings in the configured language", async () => {
+    const tor = alert("tor", "Tornado Warning", { tags: ["PDS", "TORNADO POSSIBLE"], expires: "2026-05-20T16:45:00-05:00" });
+    const { io } = fakeIO({ "35.22": [tor] });
+    const [n] = (await checkWarnings({ ...cfg(), places: cfg().places.slice(0, 1), lang: "es" }, io)).sent;
+    expect(n!.title).toBe("Aviso de tornado: Norman, OK");
+    expect(n!.body).toMatch(/^Situación particularmente peligrosa\. Posible tornado\. Hasta las 4:45 p\. m\. /);
+  });
+
   it("skips muted types", async () => {
     const { io } = fakeIO({ "35.22": [alert("tor", "Tornado Warning"), alert("ff", "Flash Flood Warning")] });
     const c = cfg({ categories: { flood: false } });
@@ -160,6 +169,8 @@ describe("format and metrics", () => {
     expect(clockAt(NOW, -5 * 3600)).toBe("4 PM");
     expect(dayKeyAt(Date.parse("2026-05-21T03:00:00Z"), -5 * 3600)).toBe(dayKeyAt(NOW, -5 * 3600));
     expect(clockFromIso("2026-05-20T16:45:00-05:00")).toBe("4:45 PM");
+    expect(clockFromIso("2026-05-20T09:00:00-05:00", "es")).toBe("9 a. m.");
+    expect(clockFromIso("2026-05-20T21:00:00Z", "es")).toBe("9 p. m. UTC");
   });
 
   it("hashes to a positive 31-bit integer", () => {
@@ -175,6 +186,9 @@ describe("format and metrics", () => {
     expect(toDisplay("wind", fromDisplay("wind", 15, units), units)).toBeCloseTo(15);
     expect(describeRule("bite", "above", 70, units)).toBe("Bite index above 70");
     expect(describeRule("temp", "below", 0, units)).toBe("Temperature below 32°F");
+    const es = translator("es");
+    expect(describeRule("bite", "above", 70, units, es)).toBe("Índice de picada por encima de 70");
+    expect(describeRule("gust", "above", 17.9, { temp: "C", wind: "kmh" }, es)).toBe("Ráfagas de viento por encima de 64 km/h");
   });
 
   it("finds the first hour that meets a threshold", () => {

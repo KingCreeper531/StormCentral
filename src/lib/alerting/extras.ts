@@ -224,7 +224,8 @@ export function briefingText(f: Forecast, cfg: WatchConfig, now: number): string
   if (gust != null && gust >= 11) parts.push(tr(cfg, "Gusts to {wind}.", { wind: formatWind(gust, cfg.units.wind) }));
   const uv = d.uvMax[i];
   if (uv != null && uv >= 6) parts.push(tr(cfg, uv >= 8 ? "UV {uv} (very high)." : "UV {uv} (high).", { uv: Math.round(uv) }));
-  return parts.join(" ");
+  // Spanish clock times end in a period ("3 p. m."), so a sentence ending in one mustn't get a second.
+  return parts.map((p) => p.replace(/\.\.$/, ".")).join(" ");
 }
 
 /** Once a day, at or up to three hours after the chosen time on the device's clock. */
@@ -314,7 +315,7 @@ export function stormNotification(cfg: WatchConfig, place: SavedPlace, s: Incomi
       : (s.maxHailIn ?? 0) >= 1 || s.level === 2
         ? tr(cfg, "Hailstorm heading for {place}", vars)
         : tr(cfg, "Strong storm heading for {place}", vars);
-  const parts = [tr(cfg, "Arriving around {time} (in about {n} min).", { time, n: roundMinutes(n) })];
+  const parts = [tr(cfg, "Arriving around {time} (in about {n} min).", { time, n: roundMinutes(n) }).replace(/\.\.$/, ".")];
   if (s.maxHailIn && s.maxHailIn >= 0.5) {
     const size = imperial(cfg) ? `${Math.round(s.maxHailIn * 100) / 100} in` : `${Math.round(s.maxHailIn * 25.4)} mm`;
     parts.push(tr(cfg, "Hail up to {size} possible.", { size }));

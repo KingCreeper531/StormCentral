@@ -29,17 +29,19 @@ export function dayKeyAt(epochMs: number, utcOffsetSec: number): string {
 /**
  * Clock time from an ISO timestamp with its own offset ("2026-10-07T15:12:00-05:00"),
  * shown in that offset: NWS alert times carry the issuing office's local offset.
+ * "3:12 PM" (Spanish: "3:12 p. m.").
  */
-export function clockFromIso(iso: string): string {
+export function clockFromIso(iso: string, lang: "en" | "es" = "en"): string {
   const m = /T(\d{2}):(\d{2})/.exec(iso);
   const ms = Date.parse(iso);
   const off = /([+-])(\d{2}):?(\d{2})$/.exec(iso);
   if (m && off) {
     const h = Number(m[1]);
     const min = Number(m[2]);
-    return `${h % 12 === 0 ? 12 : h % 12}${min ? `:${m[2]}` : ""} ${h < 12 ? "AM" : "PM"}`;
+    const ampm = lang === "es" ? (h < 12 ? "a. m." : "p. m.") : h < 12 ? "AM" : "PM";
+    return `${h % 12 === 0 ? 12 : h % 12}${min ? `:${m[2]}` : ""} ${ampm}`;
   }
-  return Number.isFinite(ms) ? clockAt(ms, 0) + " UTC" : iso;
+  return Number.isFinite(ms) ? clockAt(ms, 0, lang) + " UTC" : iso;
 }
 
 export function formatTemp(c: number, unit: TempUnit): string {
