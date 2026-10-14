@@ -79,12 +79,13 @@ jobs:
         if: steps.go.outputs.go == 'true'
         with:
           node-version: 22
-      - name: Install the renderer (Chromium and ffmpeg)
+      - name: Install the renderer (Chromium, ffmpeg and the narrator's edge-tts)
         if: steps.go.outputs.go == 'true'
         run: |
           npm install --prefix "$RUNNER_TEMP/shorts" --no-audit --no-fund playwright-core@1.56.1
           "$RUNNER_TEMP/shorts/node_modules/.bin/playwright-core" install --with-deps chromium
           command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+          pipx install edge-tts==7.3.1 || echo "::warning::Couldn't install edge-tts; the Short will have no narration."
       - name: Build
         if: steps.go.outputs.go == 'true'
         run: npx --yes esbuild@0.28.2 shorts/main.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNNER_TEMP/shorts/shorts.mjs" --log-level=warning
@@ -100,6 +101,8 @@ jobs:
           SHORTS_PRIVACY: ${{ vars.SHORTS_PRIVACY || 'public' }}
           SHORTS_SKIP_QUIET: ${{ vars.SHORTS_SKIP_QUIET || 'false' }}
           SHORTS_PLAYLISTS: ${{ vars.SHORTS_PLAYLISTS || 'true' }}
+          SHORTS_VOICE: ${{ vars.SHORTS_VOICE || 'true' }}
+          SHORTS_VOICE_NAME: ${{ vars.SHORTS_VOICE_NAME || 'en-US-AndrewNeural' }}
           SHORTS_TROPICAL_MAX: ${{ vars.SHORTS_TROPICAL_MAX || '2' }}
         run: node "$RUNNER_TEMP/shorts/shorts.mjs"
       - uses: actions/upload-artifact@v4
