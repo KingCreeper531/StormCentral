@@ -1,6 +1,6 @@
 # Storm Central website
 
-The landing page for Storm Central's own domain: what the app does, a tour of
+The landing page at <https://www.stormcentralwx.com>: what the app does, a tour of
 each mode, the trailer, and download links. Plain HTML, CSS and JavaScript with
 no build step. It's separate from the web app, which stays a Next.js project.
 
@@ -30,8 +30,9 @@ Then open <http://localhost:4173>.
 1. Vercel → **Add New → Project** → import `KingCreeper531/StormCentral`.
 2. **Root Directory:** `website`. **Framework Preset:** Other. Leave the
    build and output settings empty. Deploy.
-3. In that project: **Settings → Domains** → add the domain (for example
-   `example.com`, and let Vercel add `www.example.com` redirecting to it).
+3. In that project, open **Domains** (in the project's menu, not under
+   Settings) and add `stormcentralwx.com`, keeping "Redirect apex domains to
+   www" ticked, so the site lives at `https://www.stormcentralwx.com`.
 4. Vercel lists the DNS records to create. At GoDaddy: **My Products →
    the domain → DNS → Manage DNS**:
    - the `A` record for `@` → the IP Vercel shows (remove GoDaddy's default
