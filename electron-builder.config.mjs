@@ -80,7 +80,8 @@ const config = {
     publisher: MSIX.publisher,
     publisherDisplayName: MSIX.publisherDisplayName,
     backgroundColor: "#0b1a33",
-    languages: ["en-US"],
+    // Spanish too, so the Store listing can have a Spanish page (the app follows the device language).
+    languages: ["en-US", "es-US", "es-MX"],
     showNameOnTiles: false,
     // Location for "Use my location"; network access is part of a full-trust desktop app.
     capabilities: ["internetClient", "location"],

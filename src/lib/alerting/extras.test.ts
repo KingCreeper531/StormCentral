@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Forecast } from "../api/open-meteo";
-import type { PostDto } from "../community";
-import { briefingText, checkBriefing, checkLightning, checkSpotterReports, parseBriefingTime, type ExtrasIO } from "./extras";
+import type { ActivityItem, PostDto } from "../community";
+import type { IncomingStorm } from "../storm-eta";
+import { briefingText, checkActivity, checkBriefing, checkLightning, checkRainSoon, checkSpotterReports, checkStorms, parseBriefingTime, type ExtrasIO } from "./extras";
 import type { AppNotification, WatchConfig } from "./types";
 
 const NOW = Date.UTC(2026, 9, 13, 13, 0); // 8 AM in Chicago (UTC-5)
@@ -138,5 +139,101 @@ describe("morning briefing", () => {
     expect(await checkBriefing(c, early.io)).toBeNull();
     const late = io({ localClock: () => ({ minutes: 10 * 60 + 1, day: "2026-10-13" }) });
     expect(await checkBriefing(c, late.io)).toBeNull();
+  });
+});
+
+describe("rain starting soon", () => {
+  const T = Math.floor(NOW / 1000 / 900) * 900; // slot boundary before NOW
+  const times = Array.from({ length: 12 }, (_, i) => T + (i + 1) * 900);
+  const wetFrom = (k: number) => times.map((_, i) => (i >= k ? 0.4 : 0));
+
+  it("notifies once per spell within the lead time, in Spanish when asked", async () => {
+    const { io: x, sent, kv } = io({ fetchNowcast: async () => ({ times, precip: wetFrom(2), tempC: 12 }) });
+    const c = cfg({ rain: { enabled: true, leadMin: 30 } }, { lang: "es" });
+    const n = await checkRainSoon(c, x);
+    expect(n?.title).toBe("Lluvia en unos 30 min");
+    expect(n?.body).toContain("Norman, OK");
+    expect(sent).toHaveLength(1);
+    // Ten minutes later: already announced.
+    kv.delete("rain-checked");
+    expect(await checkRainSoon(c, { ...x, now: () => NOW + 10 * 60_000 })).toBeNull();
+  });
+
+  it("stays quiet beyond the lead time, when dry, or already raining", async () => {
+    const run = async (precip: number[]) => {
+      const { io: x } = io({ fetchNowcast: async () => ({ times, precip, tempC: 12 }) });
+      return checkRainSoon(cfg({ rain: { enabled: true, leadMin: 15 } }), x);
+    };
+    expect(await run(wetFrom(6))).toBeNull();
+    expect(await run(times.map(() => 0))).toBeNull();
+    expect(await run(wetFrom(0))).toBeNull();
+  });
+});
+
+describe("storms heading your way", () => {
+  const storm = (over: Partial<IncomingStorm> = {}): IncomingStorm => ({
+    id: "TLX-A3",
+    etaMin: 22,
+    arrivesAt: NOW + 22 * 60_000,
+    level: 2,
+    distanceKm: 20,
+    headingDeg: 45,
+    speedKt: 30,
+    maxHailIn: 1.25,
+    maxDbz: 62,
+    tvs: null,
+    meso: null,
+    radar: "TLX",
+    stormId: "A3",
+    lat: 35.1,
+    lon: -97.6,
+    ...over,
+  });
+
+  it("announces the soonest storm per place once, with hail and motion", async () => {
+    const { io: x, sent } = io({ fetchIncomingStorms: async () => [storm()] });
+    const c = cfg({ storms: { enabled: true } });
+    const out = await checkStorms(c, x);
+    expect(out).toHaveLength(2); // current location and Home
+    expect(out[0]!.title).toBe("Hailstorm heading for Norman, OK");
+    expect(out[0]!.body).toMatch(/in about 20 min\)\. Hail up to 1\.25 in possible\. Moving northeast at 35 mph\./);
+    expect(await checkStorms(c, x)).toHaveLength(0);
+    expect(sent).toHaveLength(2);
+  });
+
+  it("calls out rotation", async () => {
+    const { io: x } = io({ fetchIncomingStorms: async () => [storm({ tvs: "TVS", level: 4 })] });
+    const [n] = await checkStorms(cfg({ storms: { enabled: true }, watchCurrent: true }), x);
+    expect(n!.title).toBe("Storm with rotation heading for Norman, OK");
+    expect(n!.body).toContain("tornado warning");
+  });
+});
+
+describe("activity on your reports", () => {
+  const item = (over: Partial<ActivityItem>): ActivityItem => ({
+    id: "c:1",
+    kind: "comment",
+    at: NOW - 60_000,
+    postId: "p1",
+    postPreview: "Hail in Moore",
+    actor: { username: "sam", displayName: "Sam" },
+    text: "Same here, quarter size",
+    ...over,
+  });
+
+  it("starts from the first run, then announces new confirmations and comments", async () => {
+    let since = 0;
+    const { io: x, sent } = io({
+      fetchActivity: async (s) => {
+        since = s;
+        return [item({}), item({ id: "v:p1:kim", kind: "confirm", actor: { username: "kim", displayName: "Kim" }, text: null })];
+      },
+    });
+    const c = cfg({ activity: { enabled: true } });
+    expect(await checkActivity(c, x)).toHaveLength(0);
+    const out = await checkActivity(c, { ...x, now: () => NOW + 60_000 });
+    expect(since).toBe(NOW);
+    expect(out.map((n) => n.title)).toEqual(["Sam commented on your report", "Kim confirmed your report"]);
+    expect(sent).toHaveLength(2);
   });
 });

@@ -7,6 +7,7 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { useNow } from "@/hooks/use-now";
 import type { AirQuality, Forecast } from "@/lib/api/open-meteo";
 import { canMoveDailyItem, dailySections, defaultDailyLayout, moveDailyItem, panelInfo, type DailyColumn, type DailyItem, type DailyPanelId } from "@/lib/daily-layout";
+import { useT } from "@/lib/i18n/use-t";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { useAppStore } from "@/store/app-store";
 import { NearbyReports } from "../community/nearby-reports";
@@ -18,6 +19,7 @@ import { FireSmokePanel } from "../daily/fire-smoke-panel";
 import { ForecastSourceBar } from "../daily/forecast-source-bar";
 import { ForecasterNotesPanel } from "../daily/forecaster-notes-panel";
 import { HourlyPanel } from "../daily/hourly-panel";
+import { IncomingStormsPanel } from "../daily/incoming-storms-panel";
 import { NowcastCard } from "../daily/nowcast-card";
 import { RadarPreview } from "../daily/radar-preview";
 import { RainfallPanel } from "../daily/rainfall-panel";
@@ -35,6 +37,7 @@ interface Ctx {
 
 /** Every Daily panel by id. Panels size to their column; several render nothing when they don't apply. */
 const RENDER: Record<DailyPanelId, (c: Ctx) => React.ReactNode> = {
+  storms: () => <IncomingStormsPanel />,
   hero: ({ f, now }) => <CurrentHero f={f} now={now} />,
   nowcast: ({ f, now }) => <NowcastCard f={f} now={now} />,
   hourly: ({ f, now }) => <HourlyPanel f={f} now={now} />,
@@ -61,28 +64,37 @@ const COLUMN_OPTIONS: { value: DailyColumn; label: string }[] = [
 
 /** Edit-mode chrome around one panel: its name, move, placement and hide. */
 function EditFrame({ item, columns, children }: { item: DailyItem; columns: boolean; children: React.ReactNode }) {
+  const t = useT();
   const layout = useAppStore((s) => s.dailyLayout);
   const setLayout = useAppStore((s) => s.setDailyLayout);
   const info = panelInfo(item.id);
+  const panel = t(info.label);
   const patch = (p: Partial<DailyItem>) => setLayout(layout.map((x) => (x.id === item.id ? { ...x, ...p } : x)));
   return (
     <div className="min-w-0 rounded-[calc(var(--radius-panel,10px)+4px)] border-2 border-dashed border-accent/50 p-1">
       <div className="flex flex-wrap items-center gap-1.5 px-1.5 pt-0.5 pb-1.5">
         <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">
-          {info.label}
-          {"hint" in info && <span className="font-normal text-ink-3"> · {info.hint}</span>}
+          {panel}
+          {"hint" in info && <span className="font-normal text-ink-3"> · {t(info.hint)}</span>}
         </span>
-        <Button size="sm" variant="ghost" aria-label={`Move ${info.label} up`} disabled={!canMoveDailyItem(layout, item.id, -1, columns)} onClick={() => setLayout(moveDailyItem(layout, item.id, -1, columns))}>
+        <Button size="sm" variant="ghost" aria-label={t("Move {panel} up", { panel })} disabled={!canMoveDailyItem(layout, item.id, -1, columns)} onClick={() => setLayout(moveDailyItem(layout, item.id, -1, columns))}>
           <ArrowUp className="size-4" aria-hidden />
         </Button>
-        <Button size="sm" variant="ghost" aria-label={`Move ${info.label} down`} disabled={!canMoveDailyItem(layout, item.id, 1, columns)} onClick={() => setLayout(moveDailyItem(layout, item.id, 1, columns))}>
+        <Button size="sm" variant="ghost" aria-label={t("Move {panel} down", { panel })} disabled={!canMoveDailyItem(layout, item.id, 1, columns)} onClick={() => setLayout(moveDailyItem(layout, item.id, 1, columns))}>
           <ArrowDown className="size-4" aria-hidden />
         </Button>
         {/* Placement only matters on wide screens. */}
-        <Segmented className="hidden lg:inline-flex" size="sm" ariaLabel={`Where ${info.label} sits`} value={item.col} onChange={(col) => patch({ col })} options={COLUMN_OPTIONS} />
-        <Button size="sm" variant="ghost" aria-label={`Hide ${info.label}`} onClick={() => patch({ hidden: true })}>
+        <Segmented
+          className="hidden lg:inline-flex"
+          size="sm"
+          ariaLabel={t("Where {panel} sits", { panel })}
+          value={item.col}
+          onChange={(col) => patch({ col })}
+          options={COLUMN_OPTIONS.map((o) => ({ ...o, label: t(o.label) }))}
+        />
+        <Button size="sm" variant="ghost" aria-label={t("Hide {panel}", { panel })} onClick={() => patch({ hidden: true })}>
           <EyeOff className="size-4" aria-hidden />
-          <span className="max-sm:sr-only">Hide</span>
+          <span className="max-sm:sr-only">{t("Hide")}</span>
         </Button>
       </div>
       {/* The panel itself, untouchable while arranging. */}
@@ -99,6 +111,7 @@ function EditFrame({ item, columns, children }: { item: DailyItem; columns: bool
  * back. Phones show the visible panels in order, one column.
  */
 export function DailyMode() {
+  const t = useT();
   const forecast = useForecast();
   const air = useAirQuality();
   const now = useNow(60_000);
@@ -147,24 +160,28 @@ export function DailyMode() {
         <div className="surface sticky top-[calc(var(--topbar-h)+8px)] z-30 p-3 shadow-lg sm:p-4">
           <div className="flex flex-wrap items-center gap-2">
             <p className="min-w-0 flex-1 text-sm text-ink">
-              <span className="font-semibold">Customize Daily.</span>{" "}
-              <span className="text-ink-2">Move panels with the arrows{wide ? ", choose left, right or full width," : ""} or hide the ones you don&apos;t need.</span>
+              <span className="font-semibold">{t("Customize Daily.")}</span>{" "}
+              <span className="text-ink-2">
+                {wide
+                  ? t("Move panels with the arrows, choose left, right or full width, or hide the ones you don't need.")
+                  : t("Move panels with the arrows or hide the ones you don't need.")}
+              </span>
             </p>
             <Button size="sm" variant="ghost" onClick={() => setLayout(defaultDailyLayout())}>
               <RotateCcw className="size-3.5" aria-hidden />
-              Reset
+              {t("Reset")}
             </Button>
             <Button size="sm" variant="primary" onClick={() => setEditing(false)}>
-              Done
+              {t("Done")}
             </Button>
           </div>
           {hidden.length > 0 && (
             <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
-              <span className="label mr-1">Add back</span>
+              <span className="label mr-1">{t("Add back")}</span>
               {hidden.map((x) => (
                 <Button key={x.id} size="sm" onClick={() => setLayout(layout.map((y) => (y.id === x.id ? { ...y, hidden: false } : y)))}>
                   <Plus className="size-3.5" aria-hidden />
-                  {panelInfo(x.id).label}
+                  {t(panelInfo(x.id).label)}
                 </Button>
               ))}
             </div>
@@ -187,13 +204,13 @@ export function DailyMode() {
         visible.map(panel)
       )}
 
-      {visible.length === 0 && <p className="py-10 text-center text-sm text-ink-3">Every panel is hidden. Add some back above.</p>}
+      {visible.length === 0 && <p className="py-10 text-center text-sm text-ink-3">{t("Every panel is hidden. Add some back above.")}</p>}
 
       {!editing && (
         <div className="flex justify-center pt-2">
           <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
             <LayoutGrid className="size-4" aria-hidden />
-            Customize this page
+            {t("Customize this page")}
           </Button>
         </div>
       )}

@@ -139,7 +139,7 @@ async function check() {
     const samePlace = prev && Math.abs(prev.place.lat - place.lat) < 1e-4 && Math.abs(prev.place.lon - place.lon) < 1e-4;
     const last = Number(kvGet("widgetGoogleAt") ?? 0);
     if (samePlace && prev?.now && now - last < GOOGLE_EVERY_MS) {
-      const fresh = widgetSnapshot(place, prev.unit, null, placeAlerts, now, note);
+      const fresh = widgetSnapshot(place, prev.unit, null, placeAlerts, now, note, cfg.lang ?? "en");
       CapacitorKV.set("widget", JSON.stringify({ ...fresh, now: prev.now, days: prev.days, hours: prev.hours, updated: prev.updated }));
       return;
     }
@@ -153,7 +153,7 @@ async function check() {
     }
   }
 
-  const snapshot = widgetSnapshot(place, prev?.unit ?? cfg.units.temp, f, placeAlerts, now, note);
+  const snapshot = widgetSnapshot(place, prev?.unit ?? cfg.units.temp, f, placeAlerts, now, note, cfg.lang ?? "en");
   CapacitorKV.set("widget", JSON.stringify(snapshot));
 }
 

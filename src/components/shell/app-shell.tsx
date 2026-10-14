@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useForecast, useLocalAlerts, useNationalAlerts } from "@/hooks/queries";
 import { useNow } from "@/hooks/use-now";
 import { useUrlSync } from "@/hooks/use-url-sync";
+import { useT } from "@/lib/i18n/use-t";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { currentHourIndex } from "@/lib/weather/view";
@@ -30,11 +31,14 @@ const ModeLoading = () => (
 );
 
 /** Map-first modes load into the full area between the bars. */
-const MapLoading = () => (
-  <div className="absolute inset-0 grid place-items-center bg-canvas">
-    <p className="label">Loading map</p>
-  </div>
-);
+function MapLoading() {
+  const t = useT();
+  return (
+    <div className="absolute inset-0 grid place-items-center bg-canvas">
+      <p className="label">{t("Loading map")}</p>
+    </div>
+  );
+}
 
 // Each mode is its own chunk: the map-heavy modes never load for a user who only reads the daily view.
 const MODE_COMPONENTS: Record<ModeId, React.ComponentType> = {

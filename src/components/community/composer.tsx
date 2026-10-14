@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Forecast } from "@/lib/api/open-meteo";
 import { CATEGORIES, CATEGORY_IDS, SEVERITY_LABELS, type Category, isGenericPlace } from "@/lib/community";
 import { getFreshPosition } from "@/lib/device-position";
+import { useT } from "@/lib/i18n/use-t";
 import { preparePhoto } from "@/lib/image-client";
 import { currentHourIndex } from "@/lib/weather/view";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ import { Button, buttonClass, IconButton } from "../ui/button";
 import { Skeleton } from "../ui/misc";
 import { Segmented } from "../ui/segmented";
 import { WeatherIcon } from "../ui/weather-icon";
+import { errorText } from "./moderation";
 
 const FIELD_LABEL = "mb-2 block text-[13px] font-medium text-ink-2";
 
@@ -28,6 +30,7 @@ const FIELD_LABEL = "mb-2 block text-[13px] font-medium text-ink-2";
  * footer.
  */
 export function Composer() {
+  const t = useT();
   const open = useAppStore((s) => s.composerOpen);
   const setOpen = useAppStore((s) => s.setComposerOpen);
   const imperial = useAppStore((s) => s.units.distance === "mi");
@@ -118,7 +121,7 @@ export function Composer() {
       const p = await preparePhoto(file);
       setPhoto({ ...p, url: URL.createObjectURL(p.blob) });
     } catch {
-      alert("That image couldn't be read. Try a JPEG, PNG or WebP photo.");
+      alert(t("That image couldn't be read. Try a JPEG, PNG or WebP photo."));
     } finally {
       setPhotoBusy(false);
     }
@@ -132,28 +135,34 @@ export function Composer() {
     <header className="grid h-14 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-line px-3 md:flex md:h-auto md:justify-between md:py-3 md:pr-3 md:pl-5">
       <div className="md:hidden">
         <Button variant="ghost" onClick={close} className="text-accent hover:text-accent">
-          Cancel
+          {t("Cancel")}
         </Button>
       </div>
       <div className="min-w-0 text-center md:text-left">
         <h2 id="composer-title" className="truncate text-[15px] font-semibold text-ink">
-          Report weather
+          {t("Report weather")}
         </h2>
-        <p className="hidden truncate text-xs text-ink-3 md:block">Shown in the spotter feed and on the radar map.</p>
+        <p className="hidden truncate text-xs text-ink-3 md:block">{t("Shown in the spotter feed and on the radar map.")}</p>
       </div>
       <div className="flex justify-end">
         {user && (
-          <Button type="submit" variant="ghost" disabled={!canPost} aria-label="Post report" className="font-semibold text-accent hover:text-accent md:hidden">
+          <Button type="submit" variant="ghost" disabled={!canPost} aria-label={t("Post report")} className="font-semibold text-accent hover:text-accent md:hidden">
             {spinner}
-            Post
+            {t("Post")}
           </Button>
         )}
-        <IconButton label="Close" onClick={close} className="hidden md:inline-flex">
+        <IconButton label={t("Close")} onClick={close} className="hidden md:inline-flex">
           <X className="size-4" aria-hidden />
         </IconButton>
       </div>
     </header>
   );
+
+  // Sentences with an element inside: the template is split at the placeholder (fill leaves an unknown one as it is).
+  const [placedBefore, placedAfter = ""] = t("Otherwise the report is placed at {place}, rounded to about {distance}.", {
+    distance: imperial ? t("half a mile") : "1 km",
+  }).split("{place}");
+  const [rulesBefore, rulesAfter = ""] = t("By posting, you agree to follow the {guidelines}.").split("{guidelines}");
 
   const scrollBody = "min-h-0 flex-auto overflow-y-auto overscroll-contain px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)_+_20px)] md:px-5 md:pt-5 md:pb-5";
 
@@ -197,13 +206,13 @@ export function Composer() {
               <>
                 {header}
                 <div className={scrollBody}>
-                  <p className="text-sm text-ink-2">Sign in to post reports and confirm other spotters&apos; observations.</p>
+                  <p className="text-sm text-ink-2">{t("Sign in to post reports and confirm other spotters' observations.")}</p>
                   <div className="mt-4 grid grid-cols-2 gap-2 md:flex md:flex-wrap">
                     <Link href={`/login${next}`} onClick={close} className={buttonClass("primary")}>
-                      Sign in
+                      {t("Sign in")}
                     </Link>
                     <Link href={`/register${next}`} onClick={close} className={buttonClass("secondary")}>
-                      Create account
+                      {t("Create account")}
                     </Link>
                   </div>
                 </div>
@@ -219,7 +228,7 @@ export function Composer() {
                 {header}
                 <div className={cn(scrollBody, "space-y-5")}>
                   <fieldset className="min-w-0">
-                    <legend className={FIELD_LABEL}>Category</legend>
+                    <legend className={FIELD_LABEL}>{t("Category")}</legend>
                     <div className="grid grid-cols-2 gap-1.5 md:auto-rows-fr md:grid-cols-5">
                       {CATEGORY_IDS.map((id) => {
                         const active = category === id;
@@ -235,7 +244,7 @@ export function Composer() {
                             )}
                           >
                             <WeatherIcon name={CATEGORIES[id].icon} size={24} animated={false} />
-                            <span className="min-w-0">{CATEGORIES[id].label}</span>
+                            <span className="min-w-0">{t(CATEGORIES[id].label)}</span>
                           </button>
                         );
                       })}
@@ -243,19 +252,19 @@ export function Composer() {
                   </fieldset>
 
                   <div>
-                    <p className={FIELD_LABEL}>Severity</p>
+                    <p className={FIELD_LABEL}>{t("Severity")}</p>
                     <Segmented
                       stretch
-                      ariaLabel="Severity"
+                      ariaLabel={t("Severity")}
                       value={severity}
                       onChange={setSeverity}
-                      options={SEVERITY_LABELS.map((l, i) => ({ value: i, label: l }))}
+                      options={SEVERITY_LABELS.map((l, i) => ({ value: i, label: t(l) }))}
                     />
                   </div>
 
                   <div>
                     <label htmlFor="composer-body" className={FIELD_LABEL}>
-                      Details
+                      {t("Details")}
                     </label>
                     <textarea
                       id="composer-body"
@@ -265,7 +274,7 @@ export function Composer() {
                       rows={4}
                       required
                       aria-describedby="composer-count"
-                      placeholder="e.g. Quarter-size hail for 5 minutes, ground turning white. Wind gusting hard from the west."
+                      placeholder={t("e.g. Quarter-size hail for 5 minutes, ground turning white. Wind gusting hard from the west.")}
                       className="block w-full resize-none rounded-[var(--radius-control)] border border-line bg-surface-2 px-3 py-2 text-sm leading-relaxed text-ink outline-none placeholder:text-ink-3 focus:border-accent pointer-coarse:text-base"
                     />
                     <p id="composer-count" className="label mt-1 text-right tabular">
@@ -274,24 +283,24 @@ export function Composer() {
                   </div>
 
                   <div>
-                    <p className={FIELD_LABEL}>Photo</p>
+                    <p className={FIELD_LABEL}>{t("Photo")}</p>
                     <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
                     {photo ? (
                       <div className="flex items-start gap-3">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={photo.url} alt="Selected photo preview" className="h-20 w-28 shrink-0 rounded-[var(--radius-control)] border border-line object-cover" />
-                        <Button variant="ghost" size="sm" onClick={() => setPhoto(null)} aria-label="Remove photo">
+                        <img src={photo.url} alt={t("Selected photo preview")} className="h-20 w-28 shrink-0 rounded-[var(--radius-control)] border border-line object-cover" />
+                        <Button variant="ghost" size="sm" onClick={() => setPhoto(null)} aria-label={t("Remove photo")}>
                           <X className="size-4" aria-hidden />
-                          Remove
+                          {t("Remove")}
                         </Button>
                       </div>
                     ) : (
                       <Button onClick={() => fileRef.current?.click()} disabled={photoBusy}>
                         {photoBusy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
-                        Add photo
+                        {t("Add photo")}
                       </Button>
                     )}
-                    <p className="label mt-2">Photos are resized and stripped of EXIF and GPS metadata before upload.</p>
+                    <p className="label mt-2">{t("Photos are resized and stripped of EXIF and GPS metadata before upload.")}</p>
                   </div>
 
                   <label className="flex cursor-pointer items-start gap-2.5">
@@ -302,33 +311,37 @@ export function Composer() {
                       className="mt-0.5 size-4 shrink-0 accent-[var(--color-accent)]"
                     />
                     <span className="min-w-0">
-                      <span className="block text-[13px] font-medium text-ink">Share precise GPS position (about {imperial ? "300 ft" : "100 m"})</span>
+                      <span className="block text-[13px] font-medium text-ink">
+                        {t("Share precise GPS position (about {distance})", { distance: imperial ? "300 ft" : "100 m" })}
+                      </span>
                       <span className="label mt-0.5 block">
-                        Otherwise the report is placed at <span className="text-ink-2">{loc.name}</span>, rounded to about {imperial ? "half a mile" : "1 km"}.
+                        {placedBefore}
+                        <span className="text-ink-2">{loc.name}</span>
+                        {placedAfter}
                       </span>
                     </span>
                   </label>
 
                   <p className="label">
-                    By posting, you agree to follow the{" "}
+                    {rulesBefore}
                     <Link href="/community" onClick={close} className="text-ink-2 underline underline-offset-2">
-                      community guidelines
+                      {t("community guidelines")}
                     </Link>
-                    .
+                    {rulesAfter}
                   </p>
 
                   {submit.error && (
                     <p role="alert" className="rounded-[var(--radius-control)] border border-nogo/30 bg-nogo/10 px-3 py-2 text-xs text-ink-2">
-                      {(submit.error as Error).message}
+                      {errorText(t, (submit.error as Error).message)}
                     </p>
                   )}
                 </div>
 
                 <footer className="hidden shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3 md:flex">
-                  <Button onClick={close}>Cancel</Button>
+                  <Button onClick={close}>{t("Cancel")}</Button>
                   <Button type="submit" variant="primary" disabled={!canPost}>
                     {spinner}
-                    Post report
+                    {t("Post report")}
                   </Button>
                 </footer>
               </form>

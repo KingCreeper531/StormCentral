@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Panel } from "@/components/ui/panel";
 import { Skeleton, Toggle } from "@/components/ui/misc";
+import { useT } from "@/lib/i18n/use-t";
 import { desktopBridge, type DesktopSettings as Settings } from "@/lib/native/desktop";
 
 const noSubscribe = () => () => {};
@@ -16,6 +17,7 @@ export function DesktopSettings() {
   const bridge = useSyncExternalStore(noSubscribe, desktopBridge, () => null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [error, setError] = useState<"load" | "save" | null>(null);
+  const t = useT();
 
   useEffect(() => {
     if (!bridge) return;
@@ -45,17 +47,17 @@ export function DesktopSettings() {
   // Sign-in launch is a Windows (and macOS) login item; Linux builds have no equivalent.
   const loginLabel =
     bridge.platform === "win32"
-      ? "Start Storm Central when you sign in to Windows"
+      ? t("Start Storm Central when you sign in to Windows")
       : bridge.platform === "darwin"
-        ? "Start Storm Central when you log in"
+        ? t("Start Storm Central when you log in")
         : null;
 
   return (
-    <Panel title="Desktop app">
+    <Panel title={t("Desktop app")}>
       {settings ? (
         <div className="divide-y divide-line">
           <Toggle
-            label="Keep running in the tray when the window is closed"
+            label={t("Keep running in the tray when the window is closed")}
             checked={settings.closeToTray}
             onChange={(closeToTray) => change({ closeToTray })}
           />
@@ -72,11 +74,11 @@ export function DesktopSettings() {
         )
       )}
       {settings?.closeToTray && (
-        <p className="mt-2 text-xs text-ink-3">With the window closed, Storm Central keeps checking for warnings. Quit from the tray icon.</p>
+        <p className="mt-2 text-xs text-ink-3">{t("With the window closed, Storm Central keeps checking for warnings. Quit from the tray icon.")}</p>
       )}
       {error && (
         <p role="alert" className="mt-2 text-xs text-ink-2">
-          {error === "save" ? "Couldn't save that setting. Try again." : "Couldn't load the desktop app settings."}
+          {error === "save" ? t("Couldn't save that setting. Try again.") : t("Couldn't load the desktop app settings.")}
         </p>
       )}
     </Panel>

@@ -8,6 +8,7 @@ import { HttpError } from "@/lib/api/http";
 import { fetchAirQuality, reverseGeocode, type AirQuality } from "@/lib/api/open-meteo";
 import type { BBox } from "@/lib/geo";
 import { bestOutdoorWindow, pm25ToAqi, pollenLevel, US_AQI_CATEGORIES, usAqiCategory, type PollenLevel, type PollenType } from "@/lib/science/air";
+import { useT } from "@/lib/i18n/use-t";
 import { fmtIn } from "@/lib/weather/view";
 import { useAirGrid, useAirQuality } from "@/hooks/queries";
 import { useNow } from "@/hooks/use-now";
@@ -96,6 +97,7 @@ const MIN_HEAT_ZOOM = 3.5;
 
 /** Air quality at a tapped point on the map. */
 function PickedAir({ lat, lon, now, onClose }: { lat: number; lon: number; now: number; onClose: () => void }) {
+  const t = useT();
   const q = useQuery({ queryKey: ["air-point", lat.toFixed(2), lon.toFixed(2)], queryFn: ({ signal }) => fetchAirQuality(lat, lon, signal), staleTime: 20 * 60_000 });
   const place = useQuery({ queryKey: ["place-name", lat.toFixed(2), lon.toFixed(2)], queryFn: ({ signal }) => reverseGeocode(lat, lon, signal), staleTime: Infinity, retry: false });
   const a = q.data;
@@ -110,27 +112,27 @@ function PickedAir({ lat, lon, now, onClose }: { lat: number; lon: number; now: 
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] font-medium text-ink">{name}</p>
         {q.isLoading ? (
-          <p className="mt-1 text-xs text-ink-3">Loading air quality…</p>
+          <p className="mt-1 text-xs text-ink-3">{t("Loading air quality…")}</p>
         ) : q.error || !a ? (
           <p className="mt-1 text-xs text-ink-3">
             {q.error instanceof HttpError && q.error.status === 429
-              ? "The air quality service is busy. Try again in a minute."
-              : "Couldn't load air quality here. Try again."}
+              ? t("The air quality service is busy. Try again in a minute.")
+              : t("Couldn't load air quality here. Try again.")}
           </p>
         ) : (
           <>
             <p className="mt-1 flex items-center gap-2 text-sm text-ink">
               {cat && <span className="size-2.5 shrink-0 rounded-[2px]" style={{ background: cat.color }} aria-hidden />}
               <span className="text-xl font-light tabular">{aqi != null ? Math.round(aqi) : "—"}</span>
-              <span className="text-ink-2">{cat?.label ?? "US AQI"}</span>
+              <span className="text-ink-2">{t(cat?.label ?? "US AQI")}</span>
             </p>
             <p className="mt-0.5 text-xs text-ink-3 tabular">
-              PM2.5 {pm != null ? `${Math.round(pm)} µg/m³` : "—"} · Ozone {o3 != null ? `${Math.round(o3)} µg/m³` : "—"}
+              {t("PM2.5 {pm} · Ozone {o3}", { pm: pm != null ? `${Math.round(pm)} µg/m³` : "—", o3: o3 != null ? `${Math.round(o3)} µg/m³` : "—" })}
             </p>
           </>
         )}
       </div>
-      <IconButton label="Close" size="sm" onClick={onClose} className="-mt-1 -mr-1">
+      <IconButton label={t("Close")} size="sm" onClick={onClose} className="-mt-1 -mr-1">
         <X className="size-4" aria-hidden />
       </IconButton>
     </div>
@@ -142,6 +144,7 @@ function PickedAir({ lat, lon, now, onClose }: { lat: number; lon: number; now: 
  * Desktop: map and current reading side by side, charts and pollen below.
  */
 export function AirMode() {
+  const t = useT();
   const air = useAirQuality(true);
   const loc = useAppStore((s) => s.location);
   const layer = useAppStore((s) => s.airLayer);
@@ -173,12 +176,12 @@ export function AirMode() {
     };
   }, [a, now]);
 
-  if (air.error && !a) return <ErrorNote error={air.error} what="air quality" />;
+  if (air.error && !a) return <ErrorNote error={air.error} what="the air quality" />;
 
   const aqi = view && a ? a.hourly.usAqi[view.i] : null;
   const cat = usAqiCategory(aqi);
-  const timeFmt = fmtIn(a?.timezone, { weekday: "short", hour: "numeric" });
-  const hourFmt = fmtIn(a?.timezone, { hour: "numeric" });
+  const timeFmt = fmtIn(a?.timezone, { weekday: "short", hour: "numeric" }, t.locale);
+  const hourFmt = fmtIn(a?.timezone, { hour: "numeric" }, t.locale);
   const pollenAvailable = a && view ? POLLEN.some((p) => a.hourly[p.key][view.i] != null) : false;
   // Outside Europe there is no pollen model: drop the panel rather than show an empty one.
   const showPollen = !a || !view || pollenAvailable;
@@ -186,7 +189,7 @@ export function AirMode() {
   const aqiBars: (SeriesDef & { colorFor?: (v: number) => string }) | null = view
     ? {
         key: "aqi",
-        label: "US AQI",
+        label: t("US AQI"),
         color: "var(--color-series-1)",
         values: view.aqi,
         kind: "bar",
@@ -197,7 +200,7 @@ export function AirMode() {
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-      <Panel title="Current air quality" subtitle="US AQI, this hour" className="lg:order-2 lg:col-span-4">
+      <Panel title={t("Current air quality")} subtitle={t("US AQI, this hour")} className="lg:order-2 lg:col-span-4">
         {!a || !view ? (
           <Skeleton className="h-72" />
         ) : (
@@ -208,29 +211,29 @@ export function AirMode() {
                 <div className="min-w-0 pb-1">
                   <p className="flex items-center gap-2 text-sm font-medium text-ink">
                     <span className="size-2.5 shrink-0 rounded-[2px]" style={{ background: cat.color }} aria-hidden />
-                    {cat.label}
+                    {t(cat.label)}
                   </p>
-                  <p className="label mt-0.5">US AQI</p>
+                  <p className="label mt-0.5">{t("US AQI")}</p>
                 </div>
               )}
             </div>
-            {aqi != null && cat && <Meter value={Math.min(aqi, 300)} max={300} color={cat.color} ticks={AQI_TICKS} label="US AQI" className="mt-3" />}
-            {cat && <p className="mt-3 text-sm text-ink-2">{cat.advice}</p>}
+            {aqi != null && cat && <Meter value={Math.min(aqi, 300)} max={300} color={cat.color} ticks={AQI_TICKS} label={t("US AQI")} className="mt-3" />}
+            {cat && <p className="mt-3 text-sm text-ink-2">{t(cat.advice)}</p>}
 
             {(view.best || view.peak) && (
               <div className="mt-3 divide-y divide-line border-t border-line">
                 {view.best && (
                   <Row
-                    label="Cleanest 2 h window"
+                    label={t("Cleanest 2 h window")}
                     value={`${timeFmt.format(view.best.start * 1000)}–${hourFmt.format(view.best.end * 1000)}`}
-                    sub={`AQI about ${Math.round(view.best.meanAqi)}`}
+                    sub={t("AQI about {n}", { n: Math.round(view.best.meanAqi) })}
                   />
                 )}
                 {view.peak && (
                   <Row
-                    label="Highest in next 24 h"
+                    label={t("Highest in next 24 h")}
                     value={Math.round(view.peak.v)}
-                    sub={`${timeFmt.format(view.times[view.peak.k]!)}, ${usAqiCategory(view.peak.v)?.short ?? ""}`}
+                    sub={`${timeFmt.format(view.times[view.peak.k]!)}, ${t(usAqiCategory(view.peak.v)?.short ?? "")}`}
                   />
                 )}
               </div>
@@ -243,32 +246,32 @@ export function AirMode() {
                   return (
                     <Stat
                       key={p.key}
-                      label={p.label}
+                      label={t(p.label)}
                       value={v != null ? (v >= 100 ? Math.round(v) : v.toFixed(1)) : "—"}
                       sub={p.key === "pm25" && v != null ? `AQI ${pm25ToAqi(v)}` : undefined}
                     />
                   );
                 })}
               </div>
-              <p className="label mt-3">Concentrations in µg/m³, hourly model values.</p>
-              {!pollenAvailable && <p className="label mt-1">No pollen model for this region (CAMS covers Europe only).</p>}
+              <p className="label mt-3">{t("Concentrations in µg/m³, hourly model values.")}</p>
+              {!pollenAvailable && <p className="label mt-1">{t("No pollen model for this region (CAMS covers Europe only).")}</p>}
             </div>
           </>
         )}
       </Panel>
 
       <Panel
-        title="Air quality map"
-        subtitle="CAMS via Open-Meteo"
-        aria-label="Air quality map"
+        title={t("Air quality map")}
+        subtitle={t("CAMS via Open-Meteo")}
+        aria-label={t("Air quality map")}
         action={
           <Segmented
-            ariaLabel="Map variable"
+            ariaLabel={t("Map variable")}
             size="sm"
             value={layer}
             onChange={setLayer}
             options={[
-              { value: "us_aqi", label: "US AQI" },
+              { value: "us_aqi", label: t("US AQI") },
               { value: "pm2_5", label: "PM2.5" },
             ]}
           />
@@ -292,45 +295,45 @@ export function AirMode() {
           </MapView>
           {mapState && !heatOn && (
             <span className="pointer-events-none absolute top-2 left-2 rounded-[var(--radius-control)] border border-line bg-surface-1/90 px-2 py-1 text-[11px] text-ink-2">
-              Zoom in to see the colour map. Tap anywhere for a reading.
+              {t("Zoom in to see the colour map. Tap anywhere for a reading.")}
             </span>
           )}
           {picked && <PickedAir lat={picked.lat} lon={picked.lon} now={now} onClose={() => setPicked(null)} />}
           {heatOn && grid.isFetching && (
             <span className="pointer-events-none absolute top-2 left-2 rounded-[var(--radius-control)] border border-line bg-surface-1/90 px-2 py-1 text-[11px] text-ink-2">
-              Sampling grid…
+              {t("Sampling grid…")}
             </span>
           )}
         </div>
         <div className="-mx-4 -mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5 sm:-mx-5 sm:-mb-5 sm:px-5">
-          <p className="label">{layer === "pm2_5" ? "PM2.5 on the AQI scale" : "US AQI"}</p>
-          <ul aria-label="AQI categories" className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-ink-2">
+          <p className="label">{layer === "pm2_5" ? t("PM2.5 on the AQI scale") : t("US AQI")}</p>
+          <ul aria-label={t("AQI categories")} className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-ink-2">
             {US_AQI_CATEGORIES.map((c) => (
               <li key={c.level} className="flex items-center gap-1.5">
                 <span className="size-2 shrink-0 rounded-[1px]" style={{ background: c.color }} aria-hidden />
-                {c.short}
+                {t(c.short)}
               </li>
             ))}
           </ul>
         </div>
       </Panel>
 
-      <Panel title="AQI forecast" subtitle="Next 48 hours" className={showPollen ? "lg:order-3 lg:col-span-8" : "lg:order-3 lg:col-span-12"}>
+      <Panel title={t("AQI forecast")} subtitle={t("Next 48 hours")} className={showPollen ? "lg:order-3 lg:col-span-8" : "lg:order-3 lg:col-span-12"}>
         {view && a && aqiBars ? (
           <>
             <TimeSeriesChart
-              ariaLabel="US AQI, next 48 hours"
+              ariaLabel={t("US AQI, next 48 hours")}
               times={view.times}
               height={170}
               timeZone={a.timezone}
               yDomain={[0, Math.max(100, ...view.aqi.map((v) => v ?? 0))]}
-              thresholds={[{ value: 100, label: "USG threshold", color: USG_COLOR }]}
+              thresholds={[{ value: 100, label: t("USG threshold"), color: USG_COLOR }]}
               series={[aqiBars]}
             />
             <div className="mt-4 border-t border-line pt-3">
-              <p className="label mb-1">UV index</p>
+              <p className="label mb-1">{t("UV index")}</p>
               <TimeSeriesChart
-                ariaLabel="UV index, next 48 hours"
+                ariaLabel={t("UV index, next 48 hours")}
                 times={view.times}
                 height={90}
                 timeZone={a.timezone}
@@ -338,7 +341,7 @@ export function AirMode() {
                 series={[
                   {
                     key: "uv",
-                    label: "UV index",
+                    label: t("UV index"),
                     color: "var(--color-series-2)",
                     values: view.idx.map((k) => a.hourly.uv[k] ?? null),
                     kind: "area",
@@ -355,22 +358,22 @@ export function AirMode() {
       </Panel>
 
       {showPollen && (
-        <Panel title="Pollen" subtitle="Grains per m³, NAB scale" className="lg:order-4 lg:col-span-4">
+        <Panel title={t("Pollen")} subtitle={t("Grains per m³, NAB scale")} className="lg:order-4 lg:col-span-4">
           {!a || !view ? (
             <Skeleton className="h-48" />
           ) : (
-            <ul aria-label="Pollen by type" className="divide-y divide-line">
+            <ul aria-label={t("Pollen by type")} className="divide-y divide-line">
               {POLLEN.map((p) => {
                 const v = a.hourly[p.key][view.i];
                 const lvl = pollenLevel(p.key, v);
                 return (
                   <li key={p.key} className="grid grid-cols-[minmax(0,1fr)_auto_5.5rem] items-center gap-3 py-2 text-[13px] first:pt-0 last:pb-0">
-                    <span className="truncate text-ink-2">{p.label}</span>
+                    <span className="truncate text-ink-2">{t(p.label)}</span>
                     <span className="text-right font-medium text-ink tabular">{v != null ? Math.round(v) : "—"}</span>
                     {lvl ? (
                       <span className="inline-flex items-center gap-1.5 justify-self-start rounded-[4px] border border-line px-1.5 py-px text-[11px] font-medium text-ink-2">
                         <span className="size-1.5 shrink-0 rounded-[1px]" style={{ background: LEVEL_SWATCH[lvl] }} aria-hidden />
-                        {sentence(lvl)}
+                        {sentence(t(lvl))}
                       </span>
                     ) : (
                       <span aria-hidden />

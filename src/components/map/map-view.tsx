@@ -5,6 +5,7 @@ import { AttributionControl, getVersion, Map as MlMap, NavigationControl, setWor
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { BBox } from "@/lib/geo";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
+import { useT } from "@/lib/i18n/use-t";
 import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { PluginLayers } from "./layers/plugin-layers";
@@ -87,6 +88,7 @@ interface Props {
 }
 
 export function MapView({ center, zoom = 6.5, interactive = true, follow = true, className, children, onViewChange, onReady }: Props) {
+  const t = useT();
   const container = useRef<HTMLDivElement>(null);
   const [ctx, setCtx] = useState<MapCtx>({ map: null, font: [] });
   const supported = useSyncExternalStore(noSubscribe, hasWebGL2, () => true);
@@ -206,7 +208,7 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
         <div ref={container} className="h-full w-full" />
         {!supported && (
           <p className="absolute inset-0 grid place-items-center p-4 text-center text-[13px] text-ink-3">
-            The map needs WebGL 2, which isn&apos;t available on this device. Forecasts and warnings still work.
+            {t("The map needs WebGL 2, which isn't available on this device. Forecasts and warnings still work.")}
           </p>
         )}
       </div>

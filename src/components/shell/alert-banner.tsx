@@ -6,6 +6,8 @@ import { useMemo } from "react";
 import { tagLabel } from "@/lib/alerts";
 import type { WeatherAlert } from "@/lib/api/types";
 import { geometryContains } from "@/lib/geo";
+import { eventName } from "@/lib/i18n/nws-events";
+import { useT } from "@/lib/i18n/use-t";
 import { stormEta } from "@/lib/science/storm-motion";
 import { clockIn } from "@/lib/weather/view";
 import { useAppStore } from "@/store/app-store";
@@ -31,6 +33,7 @@ export function AlertBanner({
   /** IANA zone of the selected location; the viewer's zone when omitted. */
   timeZone?: string;
 }) {
+  const t = useT();
   const loc = useAppStore((s) => s.location);
   const setMode = useAppStore((s) => s.setMode);
 
@@ -47,7 +50,7 @@ export function AlertBanner({
 
   const a = top.alert;
   const subject = a ?? top.approaching?.a;
-  const until = a ? clockIn(timeZone, a.ends ?? a.expires) : "";
+  const until = a ? clockIn(timeZone, a.ends ?? a.expires, t.locale) : "";
   const eta = top.approaching ? Math.round(top.approaching.eta) : null;
 
   return (
@@ -72,28 +75,28 @@ export function AlertBanner({
               <>
                 {/* Every tag stays visible on phones ("Tornado observed" matters most); the row wraps instead. */}
                 <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
-                  <span className="max-w-full truncate text-sm font-semibold text-ink">{a.event}</span>
-                  {a.tags.map((t) => (
-                    <span key={t} className={CHIP}>
-                      {tagLabel(t)}
+                  <span className="max-w-full truncate text-sm font-semibold text-ink">{eventName(t.lang, a.event)}</span>
+                  {a.tags.map((tag) => (
+                    <span key={tag} className={CHIP}>
+                      {t(tagLabel(tag))}
                     </span>
                   ))}
                 </span>
                 <span className="mt-0.5 block truncate text-xs text-ink-2">
                   {top.insideCount > 0 && (
                     <>
-                      <span className="sm:hidden">Inside the warning area · </span>
-                      <span className="hidden sm:inline">Your location is inside the warning polygon · </span>
+                      <span className="sm:hidden">{t("Inside the warning area")} · </span>
+                      <span className="hidden sm:inline">{t("Your location is inside the warning polygon")} · </span>
                     </>
                   )}
-                  Until {until}
-                  {eta != null && ` · Storm ETA about ${eta} min`}
+                  {t("Until {time}", { time: until })}
+                  {eta != null && ` · ${t("Storm ETA about {n} min", { n: eta })}`}
                 </span>
               </>
             ) : (
               <>
-                <span className="block truncate text-sm font-semibold text-ink">{subject.event} approaching</span>
-                <span className="mt-0.5 block truncate text-xs text-ink-2">Arrival in about {eta} min, based on NWS storm motion</span>
+                <span className="block truncate text-sm font-semibold text-ink">{t("{event} approaching", { event: eventName(t.lang, subject.event) })}</span>
+                <span className="mt-0.5 block truncate text-xs text-ink-2">{t("Arrival in about {n} min, based on NWS storm motion", { n: eta ?? 0 })}</span>
               </>
             )}
           </span>

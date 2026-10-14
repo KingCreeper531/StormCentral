@@ -2,7 +2,10 @@
 
 import { useFormat } from "@/hooks/use-format";
 import type { TropicalStorm } from "@/lib/feeds/tropical";
+import { stormTitle } from "@/lib/feeds/tropical-parse";
 import { compassPoint } from "@/lib/geo";
+import { translator, type Translator } from "@/lib/i18n/core";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 import type { Formatters } from "@/lib/weather/units";
 import { clockIn } from "@/lib/weather/view";
@@ -39,28 +42,29 @@ const STAGE_NAMES: Record<string, string> = {
   DB: "Disturbance",
 };
 
-/** "Category 3 hurricane" (`short`: "Cat 3 hurricane"), "Tropical storm", … */
-export function intensityName(label: string | null | undefined, short = false): string | null {
+/** "Category 3 hurricane" (`short`: "Cat 3 hurricane"), "Tropical storm", … in `t`'s language. */
+export function intensityName(label: string | null | undefined, short = false, t: Translator = translator("en")): string | null {
   const cat = label?.match(/^H([1-5])$/)?.[1];
-  if (cat) return `${short ? "Cat" : "Category"} ${cat} hurricane`;
-  return (label && STAGE_NAMES[label]) ?? null;
+  if (cat) return t(short ? "Cat {n} hurricane" : "Category {n} hurricane", { n: cat });
+  const stage = label && STAGE_NAMES[label];
+  return stage ? t(stage) : null;
 }
 
 const KT_TO_MS = 0.514444;
 const MPH_TO_MS = 0.44704;
 export const ktToMs = (kt: number | null | undefined) => (kt == null ? null : kt * KT_TO_MS);
 
-/** "NW at 12 mph" in the user's wind unit, "Stationary", or "—". */
-export function movementText({ towardDeg, speedMph }: TropicalStorm["movement"], fmt: Pick<Formatters, "wind">): string {
-  if (speedMph === 0) return "Stationary";
+/** "NW at 12 mph" in the user's wind unit, "Stationary", or "—" (in `t`'s language). */
+export function movementText({ towardDeg, speedMph }: TropicalStorm["movement"], fmt: Pick<Formatters, "wind">, t: Translator = translator("en")): string {
+  if (speedMph === 0) return t("Stationary");
   if (towardDeg == null || speedMph == null) return "—";
-  return `${compassPoint(towardDeg)} at ${fmt.wind(speedMph * MPH_TO_MS)}`;
+  return t("{dir} at {speed}", { dir: t(compassPoint(towardDeg)), speed: fmt.wind(speedMph * MPH_TO_MS) });
 }
 
-/** "25.4° N, 80.1° W". */
-export function positionText(lat: number, lon: number): string {
+/** "25.4° N, 80.1° W" (compass letters in `t`'s language). */
+export function positionText(lat: number, lon: number, t: Translator = translator("en")): string {
   const lo = ((((lon + 180) % 360) + 360) % 360) - 180;
-  return `${Math.abs(lat).toFixed(1)}° ${lat >= 0 ? "N" : "S"}, ${Math.abs(lo).toFixed(1)}° ${lo >= 0 ? "E" : "W"}`;
+  return `${Math.abs(lat).toFixed(1)}° ${t(lat >= 0 ? "N" : "S")}, ${Math.abs(lo).toFixed(1)}° ${t(lo >= 0 ? "E" : "W")}`;
 }
 
 /** Intensity colour as an 8 px square swatch (the colour never stands alone: a label always accompanies it). */
@@ -87,8 +91,11 @@ export function TropicalList({
   onSelect: (id: string) => void;
 }) {
   const fmt = useFormat();
+  const t = useT();
   if (!storms.length) {
-    return <EmptyState title="No active tropical cyclones">The National Hurricane Center monitors the Atlantic and the eastern and central Pacific.</EmptyState>;
+    return (
+      <EmptyState title={t("No active tropical cyclones")}>{t("The National Hurricane Center monitors the Atlantic and the eastern and central Pacific.")}</EmptyState>
+    );
   }
   return (
     <ul className="divide-y divide-line">
@@ -108,17 +115,17 @@ export function TropicalList({
               <IntensitySwatch label={s.label} className="mt-1.5" />
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
-                  <span className="min-w-0 text-[13px] leading-5 font-semibold text-ink">{s.title}</span>
-                  {s.category != null && <TropicalTag>Cat {s.category}</TropicalTag>}
+                  <span className="min-w-0 text-[13px] leading-5 font-semibold text-ink">{stormTitle(s.classification, s.name, t)}</span>
+                  {s.category != null && <TropicalTag>{t("Cat {n}", { n: s.category })}</TropicalTag>}
                 </span>
                 <span className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-ink-2 tabular">
                   <span>{fmt.wind(ktToMs(s.windKt))}</span>
                   {s.pressureMb != null && <span>{fmt.pressure(s.pressureMb)}</span>}
-                  <span>{movementText(s.movement, fmt)}</span>
+                  <span>{movementText(s.movement, fmt, t)}</span>
                 </span>
                 <span className="mt-0.5 flex items-baseline justify-between gap-3 text-xs text-ink-3 tabular">
-                  <span className="min-w-0 truncate">{s.basin ?? ""}</span>
-                  {s.updated && <span className="shrink-0">Updated {clockIn(timeZone, s.updated)}</span>}
+                  <span className="min-w-0 truncate">{s.basin ? t(s.basin) : ""}</span>
+                  {s.updated && <span className="shrink-0">{t("Updated {time}", { time: clockIn(timeZone, s.updated, t.locale) })}</span>}
                 </span>
               </span>
             </button>

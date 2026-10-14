@@ -1,7 +1,9 @@
 import { compassPoint } from "@/lib/geo";
+import { useT } from "@/lib/i18n/use-t";
 
 /** Wind compass: the arrow points where the wind is blowing *to*. */
 export function WindCompass({ dirDeg, size = 108, label }: { dirDeg: number | null; size?: number; label: string }) {
+  const t = useT();
   const r = size / 2;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={label}>
@@ -19,7 +21,7 @@ export function WindCompass({ dirDeg, size = 108, label }: { dirDeg: number | nu
         const a = (i * 90 * Math.PI) / 180;
         return (
           <text key={c} x={r + (r - 19) * Math.sin(a)} y={r - (r - 19) * Math.cos(a)} dy="0.35em" textAnchor="middle" className="fill-ink-3 text-[9px] font-semibold">
-            {c}
+            {t(c)}
           </text>
         );
       })}
@@ -31,7 +33,7 @@ export function WindCompass({ dirDeg, size = 108, label }: { dirDeg: number | nu
         </g>
       )}
       <text x={r} y={r + 4} textAnchor="middle" className="sr-only">
-        {dirDeg != null ? compassPoint(dirDeg) : ""}
+        {dirDeg != null ? t(compassPoint(dirDeg)) : ""}
       </text>
     </svg>
   );

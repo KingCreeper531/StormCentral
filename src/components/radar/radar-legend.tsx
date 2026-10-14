@@ -1,3 +1,4 @@
+import { useT } from "@/lib/i18n/use-t";
 import { FAMILIES, legendGradient, type ProductFamily } from "@/lib/radar/products";
 import { cn } from "@/lib/utils";
 
@@ -40,18 +41,22 @@ export function RadarLegend({
   variant?: "card" | "strip" | "inline";
   className?: string;
 }) {
+  const t = useT();
   const def = FAMILIES[family];
   const stops = def.legend;
   const mid = stops[Math.floor(stops.length / 2)]!;
-  const label = sentenceCase(def.label);
+  const label = sentenceCase(t(def.label));
 
-  const hcItems = stops.map((s, i) => (
-    <li key={s.value} className="flex items-center gap-1 font-mono text-[11px] text-ink-2" title={HC_CLASSES[i]?.name}>
-      <span className="size-2 shrink-0 rounded-[2px]" style={{ background: s.color }} aria-hidden />
-      {HC_CLASSES[i]?.code}
-      <span className="sr-only">{HC_CLASSES[i]?.name}</span>
-    </li>
-  ));
+  const hcItems = stops.map((s, i) => {
+    const name = HC_CLASSES[i] && t(HC_CLASSES[i].name);
+    return (
+      <li key={s.value} className="flex items-center gap-1 font-mono text-[11px] text-ink-2" title={name}>
+        <span className="size-2 shrink-0 rounded-[2px]" style={{ background: s.color }} aria-hidden />
+        {HC_CLASSES[i]?.code}
+        <span className="sr-only">{name}</span>
+      </li>
+    );
+  });
 
   if (variant !== "card") {
     return (

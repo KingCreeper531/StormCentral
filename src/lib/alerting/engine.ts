@@ -10,6 +10,8 @@
 import type { WidgetNote } from "../widget-note";
 import type { AirQuality, Forecast } from "../api/open-meteo";
 import type { WeatherAlert } from "../api/types";
+import { translate, translator, type Lang } from "../i18n/core";
+import { eventName } from "../i18n/nws-events";
 import { describeCode } from "../weather/wmo";
 import { currentHourIndex, todayIndex } from "../weather/view";
 import { clockAt, clockFromIso, dayKeyAt, formatTemp, hashId } from "./format";
@@ -65,15 +67,22 @@ export function alertMatchesLevel(a: WeatherAlert, level: WatchConfig["settings"
   return /warning|emergency/i.test(a.event) || a.tags.some((t) => /EMERGENCY/.test(t));
 }
 
-function warningNotification(a: WeatherAlert, place: SavedPlace): AppNotification {
-  const until = clockFromIso(a.ends ?? a.expires);
-  const tags = a.tags.filter((t) => t !== "PDS").map((t) => t.charAt(0) + t.slice(1).toLowerCase());
-  const lead = [a.tags.includes("PDS") ? "Particularly dangerous situation." : "", tags.length ? `${tags.join(", ")}.` : ""].filter(Boolean).join(" ");
+/** "… 4:45 p. m.." → "… 4:45 p. m.": Spanish clock times already end in a period. */
+const oneStop = (s: string) => s.replace(/\.\.$/, ".");
+
+function warningNotification(a: WeatherAlert, place: SavedPlace, lang: Lang = "en"): AppNotification {
+  const until = clockFromIso(a.ends ?? a.expires, lang);
+  // "TORNADO POSSIBLE" → "Tornado possible", then into the person's language.
+  const tags = a.tags.filter((t) => t !== "PDS").map((t) => translate(lang, t.charAt(0) + t.slice(1).toLowerCase()));
+  const lead = [
+    a.tags.includes("PDS") ? translate(lang, "Particularly dangerous situation.") : "",
+    tags.length ? `${tags.join(", ")}.` : "",
+  ].filter(Boolean).join(" ");
   const detail = (a.headline ?? a.areaDesc ?? "").replace(/\s+/g, " ").trim();
   return {
     id: hashId(`${a.id}@${place.id}`),
-    title: `${a.event}: ${place.name}`,
-    body: [lead, `Until ${until}.`, detail.length > 140 ? `${detail.slice(0, 137)}…` : detail].filter(Boolean).join(" "),
+    title: translate(lang, "{event}: {place}", { event: eventName(lang, a.event), place: place.name }),
+    body: [lead, oneStop(translate(lang, "Until {time}.", { time: until })), detail.length > 140 ? `${detail.slice(0, 137)}…` : detail].filter(Boolean).join(" "),
     kind: "warning",
   };
 }
@@ -113,7 +122,7 @@ export async function checkWarnings(cfg: WatchConfig, io: EngineIO): Promise<War
 
   fresh.sort((x, y) => y.a.rank - x.a.rank);
   for (const { a, place } of fresh.slice(0, MAX_PER_CHECK)) {
-    const n = warningNotification(a, place);
+    const n = warningNotification(a, place, cfg.lang ?? "en");
     await io.notify(n);
     sent.push(n);
   }
@@ -129,14 +138,23 @@ export interface ForecastCache {
 }
 
 function ruleNotification(rule: AlertRule, place: SavedPlace, hit: { t: number; v: number }, f: Forecast, cfg: WatchConfig, now: number): AppNotification {
+  const lang = cfg.lang ?? "en";
+  const t = translator(lang);
   const def = metricDef(rule.metric);
   const off = f.utcOffsetSeconds;
-  const day = dayKeyAt(hit.t, off) === dayKeyAt(now, off) ? "" : dayKeyAt(hit.t, off) === dayKeyAt(now + 86_400_000, off) ? "tomorrow " : "";
-  const when = hit.t <= now ? "now" : `${day}at ${clockAt(hit.t, off)}`;
+  const day = dayKeyAt(hit.t, off);
+  const vars = { metric: t(def.label), value: formatMetric(def.kind, hit.v, cfg.units), time: clockAt(hit.t, off, lang) };
+  const body = oneStop(
+    hit.t <= now
+      ? t("{metric} {value} now.", vars)
+      : day === dayKeyAt(now + 86_400_000, off)
+        ? t("{metric} {value} tomorrow at {time}.", vars)
+        : t("{metric} {value} at {time}.", vars),
+  );
   return {
-    id: hashId(`rule:${rule.id}:${dayKeyAt(hit.t, off)}`),
-    title: `${place.name}: ${describeRule(rule.metric, rule.op, rule.value, cfg.units)}`,
-    body: `${def.label} ${formatMetric(def.kind, hit.v, cfg.units)} ${when}.`,
+    id: hashId(`rule:${rule.id}:${day}`),
+    title: t("{place}: {rule}", { place: place.name, rule: describeRule(rule.metric, rule.op, rule.value, cfg.units, t) }),
+    body,
     kind: "custom",
   };
 }
@@ -227,6 +245,8 @@ export function widgetSnapshot(
   alerts: WeatherAlert[] | null,
   now: number,
   note: WidgetNote | null = null,
+  /** Language of the condition text (`now.text`). */
+  lang: Lang = "en",
 ): WidgetSnapshot {
   const top = (alerts ?? []).filter((a) => Date.parse(a.ends ?? a.expires) > now).sort((a, b) => b.rank - a.rank)[0];
   let current: WidgetSnapshot["now"] = null;
@@ -236,7 +256,7 @@ export function widgetSnapshot(
     current = {
       tempC: f.current.temp,
       code,
-      text: describeCode(code).label,
+      text: translate(lang, describeCode(code).label),
       hiC: f.daily.tMax[di] ?? null,
       loC: f.daily.tMin[di] ?? null,
       isDay: (f.current.isDay ?? 1) === 1,

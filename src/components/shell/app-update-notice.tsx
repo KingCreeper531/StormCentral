@@ -2,6 +2,7 @@
 
 import { Download, X } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { useT } from "@/lib/i18n/use-t";
 import { appUpdaterAvailable } from "@/lib/native/app-updater";
 import { checkForUpdate, dismissUpdate, type AvailableUpdate } from "@/lib/native/app-update";
 import { isNativeApp } from "@/lib/platform";
@@ -14,6 +15,7 @@ import { UpdateButton } from "./update-button";
  * in the browser, which hands it to the package installer.
  */
 export function AppUpdateNotice() {
+  const t = useT();
   const [update, setUpdate] = useState<AvailableUpdate | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const inApp = useSyncExternalStore(
@@ -49,20 +51,28 @@ export function AppUpdateNotice() {
     >
       <Download className="size-4 shrink-0 text-ink-3" aria-hidden />
       <p className="min-w-0 flex-1 text-[13px] text-ink-2" aria-live="polite">
-        {status ?? (
-          <>
-            <span className="font-medium text-ink">Storm Central {update.version}</span> is available.
-          </>
-        )}
+        {status ??
+          // The app name and version stay bold wherever the language puts them in the sentence.
+          t("{app} is available.")
+            .split(/(\{app\})/)
+            .map((part, i) =>
+              part === "{app}" ? (
+                <span key={i} className="font-medium text-ink">
+                  Storm Central {update.version}
+                </span>
+              ) : (
+                part
+              ),
+            )}
       </p>
       {inApp ? (
         <UpdateButton version={update.version} onStatus={setStatus} />
       ) : (
         <a href={update.apkUrl} className={buttonClass("primary", "sm")}>
-          Download
+          {t("Download")}
         </a>
       )}
-      <IconButton label="Dismiss" size="sm" onClick={dismiss}>
+      <IconButton label={t("Dismiss")} size="sm" onClick={dismiss}>
         <X className="size-4" aria-hidden />
       </IconButton>
     </div>

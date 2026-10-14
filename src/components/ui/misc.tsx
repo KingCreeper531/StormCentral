@@ -1,6 +1,7 @@
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
-export function Stat({ label, value, sub, className }: { label: string; value: React.ReactNode; sub?: React.ReactNode; className?: string }) {
+export function Stat({ label, value, sub, className }: { label: React.ReactNode; value: React.ReactNode; sub?: React.ReactNode; className?: string }) {
   return (
     <div className={cn("min-w-0", className)}>
       <p className="label">{label}</p>
@@ -24,10 +25,12 @@ export function EmptyState({ icon, title, children }: { icon?: React.ReactNode; 
   );
 }
 
+/** `what` is English ("the forecast") and translated here, like the error's message. */
 export function ErrorNote({ error, what }: { error: unknown; what: string }) {
+  const t = useT();
   return (
     <p className="rounded-[var(--radius-control)] border border-nogo/30 bg-nogo/10 px-3 py-2 text-xs text-ink-2">
-      Couldn&apos;t load {what}. {error instanceof Error ? error.message : ""}
+      {t("Couldn't load {what}.", { what: t(what) })} {error instanceof Error ? t(error.message) : ""}
     </p>
   );
 }

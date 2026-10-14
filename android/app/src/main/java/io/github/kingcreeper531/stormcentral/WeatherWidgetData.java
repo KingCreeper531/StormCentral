@@ -522,6 +522,41 @@ final class WeatherWidgetData {
     }
 
     /** Words for a WMO weather code (matches lib/weather/wmo.ts). */
+    /** Spanish for {@link #describe(int)} (notification text; widgets use the values-es resources). */
+    static String describeEs(int code) {
+        switch (code) {
+            case 0: return "Despejado";
+            case 1: return "Mayormente despejado";
+            case 2: return "Parcialmente nublado";
+            case 3: return "Nublado";
+            case 45: return "Niebla";
+            case 48: return "Niebla helada";
+            case 51: return "Llovizna ligera";
+            case 53: return "Llovizna";
+            case 55: return "Llovizna intensa";
+            case 56: return "Llovizna helada";
+            case 57: return "Llovizna helada intensa";
+            case 61: return "Lluvia ligera";
+            case 63: return "Lluvia";
+            case 65: return "Lluvia fuerte";
+            case 66: return "Lluvia helada";
+            case 67: return "Lluvia helada fuerte";
+            case 71: return "Nieve ligera";
+            case 73: return "Nieve";
+            case 75: return "Nieve fuerte";
+            case 77: return "Granos de nieve";
+            case 80: return "Chubascos ligeros";
+            case 81: return "Chubascos";
+            case 82: return "Chubascos violentos";
+            case 85: return "Chubascos de nieve";
+            case 86: return "Chubascos de nieve fuertes";
+            case 95: return "Tormentas eléctricas";
+            case 96: return "Tormentas eléctricas con granizo";
+            case 99: return "Tormentas eléctricas severas con granizo";
+            default: return "Condiciones variables";
+        }
+    }
+
     static String describe(int code) {
         switch (code) {
             case 0: return "Clear";

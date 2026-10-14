@@ -4,6 +4,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ban, Flag, Loader2, MoreHorizontal, ShieldX, Trash2 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { FLAG_REASON_IDS, FLAG_REASONS, type FlagReason, type FlagTarget } from "@/lib/community";
+import type { Translator } from "@/lib/i18n/core";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 import { Button, IconButton } from "../ui/button";
 
@@ -17,6 +19,18 @@ export async function sendJson<T = unknown>(url: string, method: "POST" | "DELET
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { error?: string }).error ?? `Request failed (${res.status})`);
   return data as T;
+}
+
+/**
+ * An error message from our API (or the fallbacks above) in the viewer's
+ * language. The two messages with a value in them are matched by pattern.
+ */
+export function errorText(t: Translator, message: string) {
+  const failed = /^Request failed \((\d+)\)$/.exec(message);
+  if (failed) return t("Request failed ({status})", { status: failed[1]! });
+  const until = /^This account is suspended until (.+)\.$/.exec(message);
+  if (until) return t("This account is suspended until {date}.", { date: until[1]! });
+  return t(message);
 }
 
 /** Everything a block or unblock changes: feeds, comments, the blocked list, profiles. */
@@ -40,25 +54,34 @@ export function useBlock() {
 }
 
 /** Asks first, then blocks. */
-export function confirmBlock(displayName: string) {
+export function confirmBlock(displayName: string, t: Translator) {
   return confirm(
-    `Block ${displayName}?\n\nYou won't see each other's reports or comments, and neither of you can comment on or confirm the other's reports. You can unblock them in Settings → Account.`,
+    t(
+      "Block {name}?\n\nYou won't see each other's reports or comments, and neither of you can comment on or confirm the other's reports. You can unblock them in Settings → Account.",
+      { name: displayName },
+    ),
   );
 }
 
-const TARGET_NOUN: Record<FlagTarget, string> = { post: "report", comment: "comment", user: "account" };
+const TITLE: Record<FlagTarget, string> = { post: "Report this report", comment: "Report this comment", user: "Report this account" };
+const THANKS: Record<FlagTarget, string> = {
+  post: "A moderator will review this report. If several people report it, it's hidden until then. You can also block the person so you don't see their posts.",
+  comment:
+    "A moderator will review this comment. If several people report it, it's hidden until then. You can also block the person so you don't see their posts.",
+  user: "A moderator will review this account. If several people report it, it's hidden until then. You can also block the person so you don't see their posts.",
+};
 
 /**
  * Report something to the moderators: a reason and optional details. A native
  * modal <dialog> handles focus, Escape and the backdrop.
  */
 export function ReportDialog({ type, id, onClose }: { type: FlagTarget; id: string; onClose: () => void }) {
+  const t = useT();
   const ref = useRef<HTMLDialogElement>(null);
   const uid = useId();
   const [reason, setReason] = useState<FlagReason | null>(null);
   const [details, setDetails] = useState("");
   const submit = useMutation({ mutationFn: () => sendJson("/api/flags", "POST", { type, id, reason, details: details.trim() || undefined }) });
-  const noun = TARGET_NOUN[type];
 
   useEffect(() => {
     const d = ref.current;
@@ -77,15 +100,12 @@ export function ReportDialog({ type, id, onClose }: { type: FlagTarget; id: stri
       {submit.isSuccess ? (
         <div className="space-y-3 p-5">
           <h2 id={`${uid}-title`} className="text-[15px] font-semibold">
-            Thanks for letting us know
+            {t("Thanks for letting us know")}
           </h2>
-          <p className="text-sm leading-relaxed text-ink-2">
-            A moderator will review this {noun}. If several people report it, it&apos;s hidden until then. You can also block the person so you don&apos;t see
-            their posts.
-          </p>
+          <p className="text-sm leading-relaxed text-ink-2">{t(THANKS[type])}</p>
           <div className="flex justify-end">
             <Button variant="primary" onClick={() => ref.current?.close()}>
-              Done
+              {t("Done")}
             </Button>
           </div>
         </div>
@@ -99,12 +119,12 @@ export function ReportDialog({ type, id, onClose }: { type: FlagTarget; id: stri
         >
           <div>
             <h2 id={`${uid}-title`} className="text-[15px] font-semibold">
-              Report this {noun}
+              {t(TITLE[type])}
             </h2>
-            <p className="mt-0.5 text-xs text-ink-3">Reports go to the moderators. The person you report isn&apos;t told who reported them.</p>
+            <p className="mt-0.5 text-xs text-ink-3">{t("Reports go to the moderators. The person you report isn't told who reported them.")}</p>
           </div>
           <fieldset className="space-y-1">
-            <legend className="sr-only">Reason</legend>
+            <legend className="sr-only">{t("Reason")}</legend>
             {FLAG_REASON_IDS.map((r) => (
               <label key={r} className="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-[var(--radius-control)] px-2 text-sm hover:bg-surface-2 pointer-coarse:min-h-11">
                 <input
@@ -115,31 +135,31 @@ export function ReportDialog({ type, id, onClose }: { type: FlagTarget; id: stri
                   onChange={() => setReason(r)}
                   className="size-4 shrink-0 accent-[var(--color-accent)]"
                 />
-                {FLAG_REASONS[r]}
+                {t(FLAG_REASONS[r])}
               </label>
             ))}
           </fieldset>
           <label className="block">
-            <span className="label">Details (optional)</span>
+            <span className="label">{t("Details (optional)")}</span>
             <textarea
               value={details}
               onChange={(e) => setDetails(e.target.value)}
               maxLength={500}
               rows={3}
               className="mt-1 w-full resize-none rounded-[var(--radius-control)] border border-line bg-surface-2 px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-3 focus:border-accent pointer-coarse:text-base"
-              placeholder="Anything that helps the moderators understand"
+              placeholder={t("Anything that helps the moderators understand")}
             />
           </label>
           {submit.error && (
             <p role="alert" className="rounded-[var(--radius-control)] border border-nogo/30 bg-nogo/10 px-3 py-2 text-xs text-ink-2">
-              {(submit.error as Error).message}
+              {errorText(t, (submit.error as Error).message)}
             </p>
           )}
           <div className="flex justify-end gap-2">
-            <Button onClick={() => ref.current?.close()}>Cancel</Button>
+            <Button onClick={() => ref.current?.close()}>{t("Cancel")}</Button>
             <Button type="submit" variant="primary" disabled={!reason || submit.isPending}>
               {submit.isPending && <Loader2 className="size-4 animate-spin" aria-hidden />}
-              Send report
+              {t("Send report")}
             </Button>
           </div>
         </form>

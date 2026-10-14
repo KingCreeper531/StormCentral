@@ -2,6 +2,7 @@
 
 import { Smartphone, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n/use-t";
 import { desktopBridge } from "@/lib/native/desktop";
 import { GITHUB_REPO, isNativeApp } from "@/lib/platform";
 import { buttonClass, IconButton } from "../ui/button";
@@ -19,6 +20,7 @@ type Target = "android" | "windows";
  * address. Dismissing hides it for 30 days.
  */
 export function OpenInApp() {
+  const t = useT();
   const [target, setTarget] = useState<Target | null>(null);
 
   useEffect(() => {
@@ -30,9 +32,9 @@ export function OpenInApp() {
       /* storage blocked: show it */
     }
     const ua = navigator.userAgent;
-    const t: Target | null = /Android/i.test(ua) ? "android" : /Windows NT/i.test(ua) ? "windows" : null;
+    const found: Target | null = /Android/i.test(ua) ? "android" : /Windows NT/i.test(ua) ? "windows" : null;
     // Decided after mount so server markup and first render match.
-    const id = requestAnimationFrame(() => setTarget(t));
+    const id = requestAnimationFrame(() => setTarget(found));
     return () => cancelAnimationFrame(id);
   }, []);
 
@@ -54,20 +56,30 @@ export function OpenInApp() {
   return (
     <div
       role="region"
-      aria-label="Storm Central app"
+      aria-label={t("Storm Central app")}
       className="surface fixed inset-x-4 bottom-[calc(var(--tabbar-h)_+_12px)] z-50 flex items-center gap-3 py-2 pr-2 pl-3 md:inset-x-auto md:right-6 md:bottom-6 md:w-[420px]"
     >
       <Smartphone className="size-4 shrink-0 text-ink-3" aria-hidden />
       <p className="min-w-0 flex-1 text-[13px] text-ink-2">
-        <span className="font-medium text-ink">Storm Central app</span> adds warning notifications{target === "android" ? " and a widget" : " and a tray icon"}.
+        {t(target === "android" ? "{app} adds warning notifications and a widget." : "{app} adds warning notifications and a tray icon.")
+          .split(/(\{app\})/)
+          .map((part, i) =>
+            part === "{app}" ? (
+              <span key={i} className="font-medium text-ink">
+                {t("Storm Central app")}
+              </span>
+            ) : (
+              part
+            ),
+          )}
       </p>
       <a href={open} className={buttonClass("primary", "sm")}>
-        Open
+        {t("Open")}
       </a>
       <a href={RELEASES} target="_blank" rel="noreferrer" className={buttonClass("secondary", "sm")}>
-        Get it
+        {t("Get it")}
       </a>
-      <IconButton label="Dismiss" size="sm" onClick={dismiss}>
+      <IconButton label={t("Dismiss")} size="sm" onClick={dismiss}>
         <X className="size-4" aria-hidden />
       </IconButton>
     </div>

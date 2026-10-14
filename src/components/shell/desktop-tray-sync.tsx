@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { useForecast } from "@/hooks/queries";
+import { useForecast, useLocalAlerts } from "@/hooks/queries";
+import type { WeatherAlert } from "@/lib/api/types";
+import { alertCategory, alertMatchesLevel } from "@/lib/alerting/engine";
+import { clockFromIso } from "@/lib/alerting/format";
 import { useFormat } from "@/hooks/use-format";
+import { useNow } from "@/hooks/use-now";
+import { eventName } from "@/lib/i18n/nws-events";
+import { useT } from "@/lib/i18n/use-t";
 import { desktopBridge, type TrayStatus } from "@/lib/native/desktop";
 import { convertTemp, type TempUnit } from "@/lib/weather/units";
 import { describeCode } from "@/lib/weather/wmo";
@@ -23,14 +29,28 @@ function iconLabel(tempC: number, unit: TempUnit): string | null {
 
 const iconCache = new Map<string, string>();
 
+/** Badge colours: red for tornado and emergencies, orange for other warnings. */
+const BADGE = { red: "#ff3b30", orange: "#ff9f0a" } as const;
+type Badge = keyof typeof BADGE;
+
+/** The most serious active warning at the location, if any (tornado and emergencies first). */
+export function topWarning(alerts: readonly WeatherAlert[] | undefined, now: number): { alert: WeatherAlert; badge: Badge } | null {
+  const active = (alerts ?? []).filter((a) => alertMatchesLevel(a, "warnings") && Date.parse(a.ends ?? a.expires) > now);
+  if (!active.length) return null;
+  const rank = (a: WeatherAlert) => (a.tags.some((t) => /EMERGENCY/.test(t)) ? 3 : alertCategory(a.event) === "tornado" ? 2 : 1);
+  const alert = [...active].sort((a, b) => rank(b) - rank(a))[0]!;
+  return { alert, badge: rank(alert) >= 2 ? "red" : "orange" };
+}
+
 /**
  * The temperature as a tray icon: bold white digits with a dark outline on a
  * transparent background, so it reads on light and dark taskbars. Digits are
  * fitted to the width, then stretched up to 1.35x vertically for legibility
  * once Windows shows the icon at 16 px.
  */
-function temperatureIcon(label: string): string | undefined {
-  const cached = iconCache.get(label);
+function temperatureIcon(label: string, badge: Badge | null = null): string | undefined {
+  const key = `${label}|${badge ?? ""}`;
+  const cached = iconCache.get(key);
   if (cached) return cached;
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = ICON_PX;
@@ -62,18 +82,34 @@ function temperatureIcon(label: string): string | undefined {
   ctx.strokeText(label, ICON_PX / 2, baseline);
   ctx.fillText(label, ICON_PX / 2, baseline);
 
+  // An active warning: a coloured dot in the top-right corner, outlined so it reads on any taskbar.
+  if (badge) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.beginPath();
+    ctx.arc(ICON_PX - 7, 7, 6, 0, Math.PI * 2);
+    ctx.fillStyle = BADGE[badge];
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.85)";
+    ctx.fill();
+    ctx.stroke();
+  }
+
   const url = canvas.toDataURL("image/png");
-  iconCache.set(label, url);
+  iconCache.set(key, url);
   return url;
 }
 
 /**
  * Desktop app only: keeps the tray icon and tooltip on the current
  * temperature and conditions at the selected location, in the user's units.
- * Sends an update only when what the tray shows would change. Renders nothing.
+ * An active warning there adds a red or orange dot to the icon and leads the
+ * tooltip ("Tornado Warning until 4:30 PM"). Sends an update only when what
+ * the tray shows would change. Renders nothing.
  */
 export function DesktopTraySync() {
+  const t = useT();
   const forecast = useForecast();
+  const alerts = useLocalAlerts().data?.alerts;
   const place = useAppStore((s) => s.location.name);
   const fmt = useFormat();
   const lastSent = useRef("");
@@ -84,27 +120,37 @@ export function DesktopTraySync() {
   const code = current?.code ?? null;
   const hasData = current !== undefined;
 
+  // Re-checked every minute, so an expired warning drops off even between alert refreshes.
+  const now = useNow(60_000);
+  const warning = useMemo(() => topWarning(alerts, now), [alerts, now]);
+
   const status = useMemo(() => {
     if (!hasData) return null;
-    const name = place.length > MAX_PLACE ? `${place.slice(0, MAX_PLACE - 1)}…` : place;
-    if (tempC == null) return { text: "", tooltip: name, label: null };
-    const condition = describeCode(code).label;
+    const lead = warning
+      ? `${t("{event} until {time}", { event: eventName(t.lang, warning.alert.event), time: clockFromIso(warning.alert.ends ?? warning.alert.expires, t.lang) })}\n`
+      : "";
+    const placeName = place === "My location" ? t(place) : place;
+    const room = MAX_PLACE - Math.max(0, lead.length - 40);
+    const name = placeName.length > room ? `${placeName.slice(0, room - 1)}…` : placeName;
+    if (tempC == null) return { text: "", tooltip: lead + name, label: null, badge: warning?.badge ?? null };
+    const condition = t(describeCode(code).label);
     const temp = fmt.temp(tempC, true);
     return {
       text: temp,
-      tooltip: `${name} · ${temp}${condition !== "—" ? `, ${condition.toLowerCase()}` : ""}`,
+      tooltip: `${lead}${name} · ${temp}${condition !== "—" ? `, ${condition.toLowerCase()}` : ""}`,
       label: iconLabel(tempC, fmt.units.temp),
+      badge: warning?.badge ?? null,
     };
-  }, [hasData, place, tempC, code, fmt]);
+  }, [hasData, place, tempC, code, fmt, warning, t]);
 
   useEffect(() => {
     const bridge = desktopBridge();
     if (!bridge || !status) return;
-    const key = `${status.label ?? ""}\n${status.text}\n${status.tooltip}`;
+    const key = `${status.label ?? ""}\n${status.badge ?? ""}\n${status.text}\n${status.tooltip}`;
     if (key === lastSent.current) return;
     lastSent.current = key;
     const next: TrayStatus = { text: status.text, tooltip: status.tooltip };
-    const icon = status.label ? temperatureIcon(status.label) : undefined;
+    const icon = status.label ? temperatureIcon(status.label, status.badge) : undefined;
     if (icon) next.iconDataUrl = icon;
     bridge.setTrayStatus(next);
   }, [status]);

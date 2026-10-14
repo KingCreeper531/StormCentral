@@ -8,6 +8,7 @@ import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -41,8 +42,11 @@ public class StormAlertsPlugin extends Plugin {
 
     @PluginMethod
     public void test(PluginCall call) {
-        boolean shown = Notifier.show(getContext(), 1, Notifier.WARNINGS, "Storm Central notifications are working",
-                "Warnings, lightning and nearby reports for your places will look like this, even when the app is closed.");
+        boolean es = Lang.spanish(getContext());
+        boolean shown = Notifier.show(getContext(), 1, Notifier.WARNINGS,
+                Lang.pick(es, "Storm Central notifications are working", "Las notificaciones de Storm Central funcionan"),
+                Lang.pick(es, "Warnings, lightning and nearby reports for your places will look like this, even when the app is closed.",
+                        "Los avisos, rayos y reportes cercanos para tus lugares se verán así, incluso con la app cerrada."));
         JSObject r = new JSObject();
         r.put("shown", shown);
         call.resolve(r);
@@ -57,6 +61,9 @@ public class StormAlertsPlugin extends Plugin {
         long last = AlertsWorker.lastRun(ctx);
         r.put("lastRun", last == 0 ? null : last);
         r.put("lastResult", AlertsWorker.prefs(ctx).getString(AlertsWorker.LAST_RESULT, null));
+        JSArray features = new JSArray();
+        for (String f : AlertsWorker.FEATURES) features.put(f);
+        r.put("features", features);
         call.resolve(r);
     }
 

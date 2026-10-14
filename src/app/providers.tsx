@@ -15,6 +15,7 @@ import { applyCustomVars, applyTheme, resolveTheme } from "@/lib/theme";
 import { selectActiveTheme, useAddonsStore } from "@/store/addons-store";
 import { useAlertsStore } from "@/store/alerts-store";
 import { sunPosition } from "@/lib/astro/sun";
+import { useLang } from "@/lib/i18n/use-t";
 import { useAppStore } from "@/store/app-store";
 
 /** Only small, location-scoped feeds are persisted for instant cold starts. */
@@ -94,12 +95,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return () => mq.removeEventListener("change", onChange);
   }, [themePref, hydrated, custom, addonsHydrated]);
 
+  // <html lang> follows the app language (screen readers and hyphenation use it).
+  const lang = useLang();
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
   return (
     <PersistQueryClientProvider
       client={queryClient}
       persistOptions={{
         persister,
-        maxAge: 24 * 3_600_000,
+        // Three days: with no signal the saved forecast still covers the days ahead (the Daily page labels it as saved).
+        maxAge: 72 * 3_600_000,
         // Bump when a persisted query's shape changes, so data saved by an older version is dropped.
         buster: "v2",
         dehydrateOptions: {

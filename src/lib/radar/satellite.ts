@@ -8,6 +8,7 @@
  * fixed latency margin before it. Several radar frames share a slot, which is
  * what keeps a 12-frame loop down to ~6 satellite images.
  */
+import { translator, type Translator } from "../i18n/core";
 import { clockIn } from "../weather/view";
 
 export type SatBand = "infrared" | "visible";
@@ -106,9 +107,12 @@ export function nearestSlot(slots: readonly number[], slotMs: number): number | 
 
 /**
  * Caption for the image on screen: "GOES-East infrared, 2:20 PM". Without
- * `sat` it reads "GOES infrared, 2:20 PM".
+ * `sat` it reads "GOES infrared, 2:20 PM". With `t`, in that language
+ * ("GOES-East, infrarrojo, 2:20 p. m.").
  */
-export function satelliteLabel(band: SatBand, slotMs: number, timeZone: string | undefined, sat?: GoesSat): string {
+export function satelliteLabel(band: SatBand, slotMs: number, timeZone: string | undefined, sat?: GoesSat, t?: Translator): string {
   const name = sat ? `GOES-${sat === "west" ? "West" : "East"}` : "GOES";
-  return `${name} ${band}, ${clockIn(timeZone, slotMs)}`;
+  const vars = { sat: name, time: clockIn(timeZone, slotMs, t?.locale) };
+  const tr = t ?? translator("en");
+  return band === "infrared" ? tr("{sat} infrared, {time}", vars) : tr("{sat} visible, {time}", vars);
 }

@@ -5,6 +5,7 @@
  */
 
 export const DAILY_PANELS = [
+  { id: "storms", label: "Storms heading your way", col: "full", hint: "Shows when radar sees a strong storm coming" },
   { id: "hero", label: "Current conditions", col: "main" },
   { id: "nowcast", label: "Next 3 hours", col: "side" },
   { id: "hourly", label: "Hourly forecast", col: "main" },

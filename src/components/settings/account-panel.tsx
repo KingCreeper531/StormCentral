@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useId, useRef, useState } from "react";
 import { getJson } from "@/lib/api/http";
 import { suspensionText, type BlockedUserDto } from "@/lib/community";
+import { useT } from "@/lib/i18n/use-t";
 import { qk, useSession } from "@/hooks/queries";
 import { Field, INPUT } from "../community/auth-form";
 import { useBlock } from "../community/moderation";
@@ -56,6 +57,7 @@ function ProfilePanel({ profile, hue }: { profile: Profile; hue: number }) {
   const [busy, setBusy] = useState<"picture" | "save" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const t = useT();
 
   const refresh = async () => {
     await Promise.all([qc.invalidateQueries({ queryKey: ["account"] }), qc.invalidateQueries({ queryKey: qk.session }), qc.invalidateQueries({ queryKey: ["posts"] })]);
@@ -83,7 +85,7 @@ function ProfilePanel({ profile, hue }: { profile: Profile; hue: number }) {
     });
 
   return (
-    <Panel title="Profile" subtitle={`@${profile.username} · ${profile.email}`}>
+    <Panel title={t("Profile")} subtitle={`@${profile.username} · ${profile.email}`}>
       <div className="flex items-center gap-4">
         <Avatar name={profile.displayName} hue={hue} src={profile.avatarUrl} size={64} />
         <div className="flex flex-wrap gap-2">
@@ -100,11 +102,11 @@ function ProfilePanel({ profile, hue }: { profile: Profile; hue: number }) {
           />
           <Button size="sm" onClick={() => fileRef.current?.click()} disabled={busy !== null}>
             {busy === "picture" ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Camera className="size-4" aria-hidden />}
-            {profile.avatarUrl ? "Change picture" : "Add picture"}
+            {profile.avatarUrl ? t("Change picture") : t("Add picture")}
           </Button>
           {profile.avatarUrl && (
             <Button size="sm" variant="ghost" onClick={() => void run("picture", () => send("/api/account/avatar", { method: "DELETE" }))} disabled={busy !== null}>
-              Remove
+              {t("Remove")}
             </Button>
           )}
         </div>
@@ -125,10 +127,10 @@ function ProfilePanel({ profile, hue }: { profile: Profile; hue: number }) {
           );
         }}
       >
-        <Field id={`${uid}-name`} label="Display name">
+        <Field id={`${uid}-name`} label={t("Display name")}>
           <input id={`${uid}-name`} name="displayName" defaultValue={profile.displayName} maxLength={40} required autoComplete="nickname" className={INPUT} />
         </Field>
-        <Field id={`${uid}-bio`} label="Bio" optional hint="Shown on your profile, up to 300 characters.">
+        <Field id={`${uid}-bio`} label={t("Bio")} optional hint={t("Shown on your profile, up to 300 characters.")}>
           <textarea
             id={`${uid}-bio`}
             name="bio"
@@ -140,17 +142,21 @@ function ProfilePanel({ profile, hue }: { profile: Profile; hue: number }) {
         </Field>
         {error && (
           <p role="alert" className="rounded-[var(--radius-control)] border border-nogo/30 bg-nogo/10 px-3 py-2 text-xs text-ink-2">
-            {error}
+            {t(error)}
           </p>
         )}
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" variant="primary" disabled={busy !== null}>
             {busy === "save" && <Loader2 className="size-4 animate-spin" aria-hidden />}
-            Save profile
+            {t("Save profile")}
           </Button>
-          {saved && <span role="status" className="text-sm text-ink-2">Saved.</span>}
+          {saved && (
+            <span role="status" className="text-sm text-ink-2">
+              {t("Saved.")}
+            </span>
+          )}
           <Link href={`/u/${profile.username}`} className="text-[13px] text-ink-2 hover:text-ink hover:underline">
-            View my profile
+            {t("View my profile")}
           </Link>
         </div>
       </form>
@@ -166,12 +172,13 @@ function BlockedAccountsPanel() {
   });
   const unblock = useBlock();
   const list = blocked.data ?? [];
+  const t = useT();
   return (
-    <Panel title="Blocked accounts" subtitle="You don't see each other's reports or comments, and can't interact">
-      {blocked.isLoading && <p className="text-[13px] text-ink-3">Loading…</p>}
-      {blocked.error && <p className="text-[13px] text-ink-3">Couldn&apos;t load your blocked accounts.</p>}
+    <Panel title={t("Blocked accounts")} subtitle={t("You don't see each other's reports or comments, and can't interact")}>
+      {blocked.isLoading && <p className="text-[13px] text-ink-3">{t("Loading…")}</p>}
+      {blocked.error && <p className="text-[13px] text-ink-3">{t("Couldn't load your blocked accounts.")}</p>}
       {blocked.isSuccess && !list.length && (
-        <p className="text-[13px] text-ink-3">You haven&apos;t blocked anyone. Use the ⋯ menu on a report, comment or profile to block someone.</p>
+        <p className="text-[13px] text-ink-3">{t("You haven't blocked anyone. Use the ⋯ menu on a report, comment or profile to block someone.")}</p>
       )}
       {list.length > 0 && (
         <ul className="-my-2 divide-y divide-line">
@@ -183,7 +190,7 @@ function BlockedAccountsPanel() {
                 <p className="truncate text-xs text-ink-3">@{b.username}</p>
               </div>
               <Button size="sm" onClick={() => unblock.mutate({ username: b.username, blocked: false })} disabled={unblock.isPending}>
-                Unblock
+                {t("Unblock")}
               </Button>
             </li>
           ))}
@@ -191,7 +198,7 @@ function BlockedAccountsPanel() {
       )}
       {unblock.error && (
         <p role="alert" className="mt-2 text-xs text-ink-2">
-          {(unblock.error as Error).message}
+          {t((unblock.error as Error).message)}
         </p>
       )}
     </Panel>
@@ -200,13 +207,14 @@ function BlockedAccountsPanel() {
 
 /** Moderators: a way into the review queue. */
 function ModerationLink() {
+  const t = useT();
   return (
     <Panel padded={false}>
       <Link href="/moderation" className="flex min-h-14 items-center gap-3 px-4 text-sm text-ink hover:bg-surface-2 sm:px-5">
         <ShieldCheck className="size-4 shrink-0 text-ink-3" aria-hidden />
         <span className="min-w-0 flex-1">
-          <span className="block font-medium">Moderation queue</span>
-          <span className="block text-xs text-ink-3">Review reported content and accounts</span>
+          <span className="block font-medium">{t("Moderation queue")}</span>
+          <span className="block text-xs text-ink-3">{t("Review reported content and accounts")}</span>
         </span>
         <ChevronRight className="size-4 shrink-0 text-ink-3" aria-hidden />
       </Link>
@@ -221,12 +229,13 @@ function DeleteAccountPanel() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const t = useT();
   return (
-    <Panel title="Delete account" subtitle="Removes your account, reports, photos and comments for good">
+    <Panel title={t("Delete account")} subtitle={t("Removes your account, reports, photos and comments for good")}>
       {!open ? (
         <Button variant="danger" onClick={() => setOpen(true)}>
           <Trash2 className="size-4" aria-hidden />
-          Delete my account
+          {t("Delete my account")}
         </Button>
       ) : (
         <form
@@ -247,21 +256,21 @@ function DeleteAccountPanel() {
               .finally(() => setBusy(false));
           }}
         >
-          <Field id={`${uid}-pw`} label="Type your password to confirm">
+          <Field id={`${uid}-pw`} label={t("Type your password to confirm")}>
             <input id={`${uid}-pw`} name="password" type="password" required autoComplete="current-password" className={INPUT} />
           </Field>
           {error && (
             <p role="alert" className="rounded-[var(--radius-control)] border border-nogo/30 bg-nogo/10 px-3 py-2 text-xs text-ink-2">
-              {error}
+              {t(error)}
             </p>
           )}
           <div className="flex gap-2">
             <Button type="submit" variant="danger" disabled={busy}>
               {busy && <Loader2 className="size-4 animate-spin" aria-hidden />}
-              Delete forever
+              {t("Delete forever")}
             </Button>
             <Button variant="ghost" onClick={() => setOpen(false)}>
-              Cancel
+              {t("Cancel")}
             </Button>
           </div>
         </form>
@@ -278,12 +287,13 @@ export function AccountSection() {
     queryFn: ({ signal }) => getJson<Profile>("/api/account", { signal }),
     enabled: !!session.data,
   });
+  const t = useT();
   if (!session.data || !profile.data) return null;
   return (
     <>
       {session.data.suspendedUntil != null && (
         <p role="status" className="rounded-[var(--radius-control)] border border-nogo/30 bg-nogo/10 px-3 py-2 text-[13px] text-ink-2">
-          {suspensionText(session.data.suspendedUntil)} You can still read reports, but you can&apos;t post, comment, confirm or edit your profile.
+          {suspensionText(session.data.suspendedUntil, t)} {t("You can still read reports, but you can't post, comment, confirm or edit your profile.")}
         </p>
       )}
       {session.data.moderator && <ModerationLink />}

@@ -4,7 +4,9 @@ import { canMoveDailyItem, dailySections, defaultDailyLayout, moveDailyItem, nor
 describe("daily layout", () => {
   it("defaults to every panel, visible, in the standard order", () => {
     const d = defaultDailyLayout();
-    expect(d[0]).toEqual({ id: "hero", col: "main", hidden: false });
+    // The storm card leads (it renders only when a storm is coming), then current conditions.
+    expect(d[0]).toEqual({ id: "storms", col: "full", hidden: false });
+    expect(d[1]).toEqual({ id: "hero", col: "main", hidden: false });
     expect(d.every((x) => !x.hidden)).toBe(true);
     expect(new Set(d.map((x) => x.id)).size).toBe(d.length);
   });
@@ -17,11 +19,13 @@ describe("daily layout", () => {
       { id: "nope", col: "main" },
     ];
     const n = normalizeDailyLayout(saved);
-    expect(n[0]).toEqual({ id: "radar", col: "full", hidden: false });
+    // "storms" has no predecessor, so it goes first.
+    expect(n[0]!.id).toBe("storms");
+    expect(n[1]).toEqual({ id: "radar", col: "full", hidden: false });
     expect(n.find((x) => x.id === "hero")).toEqual({ id: "hero", col: "main", hidden: true });
     expect(n).toHaveLength(defaultDailyLayout().length);
     // Missing panels follow their default predecessor: "severe" after "radar", "nowcast" after "hero".
-    expect(n[1]!.id).toBe("severe");
+    expect(n[2]!.id).toBe("severe");
     const hero = n.findIndex((x) => x.id === "hero");
     expect(n[hero + 1]!.id).toBe("nowcast");
     expect(normalizeDailyLayout("junk")).toEqual(defaultDailyLayout());

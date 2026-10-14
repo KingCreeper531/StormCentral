@@ -5,10 +5,12 @@ import type { ScoreResult } from "@/lib/science/scores";
 import type { WindSample } from "@/lib/science/wind";
 import { fmtIn } from "@/lib/weather/view";
 import { useFormat } from "@/hooks/use-format";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 import { Panel } from "../ui/panel";
 import { StatusText, statusColor } from "../ui/status";
 
+/** English; show with `t(VERDICT[status])`. */
 export const VERDICT: Record<ScoreResult["status"], string> = { go: "Good to fly", caution: "Fly with caution", "no-go": "Grounded" };
 
 export interface FlightHour {
@@ -25,17 +27,18 @@ export interface FlightHour {
  * shows that hour in the readout underneath, so nothing depends on hover.
  */
 export function FlightWindows({ hours, timeZone, className }: { hours: FlightHour[]; timeZone: string; className?: string }) {
+  const t = useT();
   const fmt = useFormat();
   const [sel, setSel] = useState<number | null>(null);
-  const hourFmt = fmtIn(timeZone, { hour: "numeric" });
+  const hourFmt = fmtIn(timeZone, { hour: "numeric" }, t.locale);
   const shown = sel != null && sel < hours.length ? sel : 0;
   const h = hours[shown];
-  const hourLabel = (k: number, t: number) => (k === 0 ? "Now" : hourFmt.format(t));
+  const hourLabel = (k: number, time: number) => (k === 0 ? t("Now") : hourFmt.format(time));
 
   return (
-    <Panel title="Flight windows" subtitle="Next 24 hours" className={className}>
+    <Panel title={t("Flight windows")} subtitle={t("Next 24 hours")} className={className}>
       <ol
-        aria-label="Hourly flight status"
+        aria-label={t("Hourly flight status")}
         className="grid grid-cols-12 gap-x-[2px] gap-y-3 md:grid-cols-24"
         onPointerLeave={(e) => {
           // Touch pointers "leave" right after lifting; keep the tapped hour selected.
@@ -43,7 +46,7 @@ export function FlightWindows({ hours, timeZone, className }: { hours: FlightHou
         }}
       >
         {hours.map((hr, k) => {
-          const verdict = VERDICT[hr.result.status];
+          const verdict = t(VERDICT[hr.result.status]);
           const text = `${hourFmt.format(hr.t)}: ${verdict} (${hr.result.score})`;
           return (
             <li key={hr.i} title={text} className="flex min-w-0 flex-col" onPointerEnter={() => setSel(k)} onPointerDown={() => setSel(k)}>
@@ -73,18 +76,16 @@ export function FlightWindows({ hours, timeZone, className }: { hours: FlightHou
         {h && (
           <p className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
             <span className="min-w-12 font-medium text-ink tabular">{hourLabel(shown, h.t)}</span>
-            <StatusText status={h.result.status} label={VERDICT[h.result.status]} />
-            <span className="text-ink-2 tabular">Score {h.result.score}</span>
-            <span className="text-ink-3 tabular">
-              Wind {fmt.wind(h.atAlt?.speedMs)}, gusts {fmt.wind(h.gustAtAlt)}
-            </span>
+            <StatusText status={h.result.status} label={t(VERDICT[h.result.status])} />
+            <span className="text-ink-2 tabular">{t("Score {n}", { n: h.result.score })}</span>
+            <span className="text-ink-3 tabular">{t("Wind {wind}, gusts {gust}", { wind: fmt.wind(h.atAlt?.speedMs), gust: fmt.wind(h.gustAtAlt) })}</span>
           </p>
         )}
-        <div role="group" aria-label="Legend" className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          <StatusText status="go" label="Go" className="text-xs text-ink-2" />
-          <StatusText status="caution" label="Caution" className="text-xs text-ink-2" />
-          <StatusText status="no-go" label="No-go" className="text-xs text-ink-2" />
-          <span className="text-xs text-ink-3">Brighter cells score higher.</span>
+        <div role="group" aria-label={t("Legend")} className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <StatusText status="go" label={t("Go")} className="text-xs text-ink-2" />
+          <StatusText status="caution" label={t("Caution")} className="text-xs text-ink-2" />
+          <StatusText status="no-go" label={t("No-go")} className="text-xs text-ink-2" />
+          <span className="text-xs text-ink-3">{t("Brighter cells score higher.")}</span>
         </div>
       </div>
     </Panel>

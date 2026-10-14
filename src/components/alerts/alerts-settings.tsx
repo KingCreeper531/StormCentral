@@ -7,12 +7,14 @@ import { searchPlaces } from "@/lib/api/open-meteo";
 import { fromDisplay, METRICS, metricDef, toDisplay, unitLabel, describeRule, type MetricGroup } from "@/lib/alerting/metrics";
 import { nativePermission, showNativeNotification } from "@/lib/alerting/notify-native";
 import { announcePermission, requestWebPermission, showWebNotification, webPermission } from "@/lib/alerting/notify-web";
-import { ALERT_CATEGORIES, CURRENT_PLACE_ID, DEFAULT_BRIEFING, DEFAULT_LIGHTNING, DEFAULT_SPOTTER, type RuleMetric, type RuleOp } from "@/lib/alerting/types";
+import { ALERT_CATEGORIES, CURRENT_PLACE_ID, DEFAULT_BRIEFING, DEFAULT_LIGHTNING, DEFAULT_RAIN, DEFAULT_SPOTTER, RAIN_LEAD_CHOICES, type RuleMetric, type RuleOp } from "@/lib/alerting/types";
+import { useT } from "@/lib/i18n/use-t";
 import { nativeAlerts, nativeAlertsAvailable, type NativeAlertsStatus } from "@/lib/native/storm-alerts";
 import { runnerPermission } from "@/lib/native/runner-bridge";
 import { COMMUNITY_ENABLED, isNativeApp } from "@/lib/platform";
 import { timeAgo } from "@/lib/time";
 import { useNow } from "@/hooks/use-now";
+import { useSession } from "@/hooks/queries";
 import { MAX_PLACES, MAX_RULES, useAlertsStore } from "@/store/alerts-store";
 import { useAppStore } from "@/store/app-store";
 import { Button, IconButton } from "../ui/button";
@@ -76,28 +78,34 @@ function useNativeStatus() {
 
 function NativeStatus({ status }: { status: NativeAlertsStatus }) {
   const now = useNow(15_000);
+  const t = useT();
+  const ago = status.lastRun ? timeAgo(status.lastRun, now, t) : "";
   return (
     <div className="mt-3 space-y-2 rounded-[var(--radius-control)] border border-line bg-surface-2 px-3 py-2.5 text-xs text-ink-2">
       <p>
-        <span className="font-medium text-ink">Background checks:</span>{" "}
-        {status.lastRun ? `last ran ${timeAgo(status.lastRun, now)}${status.lastResult ? ` (${status.lastResult})` : ""}.` : "waiting for the first run (needs a network connection)."}
+        <span className="font-medium text-ink">{t("Background checks:")}</span>{" "}
+        {status.lastRun
+          ? status.lastResult
+            ? t("last ran {time} ({result}).", { time: ago, result: status.lastResult })
+            : t("last ran {time}.", { time: ago })
+          : t("waiting for the first run (needs a network connection).")}
       </p>
-      {!status.allowed && <p className="text-nogo">Android is blocking Storm Central&apos;s notifications. Turn them on in notification settings.</p>}
+      {!status.allowed && <p className="text-nogo">{t("Android is blocking Storm Central's notifications. Turn them on in notification settings.")}</p>}
       {!status.batteryUnrestricted && (
         <p>
-          Battery optimization can delay checks by an hour or more on some phones. Allow Storm Central to run in the background so warnings arrive on time.
+          {t("Battery optimization can delay checks by an hour or more on some phones. Allow Storm Central to run in the background so warnings arrive on time.")}
         </p>
       )}
       <div className="flex flex-wrap gap-2 pt-0.5">
         {!status.batteryUnrestricted && (
           <Button size="sm" onClick={() => void nativeAlerts.requestBatteryExemption().catch(() => {})}>
             <BatteryCharging className="size-4" aria-hidden />
-            Allow background activity
+            {t("Allow background activity")}
           </Button>
         )}
         <Button size="sm" variant="ghost" onClick={() => void nativeAlerts.openNotificationSettings().catch(() => {})}>
           <Settings2 className="size-4" aria-hidden />
-          Notification settings
+          {t("Notification settings")}
         </Button>
       </div>
     </div>
@@ -110,6 +118,7 @@ function NotificationsPanel() {
   const { native, perm, request } = usePermission();
   const nativeChecks = useNativeStatus();
   const [tested, setTested] = useState<"no" | "sent" | "failed">("no");
+  const t = useT();
 
   // The switch always follows the tap; if permission is refused, the status line says so.
   const setEnabled = (on: boolean) => {
@@ -118,7 +127,7 @@ function NotificationsPanel() {
   };
   const test = async () => {
     if (perm !== "granted" && (await request()) !== "granted") return;
-    const n = { id: 1, title: "Storm Central", body: "Notifications are working. Warnings for your places will look like this.", kind: "test" as const };
+    const n = { id: 1, title: "Storm Central", body: t("Notifications are working. Warnings for your places will look like this."), kind: "test" as const };
     try {
       // Android 0.4.3+: through the same native path real alerts use.
       if (nativeChecks.available) setTested((await nativeAlerts.test()).shown ? "sent" : "failed");
@@ -134,54 +143,54 @@ function NotificationsPanel() {
 
   const status =
     perm === "denied"
-      ? "Notifications are blocked. Allow them for Storm Central in your browser or system settings."
+      ? t("Notifications are blocked. Allow them for Storm Central in your browser or system settings.")
       : perm === "unsupported"
-        ? "This browser can't show notifications."
+        ? t("This browser can't show notifications.")
         : settings.enabled && perm !== "granted"
-          ? "Allow notifications when your device asks, or tap Send a test notification."
+          ? t("Allow notifications when your device asks, or tap Send a test notification.")
         : native
-          ? "Checked about every 15 minutes, even when the app is closed."
-          : "Checked every 2 minutes while Storm Central is open (the Windows app keeps checking from the tray).";
+          ? t("Checked about every 15 minutes, even when the app is closed.")
+          : t("Checked every 2 minutes while Storm Central is open (the Windows app keeps checking from the tray).");
 
   return (
-    <Panel title="Notifications" subtitle="NWS warnings for your places, and your custom alerts">
+    <Panel title={t("Notifications")} subtitle={t("NWS warnings for your places, and your custom alerts")}>
       <div className="divide-y divide-line">
-        <Toggle label="Notify me" checked={settings.enabled} onChange={setEnabled} />
-        <Toggle label="Watch my selected location" checked={settings.watchCurrent} onChange={(watchCurrent) => setSettings({ watchCurrent })} />
+        <Toggle label={t("Notify me")} checked={settings.enabled} onChange={setEnabled} />
+        <Toggle label={t("Watch my selected location")} checked={settings.watchCurrent} onChange={(watchCurrent) => setSettings({ watchCurrent })} />
       </div>
       <div className="mt-3">
-        <p className="label mb-1.5">Which alerts: warnings only, or warnings plus watches and advisories</p>
+        <p className="label mb-1.5">{t("Which alerts: warnings only, or warnings plus watches and advisories")}</p>
         <Segmented
-          ariaLabel="Which alerts"
+          ariaLabel={t("Which alerts")}
           stretch
           value={settings.level}
           onChange={(level) => setSettings({ level })}
           options={[
-            { value: "warnings", label: "Warnings" },
-            { value: "all", label: "+ Watches" },
+            { value: "warnings", label: t("Warnings") },
+            { value: "all", label: t("+ Watches") },
           ]}
         />
       </div>
       <div className="mt-4">
-        <p className="label mb-1">Notify me about</p>
+        <p className="label mb-1">{t("Notify me about")}</p>
         <div className="divide-y divide-line">
           {ALERT_CATEGORIES.map((c) => (
             <Toggle
               key={c.id}
-              label={c.label}
+              label={t(c.label)}
               checked={settings.categories?.[c.id] !== false}
               onChange={(on) => setSettings({ categories: { ...settings.categories, [c.id]: on } })}
             />
           ))}
-          <Toggle label="My custom alerts" checked={settings.custom !== false} onChange={(custom) => setSettings({ custom })} />
+          <Toggle label={t("My custom alerts")} checked={settings.custom !== false} onChange={(custom) => setSettings({ custom })} />
         </div>
       </div>
       <p className="mt-3 text-xs text-ink-3">{status}</p>
       <Button size="sm" className="mt-3" onClick={() => void test()} disabled={perm === "unsupported" || perm === "denied"}>
         <Bell className="size-4" aria-hidden />
-        {tested === "sent" ? "Sent" : "Send a test notification"}
+        {tested === "sent" ? t("Sent") : t("Send a test notification")}
       </Button>
-      {tested === "failed" && <p className="mt-2 text-xs text-nogo">Couldn&apos;t show a notification. Check that Storm Central&apos;s notifications are allowed in your phone&apos;s settings.</p>}
+      {tested === "failed" && <p className="mt-2 text-xs text-nogo">{t("Couldn't show a notification. Check that Storm Central's notifications are allowed in your phone's settings.")}</p>}
       {nativeChecks.available && nativeChecks.status && settings.enabled && <NativeStatus status={nativeChecks.status} />}
     </Panel>
   );
@@ -215,24 +224,51 @@ function MoreAlertsPanel() {
   const briefing = settings.briefing ?? DEFAULT_BRIEFING;
   const lightning = settings.lightning ?? DEFAULT_LIGHTNING;
   const spotter = settings.spotter ?? DEFAULT_SPOTTER;
+  const rain = settings.rain ?? DEFAULT_RAIN;
+  const storms = settings.storms ?? { enabled: false };
+  const activity = settings.activity ?? { enabled: false };
+  const { data: session } = useSession();
   const off = !settings.enabled;
+  const t = useT();
   return (
-    <Panel title="More notifications" subtitle={off ? "Turn on Notify me above to use these" : "For your watched places"}>
+    <Panel title={t("More notifications")} subtitle={off ? t("Turn on Notify me above to use these") : t("For your watched places")}>
       <div className="divide-y divide-line">
-        <OptionRow label="Morning briefing" hint="Today's high and low, rain chance and anything notable, once a day">
+        <OptionRow label={t("Rain starting soon")} hint={t("When rain or snow is about to start where you are, once per spell (15-minute forecast)")}>
+          <select
+            aria-label={t("How far ahead")}
+            value={String(rain.leadMin)}
+            disabled={off || !rain.enabled}
+            onChange={(e) => setSettings({ rain: { ...rain, leadMin: Number(e.target.value) } })}
+            className={SELECT}
+          >
+            {RAIN_LEAD_CHOICES.map((m) => (
+              <option key={m} value={m}>
+                {m === 60 ? t("Up to 1 hour ahead") : t("Up to {n} min ahead", { n: m })}
+              </option>
+            ))}
+          </select>
+          <Toggle hideLabel label={t("Rain starting soon")} checked={rain.enabled} onChange={(enabled) => setSettings({ rain: { ...rain, enabled } })} />
+        </OptionRow>
+        <OptionRow
+          label={t("Storms heading your way")}
+          hint={t("A strong storm on radar (hail, rotation or heavy core) due to reach a watched place within the hour, with its arrival time")}
+        >
+          <Toggle hideLabel label={t("Storms heading your way")} checked={storms.enabled} onChange={(enabled) => setSettings({ storms: { enabled } })} />
+        </OptionRow>
+        <OptionRow label={t("Morning briefing")} hint={t("Today's high and low, rain chance and anything notable, once a day")}>
           <input
             type="time"
-            aria-label="Briefing time"
+            aria-label={t("Briefing time")}
             value={briefing.time}
             disabled={off || !briefing.enabled}
             onChange={(e) => e.target.value && setSettings({ briefing: { ...briefing, time: e.target.value } })}
             className={SELECT}
           />
-          <Toggle hideLabel label="Morning briefing" checked={briefing.enabled} onChange={(enabled) => setSettings({ briefing: { ...briefing, enabled } })} />
+          <Toggle hideLabel label={t("Morning briefing")} checked={briefing.enabled} onChange={(enabled) => setSettings({ briefing: { ...briefing, enabled } })} />
         </OptionRow>
-        <OptionRow label="Lightning nearby" hint="Strikes in the last 15 minutes (NOAA), at most every 45 minutes per place">
+        <OptionRow label={t("Lightning nearby")} hint={t("Strikes in the last 15 minutes (NOAA), at most every 45 minutes per place")}>
           <select
-            aria-label="Lightning distance"
+            aria-label={t("Lightning distance")}
             value={String(lightning.radiusKm)}
             disabled={off || !lightning.enabled}
             onChange={(e) => setSettings({ lightning: { ...lightning, radiusKm: Number(e.target.value) } })}
@@ -244,12 +280,12 @@ function MoreAlertsPanel() {
               </option>
             ))}
           </select>
-          <Toggle hideLabel label="Lightning nearby" checked={lightning.enabled} onChange={(enabled) => setSettings({ lightning: { ...lightning, enabled } })} />
+          <Toggle hideLabel label={t("Lightning nearby")} checked={lightning.enabled} onChange={(enabled) => setSettings({ lightning: { ...lightning, enabled } })} />
         </OptionRow>
         {COMMUNITY_ENABLED && (
-          <OptionRow label="Nearby spotter reports" hint="Tornado, hail, wind damage, flooding or other serious reports from the last hour">
+          <OptionRow label={t("Nearby spotter reports")} hint={t("Tornado, hail, wind damage, flooding or other serious reports from the last hour")}>
             <select
-              aria-label="Spotter report distance"
+              aria-label={t("Spotter report distance")}
               value={String(spotter.radiusKm)}
               disabled={off || !spotter.enabled}
               onChange={(e) => setSettings({ spotter: { ...spotter, radiusKm: Number(e.target.value) } })}
@@ -261,7 +297,15 @@ function MoreAlertsPanel() {
                 </option>
               ))}
             </select>
-            <Toggle hideLabel label="Nearby spotter reports" checked={spotter.enabled} onChange={(enabled) => setSettings({ spotter: { ...spotter, enabled } })} />
+            <Toggle hideLabel label={t("Nearby spotter reports")} checked={spotter.enabled} onChange={(enabled) => setSettings({ spotter: { ...spotter, enabled } })} />
+          </OptionRow>
+        )}
+        {COMMUNITY_ENABLED && (
+          <OptionRow
+            label={t("Activity on your reports")}
+            hint={session ? t("When someone confirms or comments on a report you posted") : t("Sign in to the spotter network to use this")}
+          >
+            <Toggle hideLabel label={t("Activity on your reports")} checked={activity.enabled} onChange={(enabled) => setSettings({ activity: { enabled } })} />
           </OptionRow>
         )}
       </div>
@@ -277,9 +321,10 @@ function PlacesPanel() {
   const setLocation = useAppStore((s) => s.setLocation);
   const [q, setQ] = useState("");
   const [term, setTerm] = useState("");
+  const t = useT();
   useEffect(() => {
-    const t = setTimeout(() => setTerm(q.trim()), 250);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setTerm(q.trim()), 250);
+    return () => clearTimeout(timer);
   }, [q]);
   const results = useQuery({ queryKey: ["place-search", term], queryFn: ({ signal }) => searchPlaces(term, signal), enabled: term.length >= 2, staleTime: 60_000 });
   const full = places.length >= MAX_PLACES;
@@ -287,17 +332,17 @@ function PlacesPanel() {
 
   return (
     <Panel
-      title="Saved places"
-      subtitle={`Warnings are checked for each place (up to ${MAX_PLACES})`}
+      title={t("Saved places")}
+      subtitle={t("Warnings are checked for each place (up to {n})", { n: MAX_PLACES })}
       action={
         <Button size="sm" variant="ghost" onClick={() => addPlace({ name: location.name, lat: location.lat, lon: location.lon })} disabled={full || savedHere}>
           <Plus className="size-4" aria-hidden />
-          {savedHere ? "Saved" : "Save current"}
+          {savedHere ? t("Saved") : t("Save current")}
         </Button>
       }
     >
       {places.length === 0 ? (
-        <EmptyState title="No saved places">Save home, work or the cabin to get warnings for them wherever you are.</EmptyState>
+        <EmptyState title={t("No saved places")}>{t("Save home, work or the cabin to get warnings for them wherever you are.")}</EmptyState>
       ) : (
         <ul className="-mx-1 divide-y divide-line">
           {places.map((p) => (
@@ -307,11 +352,11 @@ function PlacesPanel() {
                 type="button"
                 className="min-w-0 flex-1 truncate text-left text-sm text-ink hover:underline"
                 onClick={() => setLocation({ lat: p.lat, lon: p.lon, name: p.name, source: "search" })}
-                title="Show this place"
+                title={t("Show this place")}
               >
                 {p.name}
               </button>
-              <IconButton label={`Remove ${p.name}`} size="sm" onClick={() => removePlace(p.id)}>
+              <IconButton label={t("Remove {name}", { name: p.name })} size="sm" onClick={() => removePlace(p.id)}>
                 <Trash2 className="size-4" aria-hidden />
               </IconButton>
             </li>
@@ -322,11 +367,11 @@ function PlacesPanel() {
       {!full && (
         <div className="mt-3">
           <label htmlFor="place-search" className="label mb-1.5 block">
-            Add a place
+            {t("Add a place")}
           </label>
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-3" aria-hidden />
-            <input id="place-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a city or town" className={`${INPUT} pl-9`} autoComplete="off" />
+            <input id="place-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search a city or town")} className={`${INPUT} pl-9`} autoComplete="off" />
           </div>
           {term.length >= 2 && (
             <ul className="mt-1 divide-y divide-line rounded-[var(--radius-control)] border border-line">
@@ -335,7 +380,7 @@ function PlacesPanel() {
                   <Skeleton className="h-5 w-40" />
                 </li>
               )}
-              {results.data?.length === 0 && <li className="px-3 py-2 text-xs text-ink-3">No places match “{term}”.</li>}
+              {results.data?.length === 0 && <li className="px-3 py-2 text-xs text-ink-3">{t("No places match “{term}”.", { term })}</li>}
               {results.data?.map((r) => {
                 const name = [r.name, r.countryCode === "US" ? r.region : r.country].filter(Boolean).join(", ");
                 return (
@@ -370,6 +415,7 @@ function RulesPanel() {
   const removeRule = useAlertsStore((s) => s.removeRule);
   const units = useAppStore((s) => s.units);
   const location = useAppStore((s) => s.location);
+  const t = useT();
 
   const [metric, setMetric] = useState<RuleMetric>("bite");
   const def = metricDef(metric);
@@ -384,30 +430,31 @@ function RulesPanel() {
     setOp(d.defaultOp);
     setValue(String(Math.round(toDisplay(d.kind, d.defaultValue, units))));
   };
-  const placeName = (id: string) => (id === CURRENT_PLACE_ID ? `Selected location (${location.name})` : (places.find((p) => p.id === id)?.name ?? "Removed place"));
+  const placeName = (id: string) =>
+    id === CURRENT_PLACE_ID ? t("Selected location ({name})", { name: location.name }) : (places.find((p) => p.id === id)?.name ?? t("Removed place"));
   const n = Number(value);
   const valid = value.trim() !== "" && Number.isFinite(n);
   const unit = unitLabel(def.kind, units);
 
   return (
-    <Panel title="Custom alerts" subtitle="Get notified when a forecast crosses your threshold, once a day per alert">
+    <Panel title={t("Custom alerts")} subtitle={t("Get notified when a forecast crosses your threshold, once a day per alert")}>
       {rules.length === 0 ? (
-        <p className="text-sm text-ink-3">For example: wind at flight altitude below 15 mph, or bite index above 70.</p>
+        <p className="text-sm text-ink-3">{t("For example: wind at flight altitude below 15 mph, or bite index above 70.")}</p>
       ) : (
         <ul className="-mx-1 divide-y divide-line">
           {rules.map((r) => (
             <li key={r.id} className="flex items-center gap-2 px-1 py-2">
               <div className="min-w-0 flex-1">
-                <p className={`truncate text-sm ${r.enabled ? "text-ink" : "text-ink-3"}`}>{describeRule(r.metric, r.op, r.value, units)}</p>
+                <p className={`truncate text-sm ${r.enabled ? "text-ink" : "text-ink-3"}`}>{describeRule(r.metric, r.op, r.value, units, t)}</p>
                 <p className="truncate text-xs text-ink-3">
-                  {placeName(r.placeId)}, next {r.hours} h
+                  {t("{place}, next {n} h", { place: placeName(r.placeId), n: r.hours })}
                 </p>
               </div>
               <label className="flex shrink-0 items-center gap-1.5 text-xs text-ink-3">
                 <input type="checkbox" checked={r.enabled} onChange={(e) => updateRule(r.id, { enabled: e.target.checked })} className="size-4 accent-[var(--color-accent)]" />
-                On
+                {t("On")}
               </label>
-              <IconButton label="Delete alert" size="sm" onClick={() => removeRule(r.id)}>
+              <IconButton label={t("Delete alert")} size="sm" onClick={() => removeRule(r.id)}>
                 <Trash2 className="size-4" aria-hidden />
               </IconButton>
             </li>
@@ -425,13 +472,13 @@ function RulesPanel() {
           }}
         >
           <label className="col-span-2 sm:col-span-1">
-            <span className="label mb-1.5 block">When</span>
+            <span className="label mb-1.5 block">{t("When")}</span>
             <select value={metric} onChange={(e) => pickMetric(e.target.value as RuleMetric)} className={INPUT}>
               {GROUPS.map((g) => (
-                <optgroup key={g} label={g}>
+                <optgroup key={g} label={t(g)}>
                   {METRICS.filter((m) => m.group === g).map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.label}
+                      {t(m.label)}
                     </option>
                   ))}
                 </optgroup>
@@ -439,20 +486,20 @@ function RulesPanel() {
             </select>
           </label>
           <label>
-            <span className="label mb-1.5 block">Is</span>
+            <span className="label mb-1.5 block">{t("Is")}</span>
             <select value={op} onChange={(e) => setOp(e.target.value as RuleOp)} className={INPUT}>
-              <option value="above">Above</option>
-              <option value="below">Below</option>
+              <option value="above">{t("Above")}</option>
+              <option value="below">{t("Below")}</option>
             </select>
           </label>
           <label>
-            <span className="label mb-1.5 block">Value{unit ? ` (${unit})` : ""}</span>
+            <span className="label mb-1.5 block">{unit ? t("Value ({unit})", { unit }) : t("Value")}</span>
             <input type="number" inputMode="decimal" step="any" value={value} onChange={(e) => setValue(e.target.value)} className={INPUT} aria-invalid={!valid} />
           </label>
           <label className="col-span-2 sm:col-span-1">
-            <span className="label mb-1.5 block">At</span>
+            <span className="label mb-1.5 block">{t("At")}</span>
             <select value={placeId} onChange={(e) => setPlaceId(e.target.value)} className={INPUT}>
-              <option value={CURRENT_PLACE_ID}>Selected location</option>
+              <option value={CURRENT_PLACE_ID}>{t("Selected location")}</option>
               {places.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -461,11 +508,11 @@ function RulesPanel() {
             </select>
           </label>
           <label>
-            <span className="label mb-1.5 block">Within</span>
+            <span className="label mb-1.5 block">{t("Within")}</span>
             <select value={hours} onChange={(e) => setHours(Number(e.target.value))} className={INPUT}>
               {WINDOWS.map((h) => (
                 <option key={h} value={h}>
-                  {h} hours
+                  {t("{n} hours", { n: h })}
                 </option>
               ))}
             </select>
@@ -473,7 +520,7 @@ function RulesPanel() {
           <div className="flex items-end">
             <Button type="submit" variant="primary" className="w-full" disabled={!valid}>
               <Plus className="size-4" aria-hidden />
-              Add alert
+              {t("Add alert")}
             </Button>
           </div>
         </form>
@@ -485,6 +532,7 @@ function RulesPanel() {
 /** /alerts: notification settings, saved places and custom alerts. All stored on this device. */
 export function AlertsSettings() {
   const hydrated = useAlertsStore((s) => s.hydrated);
+  const t = useT();
   if (!hydrated) return <Skeleton className="h-64 w-full" />;
   return (
     <div className="space-y-4">
@@ -492,7 +540,7 @@ export function AlertsSettings() {
       <MoreAlertsPanel />
       <PlacesPanel />
       <RulesPanel />
-      <p className="text-xs text-ink-3">Places and alerts are stored on this device only. Notifications can be late or missed; always follow official warnings.</p>
+      <p className="text-xs text-ink-3">{t("Places and alerts are stored on this device only. Notifications can be late or missed; always follow official warnings.")}</p>
     </div>
   );
 }

@@ -2,32 +2,36 @@
 
 import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import type { RadarLoop } from "@/hooks/use-radar-loop";
+import { translator, type Translator } from "@/lib/i18n/core";
+import { useT } from "@/lib/i18n/use-t";
 import { SPEEDS, type Speed } from "@/lib/radar/playback";
 import { cn } from "@/lib/utils";
 import { clockIn, fmtIn } from "@/lib/weather/view";
 import { IconButton } from "../ui/button";
 import { Segmented } from "../ui/segmented";
 
-function ago(t: number, now: number) {
-  const m = Math.round((now - t) / 60_000);
+function ago(time: number, now: number, t: Translator) {
+  const m = Math.round((now - time) / 60_000);
   if (m < -1) {
     const ahead = -m;
-    return ahead < 60 ? `In ${ahead} min` : `In ${Math.floor(ahead / 60)} h${ahead % 60 ? ` ${ahead % 60} min` : ""}`;
+    if (ahead < 60) return t("In {n} min", { n: ahead });
+    return ahead % 60 ? t("In {h} h {m} min", { h: Math.floor(ahead / 60), m: ahead % 60 }) : t("In {h} h", { h: Math.floor(ahead / 60) });
   }
-  return m <= 0 ? "Now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)} h ${m % 60} min ago`;
+  return m <= 0 ? t("Now") : m < 60 ? t("{n} min ago", { n: m }) : t("{h} h {m} min ago", { h: Math.floor(m / 60), m: m % 60 });
 }
 
-const clock = (timeZone?: string) => fmtIn(timeZone, { hour: "numeric", minute: "2-digit" });
+const clock = (timeZone: string | undefined, locale: string) => fmtIn(timeZone, { hour: "numeric", minute: "2-digit" }, locale);
 
 /**
  * Clock time of the current frame in the location's zone ("~4:12 PM" when the
  * scan time is estimated; the zone is named when it differs from the device's),
  * or null without frames.
  */
-export function frameTimeLabel(loop: RadarLoop, timeZone?: string): string | null {
+export function frameTimeLabel(loop: RadarLoop, timeZone?: string, t: Translator = translator("en")): string | null {
   const frame = loop.frames[loop.index];
   if (!frame) return null;
-  return `${frame.forecast ? "Forecast " : frame.approximate ? "~" : ""}${clockIn(timeZone, frame.time)}`;
+  const time = clockIn(timeZone, frame.time, t.locale);
+  return frame.forecast ? t("Forecast {time}", { time }) : `${frame.approximate ? "~" : ""}${time}`;
 }
 
 /**
@@ -68,10 +72,11 @@ export function RadarTimeline({
   /** Extra buttons at the end of the row (e.g. export). */
   actions?: React.ReactNode;
 }) {
+  const t = useT();
   const frame = loop.frames[loop.index];
-  const fmt = clock(timeZone);
+  const fmt = clock(timeZone, t.locale);
   const n = loop.frames.length;
-  const timeLabel = frameTimeLabel(loop, timeZone) ?? (loop.isLoading ? "Loading scans" : "No scans");
+  const timeLabel = frameTimeLabel(loop, timeZone, t) ?? (loop.isLoading ? t("Loading scans") : t("No scans"));
   const nextSpeed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]!;
 
   const scrubTo = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -88,12 +93,12 @@ export function RadarTimeline({
         <div className={cn("flex items-center", compact ? "gap-2 px-1.5 py-1.5" : "gap-2 p-1.5 @sm:gap-3 @sm:p-2")}>
           <div className="flex shrink-0 items-center gap-0.5">
             {!compact && (
-              <IconButton label="Previous frame" size="sm" className="hidden @md:inline-flex" onClick={() => loop.step(-1)}>
+              <IconButton label={t("Previous frame")} size="sm" className="hidden @md:inline-flex" onClick={() => loop.step(-1)}>
                 <ChevronLeft className="size-4" aria-hidden />
               </IconButton>
             )}
             <IconButton
-              label={loop.playing ? "Pause radar loop" : "Play radar loop"}
+              label={loop.playing ? t("Pause radar loop") : t("Play radar loop")}
               variant="primary"
               onClick={loop.toggle}
               disabled={n < 2}
@@ -102,7 +107,7 @@ export function RadarTimeline({
               {loop.playing ? <Pause className="size-4 fill-current" aria-hidden /> : <Play className="size-4 fill-current" aria-hidden />}
             </IconButton>
             {!compact && (
-              <IconButton label="Next frame" size="sm" className="hidden @md:inline-flex" onClick={() => loop.step(1)}>
+              <IconButton label={t("Next frame")} size="sm" className="hidden @md:inline-flex" onClick={() => loop.step(1)}>
                 <ChevronRight className="size-4" aria-hidden />
               </IconButton>
             )}
@@ -112,8 +117,8 @@ export function RadarTimeline({
             <div className="flex items-baseline justify-between gap-3 text-xs leading-4">
               <span className="shrink-0 font-medium text-ink tabular">{timeLabel}</span>
               <span className="flex min-w-0 items-baseline gap-2 text-ink-3 tabular">
-                {n > 0 && loop.buffered < n && <span className="truncate">Buffering {loop.buffered}/{n}</span>}
-                {frame && <span className="shrink-0">{ago(frame.time, now)}</span>}
+                {n > 0 && loop.buffered < n && <span className="truncate">{t("Buffering {done}/{total}", { done: loop.buffered, total: n })}</span>}
+                {frame && <span className="shrink-0">{ago(frame.time, now, t)}</span>}
               </span>
             </div>
             <div
@@ -122,11 +127,11 @@ export function RadarTimeline({
                 compact ? "h-5" : "h-6 pointer-coarse:h-8",
               )}
               role="slider"
-              aria-label="Radar frame"
+              aria-label={t("Radar frame")}
               aria-valuemin={1}
               aria-valuemax={n}
               aria-valuenow={loop.index + 1}
-              aria-valuetext={frame ? `${timeLabel}, ${ago(frame.time, now)}` : timeLabel}
+              aria-valuetext={frame ? `${timeLabel}, ${ago(frame.time, now, t)}` : timeLabel}
               tabIndex={0}
               onKeyDown={(e) => {
                 let handled = true;
@@ -162,7 +167,7 @@ export function RadarTimeline({
                     type="button"
                     onClick={() => loop.setIndex(i)}
                     className={cn("group relative h-full min-w-0 flex-1", forecast && i === loop.liveCount && "ml-1.5")}
-                    aria-label={`Frame ${fmt.format(f.time)}`}
+                    aria-label={t("Frame {time}", { time: fmt.format(f.time) })}
                     tabIndex={-1}
                   >
                     {/* The playhead snaps: no colour/size transition, so a tick is never tall-but-grey or short-but-blue. */}
@@ -189,7 +194,7 @@ export function RadarTimeline({
             <>
               {!compact && (
                 <Segmented
-                  ariaLabel="Loop speed"
+                  ariaLabel={t("Loop speed")}
                   size="sm"
                   value={speed}
                   onChange={onSpeed}
@@ -200,8 +205,8 @@ export function RadarTimeline({
               <button
                 type="button"
                 onClick={() => onSpeed(nextSpeed)}
-                aria-label={`Loop speed ${speed}×, change to ${nextSpeed}×`}
-                title="Loop speed"
+                aria-label={t("Loop speed {speed}×, change to {next}×", { speed, next: nextSpeed })}
+                title={t("Loop speed")}
                 className={cn(
                   "h-8 min-w-11 shrink-0 rounded-[var(--radius-control)] border border-line bg-surface-2 px-2 text-xs font-medium text-ink tabular transition-colors hover:border-line-strong pointer-coarse:h-11",
                   !compact && "@xl:hidden",

@@ -7,6 +7,7 @@ import type { Forecast } from "./api/open-meteo";
 import type { ClimateTable } from "./climate";
 import { isoDateIn, slotOf } from "./climate";
 import type { ForecasterNotesResponse } from "./feeds/forecaster-notes";
+import { translator, type Translator } from "./i18n/core";
 import { todayIndex } from "./weather/view";
 
 export interface WidgetNote {
@@ -33,6 +34,8 @@ export function widgetNote(
   notes: ForecasterNotesResponse | null,
   unit: "F" | "C",
   nowMs: number,
+  /** The person's language; the forecasters' own words stay as written. */
+  t: Translator = translator("en"),
 ): WidgetNote | null {
   const di = f ? todayIndex(f, nowMs) : -1;
   // Today ends at the next local midnight.
@@ -44,20 +47,19 @@ export function widgetNote(
     const lo = f.daily.tMin[di];
     const recHi = climate.recHi[s];
     const recLo = climate.recLo[s];
-    const year = (y: number | null | undefined) => (y ? `, ${y}` : "");
+    // "84°, 1998": the record and its year.
+    const record = (c: number, y: number | null | undefined) => `${deg(c, unit)}${y ? `, ${y}` : ""}`;
     if (hi != null && recHi != null && hi >= recHi - 1) {
+      const vars = { temp: deg(hi, unit), record: record(recHi, climate.recHiYear[s]) };
       return {
-        text: hi > recHi
-          ? `Record high possible: ${deg(hi, unit)} (record ${deg(recHi, unit)}${year(climate.recHiYear[s])})`
-          : `Near-record high: ${deg(hi, unit)} (record ${deg(recHi, unit)}${year(climate.recHiYear[s])})`,
+        text: hi > recHi ? t("Record high possible: {temp} (record {record})", vars) : t("Near-record high: {temp} (record {record})", vars),
         until: endOfDay,
       };
     }
     if (lo != null && recLo != null && lo <= recLo + 1) {
+      const vars = { temp: deg(lo, unit), record: record(recLo, climate.recLoYear[s]) };
       return {
-        text: lo < recLo
-          ? `Record low possible: ${deg(lo, unit)} (record ${deg(recLo, unit)}${year(climate.recLoYear[s])})`
-          : `Near-record low: ${deg(lo, unit)} (record ${deg(recLo, unit)}${year(climate.recLoYear[s])})`,
+        text: lo < recLo ? t("Record low possible: {temp} (record {record})", vars) : t("Near-record low: {temp} (record {record})", vars),
         until: endOfDay,
       };
     }
@@ -74,7 +76,7 @@ export function widgetNote(
     const normal = climate.hi[slotOf(isoDateIn(nowMs, f.timezone))];
     if (hi != null && normal != null && Math.abs(hi - normal) >= 8) {
       const d = Math.round(unit === "F" ? (Math.abs(hi - normal) * 9) / 5 : Math.abs(hi - normal));
-      return { text: `${hi > normal ? "Much warmer" : "Much colder"} than normal: ${d}° ${hi > normal ? "above" : "below"}`, until: endOfDay };
+      return { text: hi > normal ? t("Much warmer than normal: {d}° above", { d }) : t("Much colder than normal: {d}° below", { d }), until: endOfDay };
     }
   }
   return null;

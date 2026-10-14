@@ -1,6 +1,7 @@
 "use client";
 
 import type { ConstellationName as Constellation, GnssResponse } from "@/lib/api/types";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
 type SkySat = GnssResponse["sats"][number];
@@ -33,6 +34,7 @@ export function Marker({ shape, x, y, r, color }: { shape: string; x: number; y:
  * with its container so it never overflows a narrow phone column.
  */
 export function SkyPlot({ sats, size = 220, className }: { sats: SkySat[]; size?: number; className?: string }) {
+  const t = useT();
   const c = size / 2;
   const R = c - 16;
   const pos = (az: number, el: number) => {
@@ -44,7 +46,7 @@ export function SkyPlot({ sats, size = 220, className }: { sats: SkySat[]; size?
     <svg
       viewBox={`0 0 ${size} ${size}`}
       role="img"
-      aria-label={`Sky plot: ${sats.length} satellites above the 10° mask`}
+      aria-label={t.plural(sats.length, "Sky plot: {n} satellite above the 10° mask", "Sky plot: {n} satellites above the 10° mask")}
       className={cn("block h-auto w-full", className)}
       style={{ maxWidth: size }}
     >
@@ -63,7 +65,7 @@ export function SkyPlot({ sats, size = 220, className }: { sats: SkySat[]; size?
         const p = pos(i * 90, -10);
         return (
           <text key={l} x={p.x} y={p.y} dy="0.35em" textAnchor="middle" className="fill-ink-3 text-[10px] font-medium">
-            {l}
+            {t(l)}
           </text>
         );
       })}
@@ -72,7 +74,7 @@ export function SkyPlot({ sats, size = 220, className }: { sats: SkySat[]; size?
         const st = CONSTELLATION_STYLE[s.constellation];
         return (
           <g key={`${s.constellation}-${s.name}`}>
-            <title>{`${s.name}: elevation ${Math.round(s.elevationDeg)}°, azimuth ${Math.round(s.azimuthDeg)}°`}</title>
+            <title>{t("{name}: elevation {el}°, azimuth {az}°", { name: s.name, el: Math.round(s.elevationDeg), az: Math.round(s.azimuthDeg) })}</title>
             <Marker shape={st.shape} x={p.x} y={p.y} r={4.5} color={st.color} />
           </g>
         );

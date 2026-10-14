@@ -3,10 +3,13 @@
 import type { Map as MlMap } from "maplibre-gl";
 import { ChevronLeft, CircleAlert, Layers, PanelLeftClose, Pause, Play, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { WeatherAlert } from "@/lib/api/types";
 import { CATEGORIES, type PostDto } from "@/lib/community";
+import { stormTitle } from "@/lib/feeds/tropical-parse";
 import { distanceToGeometryKm, geometryContains, type BBox } from "@/lib/geo";
+import { eventName } from "@/lib/i18n/nws-events";
+import { useT } from "@/lib/i18n/use-t";
 import { FAMILIES, resolveTilts } from "@/lib/radar/products";
 import { iemSiteId } from "@/lib/radar/frames";
 import { satelliteLabel } from "@/lib/radar/satellite";
@@ -79,6 +82,11 @@ const appear = {
   transition: { duration: 0.18, ease: "easeOut" },
 } as const;
 
+/** A translated template with React nodes in its `{placeholders}` (styled text inside a sentence). */
+function rich(text: string, parts: Record<string, React.ReactNode>): React.ReactNode[] {
+  return text.split(/\{(\w+)\}/g).map((s, i) => (i % 2 ? <Fragment key={i}>{parts[s] ?? `{${s}}`}</Fragment> : s));
+}
+
 const samePadding = (a: Partial<Padding>, b: Padding) => (a.top ?? 0) === b.top && (a.right ?? 0) === b.right && (a.bottom ?? 0) === b.bottom && (a.left ?? 0) === b.left;
 
 /** Shrink padding pairs that would leave less than ~35% of the map (min 160 px) to frame things in. */
@@ -125,10 +133,12 @@ function useHeight<T extends HTMLElement>() {
  * the part of the map that is actually visible.
  */
 export function SevereMode() {
+  const t = useT();
   const loc = useAppStore((s) => s.location);
   const radar = useAppStore((s) => s.radar);
   const setRadar = useAppStore((s) => s.setRadar);
   const radiusKm = useAppStore((s) => s.radiusKm);
+  const placeName = loc.name === "My location" ? t(loc.name) : loc.name;
   const now = useNow(30_000);
   const fmt = useFormat();
   // Times (warning expiry, radar frames) read in the selected location's zone, like the rest of the app.
@@ -161,7 +171,7 @@ export function SevereMode() {
   const products = useRadarProducts(site ? iemSiteId(site.icao) : null);
   const available = useMemo(() => (products.data?.products.length ? new Set(products.data.products) : null), [products.data]);
   const tilts = isSite ? resolveTilts(radar.family, available) : [];
-  const tilt = tilts.find((t) => t.prefix === radar.tilt) ?? tilts[0];
+  const tilt = tilts.find((x) => x.prefix === radar.tilt) ?? tilts[0];
   const productCode = isSite ? (tilt?.code ?? `N0${FAMILIES[radar.family].letters[0]}`) : "N0Q";
 
   const loop = useRadarLoop({
@@ -206,18 +216,18 @@ export function SevereMode() {
   const activeReport = (reports.data ?? []).find((p) => p.id === selectedId("post"));
   const activeLsr = lsrList.find((r) => r.id === selectedId("lsr"));
   const activeCell = cellList.find((c) => c.id === selectedId("cell"));
-  const activeStorm = storms.find((t) => t.id === selectedId("storm"));
+  const activeStorm = storms.find((s) => s.id === selectedId("storm"));
 
   // ── Selection ─────────────────────────────────────────────────────────────
   /** Without the floating column, details show in the panel/sheet: switch to warnings and reveal it. */
-  const revealSelection = (t: PanelTab) => {
+  const revealSelection = (next: PanelTab) => {
     if (floatDetail) return;
-    setTab(t);
+    setTab(next);
     if (desktop) setPanelOpen(true);
     else setDetent((d) => (d === "full" ? "full" : "half"));
   };
-  const openSheet = (t: PanelTab) => {
-    setTab(t);
+  const openSheet = (next: PanelTab) => {
+    setTab(next);
     setDetent((d) => (d === "peek" ? "half" : d));
   };
   const select = (kind: Selection["kind"], id: string) => {
@@ -263,7 +273,13 @@ export function SevereMode() {
   // With NOAA as the source, say so and how fresh its newest scan is.
   const newestScan = loop.liveCount > 0 ? loop.frames[loop.liveCount - 1]?.time : undefined;
   const scanAge = newestScan ? Math.max(0, Math.round((now - newestScan) / 60_000)) : null;
-  const noaaTag = loop.sourceLabel ? `NOAA ${loop.sourceLabel}${scanAge != null ? ` · updated ${scanAge < 1 ? "now" : `${scanAge} min ago`}` : ""}` : null;
+  const noaaTag = loop.sourceLabel
+    ? scanAge == null
+      ? `NOAA ${loop.sourceLabel}`
+      : scanAge < 1
+        ? t("NOAA {source} · updated now", { source: loop.sourceLabel })
+        : t("NOAA {source} · updated {n} min ago", { source: loop.sourceLabel, n: scanAge })
+    : null;
   const caption =
     isSite && site ? (
       <>
@@ -276,15 +292,26 @@ export function SevereMode() {
       <>
         <span className="shrink-0 font-mono">{showingForecast ? "HRRR" : (noaaTag ?? "N0Q")}</span>
         <span className="min-w-0 truncate">
-          {showingForecast ? "Model forecast, not observed" : loop.usingFallback ? "Mosaic (rolling)" : loop.source === "noaa" ? "Multi-radar national mosaic, 1 km" : "National mosaic"}
+          {t(
+            showingForecast
+              ? "Model forecast, not observed"
+              : loop.usingFallback
+                ? "Mosaic (rolling)"
+                : loop.source === "noaa"
+                  ? "Multi-radar national mosaic, 1 km"
+                  : "National mosaic",
+          )}
         </span>
       </>
     );
 
-  const satCaption = radar.satellite !== "off" && satImage ? satelliteLabel(satImage.band, satImage.slotMs, timeZone, satImage.sat) : null;
+  const satCaption = radar.satellite !== "off" && satImage ? satelliteLabel(satImage.band, satImage.slotMs, timeZone, satImage.sat, t) : null;
 
   // ── Sheet header ──────────────────────────────────────────────────────────
-  const where = (r: RankedAlert) => `${r.inside ? "Over your location" : `${fmt.distanceKm(r.distanceKm)} away`}, until ${alertUntil(r.alert, timeZone)}`;
+  const where = (r: RankedAlert) =>
+    r.inside
+      ? t("Over your location, until {time}", { time: alertUntil(r.alert, timeZone, t.locale) })
+      : t("{distance} away, until {time}", { distance: fmt.distanceKm(r.distanceKm), time: alertUntil(r.alert, timeZone, t.locale) });
   const top = ranked[0];
   const hasSelection = !!(activeAlert || activeReport || activeLsr || activeCell || activeStorm);
   /** The selection replaces the list (and the tabs) in the panel/sheet. */
@@ -333,33 +360,33 @@ export function SevereMode() {
   }, [map, padding, fitRequest]);
 
   const selectionTitle = activeAlert
-    ? activeAlert.event
+    ? eventName(t.lang, activeAlert.event)
     : activeLsr
-      ? "Storm report"
+      ? t("Storm report")
       : activeCell
-        ? "Radar storm cell"
+        ? t("Radar storm cell")
         : activeStorm
-          ? activeStorm.title
-          : "Spotter report";
+          ? stormTitle(activeStorm.classification, activeStorm.name, t)
+          : t("Spotter report");
 
   // Phone peek: one useful line — the selection, else the highest-ranked warning nearby.
   let peek: { color: string | null; title: string; sub: string };
   if (activeAlert) {
     const r = ranked.find((x) => x.alert.id === activeAlert.id);
-    peek = { color: activeAlert.color, title: activeAlert.event, sub: r ? where(r) : `Until ${alertUntil(activeAlert, timeZone)}` };
+    peek = { color: activeAlert.color, title: eventName(t.lang, activeAlert.event), sub: r ? where(r) : t("Until {time}", { time: alertUntil(activeAlert, timeZone, t.locale) }) };
   } else if (activeReport) {
     const cat = CATEGORIES[activeReport.category] ?? CATEGORIES.observation;
-    peek = { color: null, title: "Spotter report", sub: activeReport.place ? `${cat.label}, ${activeReport.place}` : cat.label };
+    peek = { color: null, title: t("Spotter report"), sub: activeReport.place ? `${t(cat.label)}, ${activeReport.place}` : t(cat.label) };
   } else if (activeLsr || activeCell || activeStorm) {
-    peek = { color: null, title: selectionTitle, sub: "Tap for details" };
+    peek = { color: null, title: selectionTitle, sub: t("Tap for details") };
   } else if (top) {
-    peek = { color: top.alert.color, title: top.alert.event, sub: where(top) };
+    peek = { color: top.alert.color, title: eventName(t.lang, top.alert.event), sub: where(top) };
   } else if (national.isLoading) {
-    peek = { color: null, title: "Loading warnings", sub: "NWS active alerts" };
+    peek = { color: null, title: t("Loading warnings"), sub: t("NWS active alerts") };
   } else if (national.error) {
-    peek = { color: null, title: "Warnings unavailable", sub: "NWS alerts could not be loaded" };
+    peek = { color: null, title: t("Warnings unavailable"), sub: t("NWS alerts could not be loaded") };
   } else {
-    peek = { color: null, title: "No warnings nearby", sub: `Within ${fmt.distanceKm(radiusKm)} of ${loc.name}` };
+    peek = { color: null, title: t("No warnings nearby"), sub: t("Within {distance} of {place}", { distance: fmt.distanceKm(radiusKm), place: placeName }) };
   }
   // Tapping the peek opens what it shows: the top warning's details, or the sheet.
   const onPeek = () => {
@@ -376,9 +403,9 @@ export function SevereMode() {
           <span className="block truncate text-[13px] leading-5 font-semibold text-ink">{peek.title}</span>
           <span className="block truncate text-xs text-ink-3 tabular">{peek.sub}</span>
         </span>
-        {!hasSelection && ranked.length > 1 && <span className="shrink-0 text-xs text-ink-3 tabular">{ranked.length} warnings</span>}
+        {!hasSelection && ranked.length > 1 && <span className="shrink-0 text-xs text-ink-3 tabular">{t.plural(ranked.length, "{n} warning", "{n} warnings")}</span>}
       </button>
-      <IconButton label="Radar & layers" onClick={() => openSheet("radar")}>
+      <IconButton label={t("Radar & layers")} onClick={() => openSheet("radar")}>
         <Layers className="size-5" aria-hidden />
       </IconButton>
     </div>
@@ -386,17 +413,17 @@ export function SevereMode() {
 
   // Phones at the full detent: the transport on top of the sheet is off-screen,
   // so the header keeps play/pause and the frame time.
-  const frameTime = frameTimeLabel(loop, timeZone);
+  const frameTime = frameTimeLabel(loop, timeZone, t);
   const headerTransport = !desktop && detent === "full" && (
     <div className="flex shrink-0 items-center gap-1">
       {frameTime && <span className="font-mono text-xs text-ink-3">{frameTime}</span>}
-      <IconButton label={loop.playing ? "Pause radar loop" : "Play radar loop"} onClick={loop.toggle} disabled={loop.frames.length < 2}>
+      <IconButton label={loop.playing ? t("Pause radar loop") : t("Play radar loop")} onClick={loop.toggle} disabled={loop.frames.length < 2}>
         {loop.playing ? <Pause className="size-4 fill-current" aria-hidden /> : <Play className="size-4 fill-current" aria-hidden />}
       </IconButton>
     </div>
   );
   const hidePanel = desktop && (
-    <IconButton label="Hide panel" size="sm" onClick={() => setPanelOpen(false)}>
+    <IconButton label={t("Hide panel")} size="sm" onClick={() => setPanelOpen(false)}>
       <PanelLeftClose className="size-4" aria-hidden />
     </IconButton>
   );
@@ -405,13 +432,13 @@ export function SevereMode() {
   const tabsHeader = (
     <div className="flex items-center justify-between gap-2 pr-1.5 pl-4">
       <Tabs<PanelTab>
-        ariaLabel="Warnings and layers"
+        ariaLabel={t("Warnings and layers")}
         value={tab}
         onChange={setTab}
         items={[
-          { value: "alerts", label: "Warnings", count: ranked.length },
-          ...(stormsTab ? [{ value: "storms" as const, label: "Storms" }] : []),
-          { value: "radar", label: "Layers" },
+          { value: "alerts", label: t("Warnings"), count: ranked.length },
+          ...(stormsTab ? [{ value: "storms" as const, label: t("Storms") }] : []),
+          { value: "radar", label: t("Layers") },
         ]}
       />
       {hidePanel || headerTransport}
@@ -421,7 +448,7 @@ export function SevereMode() {
   // A single warning or report: back to the list, swatch and title. Replaces the tabs.
   const selectionHeader = (
     <div className="flex min-h-10 items-center gap-2 py-0.5 pr-1.5 pl-1">
-      <IconButton label="Back to list" onClick={clearSelection}>
+      <IconButton label={t("Back to list")} onClick={clearSelection}>
         <ChevronLeft className="size-5" aria-hidden />
       </IconButton>
       {activeAlert && <HazardSwatch color={activeAlert.color} />}
@@ -446,32 +473,32 @@ export function SevereMode() {
     <>
       <div className="flex flex-wrap items-center gap-2 px-3 pt-3">
         <Segmented
-          ariaLabel="Warnings view"
+          ariaLabel={t("Warnings view")}
           size="sm"
           value={radar.warningsView}
           onChange={(warningsView) => setRadar({ warningsView })}
           options={[
-            { value: "squares", label: "Squares" },
-            { value: "list", label: "List" },
+            { value: "squares", label: t("Squares") },
+            { value: "list", label: t("List") },
           ]}
         />
         {radar.warningsView === "squares" && (
           <Segmented
-            ariaLabel="Which warnings"
+            ariaLabel={t("Which warnings")}
             size="sm"
             value={radar.warningsScope}
             onChange={(warningsScope) => setRadar({ warningsScope })}
             options={[
-              { value: "nearby", label: "Nearby" },
-              { value: "all", label: `All US${national.data ? ` (${national.data.alerts.length})` : ""}` },
+              { value: "nearby", label: t("Nearby") },
+              { value: "all", label: national.data ? t("All US ({n})", { n: national.data.alerts.length }) : t("All US") },
             ]}
           />
         )}
       </div>
-      {national.isLoading && <p className="label px-4 pt-3 pb-1">Loading NWS warnings</p>}
+      {national.isLoading && <p className="label px-4 pt-3 pb-1">{t("Loading NWS warnings")}</p>}
       {national.error ? (
         <div className="px-4 pt-3 pb-1">
-          <ErrorNote error={national.error} what="NWS warnings" />
+          <ErrorNote error={national.error} what="the NWS warnings" />
         </div>
       ) : null}
       {!listPending &&
@@ -483,15 +510,21 @@ export function SevereMode() {
             onSelect={focusAlert}
             now={now}
             timeZone={timeZone}
-            emptyTitle={everyWarning ? "No active warnings in the US" : `No active warnings within ${fmt.distanceKm(radiusKm)}`}
+            emptyTitle={everyWarning ? t("No active warnings in the US") : t("No active warnings within {distance}", { distance: fmt.distanceKm(radiusKm) })}
           />
         ) : (
           <AlertList items={ranked} selectedId={selectedAlert} onSelect={focusAlert} timeZone={timeZone} />
         ))}
       {(radar.warningsView === "squares" ? squareItems.length : ranked.length) > 0 && (
         <p className="label border-t border-line px-4 py-3">
-          {radar.warningsView === "squares" && everyWarning ? "Every active NWS warning" : `Within ${fmt.distanceKm(radiusKm)} of ${loc.name}`}
-          {radar.warningsView === "squares" ? `. Reports are NWS local storm reports from the last ${LSR_HOURS} hours (trained spotters, chasers, emergency managers).` : ""}
+          {t(
+            radar.warningsView !== "squares"
+              ? "Within {distance} of {place}"
+              : everyWarning
+                ? "Every active NWS warning. Reports are NWS local storm reports from the last {n} hours (trained spotters, chasers, emergency managers)."
+                : "Within {distance} of {place}. Reports are NWS local storm reports from the last {n} hours (trained spotters, chasers, emergency managers).",
+            { distance: fmt.distanceKm(radiusKm), place: placeName, n: LSR_HOURS },
+          )}
         </p>
       )}
     </>
@@ -514,13 +547,13 @@ export function SevereMode() {
 
   const section = (title: string, pending: boolean, error: unknown, what: string, children: React.ReactNode) => (
     <section className="border-b border-line last:border-b-0">
-      <h3 className="label px-4 pt-3 pb-1">{title}</h3>
+      <h3 className="label px-4 pt-3 pb-1">{t(title, { n: LSR_HOURS })}</h3>
       {error ? (
         <div className="px-4 pb-3">
           <ErrorNote error={error} what={what} />
         </div>
       ) : pending ? (
-        <p className="px-4 pb-3 text-xs text-ink-3">Loading</p>
+        <p className="px-4 pb-3 text-xs text-ink-3">{t("Loading")}</p>
       ) : (
         children
       )}
@@ -533,10 +566,10 @@ export function SevereMode() {
           "Tropical cyclones",
           tropical.isLoading,
           tropical.error,
-          "NHC storms",
+          "the NHC storms",
           <TropicalList storms={storms} timeZone={timeZone} selectedId={selectedId("storm")} onSelect={(id) => {
-            const t = storms.find((x) => x.id === id);
-            if (t) focusPoint("storm", id, t.lon, t.lat);
+            const storm = storms.find((x) => x.id === id);
+            if (storm) focusPoint("storm", id, storm.lon, storm.lat);
           }} />,
         )}
       {radar.showCells &&
@@ -544,15 +577,15 @@ export function SevereMode() {
           "Radar storm cells",
           cells.isLoading,
           cells.error,
-          "NEXRAD storm cells",
+          "the NEXRAD storm cells",
           <StormCellList cells={cellList} now={now} location={loc} selectedId={selectedId("cell")} onSelect={(c) => focusPoint("cell", c.id, c.lon, c.lat)} />,
         )}
       {radar.showStormReports &&
         section(
-          `Storm reports, last ${LSR_HOURS} h`,
+          "Storm reports, last {n} h",
           lsr.isLoading,
           lsr.error,
-          "NWS storm reports",
+          "the NWS storm reports",
           <StormReportsList reports={lsrList} hours={LSR_HOURS} now={now} timeZone={timeZone} selectedId={selectedId("lsr")} onSelect={(r) => focusPoint("lsr", r.id, r.lon, r.lat)} />,
         )}
     </>
@@ -575,8 +608,8 @@ export function SevereMode() {
   // Desktop: legend card above the transport. Short screens: one row with an
   // inline legend. Phones: a legend strip inside the transport box, all of it
   // riding on top of the sheet.
-  const legendCode = showingForecast && !isSite ? "HRRR forecast" : (noaaTag ?? (isSite && site ? `${site.icao} ${productCode}` : "N0Q"));
-  const sentenceCaseFamily = FAMILIES[family].label.toLowerCase();
+  const legendCode = showingForecast && !isSite ? t("HRRR forecast") : (noaaTag ?? (isSite && site ? `${site.icao} ${productCode}` : "N0Q"));
+  const sentenceCaseFamily = t(FAMILIES[family].label).toLowerCase();
   const dock = (
     <div ref={dockRef} className="pointer-events-none flex flex-col items-start gap-2 [&>*]:pointer-events-auto">
       {desktop && !short && radar.showOutlook && (outlook.data?.features.length ?? 0) > 0 && (
@@ -588,7 +621,13 @@ export function SevereMode() {
         <p role="status" className="overlay flex items-start gap-2 px-3 py-2 text-xs text-ink-2">
           <CircleAlert className="mt-px size-3.5 shrink-0 text-nogo" aria-hidden />
           <span>
-            Radar index unavailable for <span className="font-mono">{site?.icao ?? "mosaic"} {productCode}</span>. Try another product or site.
+            {rich(t("Radar index unavailable for {product}. Try another product or site."), {
+              product: (
+                <span className="font-mono">
+                  {site?.icao ?? t("mosaic")} {productCode}
+                </span>
+              ),
+            })}
           </span>
         </p>
       ) : isSite && site && !loop.isLoading && loop.frames.length === 0 ? (
@@ -596,11 +635,11 @@ export function SevereMode() {
           <span className="flex min-w-0 items-start gap-2">
             <CircleAlert className="mt-px size-3.5 shrink-0 text-caution" aria-hidden />
             <span>
-              No recent scans from <span className="font-mono">{site.icao}</span>. The radar may be down for maintenance.
+              {rich(t("No recent scans from {site}. The radar may be down for maintenance."), { site: <span className="font-mono">{site.icao}</span> })}
             </span>
           </span>
           <Button size="sm" onClick={() => setRadar({ source: "mosaic", family: "reflectivity" })}>
-            Show national mosaic
+            {t("Show national mosaic")}
           </Button>
         </p>
       ) : null}
@@ -621,8 +660,8 @@ export function SevereMode() {
               map={map}
               loop={loop}
               speed={radar.speed}
-              title={isSite && site ? `${site.icao} ${sentenceCaseFamily}` : "NEXRAD mosaic, reflectivity"}
-              subtitle={loc.name}
+              title={isSite && site ? `${site.icao} ${sentenceCaseFamily}` : t("NEXRAD mosaic, {product}", { product: sentenceCaseFamily })}
+              subtitle={placeName}
               timeZone={timeZone}
             />
           }
@@ -675,7 +714,7 @@ export function SevereMode() {
         <Sheet
           detent={detent}
           onDetentChange={setDetent}
-          ariaLabel="Warnings and radar layers"
+          ariaLabel={t("Warnings and radar layers")}
           peekHeight={PEEK}
           desktopClassName="absolute top-3 left-[var(--sl)] z-20 max-h-[calc(100%-24px)] w-[var(--panel-w)]"
           header={!desktop && detent === "peek" ? peekHeader : inlineSelection ? selectionHeader : tabsHeader}
@@ -688,7 +727,7 @@ export function SevereMode() {
       {desktop && !panelOpen && (
         <Button size="sm" className="absolute top-3 left-[var(--sl)] z-20" onClick={() => setPanelOpen(true)}>
           <Layers className="size-4" aria-hidden />
-          Warnings & layers
+          {t("Warnings & layers")}
           {ranked.length > 0 && <span className="text-ink-3 tabular">{ranked.length}</span>}
         </Button>
       )}
@@ -705,8 +744,8 @@ export function SevereMode() {
             {activeReport && (
               <motion.div key={activeReport.id} {...appear} className="overlay pointer-events-auto flex max-h-full flex-col overflow-hidden">
                 <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line py-1.5 pr-1.5 pl-4">
-                  <h3 className="text-sm font-semibold text-ink">Spotter report</h3>
-                  <IconButton label="Close report" size="sm" onClick={clearSelection}>
+                  <h3 className="text-sm font-semibold text-ink">{t("Spotter report")}</h3>
+                  <IconButton label={t("Close report")} size="sm" onClick={clearSelection}>
                     <X className="size-4" aria-hidden />
                   </IconButton>
                 </div>

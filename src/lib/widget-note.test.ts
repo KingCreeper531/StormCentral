@@ -4,6 +4,7 @@ import { carryNote, type WidgetSnapshot } from "./alerting/engine";
 import type { ClimateTable } from "./climate";
 import { slotOf } from "./climate";
 import type { ForecasterNotesResponse } from "./feeds/forecaster-notes";
+import { translator } from "./i18n/core";
 import { widgetNote } from "./widget-note";
 
 const NOW = Date.UTC(2026, 9, 12, 17); // noon in Chicago
@@ -33,6 +34,12 @@ describe("widgetNote", () => {
     expect(widgetNote(forecast(31, 10), climate(29.4, -5), null, "C", NOW)?.text).toBe("Record high possible: 31° (record 29°, 1938)");
     expect(widgetNote(forecast(15, -4.6), climate(29.4, -5), null, "F", NOW)?.text).toBe("Near-record low: 24° (record 23°, 1988)");
     expect(widgetNote(forecast(15, -6), climate(29.4, -5), null, "F", NOW)?.text).toBe("Record low possible: 21° (record 23°, 1988)");
+  });
+
+  it("speaks the person's language", () => {
+    const es = translator("es");
+    expect(widgetNote(forecast(29, 10), climate(29.4, -5), null, "F", NOW, es)?.text).toBe("Máxima cerca del récord: 84° (récord 85°, 1938)");
+    expect(widgetNote(forecast(30, 10), climate(40, -5, 20), null, "F", NOW, es)?.text).toBe("Mucho más cálido de lo normal: 18° por encima");
   });
 
   it("falls back to the forecasters' first key message, shortened", () => {

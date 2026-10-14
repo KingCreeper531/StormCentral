@@ -6,9 +6,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useId, useState } from "react";
 import { qk } from "@/hooks/queries";
+import { useT } from "@/lib/i18n/use-t";
 import { Button } from "../ui/button";
 import { Panel } from "../ui/panel";
 import { Field, INPUT } from "./auth-form";
+import { errorText } from "./moderation";
 
 async function post(url: string, body: unknown): Promise<void> {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -34,10 +36,11 @@ function useSubmit() {
 }
 
 function ErrorText({ error }: { error: string | null }) {
+  const t = useT();
   if (!error) return null;
   return (
     <p role="alert" className="rounded-[var(--radius-control)] border border-nogo/30 bg-nogo/10 px-3 py-2 text-xs text-ink-2">
-      {error}
+      {errorText(t, error)}
     </p>
   );
 }
@@ -55,16 +58,17 @@ const CARD = "surface mx-auto w-full max-w-[400px] p-5 sm:mt-6 sm:p-6";
 
 /** /forgot-password: email a one-time reset link. */
 export function ForgotPasswordForm() {
+  const t = useT();
   const uid = useId();
   const { error, pending, run } = useSubmit();
   const [sent, setSent] = useState(false);
   return (
     <div className={CARD}>
-      <h1 className="text-xl font-semibold text-ink">Reset your password</h1>
-      <p className="mt-1 text-sm text-ink-2">Enter the email you signed up with and we&apos;ll send you a link to choose a new password.</p>
+      <h1 className="text-xl font-semibold text-ink">{t("Reset your password")}</h1>
+      <p className="mt-1 text-sm text-ink-2">{t("Enter the email you signed up with and we'll send you a link to choose a new password.")}</p>
       {sent ? (
         <div className="mt-5">
-          <Done>If an account uses that email, a reset link is on its way. It works once, for 30 minutes. Check your spam folder too.</Done>
+          <Done>{t("If an account uses that email, a reset link is on its way. It works once, for 30 minutes. Check your spam folder too.")}</Done>
         </div>
       ) : (
         <form
@@ -79,20 +83,20 @@ export function ForgotPasswordForm() {
             });
           }}
         >
-          <Field id={`${uid}-email`} label="Email">
+          <Field id={`${uid}-email`} label={t("Email")}>
             <input id={`${uid}-email`} name="email" type="email" required autoComplete="email" inputMode="email" className={INPUT} />
           </Field>
           <ErrorText error={error} />
           <Button type="submit" variant="primary" disabled={pending} className="w-full">
             {pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
-            Send reset link
+            {t("Send reset link")}
           </Button>
         </form>
       )}
       <p className="mt-5 border-t border-line pt-4 text-[13px] text-ink-3">
-        Remembered it?{" "}
+        {t("Remembered it?")}{" "}
         <Link href="/login" className="font-medium text-accent hover:underline">
-          Sign in
+          {t("Sign in")}
         </Link>
       </p>
     </div>
@@ -101,6 +105,7 @@ export function ForgotPasswordForm() {
 
 /** /reset-password?token=…: choose a new password from an emailed link. */
 export function ResetPasswordForm() {
+  const t = useT();
   const uid = useId();
   const token = useSearchParams().get("token") ?? "";
   const router = useRouter();
@@ -110,10 +115,10 @@ export function ResetPasswordForm() {
   if (!token) {
     return (
       <div className={CARD}>
-        <h1 className="text-xl font-semibold text-ink">Reset link missing</h1>
-        <p className="mt-1 text-sm text-ink-2">Open the link from your email again, or ask for a new one.</p>
+        <h1 className="text-xl font-semibold text-ink">{t("Reset link missing")}</h1>
+        <p className="mt-1 text-sm text-ink-2">{t("Open the link from your email again, or ask for a new one.")}</p>
         <Link href="/forgot-password" className="mt-4 inline-block text-sm font-medium text-accent hover:underline">
-          Send a new reset link
+          {t("Send a new reset link")}
         </Link>
       </div>
     );
@@ -121,8 +126,8 @@ export function ResetPasswordForm() {
 
   return (
     <div className={CARD}>
-      <h1 className="text-xl font-semibold text-ink">Choose a new password</h1>
-      <p className="mt-1 text-sm text-ink-2">You&apos;ll be signed in here and signed out on your other devices.</p>
+      <h1 className="text-xl font-semibold text-ink">{t("Choose a new password")}</h1>
+      <p className="mt-1 text-sm text-ink-2">{t("You'll be signed in here and signed out on your other devices.")}</p>
       <form
         className="mt-5 space-y-4"
         noValidate
@@ -139,21 +144,21 @@ export function ResetPasswordForm() {
           });
         }}
       >
-        <Field id={`${uid}-password`} label="New password" hint="At least 10 characters.">
+        <Field id={`${uid}-password`} label={t("New password")} hint={t("At least 10 characters.")}>
           <input id={`${uid}-password`} name="password" type="password" required minLength={10} autoComplete="new-password" className={INPUT} />
         </Field>
-        <Field id={`${uid}-confirm`} label="Type it again">
+        <Field id={`${uid}-confirm`} label={t("Type it again")}>
           <input id={`${uid}-confirm`} name="confirm" type="password" required minLength={10} autoComplete="new-password" className={INPUT} />
         </Field>
         <ErrorText error={error} />
         <Button type="submit" variant="primary" disabled={pending} className="w-full">
           {pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
-          Save new password
+          {t("Save new password")}
         </Button>
       </form>
       {error?.includes("expired") && (
         <Link href="/forgot-password" className="mt-4 inline-block text-sm font-medium text-accent hover:underline">
-          Send a new reset link
+          {t("Send a new reset link")}
         </Link>
       )}
     </div>
@@ -162,11 +167,12 @@ export function ResetPasswordForm() {
 
 /** Settings → Account: change password while signed in. */
 export function ChangePasswordPanel() {
+  const t = useT();
   const uid = useId();
   const { error, setError, pending, run } = useSubmit();
   const [done, setDone] = useState(false);
   return (
-    <Panel title="Password" subtitle="Changing it signs you out on your other devices">
+    <Panel title={t("Password")} subtitle={t("Changing it signs you out on your other devices")}>
       <form
         className="space-y-4"
         noValidate
@@ -184,26 +190,26 @@ export function ChangePasswordPanel() {
           });
         }}
       >
-        <Field id={`${uid}-current`} label="Current password">
+        <Field id={`${uid}-current`} label={t("Current password")}>
           <input id={`${uid}-current`} name="current" type="password" required autoComplete="current-password" className={INPUT} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field id={`${uid}-password`} label="New password" hint="At least 10 characters.">
+          <Field id={`${uid}-password`} label={t("New password")} hint={t("At least 10 characters.")}>
             <input id={`${uid}-password`} name="password" type="password" required minLength={10} autoComplete="new-password" className={INPUT} />
           </Field>
-          <Field id={`${uid}-confirm`} label="Type it again">
+          <Field id={`${uid}-confirm`} label={t("Type it again")}>
             <input id={`${uid}-confirm`} name="confirm" type="password" required minLength={10} autoComplete="new-password" className={INPUT} />
           </Field>
         </div>
         <ErrorText error={error} />
-        {done && <Done>Password changed.</Done>}
+        {done && <Done>{t("Password changed.")}</Done>}
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={pending}>
             {pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
-            Change password
+            {t("Change password")}
           </Button>
           <Link href="/forgot-password" className="text-[13px] text-ink-2 hover:text-ink hover:underline">
-            Forgot your current password?
+            {t("Forgot your current password?")}
           </Link>
         </div>
       </form>

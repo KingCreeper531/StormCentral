@@ -5,6 +5,7 @@ import { convertTemp } from "@/lib/weather/units";
 import { fmtIn, todayIndex } from "@/lib/weather/view";
 import { describeCode, iconName } from "@/lib/weather/wmo";
 import { useFormat } from "@/hooks/use-format";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 import { Panel } from "../ui/panel";
 import { WeatherIcon } from "../ui/weather-icon";
@@ -25,6 +26,7 @@ function tempColor(c: number) {
 const clampPct = (v: number) => Math.max(0, Math.min(100, v));
 
 export function DailyOutlook({ f, now, className }: { f: Forecast; now: number; className?: string }) {
+  const t = useT();
   const fmt = useFormat();
   const start = todayIndex(f, now);
   const days = f.daily.time.map((_, i) => i).slice(start, start + 10);
@@ -33,11 +35,11 @@ export function DailyOutlook({ f, now, className }: { f: Forecast; now: number; 
   const min = Math.min(...lows);
   const max = Math.max(...highs);
   const span = max - min || 1;
-  const dayFmt = fmtIn(f.timezone, { weekday: "short" });
+  const dayFmt = fmtIn(f.timezone, { weekday: "short" }, t.locale);
   const current = f.current.temp;
 
   return (
-    <Panel title="10-day forecast" className={cn("flex flex-col", className)}>
+    <Panel title={t("10-day forecast")} className={cn("flex flex-col", className)}>
       {/*
         Container query: in a narrow panel (phones, the desktop side column) the
         precipitation chance sits under the day name; wider panels give it a column.
@@ -54,7 +56,7 @@ export function DailyOutlook({ f, now, className }: { f: Forecast; now: number; 
           const wet = pop >= 20;
           const popText = wet ? (
             <>
-              {pop}%<span className="sr-only"> chance of precipitation</span>
+              {pop}%<span className="sr-only"> {t("chance of precipitation")}</span>
             </>
           ) : null;
           return (
@@ -63,13 +65,13 @@ export function DailyOutlook({ f, now, className }: { f: Forecast; now: number; 
               className="grid min-h-11 grid-cols-[minmax(0,3.25rem)_1.75rem_2.25rem_minmax(0,1fr)_2.25rem] items-center gap-x-2 py-1.5 text-[13px] @md:grid-cols-[3.5rem_2rem_2.5rem_2.5rem_minmax(0,1fr)_2.5rem] @md:gap-x-3 @md:text-sm"
             >
               <div className="min-w-0">
-                <p className="truncate font-medium text-ink">{k === 0 ? "Today" : dayFmt.format(f.daily.time[i]! * 1000)}</p>
+                <p className="truncate font-medium text-ink">{k === 0 ? t("Today") : dayFmt.format(f.daily.time[i]! * 1000)}</p>
                 {wet && <p className="text-[11px] leading-4 text-ink-2 tabular @md:hidden">{popText}</p>}
               </div>
-              <WeatherIcon name={iconName(f.daily.code[i], true)} size={32} fluid animated={false} label={describeCode(f.daily.code[i]).label} className="w-7 @md:w-8" />
+              <WeatherIcon name={iconName(f.daily.code[i], true)} size={32} fluid animated={false} label={t(describeCode(f.daily.code[i]).label)} className="w-7 @md:w-8" />
               <span className="hidden text-xs text-ink-2 tabular @md:block">{popText}</span>
               <span className="text-right text-ink-3 tabular">
-                <span className="sr-only">Low </span>
+                <span className="sr-only">{t("Low")} </span>
                 {fmt.temp(lo)}
               </span>
               <span className="relative h-1.5 rounded-[2px] bg-surface-3" aria-hidden>
@@ -90,7 +92,7 @@ export function DailyOutlook({ f, now, className }: { f: Forecast; now: number; 
                 )}
               </span>
               <span className="text-ink tabular">
-                <span className="sr-only">High </span>
+                <span className="sr-only">{t("High")} </span>
                 {fmt.temp(hi)}
               </span>
             </li>

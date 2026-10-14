@@ -1,5 +1,6 @@
 import type { OutlookFeature, OutlookKind } from "@/lib/api/types";
 import { SPC_CATEGORICAL, type SpcCategory } from "@/lib/feeds/parse";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 
 const TITLE: Record<OutlookKind, string> = {
@@ -9,7 +10,11 @@ const TITLE: Record<OutlookKind, string> = {
   wind: "Wind probability",
 };
 
-/** Legend names: the 1–5 level number is shown beside them. */
+/**
+ * Legend names: the 1–5 level number is shown beside them. Shown through
+ * `categoryLabel`: the levels are keyed lowercase ("high" is a level here,
+ * not a High temperature).
+ */
 const CATEGORY_LABEL: Record<SpcCategory, string> = {
   TSTM: "Thunderstorms",
   MRGL: "Marginal",
@@ -18,6 +23,8 @@ const CATEGORY_LABEL: Record<SpcCategory, string> = {
   MDT: "Moderate",
   HIGH: "High",
 };
+
+const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** CSS twin of the map's hatch ("/" diagonals, light line on a dark rim). Gradients are fine inside a data legend. */
 export const HATCH_SWATCH: React.CSSProperties = {
@@ -53,7 +60,9 @@ export function OutlookLegend({
   variant?: "card" | "plain";
   className?: string;
 }) {
+  const t = useT();
   const probabilistic = kind !== "categorical";
+  const categoryLabel = (code: SpcCategory) => (code === "TSTM" ? t(CATEGORY_LABEL[code]) : sentence(t(CATEGORY_LABEL[code].toLowerCase())));
 
   // Probability steps present today, with SPC's colours from the data.
   const steps = new Map<string, { pct: number; fill: string }>();
@@ -75,8 +84,8 @@ export function OutlookLegend({
   return (
     <div className={cn(variant === "card" && "overlay w-52 px-2.5 py-2 md:w-56", className)}>
       <p className="flex items-baseline justify-between gap-2 text-xs">
-        <span className="truncate font-medium text-ink">{TITLE[kind]}</span>
-        <span className="shrink-0 text-[11px] text-ink-3">SPC Day 1</span>
+        <span className="truncate font-medium text-ink">{t(TITLE[kind])}</span>
+        <span className="shrink-0 text-[11px] text-ink-3">{t("SPC Day 1")}</span>
       </p>
 
       {!probabilistic ? (
@@ -85,15 +94,15 @@ export function OutlookLegend({
             const def = SPC_CATEGORICAL[code];
             const level = def.rank - 1;
             return (
-              <li key={code} className="flex min-w-0 items-center gap-1.5 text-[11px] text-ink-2" title={def.name}>
+              <li key={code} className="flex min-w-0 items-center gap-1.5 text-[11px] text-ink-2" title={t(def.name)}>
                 <Swatch color={catFill.get(code) ?? def.fill} />
-                <span className="truncate">{CATEGORY_LABEL[code]}</span>
+                <span className="truncate">{categoryLabel(code)}</span>
                 {level > 0 && (
                   <span aria-hidden className="ml-auto shrink-0 text-ink-3 tabular">
                     {level}
                   </span>
                 )}
-                <span className="sr-only">{level > 0 ? `, level ${level} of 5` : ", below level 1"}</span>
+                <span className="sr-only">, {level > 0 ? t("level {n} of 5", { n: level }) : t("below level 1")}</span>
               </li>
             );
           })}
@@ -107,17 +116,17 @@ export function OutlookLegend({
             </li>
           ))}
           {significant && (
-            <li className="flex items-center gap-1" title={significant.properties.name}>
+            <li className="flex items-center gap-1" title={t(significant.properties.name)}>
               <Swatch hatched />
-              Significant
+              {t("Significant")}
             </li>
           )}
         </ul>
       ) : (
-        <p className="mt-1 text-[11px] text-ink-3">No risk areas today</p>
+        <p className="mt-1 text-[11px] text-ink-3">{t("No risk areas today")}</p>
       )}
 
-      {probabilistic && <p className="mt-1.5 text-[11px] text-ink-3">Chance within 25 miles of a point</p>}
+      {probabilistic && <p className="mt-1.5 text-[11px] text-ink-3">{t("Chance within 25 miles of a point")}</p>}
     </div>
   );
 }

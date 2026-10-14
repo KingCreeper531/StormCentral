@@ -1,8 +1,11 @@
 /**
  * Go / no-go and activity indices. Each factor reports its own status so the
  * UI can explain *why* a score is low — a number alone isn't actionable.
+ * Pass a translator for the text (labels, details, reasons) in the person's
+ * language; English without one.
  */
 import type { SkyPhase } from "../astro/sun";
+import { translator, type Translator } from "../i18n/core";
 import type { Tendency } from "./pressure";
 
 export type FactorStatus = "go" | "caution" | "no-go";
@@ -65,89 +68,89 @@ export interface DroneConditions {
   satellitesVisible?: number | null;
 }
 
-export function droneFlyability(c: DroneConditions, p: DroneProfile): ScoreResult {
+export function droneFlyability(c: DroneConditions, p: DroneProfile, t: Translator = translator("en")): ScoreResult {
   const f: Factor[] = [];
   const wRatio = c.windAtAltitudeMs / p.maxWindMs;
   f.push({
     key: "wind",
-    label: "Wind at altitude",
+    label: t("Wind at altitude"),
     status: wRatio >= 1 ? "no-go" : wRatio >= 0.7 ? "caution" : "go",
-    detail: `${Math.round(wRatio * 100)}% of airframe limit`,
+    detail: t("{pct}% of airframe limit", { pct: Math.round(wRatio * 100) }),
   });
   const gRatio = c.gustMs / p.maxWindMs;
   f.push({
     key: "gust",
-    label: "Gusts",
+    label: t("Gusts"),
     status: gRatio >= 1.1 ? "no-go" : gRatio >= 0.8 ? "caution" : "go",
-    detail: `${Math.round(gRatio * 100)}% of airframe limit`,
+    detail: t("{pct}% of airframe limit", { pct: Math.round(gRatio * 100) }),
   });
   const wet = c.precipMm >= 0.3 || c.precipProbPct >= 60;
   f.push({
     key: "precip",
-    label: "Precipitation",
+    label: t("Precipitation"),
     status: wet ? (p.waterResistant ? "caution" : "no-go") : c.precipProbPct >= 30 ? "caution" : "go",
-    detail: `${Math.round(c.precipProbPct)}% chance`,
+    detail: t("{pct}% chance", { pct: Math.round(c.precipProbPct) }),
   });
   if (c.visibilityM != null) {
     f.push({
       key: "visibility",
-      label: "Visibility",
+      label: t("Visibility"),
       // 14 CFR 107.51(c): 3 statute miles from the control station.
       status: c.visibilityM < 4828 ? "no-go" : c.visibilityM < 8000 ? "caution" : "go",
-      detail: c.visibilityM < 4828 ? "Below 3 SM (Part 107 minimum)" : "Meets VLOS minimums",
+      detail: c.visibilityM < 4828 ? t("Below 3 SM (Part 107 minimum)") : t("Meets VLOS minimums"),
     });
   }
   if (c.ceilingM != null) {
     const clearance = c.ceilingM - c.flightAltitudeM;
     f.push({
       key: "ceiling",
-      label: "Cloud clearance",
+      label: t("Cloud clearance"),
       // 14 CFR 107.51(d): remain 500 ft (152 m) below clouds.
       status: clearance < 152 ? "no-go" : clearance < 300 ? "caution" : "go",
-      detail: clearance < 152 ? "Under 500 ft below cloud base" : `${Math.round(clearance)} m below base`,
+      detail: clearance < 152 ? t("Under 500 ft below cloud base") : t("{m} m below base", { m: Math.round(clearance) }),
     });
   }
   f.push({
     key: "temp",
-    label: "Battery temperature",
+    label: t("Battery temperature"),
     status:
       c.tempC < p.minTempC || c.tempC > p.maxTempC
         ? "no-go"
         : c.tempC < 5 || c.tempC > p.maxTempC - 5
           ? "caution"
           : "go",
-    detail: c.tempC < 5 ? "Pre-warm batteries; expect reduced capacity" : "Within operating range",
+    detail: c.tempC < 5 ? t("Pre-warm batteries; expect reduced capacity") : t("Within operating range"),
   });
   if (c.kp != null) {
     f.push({
       key: "kp",
-      label: "Geomagnetic (Kp)",
+      label: t("Geomagnetic (Kp)"),
       status: c.kp >= 7 ? "no-go" : c.kp >= 5 ? "caution" : "go",
       detail:
         c.kp >= 5
-          ? `G${Math.min(5, Math.floor(c.kp) - 4)} storm — GNSS & compass degraded`
+          ? t("G{g} storm — GNSS & compass degraded", { g: Math.min(5, Math.floor(c.kp) - 4) })
           : c.kp >= 4
-            ? "Active — minor GNSS position scatter possible"
-            : "Quiet to unsettled",
+            ? t("Active — minor GNSS position scatter possible")
+            : t("Quiet to unsettled"),
     });
   }
   const night = c.skyPhase === "night" || c.skyPhase === "astronomical" || c.skyPhase === "nautical";
   f.push({
     key: "light",
-    label: "Daylight",
+    label: t("Daylight"),
     status: night || c.skyPhase === "civil" ? "caution" : "go",
     detail: night
-      ? "Night ops: anti-collision lighting required"
+      ? t("Night ops: anti-collision lighting required")
       : c.skyPhase === "civil"
-        ? "Civil twilight — lighting recommended"
-        : "Daytime operations",
+        ? t("Civil twilight — lighting recommended")
+        : t("Daytime operations"),
   });
   if (c.satellitesVisible != null) {
     f.push({
       key: "gnss",
-      label: "GNSS satellites",
+      label: t("GNSS satellites"),
       status: c.satellitesVisible < 6 ? "no-go" : c.satellitesVisible < 10 ? "caution" : "go",
-      detail: `${c.satellitesVisible} above 10° mask`,
+      detail: t("{n} above 10° mask", { n: c.satellitesVisible }),
     });
   }
   return summarize(f);
@@ -172,14 +175,15 @@ export interface AnglerConditions {
 
 export interface BiteIndex {
   score: number;
+  /** Always English (an id as much as a label): show it with `t(label)`. */
   label: "Poor" | "Fair" | "Good" | "Excellent";
   reasons: { text: string; delta: number }[];
   safety: string | null;
 }
 
-export function biteIndex(c: AnglerConditions): BiteIndex {
+export function biteIndex(c: AnglerConditions, tr: Translator = translator("en")): BiteIndex {
   const reasons: { text: string; delta: number }[] = [];
-  const add = (delta: number, text: string) => reasons.push({ delta, text });
+  const add = (delta: number, text: string) => reasons.push({ delta, text: tr(text) });
 
   if (c.tendency) {
     const t = c.tendency.term;
@@ -191,7 +195,7 @@ export function biteIndex(c: AnglerConditions): BiteIndex {
   }
   if (c.inMajorPeriod) add(24, "Solunar major period");
   else if (c.inMinorPeriod) add(14, "Solunar minor period");
-  add((c.solunarDayRating - 1) * 3, `Moon phase rating ${c.solunarDayRating}/4`);
+  reasons.push({ delta: (c.solunarDayRating - 1) * 3, text: tr("Moon phase rating {n}/4", { n: c.solunarDayRating }) });
   if (c.hoursFromSunEvent <= 1.5) add(14, "Low-light feeding window (dawn/dusk)");
   else if (c.cloudPct >= 70) add(5, "Overcast keeps fish shallow");
   if (c.windMs >= 2 && c.windMs <= 6) add(8, "Light chop breaks up the surface");
@@ -207,7 +211,7 @@ export function biteIndex(c: AnglerConditions): BiteIndex {
   let safety: string | null = null;
   if (c.weatherCode >= 95) {
     add(-30, "Thunderstorms");
-    safety = "Lightning risk — get off the water when thunder is audible.";
+    safety = tr("Lightning risk — get off the water when thunder is audible.");
   } else if (c.weatherCode >= 51 && c.weatherCode <= 63) add(3, "Light rain washes in food");
 
   const score = Math.max(0, Math.min(100, Math.round(30 + reasons.reduce((s, r) => s + r.delta, 0))));

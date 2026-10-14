@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useFeed } from "@/hooks/queries";
 import { useFormat } from "@/hooks/use-format";
 import { useNow } from "@/hooks/use-now";
+import { useT } from "@/lib/i18n/use-t";
 import { useAppStore } from "@/store/app-store";
 import { Button } from "../ui/button";
 import { EmptyState, ErrorNote, Skeleton } from "../ui/misc";
@@ -13,10 +14,11 @@ import { PostCard } from "./post-card";
 
 type Tab = "latest" | "nearby" | "top";
 
-const EMPTY: Record<Tab, { title: string; body: (radius: string) => string }> = {
-  latest: { title: "No reports yet", body: () => "Reports from spotters appear here as they are posted." },
-  nearby: { title: "No reports nearby", body: (radius) => `Nothing has been reported within ${radius} of this location.` },
-  top: { title: "No reports in the last 24 hours", body: () => "Confirmed reports from the past day are ranked here." },
+/** English keys; `{radius}` is filled at render. */
+const EMPTY: Record<Tab, { title: string; body: string }> = {
+  latest: { title: "No reports yet", body: "Reports from spotters appear here as they are posted." },
+  nearby: { title: "No reports nearby", body: "Nothing has been reported within {radius} of this location." },
+  top: { title: "No reports in the last 24 hours", body: "Confirmed reports from the past day are ranked here." },
 };
 
 function PostSkeleton() {
@@ -37,6 +39,7 @@ function PostSkeleton() {
  * hairlines. With `user`, it lists that spotter's reports and has no tabs.
  */
 export function Feed({ user }: { user?: string }) {
+  const t = useT();
   const loc = useAppStore((s) => s.location);
   const hydrated = useAppStore((s) => s.hydrated);
   const setComposerOpen = useAppStore((s) => s.setComposerOpen);
@@ -54,32 +57,32 @@ export function Feed({ user }: { user?: string }) {
         : { sort: "latest" };
   const feed = useFeed(params);
   const posts = feed.data?.pages.flatMap((p) => p.posts) ?? [];
-  const empty = user ? { title: "No reports yet", body: "This spotter hasn't posted any reports." } : { title: EMPTY[tab].title, body: EMPTY[tab].body(radius) };
+  const empty = user ? { title: "No reports yet", body: "This spotter hasn't posted any reports." } : EMPTY[tab];
 
   return (
-    <section className="surface min-w-0 overflow-hidden" aria-label={user ? "Reports" : "Spotter reports"}>
+    <section className="surface min-w-0 overflow-hidden" aria-label={user ? t("Reports") : t("Spotter reports")}>
       {!user && (
         <div className="border-b border-line px-4 sm:px-5">
           <Tabs<Tab>
-            ariaLabel="Feed"
+            ariaLabel={t("Feed")}
             value={tab}
             onChange={setTab}
             className="gap-5"
             items={[
-              { value: "latest", label: "Latest" },
-              { value: "nearby", label: "Nearby" },
-              { value: "top", label: "Top 24 h" },
+              { value: "latest", label: t("Latest") },
+              { value: "nearby", label: t("Nearby") },
+              { value: "top", label: t("Top 24 h") },
             ]}
           />
         </div>
       )}
       {!user && tab === "nearby" && hydrated && (
         <p className="truncate border-b border-line px-4 py-2 text-xs text-ink-3 sm:px-5">
-          Within {radius} of {loc.name}
+          {t("Within {radius} of {place}", { radius, place: loc.name })}
         </p>
       )}
 
-      <div role={user ? undefined : "tabpanel"} aria-label={user ? undefined : "Reports"}>
+      <div role={user ? undefined : "tabpanel"} aria-label={user ? undefined : t("Reports")}>
         {feed.isLoading && (
           <div className="divide-y divide-line">
             <PostSkeleton />
@@ -93,11 +96,11 @@ export function Feed({ user }: { user?: string }) {
           </div>
         )}
         {!feed.isLoading && !posts.length && !feed.error && (
-          <EmptyState title={empty.title}>
-            <p>{empty.body}</p>
+          <EmptyState title={t(empty.title)}>
+            <p>{t(empty.body, { radius })}</p>
             {!user && (
               <Button size="sm" className="mt-3" onClick={() => setComposerOpen(true)}>
-                Report weather
+                {t("Report weather")}
               </Button>
             )}
           </EmptyState>
@@ -115,7 +118,7 @@ export function Feed({ user }: { user?: string }) {
         <div className="flex justify-center border-t border-line p-3">
           <Button onClick={() => feed.fetchNextPage()} disabled={feed.isFetchingNextPage}>
             {feed.isFetchingNextPage && <Loader2 className="size-4 animate-spin" aria-hidden />}
-            Load more
+            {t("Load more")}
           </Button>
         </div>
       )}

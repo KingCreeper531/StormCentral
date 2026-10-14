@@ -2,6 +2,7 @@
  * Community "Spotter Network" — shared (client + server) definitions.
  */
 import { z } from "zod";
+import { translator, type Translator } from "./i18n/core";
 
 export const CATEGORIES = {
   observation: { label: "Observation", icon: "cloudy-2-day", color: "#94a3b8" },
@@ -165,10 +166,11 @@ export const moderationActionSchema = z.discriminatedUnion("action", [
 ]);
 export type ModerationAction = z.infer<typeof moderationActionSchema>;
 
-/** "Suspended until Oct 20, 2026" / "Suspended" for permanent suspensions. */
-export function suspensionText(until: number) {
-  if (until >= PERMANENT_SUSPENSION) return "This account has been suspended.";
-  return `This account is suspended until ${new Date(until).toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" })}.`;
+/** "This account is suspended until Oct 20, 2026." / "This account has been suspended." for permanent suspensions. */
+export function suspensionText(until: number, t: Translator = translator("en")) {
+  if (until >= PERMANENT_SUSPENSION) return t("This account has been suspended.");
+  const date = new Date(until).toLocaleDateString(t.locale, { dateStyle: "medium", timeZone: "UTC" });
+  return t("This account is suspended until {date}.", { date });
 }
 
 export interface BlockedUserDto {
@@ -240,6 +242,20 @@ export interface CommentDto {
   author: Omit<PostAuthor, "reputation">;
   isOwn: boolean;
   hidden: boolean;
+}
+
+/** Someone confirmed or commented on one of your reports (GET /api/activity). */
+export interface ActivityItem {
+  /** Stable id: "c:<commentId>" or "v:<postId>:<username>". */
+  id: string;
+  kind: "confirm" | "comment";
+  at: number;
+  postId: string;
+  /** The start of your report's text. */
+  postPreview: string;
+  actor: { username: string; displayName: string };
+  /** The comment, for comments. */
+  text: string | null;
 }
 
 export interface FeedResponse {

@@ -6,7 +6,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useId, useState, useSyncExternalStore } from "react";
 import { qk } from "@/hooks/queries";
+import { useT } from "@/lib/i18n/use-t";
 import { Button } from "../ui/button";
+import { errorText } from "./moderation";
 
 /** Only same-site relative paths are allowed as post-login redirects. */
 function safeNext(next: string | null) {
@@ -18,13 +20,14 @@ export const INPUT =
   "h-9 w-full rounded-[var(--radius-control)] border border-line bg-surface-2 px-3 text-sm text-ink outline-none placeholder:text-ink-3 focus:border-accent pointer-coarse:h-11 pointer-coarse:text-base";
 
 export function Field({ id, label, hint, optional, children }: { id: string; label: string; hint?: string; optional?: boolean; children: React.ReactNode }) {
+  const t = useT();
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between gap-3">
         <label htmlFor={id} className="text-[13px] font-medium text-ink-2">
           {label}
         </label>
-        {optional && <span className="label">Optional</span>}
+        {optional && <span className="label">{t("Optional")}</span>}
       </div>
       {children}
       {hint && (
@@ -43,17 +46,21 @@ const noSubscribe = () => () => {};
  * website, or (older Windows app versions) only on that PC.
  */
 function ServerNote() {
+  const t = useT();
   const host = useSyncExternalStore(noSubscribe, () => location.host, () => "");
   if (!host) return null;
   const local = /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host);
   return (
     <p className="label mt-4">
-      {local ? "Accounts on this server are stored only on this computer. Update the app to use the shared spotter network." : `Account server: ${host}`}
+      {local
+        ? t("Accounts on this server are stored only on this computer. Update the app to use the shared spotter network.")
+        : t("Account server: {host}", { host })}
     </p>
   );
 }
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
+  const t = useT();
   const router = useRouter();
   const params = useSearchParams();
   const qc = useQueryClient();
@@ -91,15 +98,17 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
   return (
     <div className="surface mx-auto w-full max-w-[400px] p-5 sm:mt-6 sm:p-6">
-      <h1 className="text-xl font-semibold text-ink">{login ? "Sign in" : "Create an account"}</h1>
+      <h1 className="text-xl font-semibold text-ink">{login ? t("Sign in") : t("Create an account")}</h1>
       <p className="mt-1 text-sm text-ink-2">
-        {login ? "Post weather reports and confirm observations from other spotters." : "An account lets you post weather reports and confirm other spotters' observations."}
+        {login
+          ? t("Post weather reports and confirm observations from other spotters.")
+          : t("An account lets you post weather reports and confirm other spotters' observations.")}
       </p>
 
       <form onSubmit={onSubmit} className="mt-5 space-y-4" noValidate>
         {mode === "register" ? (
           <>
-            <Field id={id("username")} label="Username" hint="3 to 24 letters, numbers or underscores.">
+            <Field id={id("username")} label={t("Username")} hint={t("3 to 24 letters, numbers or underscores.")}>
               <input
                 id={id("username")}
                 name="username"
@@ -115,13 +124,13 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 className={INPUT}
               />
             </Field>
-            <Field id={id("displayName")} label="Display name" optional>
+            <Field id={id("displayName")} label={t("Display name")} optional>
               <input id={id("displayName")} name="displayName" maxLength={40} autoComplete="nickname" className={INPUT} />
             </Field>
-            <Field id={id("email")} label="Email">
+            <Field id={id("email")} label={t("Email")}>
               <input id={id("email")} name="email" type="email" required autoComplete="email" inputMode="email" className={INPUT} />
             </Field>
-            <Field id={id("password")} label="Password" hint="At least 10 characters.">
+            <Field id={id("password")} label={t("Password")} hint={t("At least 10 characters.")}>
               <input
                 id={id("password")}
                 name="password"
@@ -136,7 +145,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           </>
         ) : (
           <>
-            <Field id={id("identifier")} label="Username or email">
+            <Field id={id("identifier")} label={t("Username or email")}>
               <input
                 id={id("identifier")}
                 name="identifier"
@@ -148,24 +157,24 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 className={INPUT}
               />
             </Field>
-            <Field id={id("password")} label="Password">
+            <Field id={id("password")} label={t("Password")}>
               <input id={id("password")} name="password" type="password" required autoComplete="current-password" className={INPUT} />
             </Field>
             <p className="-mt-2 text-right text-[13px]">
               <Link href="/forgot-password" className="text-ink-2 hover:text-ink hover:underline">
-                Forgot your password?
+                {t("Forgot your password?")}
               </Link>
             </p>
           </>
         )}
         {error && (
           <p role="alert" className="rounded-[var(--radius-control)] border border-nogo/30 bg-nogo/10 px-3 py-2 text-xs text-ink-2">
-            {error}
+            {errorText(t, error)}
           </p>
         )}
         <Button type="submit" variant="primary" disabled={pending} className="w-full">
           {pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
-          {login ? "Sign in" : "Create account"}
+          {login ? t("Sign in") : t("Create account")}
         </Button>
       </form>
 
@@ -173,16 +182,16 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       <p className="mt-5 border-t border-line pt-4 text-[13px] text-ink-3">
         {login ? (
           <>
-            No account yet?{" "}
+            {t("No account yet?")}{" "}
             <Link href={`/register?next=${encodeURIComponent(next)}`} className="font-medium text-accent hover:underline">
-              Create an account
+              {t("Create an account")}
             </Link>
           </>
         ) : (
           <>
-            Already have an account?{" "}
+            {t("Already have an account?")}{" "}
             <Link href={`/login?next=${encodeURIComponent(next)}`} className="font-medium text-accent hover:underline">
-              Sign in
+              {t("Sign in")}
             </Link>
           </>
         )}

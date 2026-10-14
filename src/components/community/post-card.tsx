@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { getJson } from "@/lib/api/http";
 import { badgeFor, CATEGORIES, DEVELOPER_BADGE, SEVERITY_LABELS, type CommentDto, type PostDto, isGenericPlace } from "@/lib/community";
+import { useT } from "@/lib/i18n/use-t";
 import { timeAgo } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { describeCode } from "@/lib/weather/wmo";
@@ -14,7 +15,7 @@ import { useFormat } from "@/hooks/use-format";
 import { useNow } from "@/hooks/use-now";
 import { Button } from "../ui/button";
 import { Avatar } from "../ui/misc";
-import { ActionMenu, confirmBlock, ReportDialog, useBlock, type MenuAction } from "./moderation";
+import { ActionMenu, confirmBlock, errorText, ReportDialog, useBlock, type MenuAction } from "./moderation";
 
 /** Chip recipe from DESIGN.md §5: hairline, 4 px corners, 11 px text. Colour only as a swatch. */
 const CHIP = "inline-flex items-center gap-1.5 rounded-[4px] border border-line px-1.5 py-px text-[11px] font-medium text-ink-2";
@@ -37,8 +38,6 @@ async function send(url: string, method: "POST" | "DELETE", body?: unknown) {
   return data;
 }
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-
 function Sep() {
   return (
     <span aria-hidden>·</span>
@@ -51,6 +50,7 @@ function Sep() {
  * `compact` drops the photo, comments and actions (used in summaries).
  */
 export function PostCard({ post, now: nowProp, compact = false }: { post: PostDto; now?: number; compact?: boolean }) {
+  const t = useT();
   const tick = useNow(60_000);
   const now = nowProp ?? tick;
   const fmt = useFormat();
@@ -78,22 +78,27 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
 
   const menu: MenuAction[] = [];
   if (viewer && !post.isOwn) {
-    menu.push({ label: "Report this report", icon: "report", onSelect: () => setReporting(true) });
+    menu.push({ label: t("Report this report"), icon: "report", onSelect: () => setReporting(true) });
     menu.push({
-      label: `Block ${post.author.displayName}`,
+      label: t("Block {name}", { name: post.author.displayName }),
       icon: "block",
       danger: true,
-      onSelect: () => confirmBlock(post.author.displayName) && blockUser.mutate({ username: post.author.username, blocked: true }),
+      onSelect: () => confirmBlock(post.author.displayName, t) && blockUser.mutate({ username: post.author.username, blocked: true }),
     });
     if (viewer.moderator)
-      menu.push({ label: "Remove (moderator)", icon: "remove", danger: true, onSelect: () => confirm("Remove this report for everyone?") && remove.mutate() });
+      menu.push({
+        label: t("Remove (moderator)"),
+        icon: "remove",
+        danger: true,
+        onSelect: () => confirm(t("Remove this report for everyone?")) && remove.mutate(),
+      });
   }
 
   const snap = post.conditions;
   const profile = `/u/${post.author.username}`;
 
   return (
-    <article className={cn("min-w-0", compact ? "py-3 first:pt-0 last:pb-0" : "p-4 sm:px-5")} aria-label={`${cat.label} report by ${post.author.displayName}`}>
+    <article className={cn("min-w-0", compact ? "py-3 first:pt-0 last:pb-0" : "p-4 sm:px-5")} aria-label={t("{category} report by {name}", { category: t(cat.label), name: post.author.displayName })}>
       <header className="flex items-start gap-3">
         {/* The name link next to it carries the accessible name; this one is a pointer shortcut. */}
         <Link href={profile} tabIndex={-1} aria-hidden className="shrink-0">
@@ -109,13 +114,13 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
             {showHandle && <span className="hidden min-w-0 truncate text-[13px] text-ink-3 sm:inline">@{post.author.username}</span>}
             <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] text-ink-3">
               <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: tier.color }} />
-              {tier.name}
+              {t(tier.name)}
             </span>
           </p>
           {/* One line: the place truncates first so time and distance stay readable. */}
           <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs whitespace-nowrap text-ink-3">
             <time dateTime={new Date(post.createdAt).toISOString()} className="shrink-0 tabular">
-              {timeAgo(post.createdAt, now)}
+              {timeAgo(post.createdAt, now, t)}
             </time>
             {!isGenericPlace(post.place) && (
               <>
@@ -126,7 +131,7 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
             {post.distanceKm != null && (
               <>
                 <Sep />
-                <span className="shrink-0 tabular">{fmt.distanceKm(post.distanceKm)} away</span>
+                <span className="shrink-0 tabular">{t("{distance} away", { distance: fmt.distanceKm(post.distanceKm) })}</span>
               </>
             )}
           </p>
@@ -136,18 +141,18 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
       {post.hidden && (
         <p className="mt-3 flex items-start gap-2 rounded-[var(--radius-control)] border border-caution/40 bg-caution/10 px-3 py-2 text-xs text-ink-2">
           <EyeOff className="mt-px size-3.5 shrink-0" aria-hidden />
-          Hidden from others while moderators review reports about it. Only you can see it.
+          {t("Hidden from others while moderators review reports about it. Only you can see it.")}
         </p>
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className={CHIP}>
           <span aria-hidden className="size-1.5 shrink-0 rounded-[1px]" style={{ background: cat.color }} />
-          {cat.label}
+          {t(cat.label)}
         </span>
         <span className={cn(CHIP, post.severity >= 3 && "text-ink")}>
           {swatch && <span aria-hidden className="size-1.5 shrink-0 rounded-[1px]" style={{ background: swatch }} />}
-          {SEVERITY_LABELS[post.severity]}
+          {t(SEVERITY_LABELS[post.severity] ?? "")}
         </span>
       </div>
 
@@ -157,7 +162,7 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={post.image.url}
-          alt={`Photo: ${cat.label}`}
+          alt={t("Photo: {category}", { category: t(cat.label) })}
           loading="lazy"
           decoding="async"
           className="mt-3 w-full rounded-[var(--radius-control)] border border-line bg-surface-2 object-cover"
@@ -167,11 +172,11 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
 
       {snap && (
         <p className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs">
-          <span className="text-ink-3">Model at report time</span>
+          <span className="text-ink-3">{t("Model at report time")}</span>
           <span className="text-ink-2 tabular">
-            {fmt.temp(snap.tempC)} · {describeCode(snap.code).label}
-            {snap.windMs != null && ` · wind ${fmt.wind(snap.windMs)}`}
-            {snap.gustMs != null && ` (gust ${fmt.wind(snap.gustMs)})`}
+            {fmt.temp(snap.tempC)} · {t(describeCode(snap.code).label)}
+            {snap.windMs != null && ` · ${t("wind {speed}", { speed: fmt.wind(snap.windMs) })}`}
+            {snap.gustMs != null && ` (${t("gust {speed}", { speed: fmt.wind(snap.gustMs) })})`}
           </span>
         </p>
       )}
@@ -184,17 +189,21 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
               size="sm"
               onClick={() => verify.mutate()}
               aria-pressed={verified.on}
-              aria-label={verified.on ? `Verified · ${verified.n} (confirmed by you)` : `I can confirm · ${plural(verified.n, "confirmation")}`}
+              aria-label={
+                verified.on
+                  ? t("Verified · {n} (confirmed by you)", { n: verified.n })
+                  : t.plural(verified.n, "I can confirm · {n} confirmation", "I can confirm · {n} confirmations")
+              }
               className={cn(verified.on && "bg-surface-3 text-ink hover:bg-surface-3")}
             >
               <BadgeCheck className={cn("size-4", verified.on && "text-go")} aria-hidden />
-              {verified.on ? "Confirmed" : "Confirm"}
+              {verified.on ? t("Confirmed") : t("Confirm")}
               <span className={cn("tabular", verified.on ? "text-ink-2" : "text-ink-3")}>{verified.n}</span>
             </Button>
           ) : (
             <span className="inline-flex h-8 items-center gap-1.5 px-2.5 text-[13px] text-ink-3 pointer-coarse:min-h-11">
               <BadgeCheck className="size-4" aria-hidden />
-              <span className="tabular">{plural(verified.n, "confirmation")}</span>
+              <span className="tabular">{t.plural(verified.n, "{n} confirmation", "{n} confirmations")}</span>
             </span>
           )}
           <Button
@@ -202,7 +211,7 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
             size="sm"
             onClick={() => setShowComments((s) => !s)}
             aria-expanded={showComments}
-            aria-label={plural(post.comments, "comment")}
+            aria-label={t.plural(post.comments, "{n} comment", "{n} comments")}
             className={cn(showComments && "bg-surface-2 text-ink")}
           >
             <MessageSquare className="size-4" aria-hidden />
@@ -212,24 +221,24 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
             <Button
               variant="danger"
               size="sm"
-              onClick={() => confirm("Delete this report?") && remove.mutate()}
+              onClick={() => confirm(t("Delete this report?")) && remove.mutate()}
               disabled={remove.isPending}
               className="ml-auto"
             >
               {remove.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Trash2 className="size-4" aria-hidden />}
-              Delete
+              {t("Delete")}
             </Button>
           )}
           {menu.length > 0 && (
             <div className="ml-auto">
-              <ActionMenu label="More actions" actions={menu} />
+              <ActionMenu label={t("More actions")} actions={menu} />
             </div>
           )}
         </footer>
       )}
       {(blockUser.error || remove.error) && (
         <p role="alert" className="mt-2 text-xs text-ink-2">
-          {((blockUser.error ?? remove.error) as Error).message}
+          {errorText(t, ((blockUser.error ?? remove.error) as Error).message)}
         </p>
       )}
       {showComments && <Comments postId={post.id} now={now} />}
@@ -239,6 +248,7 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
 }
 
 function Comments({ postId, now }: { postId: string; now: number }) {
+  const t = useT();
   const qc = useQueryClient();
   const { data: viewer } = useSession();
   const [body, setBody] = useState("");
@@ -266,26 +276,34 @@ function Comments({ postId, now }: { postId: string; now: number }) {
   });
   const commentMenu = (c: CommentDto): MenuAction[] => {
     if (!viewer) return [];
-    if (c.isOwn) return [{ label: "Delete comment", icon: "delete", danger: true, onSelect: () => confirm("Delete this comment?") && removeComment.mutate(c.id) }];
+    if (c.isOwn)
+      return [{ label: t("Delete comment"), icon: "delete", danger: true, onSelect: () => confirm(t("Delete this comment?")) && removeComment.mutate(c.id) }];
     const items: MenuAction[] = [
-      { label: "Report comment", icon: "report", onSelect: () => setReporting(c.id) },
+      { label: t("Report comment"), icon: "report", onSelect: () => setReporting(c.id) },
       {
-        label: `Block ${c.author.displayName}`,
+        label: t("Block {name}", { name: c.author.displayName }),
         icon: "block",
         danger: true,
-        onSelect: () => confirmBlock(c.author.displayName) && blockUser.mutate({ username: c.author.username, blocked: true }),
+        onSelect: () => confirmBlock(c.author.displayName, t) && blockUser.mutate({ username: c.author.username, blocked: true }),
       },
     ];
     if (viewer.moderator)
-      items.push({ label: "Remove (moderator)", icon: "remove", danger: true, onSelect: () => confirm("Remove this comment for everyone?") && removeComment.mutate(c.id) });
+      items.push({
+        label: t("Remove (moderator)"),
+        icon: "remove",
+        danger: true,
+        onSelect: () => confirm(t("Remove this comment for everyone?")) && removeComment.mutate(c.id),
+      });
     return items;
   };
+  // "{signIn} to comment." with the link in place of {signIn} (fill leaves an unknown placeholder as it is).
+  const [signInBefore, signInAfter = ""] = t("{signIn} to comment.").split("{signIn}");
   return (
     <div className="mt-2 border-t border-line pt-1">
-      {list.isLoading && <p className="py-2.5 text-xs text-ink-3">Loading comments…</p>}
-      {list.error && <p className="py-2.5 text-xs text-ink-3">Couldn&apos;t load comments.</p>}
+      {list.isLoading && <p className="py-2.5 text-xs text-ink-3">{t("Loading comments…")}</p>}
+      {list.error && <p className="py-2.5 text-xs text-ink-3">{t("Couldn't load comments.")}</p>}
       {comments.length > 0 && (
-        <ul className="divide-y divide-line" aria-label="Comments">
+        <ul className="divide-y divide-line" aria-label={t("Comments")}>
           {comments.map((c) => (
             <li key={c.id} className="flex gap-2.5 py-2.5">
               <Avatar name={c.author.displayName} hue={c.author.avatarHue} src={c.author.avatarUrl} size={24} />
@@ -295,16 +313,16 @@ function Comments({ postId, now }: { postId: string; now: number }) {
                   {c.author.developer && (
                     <span className="inline-flex shrink-0 items-center gap-1 text-xs text-ink-3">
                       <span aria-hidden className="size-1.5 rounded-full" style={{ background: DEVELOPER_BADGE.color }} />
-                      {DEVELOPER_BADGE.name}
+                      {t(DEVELOPER_BADGE.name)}
                     </span>
                   )}
-                  <span className="shrink-0 text-xs text-ink-3 tabular">{timeAgo(c.createdAt, now)}</span>
+                  <span className="shrink-0 text-xs text-ink-3 tabular">{timeAgo(c.createdAt, now, t)}</span>
                 </p>
                 <p className="text-[13px] leading-relaxed break-words whitespace-pre-wrap text-ink-2">{c.body}</p>
-                {c.hidden && <p className="mt-0.5 text-xs text-ink-3">Hidden from others while moderators review it.</p>}
+                {c.hidden && <p className="mt-0.5 text-xs text-ink-3">{t("Hidden from others while moderators review it.")}</p>}
               </div>
               <div className="-mt-1 -mr-2 shrink-0">
-                <ActionMenu label="Comment actions" actions={commentMenu(c)} />
+                <ActionMenu label={t("Comment actions")} actions={commentMenu(c)} />
               </div>
             </li>
           ))}
@@ -322,26 +340,27 @@ function Comments({ postId, now }: { postId: string; now: number }) {
             value={body}
             onChange={(e) => setBody(e.target.value)}
             maxLength={500}
-            placeholder="Add a comment"
-            aria-label="Add a comment"
+            placeholder={t("Add a comment")}
+            aria-label={t("Add a comment")}
             enterKeyHint="send"
             className={INPUT}
           />
           <Button type="submit" variant="primary" disabled={add.isPending || !body.trim()}>
-            Post
+            {t("Post")}
           </Button>
         </form>
       ) : (
         <p className="pt-2 text-xs text-ink-3">
+          {signInBefore}
           <Link href="/login" className="font-medium text-accent hover:underline">
-            Sign in
-          </Link>{" "}
-          to comment.
+            {t("Sign in")}
+          </Link>
+          {signInAfter}
         </p>
       )}
       {(add.error || blockUser.error || removeComment.error) && (
         <p role="alert" className="mt-2 text-xs text-ink-2">
-          {((add.error ?? blockUser.error ?? removeComment.error) as Error).message}
+          {errorText(t, ((add.error ?? blockUser.error ?? removeComment.error) as Error).message)}
         </p>
       )}
       {reporting && <ReportDialog type="comment" id={reporting} onClose={() => setReporting(null)} />}

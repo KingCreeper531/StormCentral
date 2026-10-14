@@ -401,3 +401,12 @@ export async function reverseGeocode(lat: number, lon: number, signal?: AbortSig
   });
   return placeLabel(r);
 }
+
+/** The next 3 hours of 15-minute precipitation and the air temperature, for rain-soon alerts (small and quick). */
+export async function fetchNowcast(lat: number, lon: number, signal?: AbortSignal): Promise<{ times: number[]; precip: (number | null)[]; tempC: number | null }> {
+  const r = await getJson<{ minutely_15?: { time?: number[]; precipitation?: (number | null)[] }; current?: { temperature_2m?: number } }>(
+    `${FORECAST_URL}?${qs({ latitude: lat.toFixed(3), longitude: lon.toFixed(3), minutely_15: "precipitation", forecast_minutely_15: 13, past_minutely_15: 1, current: "temperature_2m", timeformat: "unixtime", timezone: "auto" })}`,
+    { signal, timeoutMs: 10_000 },
+  );
+  return { times: r.minutely_15?.time ?? [], precip: r.minutely_15?.precipitation ?? [], tempC: typeof r.current?.temperature_2m === "number" ? r.current.temperature_2m : null };
+}
