@@ -20,6 +20,8 @@
  *   SHORTS_WAIT_MIN        outlook: minutes to wait for today's morning outlook (default 50)
  *   SHORTS_LATEST=1        outlook: the latest Day 1 outlook, whatever its time; recap: post even on a quiet day
  *   SHORTS_SKIP_QUIET=true outlook: no video on days without a severe risk
+ *   SHORTS_VOICE=false     no narrator (otherwise edge-tts reads a script timed to the scenes; see voice.ts)
+ *   SHORTS_VOICE_NAME      the narrator's voice (default en-US-AndrewNeural)
  *   SHORTS_TROPICAL_MAX    tropical: at most this many storms (default 2, strongest first)
  *   SHORTS_OUT_DIR         where the MP4s and their metadata go (default shorts/out)
  *   SHORTS_FIXTURES        a folder of saved source files to use instead of fetching (testing)
@@ -31,8 +33,10 @@ import { outlookKind } from "./kinds/outlook";
 import { recapKind } from "./kinds/recap";
 import { tropicalKind } from "./kinds/tropical";
 import { weeklyKind } from "./kinds/weekly";
+import { narration } from "./narration";
 import { renderShort } from "./render";
 import type { Kind, Video } from "./video";
+import { addVoice, DEFAULT_VOICE } from "./voice";
 import { accessToken, addToPlaylist, credentialsFromEnv, uploadVideo, YouTubeError, type VideoMeta } from "./youtube";
 
 const env = process.env;
@@ -82,6 +86,13 @@ async function main() {
     const started = Date.now();
     await renderShort(v.template, v.data, out);
     console.log(`Rendered ${out} in ${Math.round((Date.now() - started) / 1000)} s.`);
+    if (env.SHORTS_VOICE !== "false") {
+      // A narrator is nice to have: when the voice service is down, the Short still goes up, silent.
+      await addVoice(out, narration(v), env.SHORTS_VOICE_NAME || DEFAULT_VOICE).then(
+        () => console.log("Added the narration."),
+        (err: unknown) => console.warn(`::warning::No narration for ${v.key}: ${err instanceof Error ? err.message : err}`),
+      );
+    }
     if (!token) continue;
 
     // One video failing to upload doesn't stop the others (two storms, say); the run still fails at the end.
