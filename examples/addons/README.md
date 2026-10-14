@@ -25,7 +25,9 @@ Add-ons → Featured**, one tap each:
 ## Share yours
 
 Add the topic **`stormcentral-theme`** or **`stormcentral-plugin`** to your
-repository. It then shows up under **Browse community add-ons** in the app.
+repository. It then shows up under **Browse community add-ons** in the app
+(forks included). The repository must be public, and GitHub's search can take a
+few minutes to pick up a new topic; **Search again** in the app checks again.
 
 ## Theme format
 

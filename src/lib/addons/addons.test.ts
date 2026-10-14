@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { resolveManifest } from "./github";
+import { addonSearchUrl, resolveManifest } from "./github";
 import { FEATURED_PLUGINS, FEATURED_THEMES } from "./featured";
 import { AddonError, expandTileUrl, parseAddon, themeVars } from "./manifest";
 
@@ -21,6 +21,15 @@ describe("resolveManifest", () => {
   it("refuses anything off GitHub", () => {
     expect(() => resolveManifest("https://evil.example/a/b")).toThrow(AddonError);
     expect(() => resolveManifest("javascript:alert(1)")).toThrow(AddonError);
+  });
+});
+
+describe("addonSearchUrl", () => {
+  it("searches the topic and includes forks, which GitHub leaves out by default", () => {
+    const url = new URL(addonSearchUrl("theme"));
+    expect(url.origin + url.pathname).toBe("https://api.github.com/search/repositories");
+    expect(url.searchParams.get("q")).toBe("topic:stormcentral-theme fork:true");
+    expect(new URL(addonSearchUrl("plugin")).searchParams.get("q")).toBe("topic:stormcentral-plugin fork:true");
   });
 });
 
