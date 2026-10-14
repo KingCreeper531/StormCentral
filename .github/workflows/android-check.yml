@@ -21,4 +21,13 @@ jobs:
       - run: node scripts/build-native.mjs android
       - name: Build APK (release, with lint)
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew assembleRelease --no-daemon 2>&1 | tee build.log
+      - name: Errors
+        if: failure()
+        working-directory: android
+        run: |
+          grep -n -B2 -A8 "error:\|What went wrong\|Errors found" build.log | head -120
+          ls app/build/reports/lint-results* 2>/dev/null && grep -o '<issue[^>]*severity="\(Error\|Fatal\)"[^>]*' app/build/intermediates/lint_vital_intermediate_text_report/*/*.txt 2>/dev/null | head -20 || true
+          find app/build -name "lint-results*.txt" -exec sed -n 1,60p {} \; 2>/dev/null | head -80 || true
