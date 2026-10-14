@@ -1,5 +1,6 @@
 # Storm Central's X bot (bot/README.md): every 5 minutes, posts new severe
-# weather warnings to the Storm Central account. Scheduled runs happen only
+# weather warnings to the Storm Central account, and the morning severe
+# weather outlook once SPC issues it. Scheduled runs happen only
 # when the repository variable BOT_ENABLED is "true"; "Run workflow" always
 # works and defaults to a dry run that prints the posts instead.
 name: X weather bot
@@ -47,6 +48,8 @@ jobs:
           X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
           BOT_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '0' }}
           BOT_DAILY_LIMIT: ${{ vars.BOT_DAILY_LIMIT || '16' }}
+          BOT_LINKS: ${{ vars.BOT_LINKS || 'true' }}
+          BOT_OUTLOOK: ${{ vars.BOT_OUTLOOK || 'true' }}
           BOT_STATE: bot/.state/state.json
         run: node /tmp/x-bot.mjs
       - uses: actions/cache/save@v4
