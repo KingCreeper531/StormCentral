@@ -69,18 +69,18 @@ export function WarningSquares({
               aria-current={selected ? "true" : undefined}
               title={t("{event} until {time}", { event, time: alertUntil(a, timeZone, t.locale) })}
               className={cn(
-                "relative flex h-full w-full flex-col overflow-hidden rounded-[var(--radius-panel)] border p-2.5 text-left transition-colors",
+                "relative flex h-full w-full flex-col overflow-hidden rounded-[var(--radius-panel)] border p-2 text-left transition-colors",
                 selected ? "border-accent" : "border-line hover:border-line-strong",
               )}
               style={{ background: `linear-gradient(160deg, color-mix(in srgb, ${a.color} 30%, var(--color-surface-1)) 0%, var(--color-surface-1) 75%)` }}
             >
               <span className="absolute inset-x-0 top-0 h-1" style={{ background: a.color }} aria-hidden />
-              {/* A fixed-size square: the name gets two lines when more rows follow (long names, e.g. in Spanish,
-                  would otherwise push rows over each other), and the damage tag gives way to spotter reports. */}
-              <span className={cn("mt-1 min-h-0 text-[13px] leading-[1.2] font-semibold text-ink", tag || reports ? "line-clamp-2" : "line-clamp-3")}>{event}</span>
+              {/* A fixed-size square (about 100 px in the radar panel): the name gets two lines, and with spotter
+                  reports the report count takes the place of the damage tag and the area, so rows never overlap. */}
+              <span className="mt-1 line-clamp-2 min-h-0 text-[13px] leading-[1.2] font-semibold text-ink">{event}</span>
               {tag && <span className="mt-1 shrink-0 truncate text-[10px] font-medium tracking-wide text-ink-2 uppercase">{t(tagLabel(tag))}</span>}
-              <span className="mt-auto shrink-0 truncate text-[11px] text-ink-2">{firstArea(a.areaDesc)}</span>
-              <span className="shrink-0 truncate text-[11px] text-ink-3 tabular">{timeLeft(a, now, t)}</span>
+              {!reports && <span className="mt-auto shrink-0 truncate text-[11px] text-ink-2">{firstArea(a.areaDesc)}</span>}
+              <span className={cn("shrink-0 truncate text-[11px] text-ink-3 tabular", reports && "mt-auto")}>{timeLeft(a, now, t)}</span>
               {reports && (
                 <span className="mt-1 flex min-w-0 shrink-0 items-center gap-1 text-[11px] font-medium text-ink tabular">
                   <Radio className="size-3 shrink-0 text-accent" aria-hidden />
