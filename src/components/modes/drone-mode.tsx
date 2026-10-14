@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowUp, ChevronDown } from "lucide-react";
-import { useId, useMemo } from "react";
+import { Fragment, useId, useMemo } from "react";
 import { densityAltitudeM } from "@/lib/science/atmosphere";
 import { DRONE_PROFILES } from "@/lib/science/scores";
 import { bulkShear } from "@/lib/science/wind";
@@ -9,6 +9,7 @@ import { convertWind } from "@/lib/weather/units";
 import { flyabilityAt, WIND_LEVELS } from "@/lib/weather/hourly-scores";
 import { fmtIn, hourRange } from "@/lib/weather/view";
 import { compassPoint } from "@/lib/geo";
+import { useT } from "@/lib/i18n/use-t";
 import { useForecast, useGnss, useSpaceWeather } from "@/hooks/queries";
 import { useFormat } from "@/hooks/use-format";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -35,6 +36,10 @@ const snap = (options: readonly number[], v: number) => options.reduce((a, b) =>
 
 const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+/** A translated template with React nodes in its `{placeholders}` (styled values inside a sentence). */
+function rich(text: string, parts: Record<string, React.ReactNode>): React.ReactNode[] {
+  return text.split(/\{(\w+)\}/g).map((s, i) => (i % 2 ? <Fragment key={i}>{parts[s] ?? `{${s}}`}</Fragment> : s));
+}
 
 /**
  * Phones: one column in reading order (verdict, factors, hourly windows,
@@ -42,6 +47,7 @@ const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
  * the verdict and its factors side by side.
  */
 export function DroneMode() {
+  const t = useT();
   const forecast = useForecast();
   const kp = useSpaceWeather();
   const gnss = useGnss();
@@ -83,6 +89,7 @@ export function DroneMode() {
         lon: loc.lon,
         kp: kpHour,
         satellitesVisible: tl?.count ?? null,
+        t,
       });
       // Describe Kp with the same words as the Kp panel (the status already agrees:
       // both use the 5 / 7 thresholds on the rounded value).
@@ -92,15 +99,15 @@ export function DroneMode() {
         ...scored,
         factors: scored.factors.map((fa) =>
           fa.key === "kp" && kpHour != null
-            ? { ...fa, detail: `${kpLevel(kpHour).label} (Kp ${kpHour.toFixed(1)})` }
+            ? { ...fa, detail: `${kpLevel(kpHour, t).label} (Kp ${kpHour.toFixed(1)})` }
             : fa.key === "ceiling" && clearance != null && fa.status !== "no-go"
-              ? { ...fa, detail: `${fmt.height(clearance)} below base` }
+              ? { ...fa, detail: t("{height} below base", { height: fmt.height(clearance) }) }
               : fa,
         ),
       };
       return { i, t, prof, atAlt, gustAtAlt, ceiling, result };
     });
-  }, [f, now, altitudeM, profile, kpSeries, kpCurrent, skyTimeline, loc.lat, loc.lon, fmt]);
+  }, [f, now, altitudeM, profile, kpSeries, kpCurrent, skyTimeline, loc.lat, loc.lon, fmt, t]);
 
   if (forecast.error && !f) return <ErrorNote error={forecast.error} what="the forecast" />;
   if (!f || !hours.length)
@@ -116,7 +123,8 @@ export function DroneMode() {
 
   const cur = hours[0]!;
   const shear = cur.prof.length >= 3 ? bulkShear(cur.prof[0]!, cur.prof.find((p) => p.heightM === 120) ?? cur.prof[cur.prof.length - 1]!) : null;
-  const hourFmt = fmtIn(f.timezone, { hour: "numeric" });
+  const hourFmt = fmtIn(f.timezone, { hour: "numeric" }, t.locale);
+  const profileName = t(profile.name);
   const best = (() => {
     let run: typeof hours = [];
     let bestRun: typeof hours = [];
@@ -128,7 +136,7 @@ export function DroneMode() {
     return bestRun;
   })();
   const kpNow = kpCurrent;
-  const kpNowLevel = kpNow != null ? kpLevel(kpNow) : null;
+  const kpNowLevel = kpNow != null ? kpLevel(kpNow, t) : null;
   const kpBars: SeriesDef & { colorFor?: (v: number) => string } = {
     key: "kp",
     label: "Kp",
@@ -148,28 +156,35 @@ export function DroneMode() {
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-      <Panel title="Flight conditions" subtitle={`${profile.name} at ${fmt.height(altitudeM)} AGL`} className="flex flex-col lg:col-span-5">
+      <Panel title={t("Flight conditions")} subtitle={t("{profile} at {height} AGL", { profile: profileName, height: fmt.height(altitudeM) })} className="flex flex-col lg:col-span-5">
         <div className="@container flex flex-1 flex-col">
           <div className="mb-4 grid grid-cols-1 gap-4 @min-[22rem]:grid-cols-[minmax(0,10rem)_minmax(0,1fr)] @min-[22rem]:gap-6">
             <ScoreReadout
               score={cur.result.score}
               color={statusColor(cur.result.status)}
-              label="Flyability score"
-              caption={<StatusText status={cur.result.status} label={VERDICT[cur.result.status]} />}
+              label={t("Flyability score")}
+              caption={<StatusText status={cur.result.status} label={t(VERDICT[cur.result.status])} />}
             />
             <div className="min-w-0 space-y-3">
               <p className="text-sm text-ink-2">
-                Wind at altitude <span className="font-medium text-ink tabular">{fmt.wind(cur.atAlt?.speedMs)}</span>
-                {cur.atAlt && <> from {compassPoint(cur.atAlt.dirDeg)}</>}, gusts to <span className="font-medium text-ink tabular">{fmt.wind(cur.gustAtAlt)}</span>.
+                {rich(
+                  cur.atAlt
+                    ? t("Wind at altitude {wind} from {dir}, gusts to {gust}.", { dir: t(compassPoint(cur.atAlt.dirDeg)) })
+                    : t("Wind at altitude {wind}, gusts to {gust}."),
+                  {
+                    wind: <span className="font-medium text-ink tabular">{fmt.wind(cur.atAlt?.speedMs)}</span>,
+                    gust: <span className="font-medium text-ink tabular">{fmt.wind(cur.gustAtAlt)}</span>,
+                  },
+                )}
               </p>
               {best.length ? (
                 <Stat
-                  label="Best window"
+                  label={t("Best window")}
                   value={`${hourFmt.format(best[0]!.t)}–${hourFmt.format(best[best.length - 1]!.t + 3_600_000)}`}
-                  sub={`${best.length} h of go conditions`}
+                  sub={t("{n} h of go conditions", { n: best.length })}
                 />
               ) : (
-                <Stat label="Best window" value="None" sub="No go hours in the next 24 h" />
+                <Stat label={t("Best window")} value={t("None")} sub={t("No go hours in the next 24 h")} />
               )}
             </div>
           </div>
@@ -177,7 +192,7 @@ export function DroneMode() {
           <div className="mt-auto grid grid-cols-1 gap-3 border-t border-line pt-4 @min-[32.5rem]:grid-cols-[minmax(0,1fr)_auto]">
             <div className="min-w-0">
               <label className="block">
-                <span className="label mb-1.5 block">Airframe</span>
+                <span className="label mb-1.5 block">{t("Airframe")}</span>
                 <span className="relative block">
                   <select
                     value={profile.id}
@@ -187,7 +202,7 @@ export function DroneMode() {
                   >
                     {DRONE_PROFILES.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name}
+                        {t(p.name)}
                       </option>
                     ))}
                   </select>
@@ -195,13 +210,13 @@ export function DroneMode() {
                 </span>
               </label>
               <p id={airframeHintId} className="label mt-1">
-                Wind limit {fmt.wind(profile.maxWindMs)}
+                {t("Wind limit {wind}", { wind: fmt.wind(profile.maxWindMs) })}
               </p>
             </div>
             <div className="min-w-0">
-              <p className="label mb-1.5">Flight altitude</p>
+              <p className="label mb-1.5">{t("Flight altitude")}</p>
               <Segmented
-                ariaLabel="Flight altitude"
+                ariaLabel={t("Flight altitude")}
                 stretch
                 value={altitudeM}
                 onChange={(altitudeM) => setDrone({ altitudeM })}
@@ -212,7 +227,7 @@ export function DroneMode() {
         </div>
       </Panel>
 
-      <Panel title="Factors" subtitle="What sets the score this hour" className="lg:col-span-7">
+      <Panel title={t("Factors")} subtitle={t("What sets the score this hour")} className="lg:col-span-7">
         <div className="@container">
           <ul className="grid grid-cols-1 @min-[30rem]:grid-cols-2 @min-[30rem]:gap-x-6">
             {cur.result.factors.map((fa) => (
@@ -233,23 +248,23 @@ export function DroneMode() {
 
       <FlightWindows hours={hours} timeZone={f.timezone} className="lg:col-span-12" />
 
-      <Panel title="Winds aloft" subtitle={`${fmt.height(altitudeM)} AGL against the ${profile.name} limit`} className="lg:col-span-7">
+      <Panel title={t("Winds aloft")} subtitle={t("{height} AGL against the {profile} limit", { height: fmt.height(altitudeM), profile: profileName })} className="lg:col-span-7">
         <TimeSeriesChart
-          ariaLabel="Wind and gust at flight altitude, next 24 hours"
+          ariaLabel={t("Wind and gust at flight altitude, next 24 hours")}
           times={hours.map((h) => h.t)}
           height={190}
           timeZone={f.timezone}
           yDomain={[0, null]}
-          thresholds={[{ value: convertWind(profile.maxWindMs, fmt.units.wind), label: `Limit ${fmt.wind(profile.maxWindMs)}` }]}
+          thresholds={[{ value: convertWind(profile.maxWindMs, fmt.units.wind), label: t("Limit {wind}", { wind: fmt.wind(profile.maxWindMs) }) }]}
           series={[
-            { key: "w", label: "Wind at altitude", color: "var(--color-series-1)", values: hours.map((h) => (h.atAlt ? convertWind(h.atAlt.speedMs, fmt.units.wind) : null)), kind: "area", format: (v) => `${Math.round(v)}` },
-            { key: "g", label: "Gust", color: "var(--color-series-2)", values: hours.map((h) => convertWind(h.gustAtAlt, fmt.units.wind)), dashed: true, format: (v) => `${Math.round(v)}` },
+            { key: "w", label: t("Wind at altitude"), color: "var(--color-series-1)", values: hours.map((h) => (h.atAlt ? convertWind(h.atAlt.speedMs, fmt.units.wind) : null)), kind: "area", format: (v) => `${Math.round(v)}` },
+            { key: "g", label: t("Gust"), color: "var(--color-series-2)", values: hours.map((h) => convertWind(h.gustAtAlt, fmt.units.wind)), dashed: true, format: (v) => `${Math.round(v)}` },
           ]}
         />
       </Panel>
 
-      <Panel title="Vertical profile" subtitle="Low-level wind and shear, now" className="lg:col-span-5">
-        <ul aria-label="Wind by height" className="divide-y divide-line">
+      <Panel title={t("Vertical profile")} subtitle={t("Low-level wind and shear, now")} className="lg:col-span-5">
+        <ul aria-label={t("Wind by height")} className="divide-y divide-line">
           {cur.prof.map((p, k) => (
             <li key={p.heightM} className="grid grid-cols-[3.25rem_minmax(0,1fr)_4.25rem_3.25rem] items-center gap-2.5 py-2 text-[13px] first:pt-0">
               <span className="text-ink-3 tabular">{fmt.height(p.heightM)}</span>
@@ -264,48 +279,48 @@ export function DroneMode() {
               <span className="flex items-center gap-1 text-ink-2">
                 <ArrowUp className="size-3.5 shrink-0" style={{ transform: `rotate(${(p.dirDeg + 180) % 360}deg)` }} aria-hidden />
                 <span>
-                  <span className="sr-only">From </span>
-                  {compassPoint(p.dirDeg)}
+                  <span className="sr-only">{t("From {dir}", { dir: t(compassPoint(p.dirDeg)) })}</span>
+                  <span aria-hidden>{t(compassPoint(p.dirDeg))}</span>
                 </span>
               </span>
             </li>
           ))}
         </ul>
         <p className="label mt-2">
-          The red line marks the {profile.name} limit of {fmt.wind(profile.maxWindMs)}. Arrows point downwind.
+          {t("The red line marks the {profile} limit of {wind}. Arrows point downwind.", { profile: profileName, wind: fmt.wind(profile.maxWindMs) })}
         </p>
         {shear && (
           <div className="mt-4 grid grid-cols-3 gap-3 border-t border-line pt-4">
-            <Stat label="Bulk shear" value={fmt.wind(shear.deltaMs)} sub={`${fmt.height(10, false)}–${fmt.height(120)}`} />
+            <Stat label={t("Bulk shear")} value={fmt.wind(shear.deltaMs)} sub={`${fmt.height(10, false)}–${fmt.height(120)}`} />
             {fmt.units.height === "ft" ? (
-              <Stat label="Per 100 ft" value={fmt.wind(shear.per100m * 0.3048)} sub={sentence(shear.classification)} />
+              <Stat label={t("Per 100 ft")} value={fmt.wind(shear.per100m * 0.3048)} sub={sentence(t(shear.classification))} />
             ) : (
-              <Stat label="Per 100 m" value={fmt.wind(shear.per100m)} sub={sentence(shear.classification)} />
+              <Stat label={t("Per 100 m")} value={fmt.wind(shear.per100m)} sub={sentence(t(shear.classification))} />
             )}
-            <Stat label="Veer" value={`${shear.veerDeg > 0 ? "+" : ""}${Math.round(shear.veerDeg)}°`} sub={shear.veerDeg >= 0 ? "Veering" : "Backing"} />
+            <Stat label={t("Veer")} value={`${shear.veerDeg > 0 ? "+" : ""}${Math.round(shear.veerDeg)}°`} sub={shear.veerDeg >= 0 ? t("Veering") : t("Backing")} />
           </div>
         )}
       </Panel>
 
-      <Panel title="Planetary K-index" subtitle="NOAA SWPC, observed and forecast" className="flex flex-col lg:col-span-4">
+      <Panel title={t("Planetary K-index")} subtitle={t("NOAA SWPC, observed and forecast")} className="flex flex-col lg:col-span-4">
         {kp.error ? (
           <ErrorNote error={kp.error} what="Kp data" />
         ) : (
           <>
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="label">Now</p>
+                <p className="label">{t("Now")}</p>
                 <p className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <span className="text-3xl font-light text-ink tabular">{kpNow != null ? kpNow.toFixed(1) : "—"}</span>
                   {kpNowLevel && <StatusText status={kpNowLevel.status} label={kpNowLevel.label} />}
                 </p>
               </div>
-              <Stat label="Next 24 h max" value={kp.data?.maxNext24h?.toFixed(1) ?? "—"} className="shrink-0 text-right" />
+              <Stat label={t("Next 24 h max")} value={kp.data?.maxNext24h?.toFixed(1) ?? "—"} className="shrink-0 text-right" />
             </div>
             <div className="mt-3 flex-1">
               {kp.data ? (
                 <TimeSeriesChart
-                  ariaLabel="Kp index, past and forecast"
+                  ariaLabel={t("Kp index, past and forecast")}
                   times={(kpSeries ?? []).map((p) => Date.parse(p.time))}
                   height={wide ? 150 : 110}
                   timeZone={f.timezone}
@@ -318,12 +333,12 @@ export function DroneMode() {
                 <Skeleton className="h-[110px] lg:h-[150px]" />
               )}
             </div>
-            <p className="mt-3 text-xs text-ink-3">Kp 5 or higher degrades GNSS accuracy and magnetometer heading.</p>
+            <p className="mt-3 text-xs text-ink-3">{t("Kp 5 or higher degrades GNSS accuracy and magnetometer heading.")}</p>
           </>
         )}
       </Panel>
 
-      <Panel title="Satellite visibility" subtitle="GNSS, SGP4 from CelesTrak elements" className="lg:col-span-5">
+      <Panel title={t("Satellite visibility")} subtitle={t("GNSS, SGP4 from CelesTrak elements")} className="lg:col-span-5">
         {gnss.error ? (
           <ErrorNote error={gnss.error} what="satellite elements" />
         ) : !sky ? (
@@ -334,10 +349,10 @@ export function DroneMode() {
               <SkyPlot sats={sky.sats} size={200} className="mx-auto" />
               <div className="min-w-0">
                 <div className="grid grid-cols-2 gap-3">
-                  <Stat label="In view" value={sky.count} sub="Above 10° mask" />
+                  <Stat label={t("In view")} value={sky.count} sub={t("Above 10° mask")} />
                   <Stat label="PDOP" value={sky.dop ? sky.dop.pdop.toFixed(1) : "—"} sub={sky.dop ? `HDOP ${sky.dop.hdop.toFixed(1)}` : undefined} />
                 </div>
-                <ul className="mt-3 divide-y divide-line border-t border-line" aria-label="Satellites by constellation">
+                <ul className="mt-3 divide-y divide-line border-t border-line" aria-label={t("Satellites by constellation")}>
                   {CONSTELLATIONS.map((c) => (
                     <li key={c} className="flex items-center gap-2 py-1.5 text-[13px]">
                       <svg width={12} height={12} className="shrink-0" aria-hidden>
@@ -354,17 +369,17 @@ export function DroneMode() {
         )}
       </Panel>
 
-      <Panel title="Ceiling and visibility" subtitle="Current hour" className="flex flex-col lg:col-span-3">
+      <Panel title={t("Ceiling and visibility")} subtitle={t("Current hour")} className="flex flex-col lg:col-span-3">
         <div className="mb-4 grid grid-cols-3 gap-3 lg:grid-cols-1 lg:gap-4">
           <Stat
-            label="Ceiling (est.)"
-            value={cur.ceiling.baseM != null ? fmt.height(cur.ceiling.baseM) : "Unlimited"}
-            sub={cur.ceiling.baseM != null ? `${Math.round(cur.ceiling.coverPct)}% ${cur.ceiling.layer} cover` : "No BKN/OVC"}
+            label={t("Ceiling (est.)")}
+            value={cur.ceiling.baseM != null ? fmt.height(cur.ceiling.baseM) : t("Unlimited")}
+            sub={cur.ceiling.baseM != null ? t("{pct}% {layer} cover", { pct: Math.round(cur.ceiling.coverPct), layer: t(cur.ceiling.layer) }) : t("No BKN/OVC")}
           />
-          <Stat label="Visibility" value={fmt.visibility(f.hourly.visibility[cur.i])} sub="3 SM minimum" />
-          <Stat label="Density altitude" value={da != null ? fmt.height(da) : "—"} sub="Lift and battery" />
+          <Stat label={t("Visibility")} value={fmt.visibility(f.hourly.visibility[cur.i])} sub={t("3 SM minimum")} />
+          <Stat label={t("Density altitude")} value={da != null ? fmt.height(da) : "—"} sub={t("Lift and battery")} />
         </div>
-        <p className="mt-auto border-t border-line pt-3 text-xs text-ink-3">Check airspace (LAANC or B4UFLY) and NOTAMs before every flight.</p>
+        <p className="mt-auto border-t border-line pt-3 text-xs text-ink-3">{t("Check airspace (LAANC or B4UFLY) and NOTAMs before every flight.")}</p>
       </Panel>
     </div>
   );

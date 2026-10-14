@@ -7,6 +7,7 @@ import { describeCode, iconName } from "@/lib/weather/wmo";
 import { todayIndex } from "@/lib/weather/view";
 import { forecastSource, isForecastSourceId } from "@/lib/forecast-sources";
 import { useForecast } from "@/hooks/queries";
+import { useT } from "@/lib/i18n/use-t";
 import { useFormat } from "@/hooks/use-format";
 import { useOnline } from "@/hooks/use-online";
 import { fmtIn } from "@/lib/weather/view";
@@ -20,6 +21,7 @@ import { WeatherIcon } from "../ui/weather-icon";
  * compacts so the forecast panels start within the first screen.
  */
 export function CurrentHero({ f, now, className }: { f: Forecast; now: number; className?: string }) {
+  const t = useT();
   const fmt = useFormat();
   const name = useAppStore((s) => s.location.name);
   const c = f.current;
@@ -31,17 +33,18 @@ export function CurrentHero({ f, now, className }: { f: Forecast; now: number; c
   const online = useOnline();
   const failed = useForecast().isError;
   const saved = !online || (failed && updated > 15);
-  const savedAt = fmtIn(undefined, updated > 18 * 60 ? { weekday: "short", hour: "numeric", minute: "2-digit" } : { hour: "numeric", minute: "2-digit" }).format(f.fetchedAt);
+  const savedAt = fmtIn(undefined, updated > 18 * 60 ? { weekday: "short", hour: "numeric", minute: "2-digit" } : { hour: "numeric", minute: "2-digit" }, t.locale).format(f.fetchedAt);
+  const source = f.source && isForecastSourceId(f.source) ? t(forecastSource(f.source).short) : "Open-Meteo";
 
   const facts: [string, string][] = [
-    ["Feels like", fmt.temp(c.feelsLike)],
-    ["High", fmt.temp(f.daily.tMax[d])],
-    ["Low", fmt.temp(f.daily.tMin[d])],
+    [t("Feels like"), fmt.temp(c.feelsLike)],
+    [t("High"), fmt.temp(f.daily.tMax[d])],
+    [t("Low"), fmt.temp(f.daily.tMin[d])],
   ];
 
   return (
     <section
-      aria-label="Current conditions"
+      aria-label={t("Current conditions")}
       className={cn(
         "flex min-w-0 items-start justify-between gap-3 py-1 sm:items-center sm:justify-start sm:gap-10 sm:py-3 [@media(max-height:500px)]:py-0",
         className,
@@ -60,7 +63,7 @@ export function CurrentHero({ f, now, className }: { f: Forecast; now: number; c
         </motion.p>
         {/* Short viewports: the condition and the facts share one line. */}
         <div className="mt-3 [@media(max-height:500px)]:mt-1 [@media(max-height:500px)]:flex [@media(max-height:500px)]:flex-wrap [@media(max-height:500px)]:items-baseline [@media(max-height:500px)]:gap-x-4">
-          <p className="text-lg font-medium text-ink">{info.label}</p>
+          <p className="text-lg font-medium text-ink">{t(info.label)}</p>
           <dl className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-sm [@media(max-height:500px)]:mt-0">
             {facts.map(([k, v]) => (
               <div key={k} className="flex items-baseline gap-1 whitespace-nowrap">
@@ -73,15 +76,17 @@ export function CurrentHero({ f, now, className }: { f: Forecast; now: number; c
         {saved ? (
           <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-caution [@media(max-height:500px)]:mt-1">
             <WifiOff className="size-3.5" aria-hidden />
-            {online ? "Can't reach the forecast" : "Offline"} · showing the forecast saved at {savedAt}
+            {online
+              ? t("Can't reach the forecast · showing the forecast saved at {time}", { time: savedAt })
+              : t("Offline · showing the forecast saved at {time}", { time: savedAt })}
           </p>
         ) : (
           <p className="label mt-2 [@media(max-height:500px)]:mt-1">
-            Updated {updated === 0 ? "just now" : `${updated} min ago`} · {f.source && isForecastSourceId(f.source) ? forecastSource(f.source).short : "Open-Meteo"}
+            {updated === 0 ? t("Updated just now · {source}", { source }) : t("Updated {n} min ago · {source}", { n: updated, source })}
           </p>
         )}
       </div>
-      <WeatherIcon name={icon} size={160} fluid label={info.label} className="w-24 sm:w-32 [@media(max-height:500px)]:w-16" />
+      <WeatherIcon name={icon} size={160} fluid label={t(info.label)} className="w-24 sm:w-32 [@media(max-height:500px)]:w-16" />
     </section>
   );
 }

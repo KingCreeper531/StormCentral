@@ -3,6 +3,7 @@
 import { ChevronDown, ExternalLink } from "lucide-react";
 import { useForecasterNotes } from "@/hooks/queries";
 import type { AfdSection } from "@/lib/afd";
+import { useT } from "@/lib/i18n/use-t";
 import { timeAgo } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { buttonClass } from "../ui/button";
@@ -25,10 +26,11 @@ function Disclosure({ summary, children, className }: { summary: React.ReactNode
 }
 
 function Section({ s }: { s: AfdSection }) {
+  const t = useT();
   return (
     <section className="mt-3 first:mt-0">
       <h3 className="text-[13px] font-semibold text-ink">
-        {s.title}
+        {t(s.title)}
         {s.period && <span className="font-normal text-ink-3"> · {s.period}</span>}
       </h3>
       {s.paragraphs.map((p, i) => (
@@ -46,12 +48,13 @@ function Section({ s }: { s: AfdSection }) {
  * folded away. US only; renders nothing elsewhere.
  */
 export function ForecasterNotesPanel({ now, className }: { now: number; className?: string }) {
+  const t = useT();
   const q = useForecasterNotes();
   const d = q.data;
   if (q.isError && !d) return null;
   if (!d)
     return (
-      <Panel title="Forecaster notes" subtitle="National Weather Service" aria-busy="true" className={className}>
+      <Panel title={t("Forecaster notes")} subtitle={t("National Weather Service")} aria-busy="true" className={className}>
         <Skeleton className="h-4 w-11/12" />
         <Skeleton className="mt-2 h-4 w-4/5" />
         <Skeleton className="mt-2 h-4 w-3/5" />
@@ -64,19 +67,19 @@ export function ForecasterNotesPanel({ now, className }: { now: number; classNam
 
   return (
     <Panel
-      title="Forecaster notes"
-      subtitle={`NWS ${d.officeName ?? d.office}${Number.isFinite(issued) ? `, ${timeAgo(issued, now)}` : ""}`}
+      title={t("Forecaster notes")}
+      subtitle={`NWS ${d.officeName ?? d.office}${Number.isFinite(issued) ? `, ${timeAgo(issued, now, t)}` : ""}`}
       className={className}
       action={
         <a href={d.url} target="_blank" rel="noreferrer" className={buttonClass("ghost", "sm")}>
-          Original
+          {t("Original")}
           <ExternalLink className="size-3.5" aria-hidden />
         </a>
       }
     >
       {d.summary && (
         <>
-          <p className="label">{SUMMARY_LABEL[d.summary.kind]}</p>
+          <p className="label">{t(SUMMARY_LABEL[d.summary.kind])}</p>
           <ul className="mt-1.5 space-y-2">
             {d.summary.items.map((item, i) => (
               <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-ink">
@@ -89,33 +92,33 @@ export function ForecasterNotesPanel({ now, className }: { now: number; classNam
       )}
       {d.changes.length > 0 && (
         <p className="mt-3 text-xs leading-relaxed text-ink-3">
-          <span className="font-medium text-ink-2">What&apos;s changed: </span>
+          <span className="font-medium text-ink-2">{t("What's changed")}: </span>
           {d.changes.join(" ")}
         </p>
       )}
 
       <div className="mt-3">
         {forecast.length > 0 && (
-          <Disclosure summary="Read the full discussion">
+          <Disclosure summary={t("Read the full discussion")}>
             {forecast.map((s) => (
               <Section key={s.id} s={s} />
             ))}
           </Disclosure>
         )}
         {specialty.length > 0 && (
-          <Disclosure summary={<span className="truncate">More: {specialty.map((s) => s.title).join(", ")}</span>}>
+          <Disclosure summary={<span className="truncate">{t("More: {sections}", { sections: specialty.map((s) => t(s.title)).join(", ") })}</span>}>
             {specialty.map((s) => (
               <Section key={s.id} s={s} />
             ))}
           </Disclosure>
         )}
         {d.glossary.length > 0 && (
-          <Disclosure summary={`Jargon decoder (${d.glossary.length} terms)`}>
+          <Disclosure summary={t.plural(d.glossary.length, "Jargon decoder ({n} term)", "Jargon decoder ({n} terms)")}>
             <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-[max-content_minmax(0,1fr)]">
               {d.glossary.map((g) => (
                 <div key={g.term} className="contents">
                   <dt className="text-[13px] font-medium text-ink">{g.term}</dt>
-                  <dd className="text-[13px] leading-relaxed text-ink-2">{g.meaning}</dd>
+                  <dd className="text-[13px] leading-relaxed text-ink-2">{t(g.meaning)}</dd>
                 </div>
               ))}
             </dl>

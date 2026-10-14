@@ -5,6 +5,8 @@ import { useFormat } from "@/hooks/use-format";
 import { useAppStore } from "@/store/app-store";
 import { tagLabel } from "@/lib/alerts";
 import type { WeatherAlert } from "@/lib/api/types";
+import { eventName } from "@/lib/i18n/nws-events";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 import { clockIn } from "@/lib/weather/view";
 import { EmptyState } from "../ui/misc";
@@ -16,8 +18,8 @@ export interface RankedAlert {
   inside: boolean;
 }
 
-/** Clock time the alert ends ("5:45 PM") in the selected location's zone. */
-export const alertUntil = (a: WeatherAlert, timeZone: string | undefined) => clockIn(timeZone, a.ends ?? a.expires);
+/** Clock time the alert ends ("5:45 PM") in the selected location's zone (`locale`: `t.locale`). */
+export const alertUntil = (a: WeatherAlert, timeZone: string | undefined, locale?: string) => clockIn(timeZone, a.ends ?? a.expires, locale);
 
 /** Hazard colour as the 8 px square swatch (the one hazard-colour encoding in lists, peek and details). */
 export function HazardSwatch({ color, className }: { color: string; className?: string }) {
@@ -28,14 +30,16 @@ export function HazardSwatch({ color, className }: { color: string; className?: 
  * NWS impact tag as a small outlined chip. NWS sends tags in capitals
  * ("TORNADO EMERGENCY"); they are shown in sentence case, except acronyms.
  * Life-threatening emergencies get an icon rather than relying on caps.
+ * Pass the English label (`tagLabel(tag)`): it is translated here.
  */
 export function AlertTag({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const raw = typeof children === "string" ? children : null;
   const emergency = !!raw && /EMERGENCY/i.test(raw);
   return (
     <span className="inline-flex shrink-0 items-center gap-1 rounded-[4px] border border-line px-1.5 py-px text-[11px] leading-4 font-medium text-ink-2">
       {emergency && <CircleAlert className="size-3 text-nogo" aria-hidden />}
-      {raw ? (raw === "PDS" ? raw : sentenceCase(raw)) : children}
+      {raw ? (raw === "PDS" ? raw : sentenceCase(t(raw))) : children}
     </span>
   );
 }
@@ -54,8 +58,9 @@ export function AlertList({
   timeZone: string | undefined;
 }) {
   const fmt = useFormat();
+  const t = useT();
   const radiusKm = useAppStore((s) => s.radiusKm);
-  if (!items.length) return <EmptyState title={`No active warnings within ${fmt.distanceKm(radiusKm)}`} />;
+  if (!items.length) return <EmptyState title={t("No active warnings within {distance}", { distance: fmt.distanceKm(radiusKm) })} />;
   return (
     <ul className="divide-y divide-line">
       {items.map(({ alert: a, distanceKm, inside }) => {
@@ -74,15 +79,15 @@ export function AlertList({
               <HazardSwatch color={a.color} className="mt-1.5" />
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
-                  <span className="min-w-0 text-[13px] leading-5 font-semibold text-ink">{a.event}</span>
-                  {a.tags.slice(0, 2).map((t) => (
-                    <AlertTag key={t}>{tagLabel(t)}</AlertTag>
+                  <span className="min-w-0 text-[13px] leading-5 font-semibold text-ink">{eventName(t.lang, a.event)}</span>
+                  {a.tags.slice(0, 2).map((tag) => (
+                    <AlertTag key={tag}>{tagLabel(tag)}</AlertTag>
                   ))}
                 </span>
                 <span className="mt-0.5 block truncate text-xs text-ink-3">{a.areaDesc}</span>
                 <span className="mt-0.5 flex items-baseline justify-between gap-3 text-xs tabular">
-                  <span className={inside ? "font-medium text-ink-2" : "text-ink-3"}>{inside ? "Over your location" : `${fmt.distanceKm(distanceKm)} away`}</span>
-                  <span className="shrink-0 text-ink-3">Until {alertUntil(a, timeZone)}</span>
+                  <span className={inside ? "font-medium text-ink-2" : "text-ink-3"}>{inside ? t("Over your location") : t("{distance} away", { distance: fmt.distanceKm(distanceKm) })}</span>
+                  <span className="shrink-0 text-ink-3">{t("Until {time}", { time: alertUntil(a, timeZone, t.locale) })}</span>
                 </span>
               </span>
             </button>

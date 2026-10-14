@@ -2,6 +2,7 @@
 
 import { X } from "lucide-react";
 import { useFormat } from "@/hooks/use-format";
+import { useT } from "@/lib/i18n/use-t";
 import type { StormCell } from "@/lib/feeds/storm-cells";
 import {
   cellEta,
@@ -28,6 +29,7 @@ import { HazardSwatch } from "./alert-list";
 const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 const compass = (deg: number) => COMPASS[Math.round(((deg % 360) + 360) / 45) % 8]!;
 const KT_TO_MS = 0.514444;
+const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const GROUP_LABEL: Record<ReportGroup, string> = { tornado: "Tornado", hail: "Hail", wind: "Wind", flood: "Flood", other: "Other" };
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
@@ -84,24 +86,31 @@ export function StormReportDetail({
   hideTitle?: boolean;
   className?: string;
 }) {
+  const t = useT();
   const magnitude = useMagnitude()(r);
-  const where = [placeName(r.place), r.county ? `${placeName(r.county)} County` : null, r.state].filter(Boolean).join(", ");
+  const where = [placeName(r.place), r.county ? t("{county} County", { county: placeName(r.county) }) : null, r.state].filter(Boolean).join(", ");
   return (
     <div className={cn("min-w-0 space-y-4", className)}>
       {!hideTitle && (
-        <Title color={REPORT_COLORS[r.kind]} title={reportTitle(r.typeText)} sub={`${clockIn(timeZone, r.time)}, ${timeAgo(Date.parse(r.time), now)}`} onClose={onClose} closeLabel="Close report" />
+        <Title
+          color={REPORT_COLORS[r.kind]}
+          title={t(reportTitle(r.typeText))}
+          sub={`${clockIn(timeZone, r.time, t.locale)}, ${timeAgo(Date.parse(r.time), now, t)}`}
+          onClose={onClose}
+          closeLabel={t("Close report")}
+        />
       )}
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-        {magnitude && <Fact label={r.measured ? "Measured" : r.measured === false ? "Estimated" : "Magnitude"}>{magnitude}</Fact>}
-        <Fact label="Time">{clockIn(timeZone, r.time)}</Fact>
+        {magnitude && <Fact label={r.measured ? t("Measured") : r.measured === false ? t("Estimated") : t("Magnitude")}>{magnitude}</Fact>}
+        <Fact label={t("Time")}>{clockIn(timeZone, r.time, t.locale)}</Fact>
         <div className="col-span-2">
-          <Fact label="Location">{where || "—"}</Fact>
+          <Fact label={t("Location")}>{where || "—"}</Fact>
         </div>
-        {r.source && <Fact label="Source">{sourceLabel(r.source)}</Fact>}
-        {r.wfo && <Fact label="NWS office">{r.wfo}</Fact>}
+        {r.source && <Fact label={t("Source")}>{t(sourceLabel(r.source))}</Fact>}
+        {r.wfo && <Fact label={t("NWS office")}>{r.wfo}</Fact>}
       </dl>
       {r.remark && <p className="text-sm leading-6 text-ink-2">{r.remark}</p>}
-      <p className="label">Preliminary NWS local storm report via Iowa Environmental Mesonet</p>
+      <p className="label">{t("Preliminary NWS local storm report via Iowa Environmental Mesonet")}</p>
     </div>
   );
 }
@@ -125,35 +134,40 @@ export function StormCellDetail({
   className?: string;
 }) {
   const fmt = useFormat();
+  const t = useT();
   const level = cellSeverity(c);
   const eta = cellEta(c, location, { now });
+  // The minutes are bold: split the sentence around them.
+  const reach = t("Reaches {place} in about {eta} if it holds its course.", { place: location.name }).split("{eta}");
   return (
     <div className={cn("min-w-0 space-y-4", className)}>
       {!hideTitle && (
         <Title
           color={CELL_COLORS[level]}
-          title={CELL_LEVEL_LABEL[level]}
-          sub={`Cell ${c.stormId} on ${c.radar}, scan ${clockIn(timeZone, c.time)}`}
+          title={t(CELL_LEVEL_LABEL[level])}
+          sub={t("Cell {id} on {radar}, scan {time}", { id: c.stormId, radar: c.radar, time: clockIn(timeZone, c.time, t.locale) })}
           onClose={onClose}
-          closeLabel="Close storm cell"
+          closeLabel={t("Close storm cell")}
         />
       )}
       {eta != null && (
         <p className="rounded-[var(--radius-control)] border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink">
-          Reaches {location.name} in about <span className="font-semibold tabular">{Math.max(1, Math.round(eta))} min</span> if it holds its course.
+          {reach[0]}
+          <span className="font-semibold tabular">{Math.max(1, Math.round(eta))} min</span>
+          {reach[1]}
         </p>
       )}
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-        <Fact label="Max hail">{c.maxHailIn != null && c.maxHailIn > 0 ? fmt.precip(c.maxHailIn * 25.4) : "—"}</Fact>
-        <Fact label="Severe hail chance">{c.severeHailProb != null ? `${c.severeHailProb}%` : "—"}</Fact>
-        <Fact label="Rotation">{c.tvs ?? (c.meso != null ? `Meso, rank ${c.meso}` : "None")}</Fact>
-        <Fact label="Moving">{c.motion && c.motion.speedKt >= 1 ? `${compass(cellHeading(c.motion))} ${fmt.wind(c.motion.speedKt * KT_TO_MS)}` : "Stationary"}</Fact>
-        <Fact label="Max reflectivity">{c.maxDbz != null ? `${Math.round(c.maxDbz)} dBZ` : "—"}</Fact>
-        <Fact label="Echo top">{c.topKft != null ? fmt.height(c.topKft * 304.8) : "—"}</Fact>
-        <Fact label="VIL">{c.vil != null ? `${Math.round(c.vil)} kg/m²` : "—"}</Fact>
-        <Fact label="Hail chance">{c.hailProb != null ? `${c.hailProb}%` : "—"}</Fact>
+        <Fact label={t("Max hail")}>{c.maxHailIn != null && c.maxHailIn > 0 ? fmt.precip(c.maxHailIn * 25.4) : "—"}</Fact>
+        <Fact label={t("Severe hail chance")}>{c.severeHailProb != null ? `${c.severeHailProb}%` : "—"}</Fact>
+        <Fact label={t("Rotation")}>{c.tvs ?? (c.meso != null ? t("Meso, rank {n}", { n: c.meso }) : sentence(t("none")))}</Fact>
+        <Fact label={t("Moving")}>{c.motion && c.motion.speedKt >= 1 ? `${t(compass(cellHeading(c.motion)))} ${fmt.wind(c.motion.speedKt * KT_TO_MS)}` : t("Stationary")}</Fact>
+        <Fact label={t("Max reflectivity")}>{c.maxDbz != null ? `${Math.round(c.maxDbz)} dBZ` : "—"}</Fact>
+        <Fact label={t("Echo top")}>{c.topKft != null ? fmt.height(c.topKft * 304.8) : "—"}</Fact>
+        <Fact label={t("VIL")}>{c.vil != null ? `${Math.round(c.vil)} kg/m²` : "—"}</Fact>
+        <Fact label={t("Hail chance")}>{c.hailProb != null ? `${c.hailProb}%` : "—"}</Fact>
       </dl>
-      <p className="label">Radar storm-cell algorithms (SCIT, HDA, MDA, TDA). Automated, unverified signals.</p>
+      <p className="label">{t("Radar storm-cell algorithms (SCIT, HDA, MDA, TDA). Automated, unverified signals.")}</p>
     </div>
   );
 }
@@ -174,8 +188,11 @@ export function StormReportsList({
   selectedId: string | null;
   onSelect: (r: StormReport) => void;
 }) {
+  const t = useT();
   const magnitude = useMagnitude();
-  if (!reports.length) return <EmptyState title="No storm reports">No NWS local storm reports in the last {hours} hours.</EmptyState>;
+  if (!reports.length) {
+    return <EmptyState title={t("No storm reports")}>{t.plural(hours, "No NWS local storm reports in the last hour.", "No NWS local storm reports in the last {n} hours.")}</EmptyState>;
+  }
   const counts = new Map<ReportGroup, number>();
   for (const r of reports) counts.set(reportGroup(r.kind), (counts.get(reportGroup(r.kind)) ?? 0) + 1);
   const newest = [...reports].sort((a, b) => Date.parse(b.time) - Date.parse(a.time)).slice(0, 40);
@@ -185,7 +202,7 @@ export function StormReportsList({
         {REPORT_GROUPS.filter((g) => counts.get(g)).map((g) => (
           <span key={g} className="flex items-center gap-1.5 text-xs text-ink-2 tabular">
             <span className="size-2 rounded-full" style={{ background: REPORT_GROUP_COLORS[g] }} aria-hidden />
-            {GROUP_LABEL[g]} {counts.get(g)}
+            {t(GROUP_LABEL[g])} {counts.get(g)}
           </span>
         ))}
       </div>
@@ -203,22 +220,24 @@ export function StormReportsList({
                 <span className="size-2.5 shrink-0 rounded-full" style={{ background: REPORT_COLORS[r.kind] }} aria-hidden />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[13px] font-medium text-ink">
-                    {reportTitle(r.typeText)}
+                    {t(reportTitle(r.typeText))}
                     {m && <span className="text-ink-2"> · {m}</span>}
                   </span>
                   <span className="block truncate text-xs text-ink-3">
                     {[placeName(r.place), r.state].filter(Boolean).join(", ")}
                   </span>
                 </span>
-                <span className="shrink-0 text-xs text-ink-3 tabular" title={clockIn(timeZone, r.time)}>
-                  {timeAgo(Date.parse(r.time), now)}
+                <span className="shrink-0 text-xs text-ink-3 tabular" title={clockIn(timeZone, r.time, t.locale)}>
+                  {timeAgo(Date.parse(r.time), now, t)}
                 </span>
               </button>
             </li>
           );
         })}
       </ul>
-      {reports.length > newest.length && <p className="label border-t border-line px-4 py-3">Newest {newest.length} of {reports.length}; all are on the map.</p>}
+      {reports.length > newest.length && (
+        <p className="label border-t border-line px-4 py-3">{t("Newest {n} of {total}; all are on the map.", { n: newest.length, total: reports.length })}</p>
+      )}
     </div>
   );
 }
@@ -238,12 +257,13 @@ export function StormCellList({
   onSelect: (c: StormCell) => void;
 }) {
   const fmt = useFormat();
+  const t = useT();
   const top = cells
     .map((c) => ({ c, level: cellSeverity(c), eta: cellEta(c, location, { now }) }))
     .filter((x) => x.level >= 2 || x.eta != null)
     .sort((a, b) => Number(b.eta != null) - Number(a.eta != null) || b.level - a.level || (a.eta ?? 0) - (b.eta ?? 0))
     .slice(0, 12);
-  if (!top.length) return <p className="px-4 py-3 text-xs text-ink-3">No radar cells with rotation or severe hail right now.</p>;
+  if (!top.length) return <p className="px-4 py-3 text-xs text-ink-3">{t("No radar cells with rotation or severe hail right now.")}</p>;
   return (
     <ul className="divide-y divide-line">
       {top.map(({ c, level, eta }) => (
@@ -256,10 +276,10 @@ export function StormCellList({
           >
             <span className="size-2.5 shrink-0 rounded-full" style={{ background: CELL_COLORS[level] }} aria-hidden />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] font-medium text-ink">{CELL_LEVEL_LABEL[level]}</span>
+              <span className="block truncate text-[13px] font-medium text-ink">{t(CELL_LEVEL_LABEL[level])}</span>
               <span className="block truncate text-xs text-ink-3 tabular">
                 {c.radar} {c.stormId}
-                {c.maxHailIn ? ` · hail ${fmt.precip(c.maxHailIn * 25.4)}` : ""}
+                {c.maxHailIn ? ` · ${t("hail {size}", { size: fmt.precip(c.maxHailIn * 25.4) })}` : ""}
               </span>
             </span>
             {eta != null && <span className="shrink-0 text-xs font-medium text-ink tabular">{Math.max(1, Math.round(eta))} min</span>}

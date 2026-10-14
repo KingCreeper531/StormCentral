@@ -7,6 +7,7 @@ import { convertTemp } from "@/lib/weather/units";
 import { fmtIn, hourRange, msTimes, pick } from "@/lib/weather/view";
 import { iconName } from "@/lib/weather/wmo";
 import { useFormat } from "@/hooks/use-format";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 import { TimeSeriesChart } from "../charts/time-series";
 import { IconButton } from "../ui/button";
@@ -43,9 +44,10 @@ function useScrollEdges<T extends HTMLElement>() {
  * mouse and trackpad users also get paging buttons.
  */
 export function HourlyPanel({ f, now, className }: { f: Forecast; now: number; className?: string }) {
+  const t = useT();
   const fmt = useFormat();
   const { idx } = hourRange(f, now, 25);
-  const hourFmt = fmtIn(f.timezone, { hour: "numeric" });
+  const hourFmt = fmtIn(f.timezone, { hour: "numeric" }, t.locale);
   const times = msTimes(f, idx);
   const temps = pick(f.hourly.temp, idx).map((v) => (v == null ? null : convertTemp(v, fmt.units.temp)));
   const [listRef, edges] = useScrollEdges<HTMLOListElement>();
@@ -59,15 +61,15 @@ export function HourlyPanel({ f, now, className }: { f: Forecast; now: number; c
 
   return (
     <Panel
-      title="Hourly forecast"
-      subtitle="Next 24 hours"
+      title={t("Hourly forecast")}
+      subtitle={t("Next 24 hours")}
       className={className}
       action={
         <div className="hidden gap-1 pointer-fine:flex">
-          <IconButton label="Earlier hours" size="sm" disabled={edges.start} onClick={() => page(-1)}>
+          <IconButton label={t("Earlier hours")} size="sm" disabled={edges.start} onClick={() => page(-1)}>
             <ChevronLeft className="size-4" aria-hidden />
           </IconButton>
-          <IconButton label="Later hours" size="sm" disabled={edges.end} onClick={() => page(1)}>
+          <IconButton label={t("Later hours")} size="sm" disabled={edges.end} onClick={() => page(1)}>
             <ChevronRight className="size-4" aria-hidden />
           </IconButton>
         </div>
@@ -77,7 +79,7 @@ export function HourlyPanel({ f, now, className }: { f: Forecast; now: number; c
       <ol
         ref={listRef}
         className="no-scrollbar -mx-4 flex snap-x scroll-px-4 overflow-x-auto overscroll-x-contain px-4 pb-1 sm:-mx-5 sm:scroll-px-5 sm:px-5"
-        aria-label="Hourly forecast"
+        aria-label={t("Hourly forecast")}
         tabIndex={0}
         // Keyboard-scrollable; inset the focus ring so the panel edge doesn't clip it.
         style={{ outlineOffset: -2 }}
@@ -87,14 +89,14 @@ export function HourlyPanel({ f, now, className }: { f: Forecast; now: number; c
           return (
             <li key={i} className="flex w-12 shrink-0 snap-start flex-col items-center gap-1 py-1 text-center sm:w-14">
               <span className={cn("text-xs tabular", k === 0 ? "font-medium text-ink" : "text-ink-3")}>
-                {k === 0 ? "Now" : hourFmt.format(f.hourly.time[i]! * 1000)}
+                {k === 0 ? t("Now") : hourFmt.format(f.hourly.time[i]! * 1000)}
               </span>
               <WeatherIcon name={iconName(f.hourly.code[i], f.hourly.isDay[i] === 1)} size={36} animated={false} />
               <span className="text-sm font-medium text-ink tabular">{fmt.temp(f.hourly.temp[i])}</span>
               <span className="h-4 text-[11px] text-ink-2 tabular">
                 {pop >= 20 ? (
                   <>
-                    {pop}%<span className="sr-only"> chance of precipitation</span>
+                    {pop}%<span className="sr-only"> {t("chance of precipitation")}</span>
                   </>
                 ) : null}
               </span>
@@ -105,13 +107,13 @@ export function HourlyPanel({ f, now, className }: { f: Forecast; now: number; c
 
       {/* Chance of precipitation is already on the strip; the chart adds only the temperature trend. */}
       <div className="mt-3 border-t border-line pt-4">
-        <p className="label mb-1">Temperature</p>
+        <p className="label mb-1">{t("Temperature")}</p>
         <TimeSeriesChart
-          ariaLabel="Temperature, next 24 hours"
+          ariaLabel={t("Temperature, next 24 hours")}
           times={times}
           height={140}
           timeZone={f.timezone}
-          series={[{ key: "t", label: "Temperature", color: "var(--color-series-2)", values: temps, kind: "area", format: (v) => `${Math.round(v)}°` }]}
+          series={[{ key: "t", label: t("Temperature"), color: "var(--color-series-2)", values: temps, kind: "area", format: (v) => `${Math.round(v)}°` }]}
         />
       </div>
     </Panel>

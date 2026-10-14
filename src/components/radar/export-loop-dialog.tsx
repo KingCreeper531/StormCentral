@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import type { RadarLoop } from "@/hooks/use-radar-loop";
+import { useT } from "@/lib/i18n/use-t";
 import { isNativeApp } from "@/lib/platform";
 import {
   canShareExport,
@@ -54,10 +55,11 @@ const noSubscribe = () => () => {};
 
 /** Opens the export dialog. Disabled until the map exists. */
 export function ExportLoopButton({ className, size = "md", ...props }: ExportLoopProps & { className?: string; size?: "sm" | "md" }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <>
-      <IconButton label="Export loop" size={size} onClick={() => setOpen(true)} disabled={!props.map} className={className}>
+      <IconButton label={t("Export loop")} size={size} onClick={() => setOpen(true)} disabled={!props.map} className={className}>
         <Clapperboard className={size === "sm" ? "size-4" : "size-5"} aria-hidden />
       </IconButton>
       <ExportLoopDialog open={open} onClose={() => setOpen(false)} {...props} />
@@ -95,6 +97,7 @@ export function ExportLoopDialog({ open, onClose, ...props }: ExportLoopProps & 
 
 /** Mounted only while the dialog is open, so every open starts fresh. */
 function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose }: ExportLoopProps & { onClose: () => void }) {
+  const t = useT();
   const dialogRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   // The export steps the loop and reads it back as it changes; it needs the latest props, not the ones at click time.
@@ -133,8 +136,9 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
   const canExport = !!map && n > 0 && !busy;
   const size = source ? outputSize(source.w, source.h, width) : null;
   const delays = exportFrameDelays(Math.max(2, n), speed);
-  const seconds = (ms: number) => `${(ms / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })} s`;
-  const range = n > 0 ? `${clockIn(timeZone, frames[0]!.time)} to ${clockIn(timeZone, frames[n - 1]!.time)}` : null;
+  const seconds = (ms: number) => `${(ms / 1000).toLocaleString(t.locale, { maximumFractionDigits: 2 })} s`;
+  const range =
+    n > 0 ? t("{from} to {to}", { from: clockIn(timeZone, frames[0]!.time, t.locale), to: clockIn(timeZone, frames[n - 1]!.time, t.locale) }) : null;
 
   const close = () => {
     abortRef.current?.abort();
@@ -155,6 +159,7 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
         title,
         subtitle,
         timeZone,
+        locale: t.locale,
         speed,
         signal: ctrl.signal,
         onProgress: (progress) => setStatus({ kind: "busy", progress }),
@@ -163,7 +168,7 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
       setStatus({ kind: "done", result, url: URL.createObjectURL(result.blob), shareable: canShareExport(result) });
     } catch (err) {
       if (ctrl.signal.aborted) return;
-      setStatus({ kind: "error", message: err instanceof Error ? err.message : "The export failed." });
+      setStatus({ kind: "error", message: err instanceof Error ? t(err.message) : t("The export failed.") });
     } finally {
       if (abortRef.current === ctrl) abortRef.current = null;
     }
@@ -174,23 +179,23 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
     setStatus({ kind: "idle" });
   };
 
-  const fail = (err: unknown) => setStatus({ kind: "error", message: err instanceof Error ? err.message : "Couldn't save the file." });
+  const fail = (err: unknown) => setStatus({ kind: "error", message: err instanceof Error ? t(err.message) : t("Couldn't save the file.") });
 
   const header = (
     <header className="grid h-14 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-line px-3 md:flex md:h-auto md:justify-between md:py-3 md:pr-3 md:pl-5">
       <div className="md:hidden">
         <Button variant="ghost" onClick={close} className="text-accent hover:text-accent">
-          {status.kind === "done" ? "Done" : "Cancel"}
+          {status.kind === "done" ? t("Done") : t("Cancel")}
         </Button>
       </div>
       <div className="min-w-0 text-center md:text-left">
         <h2 id="export-loop-title" className="truncate text-[15px] font-semibold text-ink">
-          Export radar loop
+          {t("Export radar loop")}
         </h2>
-        <p className="hidden truncate text-xs text-ink-3 md:block">Save the loop as an animated GIF or a video.</p>
+        <p className="hidden truncate text-xs text-ink-3 md:block">{t("Save the loop as an animated GIF or a video.")}</p>
       </div>
       <div className="flex justify-end">
-        <IconButton label="Close" onClick={close} className="hidden md:inline-flex">
+        <IconButton label={t("Close")} onClick={close} className="hidden md:inline-flex">
           <X className="size-4" aria-hidden />
         </IconButton>
       </div>
@@ -204,14 +209,14 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
     const p = status.progress;
     const pct = Math.round((p ? progressFraction(p) : 0) * 100);
     const label = !p
-      ? "Preparing"
+      ? t("Preparing")
       : p.phase === "buffering"
-        ? `Waiting for frames to load (${p.done} of ${p.total})`
+        ? t("Waiting for frames to load ({done} of {total})", { done: p.done, total: p.total })
         : p.phase === "capturing"
-          ? `Capturing frame ${Math.min(p.done + 1, p.total)} of ${p.total}`
+          ? t("Capturing frame {n} of {total}", { n: Math.min(p.done + 1, p.total), total: p.total })
           : format === "video" && videoType
-            ? `Recording video, frame ${Math.min(p.done + 1, p.total)} of ${p.total}`
-            : `Encoding GIF, frame ${Math.min(p.done + 1, p.total)} of ${p.total}`;
+            ? t("Recording video, frame {n} of {total}", { n: Math.min(p.done + 1, p.total), total: p.total })
+            : t("Encoding GIF, frame {n} of {total}", { n: Math.min(p.done + 1, p.total), total: p.total });
     body = (
       <div className="space-y-3 pt-2">
         <p role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-ink">
@@ -220,7 +225,7 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
         </p>
         <div
           role="progressbar"
-          aria-label="Export progress"
+          aria-label={t("Export progress")}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={pct}
@@ -228,20 +233,21 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
         >
           <div className="h-full rounded-[2px] bg-ink-2 transition-[width] duration-200" style={{ width: `${pct}%` }} />
         </div>
-        <p className="label">The map steps through each frame while it is captured. Keep Storm Central open and on screen until the export finishes.</p>
+        <p className="label">{t("The map steps through each frame while it is captured. Keep Storm Central open and on screen until the export finishes.")}</p>
       </div>
     );
-    actions = <Button onClick={cancel}>Cancel export</Button>;
+    actions = <Button onClick={cancel}>{t("Cancel export")}</Button>;
   } else if (status.kind === "done") {
     const { result, url, shareable } = status;
+    const alt = t.plural(result.frames, "Radar loop, {n} frame", "Radar loop, {n} frames");
     body = (
       <div className="space-y-3">
         <div className="grid place-items-center overflow-hidden rounded-[var(--radius-control)] border border-line bg-black">
           {result.mimeType === "image/gif" ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={url} alt={`Radar loop, ${result.frames} frames`} width={result.width} height={result.height} className="block h-auto max-h-[55vh] w-auto max-w-full" />
+            <img src={url} alt={alt} width={result.width} height={result.height} className="block h-auto max-h-[55vh] w-auto max-w-full" />
           ) : (
-            <video src={url} autoPlay loop muted playsInline aria-label={`Radar loop, ${result.frames} frames`} className="block h-auto max-h-[55vh] w-auto max-w-full" />
+            <video src={url} autoPlay loop muted playsInline aria-label={alt} className="block h-auto max-h-[55vh] w-auto max-w-full" />
           )}
         </div>
         <div className="flex items-baseline justify-between gap-3">
@@ -255,24 +261,24 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
     actions = (
       <>
         <Button variant="ghost" onClick={() => setStatus({ kind: "idle" })} className="max-md:hidden">
-          Change options
+          {t("Change options")}
         </Button>
         {native ? (
-          <Button variant="primary" onClick={() => void saveExport(result, url).catch(fail)}>
+          <Button variant="primary" onClick={() => void saveExport(result, url, t).catch(fail)}>
             <Share2 className="size-4" aria-hidden />
-            Save or share
+            {t("Save or share")}
           </Button>
         ) : (
           <>
             {shareable && (
-              <Button onClick={() => void shareExport(result).catch(fail)}>
+              <Button onClick={() => void shareExport(result, t).catch(fail)}>
                 <Share2 className="size-4" aria-hidden />
-                Share
+                {t("Share")}
               </Button>
             )}
-            <Button variant="primary" onClick={() => void saveExport(result, url).catch(fail)}>
+            <Button variant="primary" onClick={() => void saveExport(result, url, t).catch(fail)}>
               <Download className="size-4" aria-hidden />
-              Save
+              {t("Save")}
             </Button>
           </>
         )}
@@ -282,46 +288,50 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
     body = (
       <div className="space-y-5">
         <div>
-          <p className={FIELD_LABEL}>Format</p>
+          <p className={FIELD_LABEL}>{t("Format")}</p>
           <Segmented<ExportFormat>
             stretch
-            ariaLabel="Format"
+            ariaLabel={t("Format")}
             value={format}
             onChange={setFormat}
             options={[
               { value: "gif", label: "GIF" },
-              { value: "video", label: "Video", disabled: !videoType, title: videoType ? undefined : "Video recording isn't available in this browser" },
+              { value: "video", label: t("Video"), disabled: !videoType, title: videoType ? undefined : t("Video recording isn't available in this browser") },
             ]}
           />
           <p className="label mt-2">
             {format === "video" && videoType
-              ? `${videoType.includes("mp4") ? "MP4" : "WebM"} video. Smaller file, full colour.`
-              : "Animated GIF. Plays everywhere; larger file, 256 colours."}
+              ? t("{format} video. Smaller file, full colour.", { format: videoType.includes("mp4") ? "MP4" : "WebM" })
+              : t("Animated GIF. Plays everywhere; larger file, 256 colours.")}
           </p>
         </div>
 
         <div>
-          <p className={FIELD_LABEL}>Size</p>
+          <p className={FIELD_LABEL}>{t("Size")}</p>
           <Segmented<ExportWidth>
             stretch
-            ariaLabel="Size"
+            ariaLabel={t("Size")}
             value={width}
             onChange={setWidth}
-            options={EXPORT_WIDTHS.map((w) => ({ value: w, label: `${w} px wide` }))}
+            options={EXPORT_WIDTHS.map((w) => ({ value: w, label: t("{n} px wide", { n: w }) }))}
           />
         </div>
 
         <div className="divide-y divide-line border-y border-line">
-          <Row label="Frames" value={n > 0 ? n : "None yet"} sub={range ?? undefined} />
-          <Row label="Output" value={size ? `${size.width} × ${size.height} px` : "Map not ready"} />
-          <Row label="Timing" value={`${seconds(delays[0]!)} per frame`} sub={`Last frame held ${seconds(delays[delays.length - 1]!)}`} />
+          <Row label={t("Frames")} value={n > 0 ? n : t("None yet")} sub={range ?? undefined} />
+          <Row label={t("Output")} value={size ? `${size.width} × ${size.height} px` : t("Map not ready")} />
+          <Row
+            label={t("Timing")}
+            value={t("{time} per frame", { time: seconds(delays[0]!) })}
+            sub={t("Last frame held {time}", { time: seconds(delays[delays.length - 1]!) })}
+          />
         </div>
 
         {n === 0 ? (
-          <p className="label">The radar loop has no frames yet. Export becomes available once scans load.</p>
+          <p className="label">{t("The radar loop has no frames yet. Export becomes available once scans load.")}</p>
         ) : pending > 0 ? (
           <p className="label">
-            {pending === 1 ? "1 frame is" : `${pending} frames are`} still loading. The export waits for them.
+            {t.plural(pending, "{n} frame is still loading. The export waits for them.", "{n} frames are still loading. The export waits for them.")}
           </p>
         ) : null}
 
@@ -335,11 +345,11 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
     actions = (
       <>
         <Button onClick={close} className="max-md:hidden">
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button variant="primary" onClick={() => void run()} disabled={!canExport || !size}>
           <Clapperboard className="size-4" aria-hidden />
-          Export
+          {t("Export")}
         </Button>
       </>
     );

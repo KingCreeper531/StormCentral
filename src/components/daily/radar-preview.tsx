@@ -3,6 +3,7 @@
 import { Maximize2 } from "lucide-react";
 import { useNationalAlerts } from "@/hooks/queries";
 import { useRadarLoop } from "@/hooks/use-radar-loop";
+import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
 import { MapView } from "../map/map-view";
@@ -15,22 +16,23 @@ import { Panel } from "../ui/panel";
 
 /** Compact national-mosaic loop; opens the full radar (Radar mode). */
 export function RadarPreview({ now, timeZone, className }: { now: number; timeZone?: string; className?: string }) {
+  const t = useT();
   const loc = useAppStore((s) => s.location);
   const setMode = useAppStore((s) => s.setMode);
   const alerts = useNationalAlerts(true);
   const loop = useRadarLoop({ site: null, product: "N0Q", frameCount: 10, speed: 1, crossfade: true });
 
   return (
-    <Panel padded={false} aria-label="Radar preview" className={cn("flex flex-col", className)}>
+    <Panel padded={false} aria-label={t("Radar preview")} className={cn("flex flex-col", className)}>
       {/* Same padding and header spacing as <Panel>, so titles in a shared grid row align. */}
       <header className="flex items-start justify-between gap-3 px-4 pt-4 pb-3 sm:px-5 sm:pt-5 sm:pb-4">
         <div className="min-w-0">
-          <h2 className="truncate text-sm font-semibold text-ink">Radar</h2>
-          <p className="mt-0.5 truncate text-xs text-ink-3">NEXRAD national mosaic</p>
+          <h2 className="truncate text-sm font-semibold text-ink">{t("Radar")}</h2>
+          <p className="mt-0.5 truncate text-xs text-ink-3">{t("NEXRAD national mosaic")}</p>
         </div>
         <Button size="sm" onClick={() => setMode("severe")}>
           <Maximize2 className="size-3.5" aria-hidden />
-          Open radar
+          {t("Open radar")}
         </Button>
       </header>
       <div className="relative h-64 border-t border-line sm:h-80 lg:h-auto lg:min-h-80 lg:flex-1">
