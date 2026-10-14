@@ -1,0 +1,24 @@
+name: TEMP Android compile check
+on:
+  push:
+    branches: [claude/trusting-pasteur-qzc0fq]
+    paths: [.github/workflows/android-check.yml, "android/**"]
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - run: npm ci
+      - run: node scripts/build-native.mjs android
+      - name: Build APK (release, with lint)
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
