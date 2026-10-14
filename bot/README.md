@@ -58,7 +58,15 @@ one without (about $0.20 against $0.015 at the time of writing; check the
 developer portal). Set the repository variable `BOT_LINKS` to `false` to
 post without the Storm Central links.
 
-## Set up
+## Two ways to run it
+
+- **GitHub Actions with the X API** (below): fully automatic and allowed by
+  X, but X charges per post.
+- **Your PC with twikit** ([`local/`](local/README.md)): free, using the
+  account's browser cookies, but unofficial; X can lock accounts it thinks
+  are bots. It only ever posts as @Storm__Central.
+
+## Set up (GitHub Actions and the X API)
 
 1. **X developer app.** Sign in to <https://developer.x.com> with the Storm
    Central account, create a Project and an App (the free tier is enough).
@@ -90,4 +98,5 @@ adds the "Automated" label X asks bot accounts to show.
 - Code: `select.ts` (what to post and the wording, tested in
   `select.test.ts`), `outlook.ts` (the morning outlook post, tested in
   `outlook.test.ts`), `x-client.ts` (signed posting and image upload),
-  `main.ts` (one run).
+  `poster.ts` (the API or twikit, tested in `poster.test.ts`), `main.ts`
+  (one run), `local/` (running it on your PC with twikit).
