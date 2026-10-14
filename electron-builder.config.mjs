@@ -27,7 +27,8 @@ const MSIX = {
   // Must match the name reserved in Partner Center.
   displayName: process.env.MSIX_DISPLAY_NAME || "Storm Central",
 };
-const buildMsix = !!(MSIX.identityName && MSIX.publisher && MSIX.publisherDisplayName);
+// SKIP_MSIX=1 leaves it out (a release that shouldn't go to the Store).
+const buildMsix = process.env.SKIP_MSIX !== "1" && !!(MSIX.identityName && MSIX.publisher && MSIX.publisherDisplayName);
 const repo = process.env.GITHUB_REPOSITORY || "KingCreeper531/StormCentral";
 const [owner, name] = repo.split("/");
 
