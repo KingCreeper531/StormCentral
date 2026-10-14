@@ -35,3 +35,6 @@ npm-debug.log*
 
 # X bot state (kept in the Actions cache)
 bot/.state/
+# YouTube Shorts (shorts/): rendered videos and the posted-today marker.
+shorts/out/
+shorts/.posted/
