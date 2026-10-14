@@ -315,24 +315,6 @@ p {
   align-items: center;
   will-change: transform, opacity;
 }
-.hero-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  margin-bottom: 28px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-control);
-  background: rgb(14 15 17 / 0.8);
-  color: var(--ink-2);
-  font-size: 14px;
-}
-.live-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--go);
-}
 .hero h1 {
   font-size: clamp(2.5rem, 7vw + 0.5rem, 5.4rem);
   line-height: 1.02;
