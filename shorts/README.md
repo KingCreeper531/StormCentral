@@ -1,22 +1,18 @@
 # Storm Central YouTube Shorts
 
-Every morning, once NOAA's Storm Prediction Center issues its morning Day 1
-Convective Outlook, GitHub Actions renders a 33-second vertical video of it
-and uploads it to the Storm Central YouTube channel. Nothing runs on your PC.
+GitHub Actions makes vertical videos from live NOAA data and uploads them
+to the Storm Central YouTube channel. Nothing runs on your PC.
 
-What's in the video, all from the live outlook:
+| Short | When | Playlist |
+|---|---|---|
+| **Severe weather outlook**: the US map with SPC's risk areas, a zoom into the highest risk, the tornado, wind and hail odds, and SPC's summary | Every morning, once SPC's 13Z Day 1 outlook is out (about 8:15 AM Central) | Daily Severe Weather Outlook |
+| **Storm report recap**: the day's tornado, wind and hail reports popping up on the map in time order, the totals, then the biggest hail, strongest gust and tornado states | 10:15 PM Central (9:15 PM in winter), on active days only: at least one tornado report or 15 severe reports | Storm Reports |
+| **Week ahead**: SPC's outlook for each of the next eight days, then the most active day | Sunday mornings | Severe Weather: Week Ahead |
+| **Hurricane update**: the National Hurricane Center's cone, track and forecast, with winds, pressure and movement | Every day at 11:40 AM Eastern, one per named storm (up to 2, strongest first); none when the tropics are quiet | Tropical Updates |
 
-1. Intro: "Severe weather outlook" and the date.
-2. The US map, with the risk areas appearing from thunderstorms up to the
-   highest risk.
-3. A zoom into the highest risk with city labels, and the risk in big
-   letters: "SLIGHT RISK, Level 2 of 5".
-4. Tornado, damaging wind and large hail odds, with each one's area on the map.
-5. SPC's summary of what to expect.
-6. End card: stormcentralwx.com.
-
-There's no music; add a sound in the YouTube app if you want one. Quiet
-days get a "No severe risk" video (or none, with `SHORTS_SKIP_QUIET`).
+Every video ends with stormcentralwx.com. Each upload has a Spanish title
+and description as a YouTube translation, so viewers with Spanish set get
+those. There's no music; add a sound in the YouTube app if you want one.
 
 ## Set up the YouTube API (once, about 15 minutes)
 
@@ -58,8 +54,10 @@ and a refresh token for the Storm Central channel. All free.
 2. Click the **gear icon** (top right), tick **Use your own OAuth
    credentials**, and paste the Client ID and Client secret.
 3. On the left, in **Input your own scopes**, type
-   `https://www.googleapis.com/auth/youtube.upload` and click **Authorize
-   APIs**.
+   `https://www.googleapis.com/auth/youtube` and click **Authorize APIs**.
+   (This scope covers uploads and playlists. A token made with only
+   `youtube.upload` still uploads, but can't add videos to playlists; the
+   run then shows a warning.)
 4. Sign in. If it asks which channel, pick **Storm Central**. Google warns
    "Google hasn't verified this app": click **Advanced → Go to Storm
    Central (unsafe)**. It's your own app. Allow.
@@ -81,47 +79,57 @@ In this repository on GitHub: **Settings → Secrets and variables → Actions
 
 **Actions → YouTube Shorts → Run workflow.**
 
-- With **Upload** unticked, it renders today's latest outlook. Download
+- Pick the **kind** (outlook, recap, weekly or tropical).
+- With **Upload** unticked, it renders it from the latest data. Download
   the video from the run's **Artifacts** to check it.
 - With **Upload** ticked, it also uploads it.
 
 ### 7. Switch it on
 
 **Settings → Secrets and variables → Actions → Variables → New repository
-variable**: `SHORTS_ENABLED` = `true`. From then on it runs every morning
-at about 8:15 AM Central, waits for the outlook if it isn't out yet, and
-posts one Short a day.
+variable**: `SHORTS_ENABLED` = `true`. From then on each kind runs on its
+schedule (the table at the top) and posts at most once a day.
 
 ## Private until Google's audit
 
 YouTube makes videos uploaded through a new API project **private** until
-the project passes a free audit. Until then, each morning's Short arrives as
+the project passes a free audit. Until then, each Short arrives as
 private: in the YouTube Studio app, open it and set it to **Public**.
 
 To lift that, fill in the YouTube API Services audit form:
 <https://support.google.com/youtube/contact/yt_api_form>. Say it uploads
-one automated weather outlook video a day to your own channel. Approval
+a few automated weather videos a day to your own channel. Approval
 usually takes a few weeks.
 
 ## Settings (repository variables)
 
 | Variable | Default | |
 |---|---|---|
-| `SHORTS_ENABLED` | unset | `true` to post every morning |
+| `SHORTS_ENABLED` | unset | `true` to post on schedule |
 | `SHORTS_PRIVACY` | `public` | `public`, `unlisted` or `private` |
-| `SHORTS_SKIP_QUIET` | `false` | `true` for no video on days with no severe risk |
+| `SHORTS_KINDS` | all | only these kinds on schedule, e.g. `outlook,recap` |
+| `SHORTS_SKIP_QUIET` | `false` | `true` for no outlook video on days with no severe risk |
+| `SHORTS_TROPICAL_MAX` | `2` | at most this many hurricane updates a day |
+| `SHORTS_PLAYLISTS` | `true` | `false` to leave videos out of playlists |
 
 ## Notes
 
-- YouTube's free quota allows about 6 uploads a day; this uses 1.
+- YouTube's free quota (10,000 units a day) allows about 6 uploads a day.
+  A busy day is the outlook, the recap and two hurricane updates (plus the
+  week ahead on Sundays): 4 or 5.
 - GitHub can start scheduled runs a few minutes late, and pauses schedules
   in a repository with no activity for 60 days (any commit wakes them).
-- Code: `main.ts` (one run: wait for the outlook, render, upload),
-  `meta.ts` (the title, description and tags; tested in `meta.test.ts`),
-  `render.ts` (Chromium draws `template.html` frame by frame into ffmpeg),
-  `youtube.ts` (OAuth and the upload), `vendor/` (the map, fonts and
-  libraries; see its README).
+- Code: `main.ts` (one run: make a kind's videos, render, upload),
+  `kinds/` (each kind: fetch its data, decide whether to post, write the
+  English and Spanish text; tested in `kinds/kinds.test.ts`), `meta.ts`
+  (shared text and the outlook's; tested in `meta.test.ts`), the pages
+  that draw each Short (`outlook.html`, `recap.html`, `weekly.html`,
+  `tropical.html`, on `common.js`), `render.ts` (Chromium draws a page
+  frame by frame into ffmpeg), `youtube.ts` (OAuth, the upload, playlists),
+  `vendor/` (maps, fonts and libraries; see its README).
 - Try it locally: `npx esbuild shorts/main.ts --bundle --platform=node
   --format=esm --external:playwright-core --outfile=shorts/out/shorts.mjs`
-  then `SHORTS_LATEST=1 node shorts/out/shorts.mjs` (needs ffmpeg and
-  `npx playwright-core install chromium`).
+  then `SHORTS_KIND=recap SHORTS_LATEST=1 node shorts/out/shorts.mjs`
+  (needs ffmpeg and `npx playwright-core install chromium`). Add
+  `SHORTS_SAVE=some/folder` to keep the data it fetched, and
+  `SHORTS_FIXTURES=some/folder` to render from it again offline.

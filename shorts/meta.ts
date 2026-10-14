@@ -1,7 +1,7 @@
 /**
- * What the daily outlook Short says, as data: the risk and where, the
- * hazards, the date, and the YouTube title, description and tags. Pure
- * functions, tested in meta.test.ts; main.ts fetches and render.ts draws.
+ * What the Shorts say: shared text (link, disclaimer, dates in English and
+ * Spanish) and the daily outlook's risk, region, hazards, title, description
+ * and tags. Pure functions, tested in meta.test.ts.
  */
 import { RISKS, type Outlook, type Risk } from "../bot/outlook";
 
@@ -70,6 +70,44 @@ export function titleFor(o: Outlook, region: string, issued: number): string {
 
 const hazardWord = (p: number) => `${p}%`;
 
+// ─── Shared ────────────────────────────────────────────────────────────────
+
+export const DISCLAIMER = "Storm Central is not an official warning system. Always follow the National Weather Service and your local emergency management.";
+export const DISCLAIMER_ES =
+  "Storm Central no es un sistema oficial de alertas. Sigue siempre las indicaciones del Servicio Meteorológico Nacional y de las autoridades de protección civil de tu localidad.";
+export const LINK_LINE = `Get severe weather alerts for your location, free: ${SITE}`;
+export const LINK_LINE_ES = `Recibe alertas de clima severo para tu ubicación, gratis: ${SITE}`;
+
+const fmt = (locale: string, opts: Intl.DateTimeFormatOptions) => (ms: number, timeZone = "America/Chicago") => new Intl.DateTimeFormat(locale, { timeZone, ...opts }).format(ms);
+/** "mié, 14 de oct", "miércoles, 14 de octubre": Spanish (Mexico) dates, Central time unless given. */
+export const shortDayEs = fmt("es-MX", { weekday: "short", month: "short", day: "numeric" });
+export const longDayEs = fmt("es-MX", { weekday: "long", month: "long", day: "numeric" });
+export const shortDayEn = fmt("en-US", { weekday: "short", month: "short", day: "numeric" });
+
+/** Titles stay within YouTube's 100 characters: the longest that fits, else the last resort. */
+export const fitTitle = (...options: string[]) => options.find((o) => o.length <= 100) ?? options.at(-1)!.slice(0, 100);
+
+/** SPC's categorical risks in Spanish, as the app names them. */
+export const RISK_ES: Record<Risk, string> = { MARGINAL: "Riesgo marginal", SLIGHT: "Riesgo ligero", ENHANCED: "Riesgo mejorado", MODERATE: "Riesgo moderado", HIGH: "Riesgo alto" };
+
+export function titleForEs(o: Outlook, issued: number): string {
+  const risk = o.risk ? `${RISK_ES[o.risk]} (nivel ${RISKS.indexOf(o.risk) + 1} de 5)` : "Sin riesgo de tormentas severas";
+  return fitTitle(`Pronóstico de tormentas severas, ${shortDayEs(issued)}: ${risk} #shorts`, `Tormentas severas, ${shortDayEs(issued)}: ${risk}`);
+}
+
+export function descriptionForEs(o: Outlook, region: string, h: Hazards): string {
+  const lead = o.risk
+    ? `Pronóstico de tormentas severas de hoy, del Centro de Predicción de Tormentas (SPC) de la NOAA: ${RISK_ES[o.risk]} (nivel ${RISKS.indexOf(o.risk) + 1} de 5)${region ? `, en la región ${region}` : ""}.`
+    : "Pronóstico de tormentas severas de hoy, del Centro de Predicción de Tormentas (SPC) de la NOAA: no se pronostican tormentas severas.";
+  return [
+    lead,
+    `Tornado ${h.tornado}%, vientos dañinos ${h.wind}%, granizo grande ${h.hail}% (la probabilidad a menos de 40 km de un punto).`,
+    LINK_LINE_ES,
+    DISCLAIMER_ES,
+    "#clima #tormentas #tornado #shorts",
+  ].join("\n\n");
+}
+
 export function descriptionFor(o: Outlook, region: string, h: Hazards): string {
   const level = o.risk ? RISKS.indexOf(o.risk) + 1 : 0;
   const lead = o.risk
@@ -79,8 +117,8 @@ export function descriptionFor(o: Outlook, region: string, h: Hazards): string {
     lead,
     o.summary,
     `Tornado ${hazardWord(h.tornado)}, damaging wind ${hazardWord(h.wind)}, large hail ${hazardWord(h.hail)} (the chance within 25 miles of a point).`,
-    `Get severe weather alerts for your location, free: ${SITE}`,
-    "Storm Central is not an official warning system. Always follow the National Weather Service and your local emergency management.",
+    LINK_LINE,
+    DISCLAIMER,
     "#weather #severeweather #tornado #shorts",
   ]
     .filter(Boolean)
