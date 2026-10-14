@@ -89,7 +89,7 @@ never run code.
    ```
 
 3. Try it: **Settings → Add-ons → Install from GitHub**, paste `your-name/your-repo`.
-4. Share it: add the topic **`stormcentral-theme`** or **`stormcentral-plugin`** to the repository, and it shows up under **Browse community add-ons** in the app.
+4. Share it: add the topic **`stormcentral-theme`** or **`stormcentral-plugin`** to the repository, and it shows up under **Browse community add-ons** in the app (forks too). The repository must be public, and GitHub can take a few minutes to list a newly tagged one.
 
 Every colour slot and layer option, plus ready-made examples to copy (Nord, Dracula, Sky, rainfall totals, wildfires, earthquakes and more), are in [`examples/addons`](examples/addons).
 

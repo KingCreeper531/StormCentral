@@ -98,9 +98,17 @@ export interface ListedRepo {
   url: string;
 }
 
-/** Public repositories tagged with the add-on topic, most starred first. */
+/**
+ * GitHub's repository search for an add-on topic. `fork:true` matters: GitHub
+ * leaves forks out of search by default, and many add-ons start as a fork of
+ * someone else's theme.
+ */
+export const addonSearchUrl = (type: keyof typeof ADDON_TOPICS) =>
+  `https://api.github.com/search/repositories?q=${encodeURIComponent(`topic:${ADDON_TOPICS[type]} fork:true`)}&sort=stars&order=desc&per_page=30`;
+
+/** Public repositories (forks included) tagged with the add-on topic, most starred first. */
 export async function searchAddons(type: keyof typeof ADDON_TOPICS, signal?: AbortSignal): Promise<ListedRepo[]> {
-  const res = await fetch(`https://api.github.com/search/repositories?q=topic:${ADDON_TOPICS[type]}&sort=stars&order=desc&per_page=20`, {
+  const res = await fetch(addonSearchUrl(type), {
     signal,
     headers: { Accept: "application/vnd.github+json" },
     credentials: "omit",

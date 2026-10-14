@@ -191,6 +191,19 @@ function BrowseList({ onInstall, busy }: { onInstall: (repo: string) => void; bu
           ))}
         </ul>
       )}
+      {!q.isPending && (
+        <p className="label mt-3">
+          {t("Just tagged yours? GitHub can take a few minutes to list it.")}{" "}
+          <button
+            type="button"
+            className="text-ink-2 underline-offset-2 hover:underline disabled:opacity-60"
+            disabled={q.isFetching}
+            onClick={() => void q.refetch()}
+          >
+            {q.isFetching ? t("Searching GitHub") : t("Search again")}
+          </button>
+        </p>
+      )}
     </div>
   );
 }
