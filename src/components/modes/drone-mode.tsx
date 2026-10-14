@@ -304,7 +304,7 @@ export function DroneMode() {
 
       <Panel title={t("Planetary K-index")} subtitle={t("NOAA SWPC, observed and forecast")} className="flex flex-col lg:col-span-4">
         {kp.error ? (
-          <ErrorNote error={kp.error} what="Kp data" />
+          <ErrorNote error={kp.error} what="the Kp data" />
         ) : (
           <>
             <div className="flex items-start justify-between gap-4">
@@ -340,7 +340,7 @@ export function DroneMode() {
 
       <Panel title={t("Satellite visibility")} subtitle={t("GNSS, SGP4 from CelesTrak elements")} className="lg:col-span-5">
         {gnss.error ? (
-          <ErrorNote error={gnss.error} what="satellite elements" />
+          <ErrorNote error={gnss.error} what="the satellite elements" />
         ) : !sky ? (
           <Skeleton className="h-56" />
         ) : (

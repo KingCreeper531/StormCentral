@@ -10,6 +10,8 @@ import { getJson } from "@/lib/api/http";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { fetchAirGrid, fetchAirQuality, fetchRecentPrecip, type GridVariable } from "@/lib/api/open-meteo";
 import { keyTag, loadForecast } from "@/lib/forecast-load";
+import { translator } from "@/lib/i18n/core";
+import { currentLang, useLang } from "@/lib/i18n/use-t";
 import type {
   AlertsResponse,
   GnssResponse,
@@ -38,10 +40,13 @@ const r2 = (v: number) => Math.round(v * 100) / 100;
 const r1 = (v: number) => Math.round(v * 10) / 10;
 
 export const qk = {
-  /** Includes the chosen source (and, for Google, which key), so switching never shows the wrong one. */
+  /**
+   * Includes the chosen source (and, for Google, which key), so switching never shows the wrong one,
+   * and the language, so a fallback notice is in the language on screen.
+   */
   forecast: (p: LatLon) => {
     const { forecastSource, googleKey } = useAppStore.getState();
-    return ["forecast", r2(p.lat), r2(p.lon), forecastSource, forecastSource === "google" ? keyTag(googleKey.trim()) : ""] as const;
+    return ["forecast", r2(p.lat), r2(p.lon), forecastSource, forecastSource === "google" ? keyTag(googleKey.trim()) : "", currentLang()] as const;
   },
   air: (p: LatLon) => ["air", r2(p.lat), r2(p.lon)] as const,
   airGrid: (b: BBox, v: GridVariable) => ["airGrid", v, b.west.toFixed(1), b.south.toFixed(1), b.east.toFixed(1), b.north.toFixed(1)] as const,
@@ -79,9 +84,11 @@ export function useForecast() {
   const { enabled, refetchInterval } = usePoll("forecast");
   // Google's free tier is per key (10,000 calls a month, 4 per refresh): refresh it at most every 30 minutes.
   const google = source === "google" && !!googleKey;
+  // Re-render on a language change: the key (and the notice text) follow it.
+  useLang();
   return useQuery({
     queryKey: qk.forecast(loc),
-    queryFn: ({ signal }) => loadForecast(loc.lat, loc.lon, source, googleKey, signal),
+    queryFn: ({ signal }) => loadForecast(loc.lat, loc.lon, source, googleKey, signal, translator(currentLang())),
     enabled,
     refetchInterval: google && refetchInterval ? Math.max(refetchInterval, 30 * 60_000) : refetchInterval,
     staleTime: google ? 30 * 60_000 : 5 * 60_000,

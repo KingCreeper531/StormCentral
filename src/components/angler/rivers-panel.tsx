@@ -46,7 +46,7 @@ export function RiversPanel({
   return (
     <Panel title={t("Rivers near you")} subtitle={t("USGS real-time stream gauges")} className={className}>
       {error ? (
-        <ErrorNote error={error} what="river gauges" />
+        <ErrorNote error={error} what="the river gauges" />
       ) : loading ? (
         <Skeleton className="h-40" />
       ) : !sites.length ? (

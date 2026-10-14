@@ -498,7 +498,7 @@ export function SevereMode() {
       {national.isLoading && <p className="label px-4 pt-3 pb-1">{t("Loading NWS warnings")}</p>}
       {national.error ? (
         <div className="px-4 pt-3 pb-1">
-          <ErrorNote error={national.error} what="NWS warnings" />
+          <ErrorNote error={national.error} what="the NWS warnings" />
         </div>
       ) : null}
       {!listPending &&
@@ -566,7 +566,7 @@ export function SevereMode() {
           "Tropical cyclones",
           tropical.isLoading,
           tropical.error,
-          "NHC storms",
+          "the NHC storms",
           <TropicalList storms={storms} timeZone={timeZone} selectedId={selectedId("storm")} onSelect={(id) => {
             const storm = storms.find((x) => x.id === id);
             if (storm) focusPoint("storm", id, storm.lon, storm.lat);
@@ -577,7 +577,7 @@ export function SevereMode() {
           "Radar storm cells",
           cells.isLoading,
           cells.error,
-          "NEXRAD storm cells",
+          "the NEXRAD storm cells",
           <StormCellList cells={cellList} now={now} location={loc} selectedId={selectedId("cell")} onSelect={(c) => focusPoint("cell", c.id, c.lon, c.lat)} />,
         )}
       {radar.showStormReports &&
@@ -585,7 +585,7 @@ export function SevereMode() {
           "Storm reports, last {n} h",
           lsr.isLoading,
           lsr.error,
-          "NWS storm reports",
+          "the NWS storm reports",
           <StormReportsList reports={lsrList} hours={LSR_HOURS} now={now} timeZone={timeZone} selectedId={selectedId("lsr")} onSelect={(r) => focusPoint("lsr", r.id, r.lon, r.lat)} />,
         )}
     </>
@@ -660,7 +660,7 @@ export function SevereMode() {
               map={map}
               loop={loop}
               speed={radar.speed}
-              title={isSite && site ? `${site.icao} ${sentenceCaseFamily}` : t("NEXRAD mosaic, reflectivity")}
+              title={isSite && site ? `${site.icao} ${sentenceCaseFamily}` : t("NEXRAD mosaic, {product}", { product: sentenceCaseFamily })}
               subtitle={placeName}
               timeZone={timeZone}
             />
