@@ -110,6 +110,8 @@ usually takes a few weeks.
 | `SHORTS_KINDS` | all | only these kinds on schedule, e.g. `outlook,recap` |
 | `SHORTS_SKIP_QUIET` | `false` | `true` for no outlook video on days with no severe risk |
 | `SHORTS_TROPICAL_MAX` | `2` | at most this many hurricane updates a day |
+| `SHORTS_VOICE` | `true` | `false` turns off the narrator (Andrew, via edge-tts; no key needed) |
+| `SHORTS_VOICE_NAME` | `en-US-AndrewNeural` | another Microsoft neural voice for the narrator |
 | `SHORTS_PLAYLISTS` | `true` | `false` to leave videos out of playlists |
 
 ## Notes
