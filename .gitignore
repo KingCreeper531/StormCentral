@@ -35,9 +35,3 @@ npm-debug.log*
 
 # X bot state (kept in the Actions cache)
 bot/.state/
-# X bot on your PC (bot/local): the login cookies and settings stay on your machine.
-bot/local/cookies.json
-bot/local/settings.env
-bot/local/.venv/
-bot/local/x-bot.mjs
-bot/local/__pycache__/
