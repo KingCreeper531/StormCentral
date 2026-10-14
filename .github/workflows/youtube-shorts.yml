@@ -1,0 +1,82 @@
+# The daily severe weather outlook Short (shorts/README.md): every morning,
+# once SPC's 13Z Day 1 outlook is out, it renders a 33-second vertical video
+# and uploads it to the Storm Central YouTube channel. Scheduled runs happen
+# only when the repository variable SHORTS_ENABLED is "true". "Run workflow"
+# renders the latest outlook to download from the run, and uploads only when
+# asked to.
+name: YouTube Shorts
+
+on:
+  schedule:
+    # 13:12 UTC (8:12 AM CDT, 7:12 AM CST); it then waits up to 50 minutes for the outlook.
+    - cron: "12 13 * * *"
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Upload to YouTube (otherwise only render it, to download from this run)
+        type: boolean
+        default: false
+
+concurrency:
+  group: youtube-shorts
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  short:
+    if: github.event_name == 'workflow_dispatch' || vars.SHORTS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - id: today
+        run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      # One Short a day: a marker in the Actions cache once today's is up.
+      - id: posted
+        uses: actions/cache/restore@v4
+        with:
+          path: shorts/.posted
+          key: shorts-posted-${{ steps.today.outputs.date }}
+          lookup-only: true
+      - name: Install the renderer (Chromium and ffmpeg)
+        if: github.event_name == 'workflow_dispatch' || steps.posted.outputs.cache-hit != 'true'
+        run: |
+          npm install --prefix "$RUNNER_TEMP/shorts" --no-audit --no-fund playwright-core@1.56.1
+          "$RUNNER_TEMP/shorts/node_modules/.bin/playwright-core" install --with-deps chromium
+          command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+      - name: Build
+        if: github.event_name == 'workflow_dispatch' || steps.posted.outputs.cache-hit != 'true'
+        run: npx --yes esbuild@0.28.2 shorts/main.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNNER_TEMP/shorts/shorts.mjs" --log-level=warning
+      - name: Make the Short
+        id: make
+        if: github.event_name == 'workflow_dispatch' || steps.posted.outputs.cache-hit != 'true'
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SHORTS_UPLOAD: ${{ (github.event_name == 'schedule' || inputs.upload) && '1' || '0' }}
+          SHORTS_LATEST: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
+          SHORTS_PRIVACY: ${{ vars.SHORTS_PRIVACY || 'public' }}
+          SHORTS_SKIP_QUIET: ${{ vars.SHORTS_SKIP_QUIET || 'false' }}
+        run: node "$RUNNER_TEMP/shorts/shorts.mjs"
+      - uses: actions/upload-artifact@v4
+        if: always() && hashFiles('shorts/out/outlook.mp4') != ''
+        with:
+          name: outlook-short-${{ steps.today.outputs.date }}
+          path: |
+            shorts/out/outlook.mp4
+            shorts/out/outlook.json
+          retention-days: 7
+      - name: Mark today as posted
+        if: steps.make.outputs.uploaded == 'true'
+        run: mkdir -p shorts/.posted && date -u > shorts/.posted/at
+      - uses: actions/cache/save@v4
+        if: steps.make.outputs.uploaded == 'true'
+        with:
+          path: shorts/.posted
+          key: shorts-posted-${{ steps.today.outputs.date }}
