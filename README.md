@@ -43,12 +43,16 @@ Press **1–5** to switch modes and **⌘K / Ctrl-K** to search any place. Hover
 - **Storm ETA**: the machine-readable storm-motion line in each NWS warning is parsed into a projected track and a live arrival estimate for your location.
 - **Warning polygon test**: the alert banner tells you when you're *inside* a storm-based warning, not just inside the county.
 - **Saved places and notifications**: save up to 10 places and get a notification when a warning is issued for any of them. Windows keeps checking from the tray; Android checks about every 15 minutes in the background, even with the app closed.
+- **Rain starting soon**: the 15-minute forecast tells you when rain or snow starts where you are, how hard and for how long ("Rain starting in about 20 min · Moderate rain, lasting about 45 min"), once per spell.
+- **Storms heading your way**: radar storm tracking is projected onto your places; the Daily page shows the arrival time, hail size and motion of any strong storm due within the hour, and a notification announces it.
+- **More notifications**: morning briefing, lightning nearby, severe spotter reports nearby, and confirmations or comments on your own reports.
 - **Custom alerts**: "wind at 120 m below 15 mph", "bite index above 70", "US AQI above 100", "temperature below freezing": any mode's numbers, for any saved place, notified once a day when the forecast crosses your line.
 - **Forecast vs. reality scorecard**: how often the model matched what spotters reported (temperature, wind, rain), by category ([/community/scorecard](src/app/community/scorecard/page.tsx)).
-- **Home-screen widgets and tray**: five Android widget styles (Weather, Clock and weather, Temperature, Hourly, 5-day) with the top active warning and, where there's room, the day's highlight ("Near-record high: 84°" or the forecasters' key message), on a solid panel or transparent over the wallpaper; the Windows tray icon shows the current temperature.
+- **Home-screen widgets and tray**: five Android widget styles (Weather, Clock and weather, Temperature, Hourly, 5-day) with the top active warning and, where there's room, the day's highlight ("Near-record high: 84°" or the forecasters' key message), on a solid panel or transparent over the wallpaper; the Windows tray icon shows the current temperature, with a red or orange dot and the warning in its tooltip while one is active.
+- **English and Spanish**: the app follows your device's language, or pick one in Settings (Language · Idioma). Notifications and Android widgets are translated too.
 - **Settings**: light, dark or system theme, and each unit (temperature, wind, pressure, distance, rain, height) set separately; the gear icon in the top bar.
 - **Shareable views**: mode and location live in the URL.
-- **Offline-first cold start**: the last forecast renders instantly from the persisted query cache, and radar tiles come from a bounded service-worker cache.
+- **Works offline**: the app itself is cached, and the last forecast (kept for 3 days) shows with no signal, labelled with when it was saved; radar tiles come from a bounded service-worker cache.
 
 ## Themes and plugins
 
