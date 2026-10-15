@@ -17,7 +17,7 @@ Everything in this folder is also built into the app under **Settings →
 Add-ons → Featured**, one tap each:
 
 - Themes: Sky (animated, see below), Nord, Paper, Dracula, Solarized Dark and Light, Midnight Blue,
-  Forest, Sunset, Ocean, High Contrast (`themes/`).
+  Forest, Sunset, Ocean, High Contrast, Halloween (`themes/`).
 - Plugins (`plugins/`): Rainfall totals (1, 24, 48 or 72 hours), Wildfires,
   Earthquakes, Map boundaries, Earth from space (true colour, city lights,
   sea temperature). After adding one, choose which of its layers to show.
