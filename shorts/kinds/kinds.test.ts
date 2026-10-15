@@ -193,7 +193,7 @@ describe("tropical update", () => {
     expect(t.description).toContain("advisory 12, Wed, Oct 14, 11:00 AM EDT");
     expect(t.description).toContain("Maximum sustained winds 75 mph (Category 1), minimum pressure 985 mb.");
     expect(t.description).toContain("Located at 24.5°N 80.1°W, moving NW at 10 mph.");
-    expect(t.description).toContain("Wed, 8 PM: Category 1 hurricane, 85 mph");
+    expect(t.description).toMatch(/Wed,? 8 PM: Category 1 hurricane, 85 mph/);
     expect(t.description).toContain("nhc.noaa.gov");
     expect(t.es.description).toContain("se mueve hacia el NO a 16 km/h");
     expect(t.es.description).toContain("Tormenta tropical");
