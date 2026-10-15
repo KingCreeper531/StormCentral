@@ -53,3 +53,17 @@ describe("layout", () => {
     expect(layout([{ at: 0.4, text: "a" }, { at: 3, text: "b" }, { at: 4, text: "c" }], [2, 3, 1])).toEqual([0.4, 3, 6.25]);
   });
 });
+
+describe("fire narration", () => {
+  it("reads the fire's size, containment and growth", () => {
+    const cues = narration({ template: "fire.html", data: { count: 12, fire: { name: "Three Queens Fire", state: "Washington", acres: 9575, contained: 33, growth: 1200, personnel: 29, days: 91 } } });
+    expect(cues.map((c) => c.text)).toEqual([
+      "Here's the latest on the Three Queens Fire in Washington.",
+      "12 large wildfires are burning in the U.S. right now.",
+      "It has burned 9,575 acres and is 33 percent contained.",
+      "That's 1,200 more acres than yesterday.",
+      "About 29 firefighters and support crew are working on it.",
+      "If you're nearby, follow evacuation orders from local officials.",
+    ]);
+  });
+});

@@ -9,6 +9,7 @@ to the Storm Central YouTube channel. Nothing runs on your PC.
 | **Storm report recap**: the day's tornado, wind and hail reports popping up on the map in time order, the totals, then the biggest hail, strongest gust and tornado states | 10:15 PM Central (9:15 PM in winter), on active days only: at least one tornado report or 15 severe reports | Storm Reports |
 | **Week ahead**: SPC's outlook for each of the next eight days, then the most active day | Sunday mornings | Severe Weather: Week Ahead |
 | **Hurricane update**: the National Hurricane Center's cone, track and forecast, with winds, pressure and movement | Every day at 11:40 AM Eastern, one per named storm (up to 2, strongest first); none when the tropics are quiet | Tropical Updates |
+| **Wildfire update**: the large active fires on the US map, then a zoom to the most significant one with its mapped perimeter, acres burned, containment, and how much it grew since the day before | Every day at 4:30 PM Eastern, when a fire is at least 5,000 acres and no more than 80% contained, or grew 1,000+ acres in a day; none otherwise | Wildfire Updates |
 
 Every video ends with stormcentralwx.com. Each upload has a Spanish title
 and description as a YouTube translation, so viewers with Spanish set get
@@ -110,6 +111,7 @@ usually takes a few weeks.
 | `SHORTS_KINDS` | all | only these kinds on schedule, e.g. `outlook,recap` |
 | `SHORTS_SKIP_QUIET` | `false` | `true` for no outlook video on days with no severe risk |
 | `SHORTS_TROPICAL_MAX` | `2` | at most this many hurricane updates a day |
+| `SHORTS_FIRE_MAX` | `1` | at most this many wildfire updates a day |
 | `SHORTS_VOICE` | `true` | `false` turns off the narrator (Andrew, via edge-tts; no key needed) |
 | `SHORTS_VOICE_NAME` | `en-US-AndrewNeural` | another Microsoft neural voice for the narrator |
 | `SHORTS_PLAYLISTS` | `true` | `false` to leave videos out of playlists |
@@ -125,6 +127,7 @@ GitHub often starts scheduled runs late or drops them. For posts on time, let a 
 |---|---|
 | outlook | 9:12 AM daily |
 | tropical | 11:40 AM daily |
+| fire | 4:30 PM daily |
 | weekly | 9:40 AM Sundays |
 | recap | 11:15 PM daily |
 

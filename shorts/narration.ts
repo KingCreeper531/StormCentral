@@ -11,7 +11,7 @@ export interface Cue {
   text: string;
 }
 
-const STATES: Record<string, string> = {
+export const STATE_NAMES: Record<string, string> = {
   AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California", CO: "Colorado", CT: "Connecticut", DE: "Delaware",
   DC: "D.C.", FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois", IN: "Indiana", IA: "Iowa", KS: "Kansas",
   KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan", MN: "Minnesota",
@@ -36,7 +36,7 @@ export function spoken(s: string): string {
     .replace(/(\d)%/g, "$1 percent")
     .replace(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b\.?/g, (d: string) => DAYS[d.replace(".", "")]!)
     .replace(/\b([NSEW]{1,3})(?= at \d)/g, (dir: string) => compassWords(dir))
-    .replace(/\b[A-Z]{2}\b/g, (code) => STATES[code] ?? code)
+    .replace(/\b[A-Z]{2}\b/g, (code) => STATE_NAMES[code] ?? code)
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -126,7 +126,28 @@ function tropical(d: TropicalData): Cue[] {
 }
 
 // Each page's DATA, as its kind builds it.
+interface FireData {
+  count: number;
+  fire: { name: string; state: string; acres: number; contained: number | null; growth: number | null; personnel: number | null; days: number | null };
+}
+
+function fire(d: FireData): Cue[] {
+  const f = d.fire;
+  const later = [
+    f.growth ? `That's ${f.growth.toLocaleString("en-US")} more acres than yesterday.` : f.days != null ? `It has been burning for ${f.days} days.` : null,
+    f.personnel ? `About ${f.personnel.toLocaleString("en-US")} firefighters and support crew are working on it.` : null,
+  ].filter((x): x is string => !!x);
+  return [
+    { at: 0.4, text: `Here's the latest on the ${f.name} in ${f.state}.` },
+    { at: 3.9, text: d.count === 1 ? "One large wildfire is burning in the U.S. right now." : `${d.count} large wildfires are burning in the U.S. right now.` },
+    { at: 8.8, text: `It has burned ${f.acres.toLocaleString("en-US")} acres${f.contained != null ? ` and is ${f.contained} percent contained` : ""}.` },
+    ...later.map((text, i) => ({ at: 12.4 + i * 3.6, text })),
+    { at: 12.4 + later.length * 3.6, text: "If you're nearby, follow evacuation orders from local officials." },
+  ];
+}
+
 const BY_TEMPLATE: Record<string, (d: never) => Cue[]> = {
+  "fire.html": fire,
   "outlook.html": outlook,
   "recap.html": recap,
   "weekly.html": weekly,
