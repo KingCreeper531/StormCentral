@@ -114,6 +114,20 @@ usually takes a few weeks.
 | `SHORTS_VOICE_NAME` | `en-US-AndrewNeural` | another Microsoft neural voice for the narrator |
 | `SHORTS_PLAYLISTS` | `true` | `false` to leave videos out of playlists |
 
+## A reliable schedule (cron-job.org)
+
+GitHub often starts scheduled runs late or drops them. For posts on time, let a free outside scheduler start the workflow instead (the GitHub schedules stay as a backup; each kind still posts once a day):
+
+1. GitHub → Settings → Developer settings → Fine-grained tokens → Generate: only this repository, permission **Actions: Read and write**.
+2. At cron-job.org, add a job per kind: `POST https://api.github.com/repos/KingCreeper531/StormCentral/actions/workflows/youtube-shorts.yml/dispatches`, headers `Authorization: Bearer <token>`, `Accept: application/vnd.github+json`, body `{"ref":"main","inputs":{"kind":"recap","scheduled":"true"}}`, in your own time zone (daylight saving is then handled for you).
+
+| Kind | Time (Eastern) |
+|---|---|
+| outlook | 9:12 AM daily |
+| tropical | 11:40 AM daily |
+| weekly | 9:40 AM Sundays |
+| recap | 11:15 PM daily |
+
 ## Notes
 
 - YouTube's free quota (10,000 units a day) allows about 6 uploads a day.
