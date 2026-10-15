@@ -14,6 +14,7 @@ import themeMidnight from "../../../examples/addons/themes/midnight/stormcentral
 import themeForest from "../../../examples/addons/themes/forest/stormcentral.json";
 import themeSunset from "../../../examples/addons/themes/sunset/stormcentral.json";
 import themeOcean from "../../../examples/addons/themes/ocean/stormcentral.json";
+import themeHalloween from "../../../examples/addons/themes/halloween/stormcentral.json";
 import themeHighContrast from "../../../examples/addons/themes/high-contrast/stormcentral.json";
 import pluginRainfall from "../../../examples/addons/plugins/rainfall/stormcentral.json";
 import pluginWildfires from "../../../examples/addons/plugins/wildfires/stormcentral.json";
@@ -46,6 +47,7 @@ export const FEATURED_THEMES: ThemeAddon[] = [
   ...load<ThemeAddon>("themes/sunset", themeSunset),
   ...load<ThemeAddon>("themes/ocean", themeOcean),
   ...load<ThemeAddon>("themes/high-contrast", themeHighContrast),
+  ...load<ThemeAddon>("themes/halloween", themeHalloween),
 ];
 
 export const FEATURED_PLUGINS: PluginAddon[] = [
