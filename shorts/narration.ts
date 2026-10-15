@@ -1,7 +1,7 @@
 /**
  * What the narrator says in each Short: lines ("cues") timed to the scenes of
  * its page, written from the same DATA the page draws, so the voice matches
- * the screen. voice.ts speaks and mixes them.
+ * the screen. The end card stays silent. voice.ts speaks and mixes them.
  */
 import type { Video } from "./video";
 
@@ -77,7 +77,6 @@ function outlook(d: OutlookData): Cue[] {
     { at: 13.6, text: wind ? `Damaging winds, up to ${wind} percent.` : "Damaging winds aren't expected." },
     { at: 17.0, text: hail ? `And large hail, up to ${hail} percent.` : "And large hail isn't expected." },
     { at: 20.6, text: firstSentences(o.summary) },
-    { at: 27.4, text: "Follow Storm Central for the outlook every morning." },
   ];
 }
 
@@ -90,7 +89,6 @@ function recap(d: RecapData): Cue[] {
     c.hail && plural(c.hail, "large hail report", "large hail reports"),
   ].filter((x): x is string => !!x);
   const hl = d.highlights;
-  const end = Math.max(16.6 + hl.length * 3.3 + 0.4, 23.0);
   return [
     { at: 0.4, text: `Here are the storm reports for ${d.date}.` },
     { at: 5.2, text: `${plural(total, "severe weather report", "severe weather reports")} came in: ${join(kinds)}.` },
@@ -98,7 +96,6 @@ function recap(d: RecapData): Cue[] {
       at: 16.7 + i * 3.3,
       text: h.label === "Tornado reports" ? `Tornado reports came from ${h.place}.` : `${h.label}: ${h.value}, near ${h.place}.`,
     })),
-    { at: end + 0.4, text: "Follow Storm Central for the storm report every night." },
   ];
 }
 
@@ -112,14 +109,12 @@ function weekly(d: WeeklyData): Cue[] {
     { at: 0.4, text: "Here's the severe weather outlook for the week ahead." },
     ...days.map((x, i) => ({ at: DAY0 + i * EACH + 0.1, text: `${name(x)}, ${risk(x)}.` })),
     { at: SUM0 + 0.2, text: busiest ? `The most active day looks like ${name(busiest)}, with ${busiest.code ? `a ${risk(busiest)}` : risk(busiest)}.` : "Overall, it looks like a quiet week." },
-    { at: SUM0 + 4.8, text: "Follow Storm Central for the week ahead every Sunday." },
   ];
 }
 
 function tropical(d: TropicalData): Cue[] {
   const s = d.storm;
   const fc = s.forecast;
-  const end = fc.length ? 14.6 + fc.length * 1.7 + 1.2 : 15.5;
   const last = fc.at(-1);
   const a = (stage: string) => `${/^[aeiou]/i.test(stage) ? "an" : "a"} ${stage.replace(/^(Tropical|Subtropical|Post-tropical)/, (w) => w.toLowerCase())}`;
   return [
@@ -127,7 +122,6 @@ function tropical(d: TropicalData): Cue[] {
     { at: 5.0, text: s.windMph != null ? `It's ${a(s.stage)} with maximum winds of ${s.windMph} mph${s.moving ? `, moving ${s.moving}` : ""}.` : `It's ${a(s.stage)}.` },
     ...(s.ahead ? [{ at: 9.6, text: `It's ${s.ahead.charAt(0).toLowerCase()}${s.ahead.slice(1)}.` }] : []),
     ...(last?.stage ? [{ at: 14.7, text: `By ${last.when}, it's forecast to be ${a(last.stage)}${last.windMph != null ? ` with ${last.windMph} mph winds` : ""}.` }] : []),
-    { at: end + 0.3, text: "Follow Storm Central for hurricane updates." },
   ];
 }
 

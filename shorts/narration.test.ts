@@ -29,7 +29,6 @@ describe("narration", () => {
       "16 severe weather reports came in: 1 tornado report, 12 damaging wind reports and 3 large hail reports.",
       "Largest hail: 2 inches, near Enid, Oklahoma.",
       "Tornado reports came from Kansas.",
-      "Follow Storm Central for the storm report every night.",
     ]);
     expect(cues.map((c) => c.at)).toEqual([...cues.map((c) => c.at)].sort((a, b) => a - b));
   });
