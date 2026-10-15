@@ -5,6 +5,8 @@ import { layout } from "./voice";
 describe("spoken", () => {
   it("spells out units, states, days and compass points", () => {
     expect(spoken(`Largest hail: 2.75", near Lubbock, TX.`)).toBe("Largest hail: 2.75 inches, near Lubbock, Texas.");
+    expect(spoken("Largest hail: 1.75 in, near Crowell, TX.")).toBe("Largest hail: 1.75 inches, near Crowell, Texas.");
+    expect(spoken("12 reports came in: 1 tornado")).toBe("12 reports came in: 1 tornado");
     expect(spoken(`Strongest gust: 1" and 80 mph`)).toBe("Strongest gust: 1 inch and 80 miles per hour");
     expect(spoken("moving NNW at 12 mph, then NE at 5 mph")).toBe("moving north-northwest at 12 miles per hour, then northeast at 5 miles per hour");
     expect(spoken("By Thu 2 PM, a 15% chance")).toBe("By Thursday 2 PM, a 15 percent chance");
