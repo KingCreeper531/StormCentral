@@ -6,6 +6,7 @@
 #   weekly    Sunday mornings, the next eight days
 #   tropical  late morning, one per named storm (none when the tropics are quiet)
 #   recap     late evening, the day's storm reports (active days only)
+#   fire      mid afternoon, the most significant active wildfire (when there is one)
 #
 # Scheduled runs happen only when the repository variable SHORTS_ENABLED is
 # "true" (and SHORTS_KINDS, when set, lists the kind). "Run workflow" renders
@@ -27,6 +28,9 @@ on:
     # tropical: 15:40 UTC, after NHC's 15Z (11 AM EDT) advisories. Backup 16:20.
     - cron: "40 15 * * *"
     - cron: "20 16 * * *"
+    # fire: 20:30 UTC (4:30 PM EDT), after the day's NIFC updates. Backup 21:10.
+    - cron: "30 20 * * *"
+    - cron: "10 21 * * *"
     # recap: 03:15 UTC (11:15 PM EDT, 10:15 PM CDT). Backup 03:55.
     - cron: "15 3 * * *"
     - cron: "55 3 * * *"
@@ -35,7 +39,7 @@ on:
       kind:
         description: Which Short
         type: choice
-        options: [outlook, recap, weekly, tropical]
+        options: [outlook, recap, weekly, tropical, fire]
         default: outlook
       upload:
         description: Upload to YouTube (otherwise only render it, to download from this run)
@@ -48,7 +52,7 @@ on:
 
 concurrency:
   # One run of a kind at a time (the backup waits for the first, then sees its posted marker).
-  group: youtube-shorts-${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || 'outlook' }}
+  group: youtube-shorts-${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || ((github.event.schedule == '30 20 * * *' || github.event.schedule == '10 21 * * *') && 'fire') || 'outlook' }}
   cancel-in-progress: false
 
 permissions:
@@ -60,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 80
     env:
-      SHORTS_KIND: ${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || 'outlook' }}
+      SHORTS_KIND: ${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || ((github.event.schedule == '30 20 * * *' || github.event.schedule == '10 21 * * *') && 'fire') || 'outlook' }}
     steps:
       - id: today
         run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
@@ -102,6 +106,13 @@ jobs:
       - name: Build
         if: steps.go.outputs.go == 'true'
         run: npx --yes esbuild@0.28.2 shorts/main.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNNER_TEMP/shorts/shorts.mjs" --log-level=warning
+      # Fire: yesterday's fire sizes, to tell how much each fire grew.
+      - uses: actions/cache/restore@v4
+        if: steps.go.outputs.go == 'true' && env.SHORTS_KIND == 'fire'
+        with:
+          path: shorts/.state
+          key: shorts-fire-state-${{ github.run_id }}
+          restore-keys: shorts-fire-state-
       - name: Make the Short
         id: make
         if: steps.go.outputs.go == 'true'
@@ -117,7 +128,13 @@ jobs:
           SHORTS_VOICE: ${{ vars.SHORTS_VOICE || 'true' }}
           SHORTS_VOICE_NAME: ${{ vars.SHORTS_VOICE_NAME || 'en-US-AndrewNeural' }}
           SHORTS_TROPICAL_MAX: ${{ vars.SHORTS_TROPICAL_MAX || '2' }}
+          SHORTS_FIRE_MAX: ${{ vars.SHORTS_FIRE_MAX || '1' }}
         run: node "$RUNNER_TEMP/shorts/shorts.mjs"
+      - uses: actions/cache/save@v4
+        if: always() && env.SHORTS_KIND == 'fire' && hashFiles('shorts/.state/fire-sizes.json') != ''
+        with:
+          path: shorts/.state
+          key: shorts-fire-state-${{ github.run_id }}
       - uses: actions/upload-artifact@v4
         if: always() && hashFiles('shorts/out/*.mp4') != ''
         with:

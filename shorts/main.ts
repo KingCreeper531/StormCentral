@@ -10,6 +10,7 @@
  *   recap     the evening storm report recap (active days only)
  *   weekly    the next eight days of outlooks (Sundays)
  *   tropical  an update for each named storm (while there are any)
+ *   fire      the most significant active wildfire (when one is big, growing or far from contained)
  *
  * Environment:
  *   SHORTS_KIND            which kind to make (default outlook)
@@ -23,12 +24,15 @@
  *   SHORTS_VOICE=false     no narrator (otherwise edge-tts reads a script timed to the scenes; see voice.ts)
  *   SHORTS_VOICE_NAME      the narrator's voice (default en-US-AndrewNeural)
  *   SHORTS_TROPICAL_MAX    tropical: at most this many storms (default 2, strongest first)
+ *   SHORTS_FIRE_MAX        fire: at most this many fires (default 1)
+ *   SHORTS_STATE_DIR       fire: where yesterday's fire sizes are kept (default shorts/.state)
  *   SHORTS_OUT_DIR         where the MP4s and their metadata go (default shorts/out)
  *   SHORTS_FIXTURES        a folder of saved source files to use instead of fetching (testing)
  *   SHORTS_SAVE            a folder to save the fetched source files into (to make fixtures)
  */
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fireKind } from "./kinds/fire";
 import { outlookKind } from "./kinds/outlook";
 import { recapKind } from "./kinds/recap";
 import { tropicalKind } from "./kinds/tropical";
@@ -40,12 +44,13 @@ import { addVoice, DEFAULT_VOICE } from "./voice";
 import { accessToken, addToPlaylist, credentialsFromEnv, uploadVideo, YouTubeError, type VideoMeta } from "./youtube";
 
 const env = process.env;
-const KINDS: Record<string, Kind> = { outlook: outlookKind, recap: recapKind, weekly: weeklyKind, tropical: tropicalKind };
+const KINDS: Record<string, Kind> = { outlook: outlookKind, recap: recapKind, weekly: weeklyKind, tropical: tropicalKind, fire: fireKind };
 const PLAYLIST_ABOUT: Record<string, string> = {
   "Daily Severe Weather Outlook": "Every morning: the day's severe weather outlook from NOAA's Storm Prediction Center, on a map.",
   "Storm Reports": "On active severe weather days: the day's tornado, wind and hail reports from the National Weather Service.",
   "Severe Weather: Week Ahead": "Every Sunday: the severe weather outlook for the next eight days.",
   "Tropical Updates": "Hurricane and tropical storm updates from the National Hurricane Center, while storms are active.",
+  "Wildfire Updates": "Updates on significant US wildfires from the National Interagency Fire Center: size, growth and containment.",
 };
 
 function setOutput(name: string, value: string) {
