@@ -11,6 +11,11 @@
 # domain at 4, 2 and 1 OCPUs (all Always Free), round after round. Each try
 # skips the CLI's own retries, which otherwise wait minutes on every
 # out-of-capacity answer.
+#
+# It also runs on GitHub Actions (.github/workflows/oracle-server.yml) with an
+# OCI API key: SSH_PUBLIC_KEY is then the login key to put on the server,
+# STOP_AFTER_MIN ends the run (exit 3) so the workflow can start a fresh one,
+# and the server's address isn't printed into the public log.
 set -uo pipefail
 
 NAME=stormcentral-stream
@@ -18,6 +23,11 @@ SHAPE=VM.Standard.A1.Flex
 T="${OCI_TENANCY:-}"
 [ -n "$T" ] || { echo "Run this in Oracle Cloud Shell (the >_ button at the top of the console)."; exit 1; }
 KEY="$HOME/.ssh/stream"
+STOP_AT=$(( $(date +%s) + ${STOP_AFTER_MIN:-0} * 60 ))
+login() { # how to log in, without the address in a public CI log
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "Find its public IP in the Oracle console (Compute → Instances), then: ssh -i ~/.ssh/stream ubuntu@IP"
+  else echo "  ssh -i ~/.ssh/stream ubuntu@$1"; fi
+}
 ERR=$(mktemp)
 say() { printf '%s  %s\n' "$(date '+%H:%M:%S')" "$*"; }
 id_or_empty() { [[ "$1" == ocid1.* ]] && printf '%s' "$1"; }
@@ -26,13 +36,15 @@ id_or_empty() { [[ "$1" == ocid1.* ]] && printf '%s' "$1"; }
 have=$(id_or_empty "$(oci compute instance list -c "$T" --display-name "$NAME" --lifecycle-state RUNNING --query 'data[0].id' --raw-output 2>/dev/null)")
 if [ -n "$have" ]; then
   ip=$(oci compute instance list-vnics --instance-id "$have" --query 'data[0]."public-ip"' --raw-output 2>/dev/null)
-  say "You already have the server: ssh -i ~/.ssh/stream ubuntu@$ip"
+  say "You already have the server."; login "$ip"
   exit 0
 fi
 
-# Login key, kept in Cloud Shell only.
+# Login key, kept in Cloud Shell only (or the public half handed in, on GitHub Actions).
 mkdir -p "$HOME/.ssh"
-if [ ! -s "$KEY.pub" ]; then
+if [ -n "${SSH_PUBLIC_KEY:-}" ]; then
+  printf '%s\n' "$SSH_PUBLIC_KEY" > "$KEY.pub"
+elif [ ! -s "$KEY.pub" ]; then
   rm -f "$KEY" "$KEY.pub"
   ssh-keygen -q -t rsa -b 4096 -f "$KEY" -N "" -C "$NAME" || { say "Couldn't make a login key."; exit 1; }
   say "Made a login key at ~/.ssh/stream"
@@ -84,7 +96,7 @@ while :; do
         ip=$(oci compute instance list-vnics --instance-id "$id" --query 'data[0]."public-ip"' --raw-output 2>/dev/null)
         echo
         echo "Your server is running. Log in with:"
-        echo "  ssh -i ~/.ssh/stream ubuntu@$ip"
+        login "$ip"
         exit 0
       fi
       if grep -qi "capacity" "$ERR"; then continue; fi
@@ -92,6 +104,7 @@ while :; do
       say "Oracle said something unexpected; stopping:"; printf '%s\n' "$id"; cat "$ERR"; exit 1
     done
   done
+  if [ "${STOP_AFTER_MIN:-0}" -gt 0 ] && [ "$(date +%s)" -ge "$STOP_AT" ]; then say "Stopping after $round rounds; the next run carries on."; exit 3; fi
   say "Round $round: no free capacity yet, trying again in 20 seconds."
   sleep 20
 done
