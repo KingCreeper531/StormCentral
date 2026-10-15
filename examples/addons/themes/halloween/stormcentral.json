@@ -1,0 +1,27 @@
+{
+  "type": "theme",
+  "name": "Halloween",
+  "author": "Storm Central",
+  "description": "Pumpkin orange on a haunted purple night.",
+  "version": "1.0.0",
+  "base": "dark",
+  "colors": {
+    "canvas": "#120c18",
+    "surface-1": "#1c1324",
+    "surface-2": "#261a31",
+    "surface-3": "#33233f",
+    "line": "#2e2139",
+    "line-strong": "#47335a",
+    "ink": "#fbf3ea",
+    "ink-2": "#d9c8dc",
+    "ink-3": "#a690ad",
+    "accent": "#ff7a1a",
+    "go": "#8bd450",
+    "caution": "#ffc93c",
+    "nogo": "#ff4757",
+    "series-1": "#ff9a3c",
+    "series-2": "#b980ff",
+    "series-3": "#8bd450",
+    "grid": "#241a2e"
+  }
+}
