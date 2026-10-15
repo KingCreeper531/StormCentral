@@ -31,7 +31,7 @@ const compassWords = (dir: string) => {
 /** Text as it should be read aloud: units, state codes, short day names and compass points spelled out. */
 export function spoken(s: string): string {
   return s
-    .replace(/\b(\d+(?:\.\d+)?)"/g, (_, n: string) => `${n} ${Number(n) === 1 ? "inch" : "inches"}`)
+    .replace(/\b(\d+(?:\.\d+)?)(?:"| in\b(?=[,.;]|$))/g, (_, n: string) => `${n} ${Number(n) === 1 ? "inch" : "inches"}`)
     .replace(/\bmph\b/g, "miles per hour")
     .replace(/(\d)%/g, "$1 percent")
     .replace(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b\.?/g, (d: string) => DAYS[d.replace(".", "")]!)
