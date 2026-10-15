@@ -5,7 +5,8 @@
 # Run it in Oracle Cloud Shell (the >_ button in the console's top bar):
 #   bash <(curl -fsSL https://raw.githubusercontent.com/KingCreeper531/StormCentral/main/stream/oracle-get-server.sh)
 #
-# It makes a login key that stays in Cloud Shell (~/.ssh/stream), a network
+# It makes a login key that stays in Cloud Shell (~/.ssh/stream; RSA, since
+# Cloud Shell runs in FIPS mode, which refuses ed25519), a network
 # with internet access if there isn't one, and then tries every availability
 # domain at 4, 2 and 1 OCPUs (all Always Free) every minute.
 set -uo pipefail
@@ -29,7 +30,7 @@ fi
 
 # Login key, kept in Cloud Shell only.
 mkdir -p "$HOME/.ssh"
-[ -f "$KEY" ] || { ssh-keygen -q -t ed25519 -f "$KEY" -N "" -C "$NAME"; say "Made a login key at ~/.ssh/stream"; }
+[ -f "$KEY" ] || { ssh-keygen -q -t rsa -b 4096 -f "$KEY" -N "" -C "$NAME"; say "Made a login key at ~/.ssh/stream"; }
 
 # A public subnet whose network can reach the internet.
 ensure_internet() {
