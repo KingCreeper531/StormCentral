@@ -8,7 +8,9 @@
 # It makes a login key that stays in Cloud Shell (~/.ssh/stream; RSA, since
 # Cloud Shell runs in FIPS mode, which refuses ed25519), a network
 # with internet access if there isn't one, and then tries every availability
-# domain at 4, 2 and 1 OCPUs (all Always Free) every minute.
+# domain at 4, 2 and 1 OCPUs (all Always Free), round after round. Each try
+# skips the CLI's own retries, which otherwise wait minutes on every
+# out-of-capacity answer.
 set -uo pipefail
 
 NAME=stormcentral-stream
@@ -64,7 +66,7 @@ fi
 IMAGE=$(id_or_empty "$(oci compute image list -c "$T" --operating-system "Canonical Ubuntu" --operating-system-version "24.04" --shape "$SHAPE" --sort-by TIMECREATED --sort-order DESC --limit 1 --query 'data[0].id' --raw-output 2>/dev/null)")
 [ -n "$IMAGE" ] || { say "Couldn't find the Ubuntu 24.04 image."; exit 1; }
 mapfile -t ADS < <(oci iam availability-domain list -c "$T" --query 'data[].name' | jq -r '.[]')
-say "Trying ${#ADS[@]} availability domain(s) every minute. Leave this tab open; Ctrl+C stops it."
+say "Trying ${#ADS[@]} availability domain(s) over and over. Leave this tab open; Ctrl+C stops it."
 
 round=0
 while :; do
@@ -75,7 +77,7 @@ while :; do
       id=$(oci compute instance launch -c "$T" --availability-domain "$ad" --shape "$SHAPE" \
         --shape-config "{\"ocpus\":$cpu,\"memoryInGBs\":$mem}" --image-id "$IMAGE" --subnet-id "$SUBNET" \
         --assign-public-ip true --display-name "$NAME" --ssh-authorized-keys-file "$KEY.pub" \
-        --query data.id --raw-output 2>"$ERR")
+        --no-retry --query data.id --raw-output 2>"$ERR")
       if [ -n "$(id_or_empty "$id")" ]; then
         say "Got it: $cpu OCPU / $mem GB in ${ad##*:}. Starting up..."
         oci compute instance get --instance-id "$id" --wait-for-state RUNNING >/dev/null 2>&1
@@ -86,10 +88,10 @@ while :; do
         exit 0
       fi
       if grep -qi "capacity" "$ERR"; then continue; fi
-      if grep -qi "TooManyRequests" "$ERR"; then sleep 60; continue; fi
+      if grep -qi "TooManyRequests" "$ERR"; then sleep 30; continue; fi
       say "Oracle said something unexpected; stopping:"; printf '%s\n' "$id"; cat "$ERR"; exit 1
     done
   done
-  say "Round $round: no free capacity yet, trying again in a minute."
-  sleep 60
+  say "Round $round: no free capacity yet, trying again in 20 seconds."
+  sleep 20
 done
