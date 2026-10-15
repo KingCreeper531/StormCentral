@@ -13,16 +13,23 @@
 # only when asked to.
 name: YouTube Shorts
 
+# GitHub sometimes starts a scheduled run very late or drops it, so each kind
+# has a backup run about 40 minutes later. Runs of a kind queue one after
+# another, and the posted marker keeps the backup from posting twice.
 on:
   schedule:
-    # outlook: 13:12 UTC (8:12 AM CDT, 7:12 AM CST); it then waits up to 50 minutes for the outlook.
+    # outlook: 13:12 UTC (9:12 AM EDT, 8:12 AM CDT); it then waits up to 50 minutes for the outlook. Backup 14:05.
     - cron: "12 13 * * *"
-    # weekly: Sundays 13:40 UTC.
+    - cron: "5 14 * * *"
+    # weekly: Sundays 13:40 UTC. Backup 14:20.
     - cron: "40 13 * * 0"
-    # tropical: 15:40 UTC, after NHC's 15Z (11 AM EDT) advisories.
+    - cron: "20 14 * * 0"
+    # tropical: 15:40 UTC, after NHC's 15Z (11 AM EDT) advisories. Backup 16:20.
     - cron: "40 15 * * *"
-    # recap: 03:15 UTC (10:15 PM CDT, 9:15 PM CST).
+    - cron: "20 16 * * *"
+    # recap: 03:15 UTC (11:15 PM EDT, 10:15 PM CDT). Backup 03:55.
     - cron: "15 3 * * *"
+    - cron: "55 3 * * *"
   workflow_dispatch:
     inputs:
       kind:
@@ -36,7 +43,8 @@ on:
         default: false
 
 concurrency:
-  group: youtube-shorts-${{ inputs.kind || github.event.schedule }}
+  # One run of a kind at a time (the backup waits for the first, then sees its posted marker).
+  group: youtube-shorts-${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || 'outlook' }}
   cancel-in-progress: false
 
 permissions:
@@ -48,7 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 80
     env:
-      SHORTS_KIND: ${{ inputs.kind || (github.event.schedule == '15 3 * * *' && 'recap') || (github.event.schedule == '40 13 * * 0' && 'weekly') || (github.event.schedule == '40 15 * * *' && 'tropical') || 'outlook' }}
+      SHORTS_KIND: ${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || 'outlook' }}
     steps:
       - id: today
         run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
