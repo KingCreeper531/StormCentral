@@ -30,7 +30,11 @@ fi
 
 # Login key, kept in Cloud Shell only.
 mkdir -p "$HOME/.ssh"
-[ -f "$KEY" ] || { ssh-keygen -q -t rsa -b 4096 -f "$KEY" -N "" -C "$NAME"; say "Made a login key at ~/.ssh/stream"; }
+if [ ! -s "$KEY.pub" ]; then
+  rm -f "$KEY" "$KEY.pub"
+  ssh-keygen -q -t rsa -b 4096 -f "$KEY" -N "" -C "$NAME" || { say "Couldn't make a login key."; exit 1; }
+  say "Made a login key at ~/.ssh/stream"
+fi
 
 # A public subnet whose network can reach the internet.
 ensure_internet() {
@@ -83,7 +87,7 @@ while :; do
       fi
       if grep -qi "capacity" "$ERR"; then continue; fi
       if grep -qi "TooManyRequests" "$ERR"; then sleep 60; continue; fi
-      say "Oracle said something unexpected; stopping:"; cat "$ERR"; exit 1
+      say "Oracle said something unexpected; stopping:"; printf '%s\n' "$id"; cat "$ERR"; exit 1
     done
   done
   say "Round $round: no free capacity yet, trying again in a minute."
