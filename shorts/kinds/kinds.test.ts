@@ -4,6 +4,7 @@ import type { TropicalStorm } from "../../src/lib/feeds/tropical";
 import { parseOutlook } from "../spc-outlook";
 import { descriptionForEs, titleForEs, type GeoCollection } from "../meta";
 import { dayStart, isActive, recapDescription, recapEs, recapTitle, severeReports, summarize } from "./recap";
+import { fireName, fireText, growthSince, parseFires, pickFires } from "./fire";
 import { compass, peakAhead, pickStorms, stageName, toKmh, toMph, tropicalText, upcoming, zoneOf } from "./tropical";
 import { busiest, catDay, dayRisk, probDay, weeklyText, type WeekDay } from "./weekly";
 
@@ -225,5 +226,40 @@ Storms.
     expect(d).toContain("Riesgo ligero (nivel 2 de 5), en la región Southern Plains.");
     expect(d).toContain("Tornado 2%, vientos dañinos 15%, granizo grande 5%");
     expect(d).toContain("https://www.stormcentralwx.com");
+  });
+});
+
+describe("fire", () => {
+  const raw = (over: Record<string, unknown>) => ({
+    attributes: { IrwinID: "{A}", IncidentName: "THREE QUEENS", IncidentSize: 9575, PercentContained: 33, POOState: "US-WA", POOCounty: "Kittitas", IncidentTypeCategory: "WF", FireDiscoveryDateTime: Date.parse("2026-07-15T20:00:00Z"), TotalIncidentPersonnel: 29, ...over },
+    geometry: { x: -121.1, y: 47.5 },
+  });
+  const now = Date.parse("2026-10-15T20:30:00Z");
+
+  it("reads active wildfires, largest first, leaving out burns and contained fires", () => {
+    const fires = parseFires({ features: [raw({}), raw({ IrwinID: "{B}", IncidentName: "Bench", IncidentSize: 67071 }), raw({ IrwinID: "{C}", IncidentTypeCategory: "RX" }), raw({ IrwinID: "{D}", PercentContained: 100 })] });
+    expect(fires.map((f) => f.name)).toEqual(["Bench Fire", "Three Queens Fire"]);
+    expect(fires[1]).toMatchObject({ state: "WA", county: "Kittitas", acres: 9575, contained: 33, personnel: 29 });
+    expect(fireName("Ridge Complex")).toBe("Ridge Complex");
+  });
+
+  it("picks a big, mostly uncontained fire, or one that grew fast since yesterday", () => {
+    const fires = parseFires({ features: [raw({}), raw({ IrwinID: "{B}", IncidentName: "Bench", IncidentSize: 67071, PercentContained: 90 }), raw({ IrwinID: "{E}", IncidentName: "Small", IncidentSize: 3000, PercentContained: 95 })] });
+    expect(pickFires(fires, null, now).map((p) => p.fire.name)).toEqual(["Three Queens Fire"]);
+    const prev = { at: now - 24 * 3_600_000, sizes: { "{A}": 9_000, "{B}": 67_000, "{E}": 1_500 } };
+    expect(pickFires(fires, prev, now, 2)).toEqual([
+      { fire: expect.objectContaining({ name: "Small Fire" }), growth: 1500 },
+      { fire: expect.objectContaining({ name: "Three Queens Fire" }), growth: 575 },
+    ]);
+    expect(growthSince(fires[0]!, { at: now - 3 * 86_400_000, sizes: { "{B}": 1 } }, now)).toBeNull();
+  });
+
+  it("writes the title and descriptions, with the growth when known", () => {
+    const [f] = parseFires({ features: [raw({})] });
+    const t = fireText(f!, 1200, now);
+    expect(t.title).toBe("Three Queens Fire, Washington: 9,575 Acres, 33% Contained; Grew 1,200 Acres #shorts");
+    expect(t.description).toContain("The Three Queens Fire in Kittitas County, Washington has burned 9,575 acres and is 33% contained");
+    expect(t.description).toContain("It grew by 1,200 acres since yesterday.");
+    expect(t.es.title).toContain("Incendio Three Queens, Washington: 3,875 hectáreas, 33% contenido");
   });
 });

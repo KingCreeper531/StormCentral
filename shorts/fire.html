@@ -1,0 +1,160 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="short.css" />
+<script src="vendor/d3-array.min.js"></script>
+<script src="vendor/d3-geo.min.js"></script>
+<script src="vendor/topojson-client.min.js"></script>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script src="common.js"></script>
+<script>
+/*
+ * A wildfire update (30 s). DATA:
+ *   { states, logo, count, others: [{ lat, lon, acres, me }],
+ *     fire: { name, place, state, acres, contained, growth, personnel, started, days, lat, lon, perimeter: [Feature] } }
+ */
+const { ctx, D, C, PANEL, MAP, clamp, seg, easeOut, easeInOut, lerp, rr, text, fitSize } = SC;
+const F = D.fire;
+const FIRE = "#ff5a1f", EMBER = "#ffb020";
+const map = SC.makeMap(SC.usProjection(), { source: "Source: National Interagency Fire Center" });
+
+// The fire's shape: its mapped perimeter, or a circle of the same area when there isn't one yet.
+/** d3-geo wants polygons wound clockwise; ArcGIS GeoJSON can come either way. */
+function d3Wound(geom) {
+  if (!geom) return null;
+  const fix = (rings) => (d3.geoArea({ type: "Polygon", coordinates: rings }) > 2 * Math.PI ? rings.map((r) => r.slice().reverse()) : rings);
+  if (geom.type === "Polygon") return { type: "Polygon", coordinates: fix(geom.coordinates) };
+  if (geom.type === "MultiPolygon") return { type: "MultiPolygon", coordinates: geom.coordinates.map(fix) };
+  return geom;
+}
+const perimeter = (F.perimeter || []).filter((f) => f && f.geometry).map((f) => ({ type: "Feature", properties: {}, geometry: d3Wound(f.geometry) }));
+const mapped = perimeter.length > 0;
+const km = Math.sqrt((F.acres * 0.00404686) / Math.PI);
+const shape = mapped
+  ? { type: "FeatureCollection", features: perimeter }
+  : { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: d3.geoCircle().center([F.lon, F.lat]).radius(km / 111.2)() }] };
+// Close enough to see the fire, wide enough for the nearest towns.
+const close = map.fit(shape, { frac: 0.3, maxK: 12 });
+const ZOOM0 = 6.4, ZOOM1 = 8.6, STATS = 8.8, END = 24;
+
+const WEST = [
+  ["Seattle", -122.33, 47.61], ["Spokane", -117.43, 47.66], ["Wenatchee", -120.31, 47.42], ["Yakima", -120.51, 46.6], ["Ellensburg", -120.55, 46.99],
+  ["Portland", -122.68, 45.52], ["Bend", -121.31, 44.06], ["Medford", -122.87, 42.33], ["Eugene", -123.09, 44.05], ["Pendleton", -118.79, 45.67],
+  ["Burns", -119.05, 43.59], ["Baker City", -117.83, 44.77], ["Boise", -116.2, 43.62], ["Missoula", -113.99, 46.87], ["Kalispell", -114.31, 48.2],
+  ["Bozeman", -111.04, 45.68], ["Billings", -108.5, 45.78], ["Dillon", -112.64, 45.22], ["Sacramento", -121.49, 38.58], ["Redding", -122.39, 40.59],
+  ["Reno", -119.81, 39.53], ["Fresno", -119.79, 36.74], ["Monterey", -121.89, 36.6], ["Los Angeles", -118.24, 34.05], ["San Diego", -117.16, 32.72],
+  ["Las Vegas", -115.14, 36.17], ["Phoenix", -112.07, 33.45], ["Flagstaff", -111.65, 35.2], ["Tucson", -110.97, 32.22], ["Albuquerque", -106.65, 35.08],
+  ["Santa Fe", -105.94, 35.69], ["Denver", -104.99, 39.74], ["Colorado Springs", -104.82, 38.83], ["Pueblo", -104.61, 38.25], ["Durango", -107.88, 37.28],
+  ["Grand Junction", -108.55, 39.06], ["Salt Lake City", -111.89, 40.76], ["Cheyenne", -104.82, 41.14], ["Rapid City", -103.23, 44.08], ["El Paso", -106.49, 31.76],
+];
+
+function flame(x, y, s, t) {
+  const f = 1 + Math.sin(t * 9) * 0.06;
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s * f);
+  ctx.beginPath();
+  ctx.moveTo(0, 14); ctx.bezierCurveTo(-13, 12, -14, -2, -6, -10); ctx.bezierCurveTo(-5, -4, -2, -3, -1, -6);
+  ctx.bezierCurveTo(1, -12, 6, -16, 4, -24); ctx.bezierCurveTo(14, -16, 15, 4, 0, 14); ctx.closePath();
+  ctx.fillStyle = FIRE; ctx.fill(); ctx.lineWidth = 2 / s; ctx.strokeStyle = "rgba(0,0,0,0.6)"; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, 12); ctx.bezierCurveTo(-6, 10, -6, 2, -2, -2); ctx.bezierCurveTo(0, 2, 3, 0, 3, -6); ctx.bezierCurveTo(8, 0, 7, 10, 0, 12); ctx.closePath();
+  ctx.fillStyle = EMBER; ctx.fill();
+  ctx.restore();
+}
+
+function overlay(t, cam, z) {
+  // Every large active fire as a pulsing dot (fades as we zoom in), then this fire's flame.
+  const da = easeOut(seg(t, 3.6, 4.4)) * (1 - z);
+  if (da > 0) {
+    for (const o of D.others) {
+      const p = map.screen([o.lon, o.lat], cam);
+      if (!p) continue;
+      const r = clamp(Math.sqrt(o.acres) / 22, 5, 22);
+      const pulse = ((t * 0.8 + o.lon * 0.13) % 1 + 1) % 1;
+      ctx.save(); ctx.globalAlpha *= da;
+      ctx.beginPath(); ctx.arc(p[0], p[1], r + pulse * 14, 0, Math.PI * 2); ctx.strokeStyle = `rgba(255,90,31,${0.5 * (1 - pulse)})`; ctx.lineWidth = 3; ctx.stroke();
+      ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI * 2); ctx.fillStyle = o.me ? FIRE : "rgba(255,140,60,0.75)"; ctx.fill();
+      ctx.lineWidth = o.me ? 4 : 2; ctx.strokeStyle = o.me ? "#fff" : "rgba(0,0,0,0.5)"; ctx.stroke();
+      ctx.restore();
+    }
+  }
+  map.cities(cam, 0.9 * z, WEST);
+  const at = map.screen([F.lon, F.lat], cam);
+  const fa = easeOut(seg(t, ZOOM1 - 0.4, ZOOM1 + 0.3));
+  if (at && fa > 0) {
+    ctx.save(); ctx.globalAlpha *= fa;
+    // A glow, so even a small fire reads at this zoom.
+    const g = ctx.createRadialGradient(at[0], at[1], 0, at[0], at[1], 70);
+    g.addColorStop(0, "rgba(255,120,40,0.55)"); g.addColorStop(1, "rgba(255,90,31,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(at[0], at[1], 70, 0, Math.PI * 2); ctx.fill();
+    flame(at[0], at[1] - 26, 1.6, t);
+    ctx.restore();
+  }
+  if (!mapped) text("Approximate size: no mapped perimeter yet", MAP.x + 24, MAP.y + MAP.h - 22, { size: 22, weight: 500, color: C.ink3, alpha: easeOut(seg(t, ZOOM1, ZOOM1 + 0.6)) });
+}
+
+function countPanel(t) {
+  const a = easeOut(seg(t, 3.8, 4.4)) * (1 - easeOut(seg(t, STATS - 0.5, STATS)));
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  text("Right now in the U.S.", PANEL.x + 10, PANEL.y + 50, { size: 36, weight: 600, color: C.ink2 });
+  text(`${D.count}`, PANEL.x + 10, PANEL.y + 190, { size: 150, weight: 800, color: FIRE });
+  ctx.font = `800 150px "SC Inter"`;
+  const numW = ctx.measureText(`${D.count}`).width;
+  text(D.count === 1 ? "large wildfire burning" : "large wildfires burning", PANEL.x + 34 + numW, PANEL.y + 170, { size: 46, weight: 700 });
+  text("over 1,000 acres and not yet contained", PANEL.x + 10, PANEL.y + 260, { size: 32, weight: 500, color: C.ink3 });
+  ctx.restore();
+}
+
+function statsPanel(t) {
+  const a = easeOut(seg(t, STATS, STATS + 0.6)) * (1 - easeOut(seg(t, END - 0.3, END)));
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  const grow = easeOut(seg(t, STATS, STATS + 2.2));
+  text("Acres burned", PANEL.x + 10, PANEL.y + 46, { size: 34, weight: 600, color: C.ink2 });
+  text(Math.round(F.acres * grow).toLocaleString("en-US"), PANEL.x + 10, PANEL.y + 150, { size: 104, weight: 800 });
+  // Containment ring.
+  const cx = PANEL.x + PANEL.w - 120, cy = PANEL.y + 110, r = 84;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.lineWidth = 20; ctx.strokeStyle = "rgba(255,255,255,0.1)"; ctx.stroke();
+  if (F.contained != null) {
+    const p = (F.contained / 100) * easeOut(seg(t, STATS + 0.4, STATS + 2.4));
+    ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2); ctx.strokeStyle = "#30d158"; ctx.lineCap = "round"; ctx.stroke(); ctx.lineCap = "butt";
+  }
+  text(F.contained != null ? `${Math.round((F.contained ?? 0) * easeOut(seg(t, STATS + 0.4, STATS + 2.4)))}%` : "—", cx, cy + 18, { size: 50, weight: 800, align: "center" });
+  text("contained", cx, cy + r + 52, { size: 28, weight: 600, color: C.ink2, align: "center" });
+  // Growth since yesterday, or how long it has burned; then the crews.
+  const l2 = easeOut(seg(t, STATS + 2.6, STATS + 3.2));
+  const line = F.growth ? `+${F.growth.toLocaleString("en-US")} acres since yesterday` : F.days != null ? `Burning for ${F.days} days · started ${F.started}` : "";
+  if (line) text(line, PANEL.x + 10, PANEL.y + 240, { size: fitSize(line, PANEL.w - 300, 44, 700), weight: 700, color: F.growth ? EMBER : C.ink, alpha: l2 });
+  const l3 = easeOut(seg(t, STATS + 4.6, STATS + 5.2));
+  const crews = [F.place, F.personnel ? `${F.personnel.toLocaleString("en-US")} personnel assigned` : null].filter(Boolean).join(" · ");
+  text(crews, PANEL.x + 10, PANEL.y + 310, { size: fitSize(crews, PANEL.w - 300, 34, 600), weight: 600, color: C.ink2, alpha: l3 });
+  ctx.restore();
+}
+
+window.render = function (t) {
+  SC.background();
+  SC.introRadar(t);
+  const ma = easeOut(seg(t, 2.8, 3.6));
+  if (ma > 0) {
+    ctx.save(); ctx.globalAlpha = ma;
+    const z = easeInOut(seg(t, ZOOM0, ZOOM1));
+    const cam = map.mix(map.home, close, z);
+    const pa = easeOut(seg(t, ZOOM1 - 0.6, ZOOM1 + 0.4));
+    const glow = 0.75 + 0.25 * Math.sin(t * 3);
+    map.draw(cam, [
+      { features: shape.features, alpha: pa, fill: () => `rgba(255,90,31,${0.42 * glow})`, stroke: () => FIRE, lineWidth: 3.5, dash: mapped ? null : [10, 8] },
+    ], (c) => overlay(t, c, z));
+    ctx.restore();
+  }
+  const words = F.name.split(" ");
+  const lines = words.length > 2 ? [words.slice(0, -1).join(" "), words.at(-1)] : [F.name];
+  SC.header(t, { kicker: "WILDFIRE UPDATE", lines, title: `${F.name}, ${F.state}`, date: F.place });
+  countPanel(t); statsPanel(t);
+  SC.endCard(t, END, "Follow for wildfire updates");
+};
+window.DUR = Math.ceil(END + 6);
+</script>
+</body>
+</html>
