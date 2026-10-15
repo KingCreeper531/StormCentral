@@ -1,0 +1,61 @@
+# Keeps trying to get the free Oracle Cloud Ampere server for the live stream
+# (stream/oracle-get-server.sh) without a browser tab open: each run tries for
+# about 5.5 hours, then starts the next run itself, until the server exists.
+#
+# Needs an OCI API key (Oracle console → profile → My profile → API keys) as
+# secrets OCI_USER, OCI_TENANCY, OCI_FINGERPRINT, OCI_REGION and OCI_KEY (the
+# private key file's contents), and the variable OCI_SSH_PUBLIC_KEY (the login
+# key to put on the server, e.g. Cloud Shell's ~/.ssh/stream.pub).
+# Start it with "Run workflow"; cancel the run to stop.
+name: Get the Oracle server
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: oracle-server
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  try:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up the OCI CLI
+        env:
+          OCI_USER: ${{ secrets.OCI_USER }}
+          OCI_TENANCY: ${{ secrets.OCI_TENANCY }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_KEY: ${{ secrets.OCI_KEY }}
+        run: |
+          for v in OCI_USER OCI_TENANCY OCI_FINGERPRINT OCI_REGION OCI_KEY; do [ -n "${!v}" ] || { echo "::error::Secret $v is missing"; exit 1; }; done
+          pipx install --quiet oci-cli
+          mkdir -p ~/.oci
+          printf '%s\n' "$OCI_KEY" > ~/.oci/key.pem
+          printf '[DEFAULT]\nuser=%s\nfingerprint=%s\ntenancy=%s\nregion=%s\nkey_file=%s\n' \
+            "$OCI_USER" "$OCI_FINGERPRINT" "$OCI_TENANCY" "$OCI_REGION" "$HOME/.oci/key.pem" > ~/.oci/config
+          chmod 600 ~/.oci/key.pem ~/.oci/config
+          oci iam region-subscription list --query 'data[0]."region-name"' --raw-output >/dev/null || { echo "::error::Oracle didn't accept the API key; check the five secrets"; exit 1; }
+      - name: Keep trying
+        id: try
+        env:
+          OCI_TENANCY: ${{ secrets.OCI_TENANCY }}
+          SSH_PUBLIC_KEY: ${{ vars.OCI_SSH_PUBLIC_KEY }}
+          STOP_AFTER_MIN: "330"
+        run: |
+          [ -n "$SSH_PUBLIC_KEY" ] || { echo "::error::Set the repository variable OCI_SSH_PUBLIC_KEY (a public login key)"; exit 1; }
+          code=0
+          bash stream/oracle-get-server.sh || code=$?
+          if [ "$code" = 3 ]; then echo "again=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          exit "$code"
+      - name: Start the next run
+        if: steps.try.outputs.again == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run oracle-server.yml --ref "$GITHUB_REF_NAME"
