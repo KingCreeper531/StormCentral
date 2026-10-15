@@ -3,7 +3,7 @@
  * Spanish) and the daily outlook's risk, region, hazards, title, description
  * and tags. Pure functions, tested in meta.test.ts.
  */
-import { RISKS, type Outlook, type Risk } from "../bot/outlook";
+import { RISKS, type Outlook, type Risk } from "./spc-outlook";
 
 export const SITE = "https://www.stormcentralwx.com";
 /** SPC's GeoJSON labels for each categorical risk. */

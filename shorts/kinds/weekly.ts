@@ -4,7 +4,7 @@
  * days 4-8, day by day, then the most active day.
  */
 import { DISCLAIMER, DISCLAIMER_ES, drawable, fitTitle, LINK_LINE, LINK_LINE_ES, RISK_ES, type GeoCollection } from "../meta";
-import { RISKS, type Risk } from "../../bot/outlook";
+import { RISKS, type Risk } from "../spc-outlook";
 import { getJson, readVendor } from "../source";
 import type { Kind } from "../video";
 

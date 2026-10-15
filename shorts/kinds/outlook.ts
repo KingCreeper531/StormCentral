@@ -2,7 +2,7 @@
  * The morning severe weather outlook: waits for SPC's 13Z Day 1 outlook (and
  * for its map files to match the text), then one Short of it.
  */
-import { parseOutlook, RISKS } from "../../bot/outlook";
+import { parseOutlook, RISKS } from "../spc-outlook";
 import {
   descriptionFor,
   descriptionForEs,
