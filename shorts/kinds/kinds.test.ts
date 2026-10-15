@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { StormReport } from "../../src/lib/feeds/storm-reports";
 import type { TropicalStorm } from "../../src/lib/feeds/tropical";
-import { parseOutlook } from "../../bot/outlook";
+import { parseOutlook } from "../spc-outlook";
 import { descriptionForEs, titleForEs, type GeoCollection } from "../meta";
 import { dayStart, isActive, recapDescription, recapEs, recapTitle, severeReports, summarize } from "./recap";
 import { compass, peakAhead, pickStorms, stageName, toKmh, toMph, tropicalText, upcoming, zoneOf } from "./tropical";

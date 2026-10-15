@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseOutlook } from "../bot/outlook";
+import { parseOutlook } from "./spc-outlook";
 import { descriptionFor, drawable, maxProbability, outlookDay, regionOf, tagsFor, titleFor, type GeoCollection } from "./meta";
 
 const SLIGHT = `SPC AC 141630
