@@ -89,7 +89,10 @@ export function useForecast() {
     queryKey: qk.forecast(loc),
     queryFn: ({ signal }) => loadForecast(loc.lat, loc.lon, source, googleKey, signal, translator(currentLang())),
     enabled,
-    refetchInterval: google && refetchInterval ? Math.max(refetchInterval, 30 * 60_000) : refetchInterval,
+    // After a failed load (the service busy, the connection gone), keep trying every minute
+    // instead of waiting for the next scheduled refresh.
+    refetchInterval: (q) =>
+      !enabled ? false : q.state.status === "error" ? 60_000 : google && refetchInterval ? Math.max(refetchInterval, 30 * 60_000) : (refetchInterval ?? false),
     staleTime: google ? 30 * 60_000 : 5 * 60_000,
     placeholderData: keepPreviousData,
   });
