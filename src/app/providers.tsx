@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { AlertWatcher } from "@/components/alerts/alert-watcher";
 import { DesktopTraySync } from "@/components/shell/desktop-tray-sync";
 import { LocationFollower } from "@/components/shell/location-follower";
-import { HttpError } from "@/lib/api/http";
+import { isTransient, retryDelay } from "@/lib/api/http";
 import { IS_STATIC_BUNDLE } from "@/lib/platform";
 import { themeVars } from "@/lib/addons/manifest";
 import { applyCustomVars, applyTheme, resolveTheme } from "@/lib/theme";
@@ -29,8 +29,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
           queries: {
             refetchOnWindowFocus: true,
             refetchIntervalInBackground: false,
-            // Client errors (bad params, 404) won't fix themselves on retry.
-            retry: (count, err) => count < 2 && !(err instanceof HttpError && err.status >= 400 && err.status < 500),
+            // Busy or unreachable services get a few tries with backoff; bad params and 404s don't.
+            retry: (count, err) => count < 4 && isTransient(err),
+            retryDelay,
             gcTime: 30 * 60_000,
           },
         },
