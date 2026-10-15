@@ -9,6 +9,19 @@ export class HttpError extends Error {
   }
 }
 
+/**
+ * Whether a failed request is worth trying again: a dropped connection, a
+ * timeout, a rate limit or a busy server (Open-Meteo answers "overloaded" with
+ * a 429 or 503). Other client errors (bad parameters, 404) won't fix themselves.
+ */
+export function isTransient(err: unknown): boolean {
+  if (!(err instanceof HttpError)) return true;
+  return err.status === 408 || err.status === 425 || err.status === 429 || err.status >= 500;
+}
+
+/** Wait before retry `n` (0-based): 1, 2, 4, 8 … seconds up to 30, with jitter so many tabs don't retry in step. */
+export const retryDelay = (n: number) => Math.min(30_000, 1_000 * 2 ** n) * (0.75 + Math.random() * 0.5);
+
 export interface GetJsonOptions extends RequestInit {
   timeoutMs?: number;
 }
