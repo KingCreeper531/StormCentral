@@ -43,7 +43,7 @@ export function RankProgress({ reputation, tier, nextTier }: { reputation: numbe
           {reputation} / {nextTier.min}
         </p>
       </div>
-      <Meter value={reputation - tier.min} max={nextTier.min - tier.min} color={tier.color} label={progress} className="mt-2" />
+      <Meter value={Math.max(0, reputation - tier.min)} max={nextTier.min - tier.min} color={tier.color} label={progress} className="mt-2" />
       <p className="label mt-1.5">
         {t.plural(toNext, "{n} more confirmation to reach {rank}.", "{n} more confirmations to reach {rank}.", { rank: name })}
       </p>

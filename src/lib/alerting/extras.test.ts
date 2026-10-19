@@ -67,7 +67,7 @@ const post = (over: Partial<PostDto>): PostDto => ({
   createdAt: NOW - 10 * 60_000,
   image: null,
   conditions: null,
-  author: { username: "spotter1", displayName: "Spotter One", avatarHue: 1, avatarUrl: null, reputation: 0, developer: false },
+  author: { username: "spotter1", displayName: "Spotter One", avatarHue: 1, avatarUrl: null, reputation: 0, developer: false, trusted: false },
   verifications: 0,
   comments: 0,
   viewerVerified: false,

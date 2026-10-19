@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, count, desc, eq, gt, isNull, lte, max, or, sql } from "drizzle-orm";
-import { isDeveloper, type SessionUser } from "../auth/session";
+import { isDeveloper, isTrustedSpotter, type SessionUser } from "../auth/session";
 import { getDb } from "../db/client";
 import { spotterWarnings, users } from "../db/schema";
 import { ringBounds, type Ring } from "../warngen/geometry";
@@ -32,7 +32,7 @@ export function issueReputation(): number {
 /** Whether `user` may issue warnings, and if not, why. */
 export async function issuePermission(user: SessionUser): Promise<{ ok: boolean; reason: string | null }> {
   if (user.suspendedUntil != null) return { ok: false, reason: "Your account is suspended." };
-  if (user.moderator || isDeveloper(user.username)) return { ok: true, reason: null };
+  if (user.moderator || isDeveloper(user.username) || isTrustedSpotter(user.username)) return { ok: true, reason: null };
   const need = issueReputation();
   if (need === 0) return { ok: true, reason: null };
   const db = await getDb();
@@ -82,7 +82,13 @@ function toDto(r: Row, viewerId: string, now: number): SpotterWarningDto {
     notes: r.notes,
     place: r.place,
     locations: parseJson(r.locations, isNames) ?? [],
-    issuer: { username: r.username, displayName: r.displayName, reputation: Number(r.reputation), developer: isDeveloper(r.username) },
+    issuer: {
+      username: r.username,
+      displayName: r.displayName,
+      reputation: Number(r.reputation),
+      developer: isDeveloper(r.username),
+      trusted: isTrustedSpotter(r.username),
+    },
     mine: r.userId === viewerId,
   };
 }
