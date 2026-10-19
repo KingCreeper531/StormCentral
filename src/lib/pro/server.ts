@@ -69,3 +69,10 @@ export function serverFrames(base: string, id: string, p: ServerProduct, count: 
     return [{ id: `srv-${id}-${f.time}`, time, tileUrl: url, maxzoom: 0, image: { url, coordinates: corners(p.bounds) } }];
   });
 }
+
+/**
+ * The Pro data server every user gets, set at build time with
+ * NEXT_PUBLIC_PRO_SERVER (Vercel and the release workflow). Empty until one is
+ * running: the products that need it are hidden from the Pro menus.
+ */
+export const PRO_SERVER = normalizeServerUrl(process.env.NEXT_PUBLIC_PRO_SERVER ?? "");

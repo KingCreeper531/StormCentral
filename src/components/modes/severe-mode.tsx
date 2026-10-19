@@ -10,7 +10,7 @@ import { stormTitle } from "@/lib/feeds/tropical-parse";
 import { distanceToGeometryKm, geometryContains, type BBox } from "@/lib/geo";
 import { eventName } from "@/lib/i18n/nws-events";
 import { useT } from "@/lib/i18n/use-t";
-import { FAMILIES, resolveTilts } from "@/lib/radar/products";
+import { FAMILIES, familiesAvailable, resolveTilts, siteProducts } from "@/lib/radar/products";
 import { iemSiteId } from "@/lib/radar/frames";
 import { satelliteLabel } from "@/lib/radar/satellite";
 import { getSite, nearestSites } from "@/lib/radar/site-utils";
@@ -171,11 +171,15 @@ export function SevereMode() {
   // ── Radar product resolution (driven by what IEM actually has) ────────────
   const isSite = radar.source === "site";
   const site = isSite ? (getSite(radar.site) ?? nearestSites(loc, 1)[0]!) : null;
-  const products = useRadarProducts(site ? iemSiteId(site.icao) : null);
-  const available = useMemo(() => (products.data?.products.length ? new Set(products.data.products) : null), [products.data]);
-  const tilts = isSite ? resolveTilts(radar.family, available) : [];
+  // What the site (or, on the mosaic, the nearest one a product button switches to) actually has.
+  const productSite = site ?? nearestSites(loc, 1)[0]!;
+  const products = useRadarProducts(iemSiteId(productSite.icao));
+  const available = useMemo(() => siteProducts(productSite.icao, products.data?.products), [productSite.icao, products.data]);
+  // A saved product the site no longer has (dual-pol that IEM stopped publishing) falls back to reflectivity.
+  const radarFamily = familiesAvailable(available).includes(radar.family) ? radar.family : "reflectivity";
+  const tilts = isSite ? resolveTilts(radarFamily, available) : [];
   const tilt = tilts.find((x) => x.prefix === radar.tilt) ?? tilts[0];
-  const productCode = isSite ? (tilt?.code ?? `N0${FAMILIES[radar.family].letters[0]}`) : "N0Q";
+  const productCode = isSite ? (tilt?.code ?? `N0${FAMILIES[radarFamily].letters[0]}`) : "N0Q";
 
   const loop = useRadarLoop({
     site: site?.icao ?? null,
@@ -273,7 +277,7 @@ export function SevereMode() {
     Escape: clearSelection,
   });
 
-  const family = isSite ? radar.family : "reflectivity";
+  const family = isSite ? radarFamily : "reflectivity";
 
   // ── Legend caption: where the data comes from ─────────────────────────────
   // With NOAA as the source, say so and how fresh its newest scan is.

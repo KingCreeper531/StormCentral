@@ -12,7 +12,6 @@ import { defaultDailyLayout, normalizeDailyLayout, type DailyItem } from "@/lib/
 import { isValidClock, isValidZone, setTimePrefs, type ClockPref, type ZonePref } from "@/lib/clock";
 import { isLangPref, type LangPref } from "@/lib/i18n/lang";
 import type { ThemePref } from "@/lib/theme";
-import { normalizeServerUrl } from "@/lib/pro/server";
 import { defaultUnitsForLocale, UNIT_PRESETS, type UnitPrefs } from "@/lib/weather/units";
 import { isModeId, type ModeId } from "@/modes/registry";
 
@@ -116,8 +115,6 @@ export interface AppState {
   language: LangPref;
   /** Professional mode: adds the Pro workspace (multi-panel radar, sampling, soundings) to the modes. */
   professional: boolean;
-  /** Professional mode: base URL of a Pro data server (pro-server/) for GOES RGBs and MRMS hail/rotation; empty = none. */
-  proServer: string;
   composerOpen: boolean;
   paletteOpen: boolean;
   setMode: (mode: ModeId) => void;
@@ -137,7 +134,6 @@ export interface AppState {
   setGoogleKey: (key: string) => void;
   setLanguage: (l: LangPref) => void;
   setProfessional: (on: boolean) => void;
-  setProServer: (url: string) => void;
   setComposerOpen: (open: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
 }
@@ -213,7 +209,6 @@ export const useAppStore = create<AppState>()(
       googleKey: "",
       language: "auto",
       professional: false,
-      proServer: "",
       composerOpen: false,
       paletteOpen: false,
       setMode: (mode) => {
@@ -242,7 +237,6 @@ export const useAppStore = create<AppState>()(
       setDailyLayout: (layout) => set({ dailyLayout: normalizeDailyLayout(layout) }),
       setGoogleKey: (googleKey) => set({ googleKey: googleKey.trim().slice(0, 200) }),
       setLanguage: (language) => set({ language }),
-      setProServer: (url) => set({ proServer: normalizeServerUrl(url) }),
       // Turning it off while in the Pro workspace goes back to the radar.
       setProfessional: (professional) => set((s) => (!professional && s.mode === "professional" ? { professional, mode: "severe", previousMode: s.mode } : { professional })),
       setComposerOpen: (composerOpen) => set({ composerOpen }),
@@ -254,7 +248,7 @@ export const useAppStore = create<AppState>()(
       // Rehydrated from a client effect so SSR markup and first client render match.
       skipHydration: true,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ mode: s.mode, location: s.location, units: s.units, theme: s.theme, radar: s.radar, drone: s.drone, airLayer: s.airLayer, radiusKm: s.radiusKm, clock: s.clock, timeZoneMode: s.timeZoneMode, followLocation: s.followLocation, widgetBackground: s.widgetBackground, forecastSource: s.forecastSource, dailyLayout: s.dailyLayout, googleKey: s.googleKey, language: s.language, professional: s.professional, proServer: s.proServer }),
+      partialize: (s) => ({ mode: s.mode, location: s.location, units: s.units, theme: s.theme, radar: s.radar, drone: s.drone, airLayer: s.airLayer, radiusKm: s.radiusKm, clock: s.clock, timeZoneMode: s.timeZoneMode, followLocation: s.followLocation, widgetBackground: s.widgetBackground, forecastSource: s.forecastSource, dailyLayout: s.dailyLayout, googleKey: s.googleKey, language: s.language, professional: s.professional }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<AppState>;
         return {
@@ -275,7 +269,6 @@ export const useAppStore = create<AppState>()(
           googleKey: typeof p.googleKey === "string" ? p.googleKey.slice(0, 200) : "",
           language: isLangPref(p.language) ? p.language : current.language,
           professional: p.professional === true,
-          proServer: typeof p.proServer === "string" ? normalizeServerUrl(p.proServer) : "",
           // The Pro workspace only exists while Professional mode is on.
           ...(isModeId(p.mode) && p.mode === "professional" && p.professional !== true ? { mode: "severe" as const } : {}),
         };

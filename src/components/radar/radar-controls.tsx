@@ -1,6 +1,6 @@
 "use client";
 
-import { familiesAvailable, FAMILIES, FAMILY_ORDER, resolveTilts, type ProductFamily, type TiltPrefix } from "@/lib/radar/products";
+import { familiesAvailable, FAMILIES, resolveTilts, type TiltPrefix } from "@/lib/radar/products";
 import { nearestSites, type RadarSite } from "@/lib/radar/site-utils";
 import { useFormat } from "@/hooks/use-format";
 import { useT } from "@/lib/i18n/use-t";
@@ -55,10 +55,11 @@ export function RadarControls({
   const fmt = useFormat();
   const t = useT();
   const isSite = settings.source === "site";
-  const families = isSite ? familiesAvailable(available) : (["reflectivity"] as ProductFamily[]);
-  const tilts = isSite ? resolveTilts(settings.family, available) : [];
+  // Only products the radar actually has: the rest would load an empty loop.
+  const families = familiesAvailable(available);
+  const activeFamily = isSite && families.includes(settings.family) ? settings.family : "reflectivity";
+  const tilts = isSite ? resolveTilts(activeFamily, available) : [];
   const nearby = nearestSites(location, 6);
-  const activeFamily = isSite ? settings.family : "reflectivity";
 
   return (
     <div className="space-y-5 text-sm">
@@ -105,8 +106,7 @@ export function RadarControls({
 
         <Field label={t("Product")} aside={sentenceCase(t(FAMILIES[activeFamily].label))}>
           <div className="grid grid-cols-3 gap-0.5 rounded-[var(--radius-control)] border border-line bg-surface-2 p-0.5">
-            {FAMILY_ORDER.map((fam) => {
-              const enabled = families.includes(fam);
+            {families.map((fam) => {
               const active = activeFamily === fam;
               return (
                 <button
@@ -114,10 +114,9 @@ export function RadarControls({
                   type="button"
                   title={sentenceCase(t(FAMILIES[fam].label))}
                   aria-pressed={active}
-                  onClick={() => onChange(isSite ? { family: fam } : { source: "site", family: fam })}
-                  disabled={isSite && !enabled}
+                  onClick={() => onChange(isSite || fam === "reflectivity" ? { family: fam } : { source: "site", family: fam })}
                   className={cn(
-                    "h-8 rounded-[4px] border font-mono text-xs font-medium transition-colors disabled:pointer-events-none disabled:opacity-35 pointer-coarse:h-11",
+                    "h-8 rounded-[4px] border font-mono text-xs font-medium transition-colors pointer-coarse:h-11",
                     active ? "border-line-strong bg-surface-3 text-ink" : "border-transparent text-ink-3 hover:text-ink",
                   )}
                 >
@@ -126,10 +125,10 @@ export function RadarControls({
               );
             })}
           </div>
-          {!isSite && <p className="label mt-1.5">{t("Velocity and dual-pol products switch to single-site data.")}</p>}
+          {!isSite && families.length > 1 && <p className="label mt-1.5">{t("The other products switch to single-site data.")}</p>}
         </Field>
 
-        {isSite && tilts.length > 0 && (
+        {isSite && tilts.length > 1 && (
           <Field label={t("Elevation tilt")}>
             <Segmented
               ariaLabel={t("Elevation tilt")}
