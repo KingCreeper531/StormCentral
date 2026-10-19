@@ -426,6 +426,16 @@ export function useSession() {
   });
 }
 
+/** Whether the server sends reports on to NOAA's mPING; asked only while the composer is open. */
+export function useMpingEnabled(enabled: boolean) {
+  return useQuery({
+    queryKey: ["mping"],
+    queryFn: ({ signal }) => getJson<{ mping?: boolean }>("/api/auth/me", { signal }).then((r) => r.mping === true),
+    enabled: COMMUNITY_ENABLED && enabled,
+    staleTime: 60 * 60_000,
+  });
+}
+
 export function useFeed(params: Record<string, string>) {
   return useInfiniteQuery({
     queryKey: qk.posts(params),

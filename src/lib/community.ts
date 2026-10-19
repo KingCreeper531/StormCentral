@@ -119,6 +119,8 @@ export const postSchema = z.object({
     .union([z.boolean(), z.enum(["true", "false", "on"])])
     .optional()
     .transform((v) => v === true || v === "true" || v === "on"),
+  /** Opt-in: also send it to NOAA's mPING, as this MPING_OPTIONS entry (lib/mping). */
+  mping: z.string().trim().max(40).optional(),
 });
 
 export const commentSchema = z.object({

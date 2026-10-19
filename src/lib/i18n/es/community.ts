@@ -14,6 +14,11 @@ export const COMMUNITY: Record<string, string> = {
   "Confirmed by NWS": "Confirmado por el NWS",
   "NWS storm report": "Reporte de tormenta del NWS",
   "Counts as {n} confirmations.": "Cuenta como {n} confirmaciones.",
+  "Also send to NOAA's mPING": "Enviar también a mPING de NOAA",
+  "Helps NWS forecasters and researchers. mPING gets the report type, time and location, not your name.":
+    "Ayuda a los meteorólogos del NWS y a investigadores. mPING recibe el tipo de reporte, la hora y la ubicación, no tu nombre.",
+  "What to send to mPING": "Qué enviar a mPING",
+  "What did you see?": "¿Qué viste?",
   Feed: "Lista de reportes",
   Latest: "Recientes",
   Nearby: "Cercanos",

@@ -165,6 +165,13 @@ function parseConditions(json: string | null): ConditionsSnapshot | null {
   }
 }
 
+/** Where a report is stored and shown: ~1.1 km by default to protect home locations, ~110 m when the spotter opts in. */
+export function storedPosition(lat: number, lon: number, precise?: boolean): LatLon {
+  const digits = precise ? 3 : 2;
+  const round = (v: number) => Math.round(v * 10 ** digits) / 10 ** digits;
+  return { lat: round(lat), lon: round(lon) };
+}
+
 export async function createPost(input: {
   userId: string;
   body: string;
@@ -181,9 +188,7 @@ export async function createPost(input: {
   const now = Date.now();
   const id = randomUUID();
   const mediaId = input.image ? randomUUID() : null;
-  // ~1.1 km default precision protects home locations; opt-in ~110 m.
-  const digits = input.precise ? 3 : 2;
-  const round = (v: number) => Math.round(v * 10 ** digits) / 10 ** digits;
+  const at = storedPosition(input.lat, input.lon, input.precise);
 
   await db.transaction(async (tx) => {
     if (input.image && mediaId) {
@@ -204,8 +209,8 @@ export async function createPost(input: {
       body: input.body,
       category: input.category,
       severity: input.severity,
-      lat: round(input.lat),
-      lon: round(input.lon),
+      lat: at.lat,
+      lon: at.lon,
       place: input.place || null,
       mediaId,
       conditions: input.conditions ? JSON.stringify(input.conditions) : null,

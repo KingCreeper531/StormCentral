@@ -2,9 +2,10 @@ import { after } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { conditionsSchema, firstIssue, isGenericPlace, MAX_IMAGE_BYTES, postSchema } from "@/lib/community";
 import { placeNameAt } from "@/lib/server/reverse-geocode";
-import { createPost, listPosts, type FeedQuery } from "@/lib/server/community-repo";
+import { createPost, listPosts, storedPosition, type FeedQuery } from "@/lib/server/community-repo";
 import { forbidden, sameOrigin, suspended, tooMany, unauthorized } from "@/lib/server/guard";
 import { imageSize, sniffImage, stripMetadata } from "@/lib/server/image";
+import { mpingEnabled, sendPostToMping } from "@/lib/server/mping";
 import { maybeSyncNwsConfirmations } from "@/lib/server/nws-sync";
 import { rateLimit } from "@/lib/server/rate-limit";
 import { badRequest } from "@/lib/server/respond";
@@ -85,6 +86,13 @@ export async function POST(req: Request) {
 
   // A GPS fix without a town name ("My location") gets one from the coordinates.
   const place = isGenericPlace(parsed.data.place) ? ((await placeNameAt(parsed.data.lat, parsed.data.lon)) ?? undefined) : parsed.data.place;
-  const id = await createPost({ userId: user.id, ...parsed.data, place, conditions, image });
+  const { mping, ...post } = parsed.data;
+  const id = await createPost({ userId: user.id, ...post, place, conditions, image });
+  // Sent on to mPING after answering, at the same rounded position everyone else sees.
+  if (mping && mpingEnabled()) {
+    const at = storedPosition(post.lat, post.lon, post.precise);
+    const observed = Date.now();
+    after(() => sendPostToMping(id, { category: post.category, option: mping, lat: at.lat, lon: at.lon, at: observed }));
+  }
   return Response.json({ id }, { status: 201, headers: noStore });
 }
