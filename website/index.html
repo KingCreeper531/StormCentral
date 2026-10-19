@@ -6,7 +6,7 @@
     <title>Storm Central: free radar, severe weather alerts and forecasts</title>
     <meta
       name="description"
-      content="Storm Central is a free, open-source weather app for Windows, Android and the web: live NEXRAD radar, severe weather alerts with storm arrival times, and forecasts from eleven models."
+      content="Storm Central is a free, open-source weather app for Windows, Android and the web: live NEXRAD radar with every watch and warning, severe weather alerts with storm arrival times, forecasts from eleven models, and an AWIPS-style Professional mode."
     />
     <meta name="theme-color" content="#000000" />
     <meta name="color-scheme" content="dark" />
@@ -21,7 +21,7 @@
     <meta property="og:title" content="Storm Central: free radar, severe weather alerts and forecasts" />
     <meta
       property="og:description"
-      content="Live NEXRAD radar, severe weather alerts with storm arrival times, and forecasts from eleven models. Free for Windows, Android and the web."
+      content="Live NEXRAD radar with every watch and warning, severe weather alerts with storm arrival times, forecasts from eleven models, and an AWIPS-style Professional mode. Free for Windows, Android and the web."
     />
     <meta property="og:image" content="https://www.stormcentralwx.com/assets/og.png" />
     <meta property="og:image:width" content="1200" />
@@ -44,7 +44,7 @@
         "applicationCategory": "WeatherApplication",
         "operatingSystem": "Windows 10, Windows 11, Android 7.0 or newer, Web",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-        "description": "Free, open-source weather app with live NEXRAD radar, severe weather alerts with storm arrival times, and forecasts from eleven models.",
+        "description": "Free, open-source weather app with live NEXRAD radar, every NWS watch and warning, severe weather alerts with storm arrival times, forecasts from eleven models, and an AWIPS-style Professional mode.",
         "image": "https://www.stormcentralwx.com/assets/og.png",
         "url": "https://www.stormcentralwx.com/",
         "downloadUrl": "https://github.com/KingCreeper531/StormCentral/releases/latest",
@@ -66,6 +66,7 @@
         <nav class="nav-links" aria-label="Sections">
           <a href="#tour">Tour</a>
           <a href="#alerts">Alerts</a>
+          <a href="#pro">Pro</a>
           <a href="#features">Features</a>
           <a href="#download">Download</a>
         </nav>
@@ -98,7 +99,7 @@
               <span class="btn-icon"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
             </a>
           </div>
-          <p class="hero-meta" id="hero-meta">Version 0.4.5 for Windows 10 and 11, Android 7 and newer, and any modern browser.</p>
+          <p class="hero-meta" id="hero-meta">Version 0.4.8 for Windows 10 and 11, Android 7 and newer, and any modern browser.</p>
         </div>
         <a class="scroll-cue" href="#showcase" aria-label="Scroll to the tour"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></a>
       </section>
@@ -149,10 +150,12 @@
               <p class="step-num">Radar</p>
               <h3>Radar that keeps up with storms</h3>
               <p>
-                The national mosaic or any single NEXRAD site, with velocity, correlation coefficient and the rest. Warning polygons in official colors,
-                projected storm tracks with the arrival time at your location, and six hours of future radar after the live loop.
+                The national mosaic or any single NEXRAD site, with velocity, correlation coefficient and the rest. Every watch, warning and advisory in
+                official colors, projected storm tracks with the arrival time at your location, and six hours of future radar after the live loop.
               </p>
               <ul class="ticks">
+                <li>SPC mesoscale discussions and watch boxes, and WPC heavy-rain discussions</li>
+                <li>Radar from Canada, Germany, Finland, the Netherlands and Japan, looping in step with NEXRAD</li>
                 <li>Lightning, storm reports, hail cores and rotation from NEXRAD storm cells</li>
                 <li>Hurricane cones and tracks, and GOES satellite that loops with the radar</li>
                 <li>Export the loop as a GIF or video</li>
@@ -257,12 +260,70 @@
         </div>
       </section>
 
+      <!-- Professional mode: the AWIPS-style workspace. -->
+      <section class="pro" id="pro" aria-labelledby="pro-title">
+        <div class="section-head reveal">
+          <span class="badge">New in 0.4.8</span>
+          <h2 id="pro-title">Professional mode</h2>
+          <p>
+            A forecaster-style radar workspace for spotters, chasers and anyone who reads radar for fun. Turn it on in Settings and it becomes the
+            sixth mode.
+          </p>
+        </div>
+        <div class="pro-stage reveal">
+          <figure class="window">
+            <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i><span>Professional mode</span></div>
+            <img
+              src="assets/shots/pro-1600.webp"
+              srcset="assets/shots/pro-900.webp 900w, assets/shots/pro-1600.webp 1600w"
+              sizes="(max-width: 1200px) 94vw, 1120px"
+              width="1600"
+              height="900"
+              loading="lazy"
+              alt="Professional mode with four synced radar and satellite panels, warning polygons on each, and the cursor readout along the bottom."
+            />
+          </figure>
+        </div>
+        <div class="feature-grid">
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18"/><path d="M3 12h18"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+            <h3>Up to nine synced panels</h3>
+            <p>Pan, zoom and loop together, with each panel on the same moment and a crosshair that follows your cursor across all of them.</p>
+          </article>
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></svg>
+            <h3>Raw NEXRAD, decoded</h3>
+            <p>Correlation coefficient, ZDR, hydrometeor type and KDP at every tilt, plus digital VIL and echo tops. On a computer, any slice of the full radar volume. The readout shows the exact value under your cursor.</p>
+          </article>
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg>
+            <h3>Soundings and cross-sections</h3>
+            <p>Click anywhere for a model Skew-T with CAPE, CIN and lapse rates, and a hodograph with storm motion and helicity. Or draw a line for a vertical cross-section.</p>
+          </article>
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>
+            <h3>Storm tracking</h3>
+            <p>A storm vector from two clicks, a time-of-arrival fan for your places, and a warning inspector with each warning's damage threat and tags.</p>
+          </article>
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18v-6a5 5 0 1 1 10 0v6"/><path d="M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z"/><path d="M21 12h1"/><path d="M18.5 4.5 18 5"/><path d="M2 12h1"/><path d="M12 2v1"/><path d="m4.929 4.929.707.707"/><path d="M12 12v6"/></svg>
+            <h3>WarnGen for spotters</h3>
+            <p>Click the storm and a polygon is drawn along its track. Tag the hail, wind and tornado threat, check the warning text, and send it to signed-in spotters. Always marked unofficial.</p>
+          </article>
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 7 9 3 5 7l4 4"/><path d="m17 11 4 4-4 4-4-4"/><path d="m8 12 4 4 6-6-4-4Z"/><path d="m16 8 3-3"/><path d="M9 21a6 6 0 0 0-6-6"/></svg>
+            <h3>Satellite and national products</h3>
+            <p>GOES visible, infrared, water vapor, Air Mass and GeoColor, MRMS composite reflectivity and echo tops, and other countries' radar, all on the same loop.</p>
+          </article>
+        </div>
+      </section>
+
       <!-- Numbers count up as they come into view. -->
       <section class="numbers" aria-label="Storm Central in numbers">
         <div class="numbers-grid">
           <div class="num reveal"><span class="num-value" data-count="11">11</span><span class="num-label">forecast models to choose from</span></div>
-          <div class="num reveal"><span class="num-value" data-count="6">6</span><span class="num-label">radar products, from reflectivity to hydrometeor type</span></div>
-          <div class="num reveal"><span class="num-value" data-count="5">5</span><span class="num-label">modes: Daily, Radar, UAV pilot, Angler, Air</span></div>
+          <div class="num reveal"><span class="num-value" data-count="28">28</span><span class="num-label">radar and satellite products in Professional mode</span></div>
+          <div class="num reveal"><span class="num-value" data-count="6">6</span><span class="num-label">modes: Daily, Radar, UAV pilot, Angler, Air, Pro</span></div>
           <div class="num reveal"><span class="num-value" data-count="0">0</span><span class="num-label">ads, accounts or API keys required</span></div>
         </div>
       </section>
@@ -271,7 +332,7 @@
       <section class="features" id="features" aria-labelledby="features-title">
         <div class="section-head reveal">
           <h2 id="features-title">Everything else it does</h2>
-          <p>Built on free and open data from NOAA, the National Weather Service and Open-Meteo.</p>
+          <p>Built on free and open data from NOAA, the National Weather Service, Open-Meteo and other countries' weather services.</p>
         </div>
         <div class="feature-grid">
           <article class="feature reveal">
@@ -283,6 +344,16 @@
             <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>
             <h3>Spotter network</h3>
             <p>Post geotagged reports with photos, verify each other's, and see them on the radar. Locations are rounded for privacy.</p>
+          </article>
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <h3>Every watch and advisory</h3>
+            <p>Watches, advisories, statements and marine products on the map in official colors, along with SPC and WPC discussions. Pick which ones to show.</p>
+          </article>
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+            <h3>Radar beyond the US</h3>
+            <p>Canada, Germany, Finland, the Netherlands and Japan, straight from their weather services. Canadian and German warnings too.</p>
           </article>
           <article class="feature reveal">
             <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
@@ -397,7 +468,7 @@
         </div>
 
         <p class="dl-foot reveal">
-          <span id="dl-version">Latest version: 0.4.5.</span>
+          <span id="dl-version">Latest version: 0.4.8.</span>
           <a href="https://github.com/KingCreeper531/StormCentral/releases">Release notes and older versions</a>.
         </p>
       </section>
@@ -419,7 +490,10 @@
           <a href="https://storm-central-pi.vercel.app/privacy">Privacy</a>
         </nav>
       </div>
-      <p class="footer-fine">Data from NOAA, the National Weather Service, the Storm Prediction Center, the Iowa Environmental Mesonet and Open-Meteo.</p>
+      <p class="footer-fine">
+        Data from NOAA, the National Weather Service, the Storm Prediction Center, the Iowa Environmental Mesonet and Open-Meteo, with radar and
+        warnings from Environment and Climate Change Canada, Deutscher Wetterdienst, FMI, KNMI and the Japan Meteorological Agency.
+      </p>
     </footer>
 
     <script src="vendor/lenis.min.js" defer></script>

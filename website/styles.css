@@ -807,6 +807,31 @@ section[id] {
   line-height: 1.4;
 }
 
+/* ── Professional mode ───────────────────────────────────────────────── */
+
+.pro {
+  padding: 120px 0 40px;
+}
+.badge {
+  display: inline-block;
+  margin-bottom: 16px;
+  padding: 4px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+}
+.pro-stage {
+  max-width: 1120px;
+  margin: 0 auto 56px;
+  padding: 0 var(--gutter);
+}
+/* Six cards: three to a row on wide screens, not four and two. */
+.pro .feature-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+}
+
 /* ── Features ────────────────────────────────────────────────────────── */
 
 .features {
