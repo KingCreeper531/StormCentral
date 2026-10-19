@@ -1,0 +1,53 @@
+{
+  "title": "Severe Weather Outlook, Mon, Oct 19: Marginal Risk #shorts",
+  "description": "Today's severe weather outlook from NOAA's Storm Prediction Center: Marginal Risk (level 1 of 5) for the Southeast Arizona/southwest New Mexico.\n\nThunderstorms may produce isolated marginally severe hail and gusty winds this afternoon and early evening across parts of southeast Arizona and southwest New Mexico.\n\nTornado 0%, damaging wind 5%, large hail 5% (the chance within 25 miles of a point).\n\nGet severe weather alerts for your location, free: https://www.stormcentralwx.com\n\nStorm Central is not an official warning system. Always follow the National Weather Service and your local emergency management.\n\n#weather #severeweather #tornado #shorts",
+  "tags": [
+    "severe weather",
+    "weather outlook",
+    "storm prediction center",
+    "tornado",
+    "weather forecast",
+    "Storm Central",
+    "marginal risk",
+    "Southeast Arizona/southwest New Mexico"
+  ],
+  "privacy": "public",
+  "localizations": {
+    "es": {
+      "title": "Pronóstico de tormentas severas, lun 19 de oct: Riesgo marginal (nivel 1 de 5) #shorts",
+      "description": "Pronóstico de tormentas severas de hoy, del Centro de Predicción de Tormentas (SPC) de la NOAA: Riesgo marginal (nivel 1 de 5), en la región Southeast Arizona/southwest New Mexico.\n\nTornado 0%, vientos dañinos 5%, granizo grande 5% (la probabilidad a menos de 40 km de un punto).\n\nRecibe alertas de clima severo para tu ubicación, gratis: https://www.stormcentralwx.com\n\nStorm Central no es un sistema oficial de alertas. Sigue siempre las indicaciones del Servicio Meteorológico Nacional y de las autoridades de protección civil de tu localidad.\n\n#clima #tormentas #tornado #shorts"
+    }
+  },
+  "playlist": "Daily Severe Weather Outlook",
+  "narration": [
+    {
+      "at": 0.4,
+      "text": "Here's your severe weather outlook for Monday, October 19."
+    },
+    {
+      "at": 4,
+      "text": "We’re highlighting a Marginal Risk, level 1 of 5, for southeast Arizona and southwest New Mexico.",
+      "plain": "The top risk today is a Marginal Risk, level 1 of 5, for the Southeast Arizona/southwest New Mexico."
+    },
+    {
+      "at": 10.2,
+      "text": "Thankfully, tornadoes aren’t in the forecast today.",
+      "plain": "Tornadoes aren't expected."
+    },
+    {
+      "at": 13.6,
+      "text": "A chance for gusty winds exists, around 5 percent.",
+      "plain": "Damaging winds, up to 5 percent."
+    },
+    {
+      "at": 17,
+      "text": "We’re also watching for some hail, also about 5 percent.",
+      "plain": "And large hail, up to 5 percent."
+    },
+    {
+      "at": 20.6,
+      "text": "So, thunderstorms could bring a bit of hail and some gusty winds this afternoon and evening.",
+      "plain": "Thunderstorms may produce isolated marginally severe hail and gusty winds this afternoon and early evening across parts of southeast Arizona and southwest New Mexico."
+    }
+  ]
+}
