@@ -34,6 +34,8 @@ export interface RadarMap {
           tiles: string[];
           tileSize: number;
           maxzoom: number;
+          minzoom?: number;
+          bounds?: [number, number, number, number];
           attribution?: string;
         }
       | { type: "image"; url: string; coordinates: [[number, number], [number, number], [number, number], [number, number]] },
@@ -125,10 +127,16 @@ export class RadarLayerManager {
     this.scheduleStatus();
   }
 
-  /** Make frame `index` the only visible frame. */
+  /** Make frame `index` the only visible frame; a negative index hides them all. */
   show(index: number) {
+    if (this.destroyed) return;
+    if (index < 0) {
+      if (this.visibleId) this.setLayerOpacity(this.visibleId, 0);
+      this.visibleId = null;
+      return;
+    }
     const frame = this.frames[index];
-    if (!frame || frame.id === this.visibleId || this.destroyed) return;
+    if (!frame || frame.id === this.visibleId) return;
     const prev = this.visibleId;
     if (this.moving) {
       this.setVisible(frame.id, true);
@@ -190,6 +198,9 @@ export class RadarLayerManager {
             tiles: [f.tileUrl],
             tileSize: f.tileSize ?? 256,
             maxzoom: f.maxzoom,
+            ...(f.minzoom != null && { minzoom: f.minzoom }),
+            // No tile requests outside the source's coverage.
+            ...(f.bounds && { bounds: f.bounds }),
             attribution: f.attribution ?? this.opts.attribution,
           },
     );

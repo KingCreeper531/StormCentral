@@ -12,6 +12,7 @@ import type { ProTool } from "@/store/pro-store";
 import { mapAlive, SLOTS, useMapContext } from "../map/map-view";
 import { useGeoJsonLayers } from "../map/layers/use-geojson-source";
 import { usePro } from "./pro-context";
+import { warngenDragging } from "./warngen-overlay";
 
 /**
  * A pane's raster loop: the shared frame pool (RadarLayerManager) driven by
@@ -175,6 +176,7 @@ export function ToolClicks({ tool }: { tool: ProTool }) {
       else if (active === "xsect") act.xsect(p);
       else if (active === "vector") act.vector(p);
       else if (active === "toa") act.toa(p);
+      else if (active === "warngen" && !warngenDragging()) act.warngen(p);
     };
     map.on("click", onClick);
     return () => {

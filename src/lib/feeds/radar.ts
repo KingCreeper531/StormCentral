@@ -1,4 +1,5 @@
 import type { ProductsResponse, ScansResponse } from "../api/types";
+import { gridTimes, INTL_RADARS, isIntlRadarId, JMA_TIMES_URL, parseJmaTimes, type IntlRadarId } from "../radar/intl";
 import { noaaCapabilitiesUrl, parseTimeDimension } from "../radar/noaa";
 import { alternateProducts } from "../radar/products";
 import { parseIemProducts, parseIemScans } from "./parse";
@@ -81,5 +82,33 @@ export const noaaTimesFeed: Feed<NoaaTimesResponse> = {
     const newest = Date.parse(all.at(-1) ?? "");
     const times = Number.isFinite(newest) ? all.filter((t) => Date.parse(t) >= newest - minutes * 60_000) : [];
     return { workspace, layer, times };
+  },
+};
+
+export interface IntlTimesResponse {
+  src: IntlRadarId;
+  /** ISO times the source has (observed frames only), oldest first. */
+  times: string[];
+}
+
+/** `src=eccc&minutes=180`: the times another country's radar composite has (lib/radar/intl). */
+export const intlTimesFeed: Feed<IntlTimesResponse> = {
+  path: "/api/radar/intl",
+  maxAge: 60,
+  async load(sp) {
+    const src = sp.get("src");
+    if (!isIntlRadarId(src)) throw badParams("invalid src");
+    const minutes = Math.min(250, Math.max(10, Number(sp.get("minutes")) || 120));
+    const r = INTL_RADARS[src];
+    const now = Date.now();
+    let all: string[];
+    if (r.times === "grid") all = gridTimes(r, now, 250);
+    else if (r.times === "jma") all = await cached("intl:jma", 60_000, async () => parseJmaTimes(await upstreamJson<{ basetime?: string; validtime?: string }[]>(JMA_TIMES_URL)));
+    else all = await cached(`intl:${src}`, 120_000, async () => parseTimeDimension(await upstreamText(r.capsUrl!, { timeoutMs: 15_000 })));
+    // Capabilities can list nowcast steps past the present: observed frames only.
+    const past = all.filter((t) => Date.parse(t) <= now + 60_000);
+    const newest = Date.parse(past.at(-1) ?? "");
+    const times = Number.isFinite(newest) ? past.filter((t) => Date.parse(t) >= newest - minutes * 60_000) : [];
+    return { src, times };
   },
 };

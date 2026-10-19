@@ -9,6 +9,8 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { isProProductId, type ProProductId } from "@/lib/pro/products";
 import { TILTS, type TiltPrefix } from "@/lib/radar/products";
 import type { LatLon } from "@/lib/geo";
+import type { Ring } from "@/lib/warngen/geometry";
+import { WARN_PRODUCTS, type WarnBasis, type WarnKind, type WarnThreat } from "@/lib/warngen/products";
 
 export const LAYOUTS = ["1x1", "1x2", "2x2", "3x3"] as const;
 export type Layout = (typeof LAYOUTS)[number];
@@ -27,7 +29,43 @@ export interface PaneConfig {
   cells: boolean;
 }
 
-export type ProTool = "inspect" | "sounding" | "xsect" | "vector" | "toa";
+export type ProTool = "inspect" | "sounding" | "xsect" | "vector" | "toa" | "warngen";
+
+/**
+ * The WarnGen editor's draft (this session only). The storm is the storm
+ * vector's picks; the polygon is drawn from its track until a corner is
+ * dragged, after which `polygon` holds the edited shape.
+ */
+export interface WarnDraft {
+  kind: WarnKind;
+  minutes: number;
+  basis: WarnBasis;
+  hail: number;
+  wind: number;
+  tornadoPossible: boolean;
+  threat: WarnThreat;
+  notes: string;
+  /** Hand-edited polygon; null = drawn from the storm's track. */
+  polygon: Ring | null;
+  /** Typed-in motion (toward, knots) replacing the picked track; null = from the picks. */
+  motion: { headingDeg: number; speedKt: number } | null;
+  /** Updating this issued warning (its id) instead of issuing a new one. */
+  editing: string | null;
+}
+
+export const newDraft = (kind: WarnKind = "SVR"): WarnDraft => ({
+  kind,
+  minutes: WARN_PRODUCTS[kind].defaultMinutes,
+  basis: "radar",
+  hail: kind === "SVR" ? 1 : 0,
+  wind: kind === "SVR" ? 60 : 0,
+  tornadoPossible: false,
+  threat: "base",
+  notes: "",
+  polygon: null,
+  motion: null,
+  editing: null,
+});
 
 /** Two clicks on storm centroids at two loop times. */
 export interface StormVector {
@@ -47,6 +85,7 @@ export interface ProState {
   vector: StormVector | null;
   /** Points of interest for the time-of-arrival fan (besides your location and saved places). */
   toaPoints: (LatLon & { name: string })[];
+  warnDraft: WarnDraft;
   setLayout: (l: Layout) => void;
   setPane: (id: string, patch: Partial<Omit<PaneConfig, "id">>) => void;
   setSite: (icao: string | null) => void;
@@ -56,6 +95,8 @@ export interface ProState {
   setVector: (v: StormVector | null) => void;
   addToaPoint: (p: LatLon & { name: string }) => void;
   clearToaPoints: () => void;
+  setWarnDraft: (patch: Partial<WarnDraft> | ((d: WarnDraft) => Partial<WarnDraft>)) => void;
+  resetWarnDraft: (kind?: WarnKind) => void;
 }
 
 /** 2×2 opens on products every site has (super-res REF/VEL from NOAA, SRV, MRMS); dual-pol fills out the 3×3. */
@@ -97,6 +138,7 @@ export const useProStore = create<ProState>()(
       tool: "inspect",
       vector: null,
       toaPoints: [],
+      warnDraft: newDraft(),
       setLayout: (layout) => set({ layout }),
       setPane: (id, patch) => set((s) => ({ panes: s.panes.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
       setSite: (site) => set({ site }),
@@ -106,6 +148,8 @@ export const useProStore = create<ProState>()(
       setVector: (vector) => set({ vector }),
       addToaPoint: (p) => set((s) => ({ toaPoints: [...s.toaPoints, p].slice(-8) })),
       clearToaPoints: () => set({ toaPoints: [] }),
+      setWarnDraft: (patch) => set((s) => ({ warnDraft: { ...s.warnDraft, ...(typeof patch === "function" ? patch(s.warnDraft) : patch) } })),
+      resetWarnDraft: (kind) => set((s) => ({ warnDraft: newDraft(kind ?? s.warnDraft.kind) })),
     }),
     {
       name: "stormcentral:pro",

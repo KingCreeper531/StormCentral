@@ -157,6 +157,52 @@ export const flags = sqliteTable(
   ],
 );
 
+/**
+ * Spotter WarnGen: unofficial warnings a spotter drew and issued from
+ * Professional mode, shown only to signed-in spotter-network members. One
+ * row per warning; an update replaces the polygon, time and tags and bumps
+ * `revision`. The product text is generated from these fields when shown.
+ */
+export const spotterWarnings = sqliteTable(
+  "spotter_warnings",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Per-year sequence ("Spotter Tornado Warning #12"). */
+    year: integer("year").notNull(),
+    number: integer("number").notNull(),
+    kind: text("kind").notNull(),
+    /** Closed [lon, lat] ring as JSON. */
+    polygon: text("polygon").notNull(),
+    /** Bounding box, for the time/area queries. */
+    west: real("west").notNull(),
+    south: real("south").notNull(),
+    east: real("east").notNull(),
+    north: real("north").notNull(),
+    issuedAt: integer("issued_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+    expiresAt: integer("expires_at").notNull(),
+    cancelledAt: integer("cancelled_at"),
+    revision: integer("revision").notNull().default(0),
+    /** {lat, lon, t} of the storm when issued, JSON or null. */
+    storm: text("storm"),
+    /** {headingDeg, speedKt}, JSON or null (stationary). */
+    motion: text("motion"),
+    basis: text("basis").notNull(),
+    hail: real("hail").notNull().default(0),
+    wind: integer("wind").notNull().default(0),
+    tornadoPossible: integer("tornado_possible").notNull().default(0),
+    threat: text("threat").notNull().default("base"),
+    notes: text("notes"),
+    place: text("place"),
+    /** Town names inside the polygon, JSON array. */
+    locations: text("locations"),
+  },
+  (t) => [index("spotter_warnings_expires_idx").on(t.expiresAt), index("spotter_warnings_user_idx").on(t.userId, t.issuedAt), uniqueIndex("spotter_warnings_number_idx").on(t.year, t.number)],
+);
+
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
@@ -246,9 +292,39 @@ CREATE TABLE IF NOT EXISTS flags (
 CREATE UNIQUE INDEX IF NOT EXISTS flags_once_idx ON flags(reporter_id, target_type, target_id);
 CREATE INDEX IF NOT EXISTS flags_target_idx ON flags(target_type, target_id, status);
 CREATE INDEX IF NOT EXISTS flags_status_idx ON flags(status, created_at);
+CREATE TABLE IF NOT EXISTS spotter_warnings (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  year INTEGER NOT NULL,
+  number INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  polygon TEXT NOT NULL,
+  west REAL NOT NULL,
+  south REAL NOT NULL,
+  east REAL NOT NULL,
+  north REAL NOT NULL,
+  issued_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  cancelled_at INTEGER,
+  revision INTEGER NOT NULL DEFAULT 0,
+  storm TEXT,
+  motion TEXT,
+  basis TEXT NOT NULL,
+  hail REAL NOT NULL DEFAULT 0,
+  wind INTEGER NOT NULL DEFAULT 0,
+  tornado_possible INTEGER NOT NULL DEFAULT 0,
+  threat TEXT NOT NULL DEFAULT 'base',
+  notes TEXT,
+  place TEXT,
+  locations TEXT
+);
+CREATE INDEX IF NOT EXISTS spotter_warnings_expires_idx ON spotter_warnings(expires_at);
+CREATE INDEX IF NOT EXISTS spotter_warnings_user_idx ON spotter_warnings(user_id, issued_at);
+CREATE UNIQUE INDEX IF NOT EXISTS spotter_warnings_number_idx ON spotter_warnings(year, number);
 `;
 
-export const schema = { users, sessions, passwordResets, media, posts, verifications, comments, blocks, flags };
+export const schema = { users, sessions, passwordResets, media, posts, verifications, comments, blocks, flags, spotterWarnings };
 
 /**
  * Columns added after a table first shipped. CREATE TABLE IF NOT EXISTS

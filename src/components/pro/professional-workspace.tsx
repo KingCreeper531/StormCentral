@@ -2,8 +2,10 @@
 
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useForecast, useNationalAlerts, useStormCells } from "@/hooks/queries";
+import { useForecast, useStormCells } from "@/hooks/queries";
 import { useHotkeys } from "@/hooks/use-hotkeys";
+import { useMapAlerts } from "@/hooks/use-map-alerts";
+import { useNow } from "@/hooks/use-now";
 import { useT } from "@/lib/i18n/use-t";
 import type { LatLon } from "@/lib/geo";
 import { isSatellite } from "@/lib/pro/products";
@@ -17,6 +19,8 @@ import { cn } from "@/lib/utils";
 import { useAlertsStore } from "@/store/alerts-store";
 import { useAppStore } from "@/store/app-store";
 import { PANE_COUNT, useProStore, type Layout } from "@/store/pro-store";
+import { AlertDetail } from "../radar/alert-detail";
+import { AlertKindsPicker } from "../radar/alert-kinds";
 import { IconButton } from "../ui/button";
 import { PanelBoundary } from "../ui/panel-boundary";
 import { CrossSectionPanel } from "./cross-section-panel";
@@ -27,6 +31,7 @@ import { ProProvider, type PaneProbe, type ProContext, type ToolActions } from "
 import { ReadoutHud } from "./readout-hud";
 import { SoundingPanel } from "./sounding-panel";
 import { StormToolsPanel } from "./storm-tools-panel";
+import { WarnGenPanel } from "./warngen-panel";
 import { ProToolbar, TOOLS } from "./toolbar";
 import { useProCaps } from "./use-pro-caps";
 
@@ -62,6 +67,8 @@ export function ProfessionalWorkspace() {
   const addToaPoint = useProStore((s) => s.addToaPoint);
   const clearToaPoints = useProStore((s) => s.clearToaPoints);
   const places = useAlertsStore((s) => s.places);
+  const radar = useAppStore((s) => s.radar);
+  const setRadar = useAppStore((s) => s.setRadar);
 
   // Phones get one or two stacked panels.
   const layout: Layout = narrow && (storedLayout === "2x2" || storedLayout === "3x3") ? "1x2" : storedLayout;
@@ -75,8 +82,10 @@ export function ProfessionalWorkspace() {
   const site = getSite(pinned) ?? nearestSites(home, 1)[0]!;
 
   // ── Shared overlays ───────────────────────────────────────────────────────
-  const national = useNationalAlerts(true);
-  const alerts = useMemo(() => (national.data?.alerts ?? []).filter((a) => a.geometry), [national.data]);
+  // Storm-based warnings plus the hazard-map products picked in the radar settings.
+  const { all: mapAlerts } = useMapAlerts();
+  const alerts = useMemo(() => mapAlerts.filter((a) => a.geometry), [mapAlerts]);
+  const now = useNow();
   const cellsQ = useStormCells(panes.some((p) => p.cells));
   const cells = useMemo(() => cellsQ.data?.cells ?? [], [cellsQ.data]);
   const timeZone = useForecast().data?.timezone;
@@ -157,6 +166,14 @@ export function ProfessionalWorkspace() {
         setPanelOpen(true);
       },
       toa: (p) => addToaPoint({ ...p, name: `${t("Point")} ${useProStore.getState().toaPoints.length + 1}` }),
+      // Drag-me-to-storm: the first click places the storm, a second (on another frame) tracks it; then clicks are left alone.
+      warngen: (p) => {
+        const v = useProStore.getState().vector;
+        const at = { ...p, t: syncTime(sync.getState()) };
+        if (!v) setVector({ a: at, b: null });
+        else if (!v.b) setVector({ a: v.a, b: at });
+        setPanelOpen(true);
+      },
       selectAlert: (id) => {
         if (toolRef.current !== "inspect") return;
         setSelectedAlert(id);
@@ -196,6 +213,7 @@ export function ProfessionalWorkspace() {
   const panel = (() => {
     if (tool === "sounding") return <SoundingPanel point={soundingAt} motion={motion} />;
     if (tool === "xsect") return xsect?.b ? <CrossSectionPanel a={xsect.a} b={xsect.b} /> : <p className="p-3 text-[12px] text-ink-3">{t(xsect ? "Now click the end point (A′)." : "Click the start point (A) on any panel.")}</p>;
+    if (tool === "warngen") return <WarnGenPanel timeZone={timeZone} />;
     if (tool === "vector" || tool === "toa")
       return (
         <StormToolsPanel
@@ -207,8 +225,22 @@ export function ProfessionalWorkspace() {
           onClearPoints={clearToaPoints}
         />
       );
-    if (activeAlert) return <IbwInspector alert={activeAlert} onClose={() => setSelectedAlert(null)} />;
-    return <p className="p-3 text-[12px] text-ink-3">{t("Click a warning polygon to inspect its impact-based tags. Pick a tool above for soundings, cross-sections and storm tracking.")}</p>;
+    if (activeAlert)
+      // Storm-based NWS warnings carry IBW tags; everything else (watches, advisories, discussions, other countries) gets the plain text.
+      return !activeAlert.area && !activeAlert.lean && (activeAlert.source ?? "nws") === "nws" ? (
+        <IbwInspector alert={activeAlert} onClose={() => setSelectedAlert(null)} />
+      ) : (
+        <AlertDetail alert={activeAlert} now={now} timeZone={timeZone} onClose={() => setSelectedAlert(null)} className="p-3" />
+      );
+    return (
+      <div className="space-y-3 p-3">
+        <p className="text-[12px] text-ink-3">{t("Click a warning polygon to inspect its impact-based tags. Pick a tool above for soundings, cross-sections and storm tracking.")}</p>
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-semibold text-ink-2">{t("Storm-based warnings always show. Also draw:")}</p>
+          <AlertKindsPicker settings={radar} onChange={setRadar} compact />
+        </div>
+      </div>
+    );
   })();
   const vectorSameTime = vector?.b && !motion;
 

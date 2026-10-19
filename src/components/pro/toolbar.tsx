@@ -1,12 +1,13 @@
 "use client";
 
-import { Crosshair, Layers, MousePointer2, Pause, Play, Route, Scissors, SkipBack, SkipForward, Square, Columns2, Grid2x2, Grid3x3, Waves } from "lucide-react";
+import { Crosshair, Layers, MousePointer2, Pause, Play, Route, Scissors, Siren, SkipBack, SkipForward, Square, Columns2, Grid2x2, Grid3x3, Waves } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { useT } from "@/lib/i18n/use-t";
 import { syncTime, useProSync } from "@/lib/pro/sync";
 import { nearestSites, type RadarSite } from "@/lib/radar/site-utils";
 import { useAppStore } from "@/store/app-store";
 import { LAYOUTS, useProStore, type Layout, type ProTool } from "@/store/pro-store";
+import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { IconButton } from "../ui/button";
 import { usePro } from "./pro-context";
@@ -19,6 +20,8 @@ export const TOOLS: { id: ProTool; label: string; Icon: typeof Square; hint: str
   { id: "xsect", label: "Cross-section", Icon: Scissors, hint: "Click A, then A′" },
   { id: "vector", label: "Storm vector", Icon: Route, hint: "Click a storm at two loop times" },
   { id: "toa", label: "TOA", Icon: Crosshair, hint: "Click to add arrival points" },
+  // Issues to the spotter network's database: needs the server (not in the Android app).
+  ...(COMMUNITY_ENABLED ? [{ id: "warngen" as const, label: "WarnGen", Icon: Siren, hint: "Draw and issue a spotter-network warning" }] : []),
 ];
 
 /** The loop clock in Zulu time, written straight to the DOM on each step. */

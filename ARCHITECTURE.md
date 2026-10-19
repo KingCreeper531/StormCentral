@@ -67,6 +67,8 @@ Server routes also **reshape** the data. National alerts are filtered to storm-b
 
 Each route's logic is a **feed** (`src/lib/feeds/`): fetch, parse, cache, with no dependency on Next.js. The route handlers are one-line wrappers (`feedRoute(alertsFeed)`), and the Android app runs the same feeds on the phone (§8).
 
+**Every hazard polygon** (`src/lib/feeds/hazards.ts`, `/api/hazards`). Besides storm-based warnings, the radar maps draw the rest of the watch/warning/advisory map. The NWS's own WWA map service (`mapservices.weather.noaa.gov`, the layer behind weather.gov's hazard map) supplies zone- and county-based products already drawn as polygons. The NWS API sends those without geometry, so this is the only practical source. Pieces of one product (one per zone) are joined by CAP id and generalised. The layer has no text, so these alerts go out **lean**, and the full text is fetched when one is opened (`/api/alerts?id=`). The same feed adds SPC mesoscale discussions and watch boxes and WPC precipitation discussions (from IEM), plus the national warnings of Canada (ECCC's OGC API) and Germany (DWD's WFS). Each source is cached and fails on its own. Every product is categorised (warning, watch, advisory, statement, marine, discussion) with the NWS hazard-map colour. The radar settings pick which categories every radar view draws: the radar mode, the daily preview and every Pro pane share `useMapAlerts`.
+
 Every parser in `src/lib/feeds/parse.ts` is pure and tolerant of both legacy and current upstream layouts (for example, both SWPC JSON shapes). Each one is unit-tested against fixtures.
 
 ## 3. Memory-safe radar tile caching and animation
@@ -115,6 +117,7 @@ Overlays (warnings, storm tracks, SPC outlook, radar sites, spotter reports, AQI
 - **Privacy:** report coordinates are rounded to about 1 km unless the user opts in to precise GPS.
 - **CSP:** a strict allow-list of the upstream origins the browser talks to directly, plus `frame-ancestors 'none'` and `object-src 'none'`.
 - Cascading deletes are explicit (batch) because libSQL's connection pool doesn't guarantee `PRAGMA foreign_keys` per connection.
+- **Spotter warnings (WarnGen, §9):** members only. Listing them requires a session (401 otherwise), so they never reach the public. Issuing takes the Trusted Spotter rank (25 confirmations of your reports), or `WARNGEN_MIN_REPUTATION`; moderators and developers always can. Issuing is rate-limited (8 per 15 minutes) and capped at 6 active warnings per spotter. The server re-validates every field: the polygon's size, corner count and self-intersection; the product's criteria; and place names as plain text. Only the issuer updates a warning; the issuer or a moderator cancels it. A suspended account's warnings are hidden like its reports.
 
 ## 6. Rendering the sky
 
@@ -156,12 +159,12 @@ An AWIPS II / CAVE-style workspace, off by default (**Settings → General → P
 ProfessionalWorkspace          sync bus (zustand/vanilla) + pane registry + tool actions (React context)
 ├─ ProToolbar                  layout 1×1 · 1×2 · 2×2 · 3×3, radar site, tool, loop transport (Zulu clock)
 ├─ Pane × 1–9                  one MapLibre map each
-│  ├─ FrameSource              per product kind: site (useRadarLoop) · mosaic · MRMS (NOAA times) · satellite (GIBS / nowCOAST)
+│  ├─ FrameSource              per product kind: site (useRadarLoop) · decoded L2/L3 · mosaic · MRMS · other countries · server · satellite
 │  ├─ ProFrames                RadarLayerManager frame pool, stepped by the sync clock
 │  ├─ CameraSync, CursorSync   imperative subscriptions: jumpTo / crosshair transform
-│  ├─ WarningsLayer, StormCellsLayer, ToolOverlay (A–A′, vector, TOA fan), ToolClicks
+│  ├─ WarningsLayer (all hazards + spotter warnings), StormCellsLayer, ToolOverlay (A–A′, vector, TOA fan), WarnGenOverlay, ToolClicks
 │  └─ PaneHeader               product, tilt, opacity, overlays; frame time written to the DOM
-├─ side panel                  SoundingPanel (SkewT + Hodograph) · CrossSectionPanel · StormToolsPanel · IbwInspector
+├─ side panel                  SoundingPanel (SkewT + Hodograph) · CrossSectionPanel · StormToolsPanel · WarnGenPanel · IbwInspector / AlertDetail
 └─ ReadoutHud                  lat/lon, ground height, range/bearing, every pane's value, model fields
 ```
 
@@ -186,6 +189,15 @@ Decoding runs in a pool of Web Workers (`decode.worker.ts`). Each worker renders
 - MRMS hail size (MESH), rotation tracks and VIL.
 
 A small Python service renders them on a schedule (satpy for the RGB recipes, GRIB2 decoding for MRMS). It publishes `index.json` plus Web Mercator PNGs, built to run on a free Oracle Cloud VM. The app reads it from the address under **Settings → Professional mode → Pro data server**; until one is set, those products say so.
+
+**Other countries' radar** (`lib/radar/intl.ts`). Outside NEXRAD coverage, national weather services' own composites serve CORS-open WMS or XYZ tiles: Canada (ECCC GeoMet, 1 km North American composite, 6 min), Germany (DWD), Finland (FMI), the Netherlands (KNMI) and Japan (JMA's high-resolution nowcast, observed frames only), each verified from a CI runner. `/api/radar/intl` lists each source's times, from WMS capabilities, JMA's time list, or the fixed grid for services whose capabilities are slow to build. In the radar mode they sit under NOAA's radar and are **time-matched** to the loop: each loop frame shows each source's latest scan at or before it, within two scan intervals. Only sources whose coverage is in view are fetched, and raster sources carry `bounds`, so no tiles are requested outside it. In Pro they are products of their own ("Radar (other countries)"), stepped by the same loop clock. Agencies that need an API key (Météo-France, the Met Office, AEMET) or publish only HDF5 files (SMHI, DMI, MeteoSwiss) aren't included.
+
+**Spotter WarnGen** (`lib/warngen/`, `warngen-panel.tsx`, `warngen-overlay.tsx`). A WarnGen-style editor for the built-in spotter network, never the public or the NWS:
+- **Pick the storm.** Click it on any pane ("drag me to storm"), then again on another frame to track it, or type the motion in. The pick is carried forward to the present along its motion.
+- **The polygon.** Drawn the way AWIPS WarnGen draws it: a box that starts just behind the storm and widens down the projected track for the warning's duration, or an octagon for a stationary storm. Corners can be dragged on any pane, midpoints dragged to add a corner, and corners right-clicked or double-clicked away.
+- **Products.** Tornado, severe thunderstorm, flash flood and snow squall warnings, and significant weather advisories. Each takes its IBW tags: source, hail size, wind gust, tornado possible, and a damage threat including PDS and emergency tiers. The editor enforces the NWS criteria; for example, a severe warning needs 1-inch hail or 58 mph wind.
+- **The text.** Generated like a WarnGen product (bullets, HAZARD/SOURCE/IMPACT, call to action, `LAT...LON` and `TIME...MOT...LOC`, IBW tags). Towns come from reverse-geocoding points inside the polygon. The text is headed and signed as an unofficial spotter-network product, and is regenerated from the stored fields in each viewer's time zone.
+- **Storage and display.** Warnings live in the `spotter_warnings` table with per-year numbers and can be updated (revisions) or cancelled. Every radar view draws them for signed-in members, dashed and labelled "SPOTTER". They open in the same detail panel as NWS alerts, with an unofficial banner.
 
 ### Still not covered
 
