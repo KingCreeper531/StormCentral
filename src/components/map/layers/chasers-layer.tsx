@@ -47,7 +47,20 @@ function arrowImage(color: string): ImageData | null {
  * Markers fade after 5 minutes without an update; the server drops them
  * after 15.
  */
-export function ChasersLayer({ chasers, fetchedAt, now, onSelect }: { chasers: ChaserDto[]; fetchedAt: number; now: number; onSelect: (username: string) => void }) {
+export function ChasersLayer({
+  chasers,
+  isLive,
+  fetchedAt,
+  now,
+  onSelect,
+}: {
+  chasers: ChaserDto[];
+  /** Whether the chaser's linked YouTube stream is live right now (lib/chaser-streams). */
+  isLive: (c: ChaserDto) => boolean;
+  fetchedAt: number;
+  now: number;
+  onSelect: (username: string) => void;
+}) {
   const { map } = useMapContext();
 
   // Register the arrows before the layers below are added (effects run in order).
@@ -84,14 +97,15 @@ export function ChasersLayer({ chasers, fetchedAt, now, onSelect }: { chasers: C
           geometry: { type: "Point", coordinates: [c.lon, c.lat] },
           properties: {
             id: c.username,
-            label: c.username,
+            // Their card has the stream to watch.
+            label: isLive(c) ? `${c.username} · LIVE` : c.username,
             heading: c.heading ?? -1,
             mine: c.mine ? 1 : 0,
             stale: c.ageSec * 1000 + Math.max(0, now - fetchedAt) > CHASER_STALE_MS ? 1 : 0,
           },
         })),
     }),
-    [chasers, fetchedAt, now],
+    [chasers, isLive, fetchedAt, now],
   );
 
   useGeoJsonLayers(

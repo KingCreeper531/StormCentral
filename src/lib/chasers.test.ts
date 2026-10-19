@@ -73,10 +73,10 @@ describe("settings", () => {
   });
 
   it("restores sharing only inside its window", () => {
-    expect(normalizeChaser({ sharing: true, hours: 4, until: T0 + 60_000 }, T0)).toEqual({ sharing: true, hours: 4, until: T0 + 60_000 });
-    expect(normalizeChaser({ sharing: true, hours: 4, until: T0 - 1 }, T0)).toEqual({ sharing: false, hours: 4, until: null });
+    expect(normalizeChaser({ sharing: true, hours: 4, until: T0 + 60_000, stream: "@mychase" }, T0)).toEqual({ sharing: true, hours: 4, until: T0 + 60_000, stream: "@mychase" });
+    expect(normalizeChaser({ sharing: true, hours: 4, until: T0 - 1 }, T0)).toEqual({ sharing: false, hours: 4, until: null, stream: "" });
     expect(normalizeChaser({ sharing: true, hours: 4, until: null }, T0).sharing).toBe(false);
     expect(normalizeChaser({ hours: 7 as never }, T0).hours).toBe(4);
-    expect(normalizeChaser(null, T0)).toEqual({ sharing: false, hours: 4, until: null });
+    expect(normalizeChaser(null, T0)).toEqual({ sharing: false, hours: 4, until: null, stream: "" });
   });
 });

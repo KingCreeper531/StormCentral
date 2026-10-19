@@ -60,6 +60,8 @@ const csp = [
   "font-src 'self' data:",
   `connect-src ${CONNECT.join(" ")} ${PLUGIN_HOSTS}${isDev ? " ws:" : ""}`,
   "worker-src 'self' blob:",
+  // Storm chasers' YouTube live streams play in their map card.
+  "frame-src https://www.youtube-nocookie.com https://www.youtube.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

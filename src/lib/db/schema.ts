@@ -226,6 +226,8 @@ export const chaserPositions = sqliteTable(
     speedKmh: real("speed_kmh"),
     accuracyM: real("accuracy_m"),
     updatedAt: integer("updated_at").notNull(),
+    /** Their YouTube live stream link (lib/chasers parseStream), when they gave one. */
+    stream: text("stream"),
     /** When sharing turns itself off (the window picked in Settings, at most 12 h). */
     expiresAt: integer("expires_at").notNull(),
   },
@@ -363,6 +365,7 @@ CREATE TABLE IF NOT EXISTS chaser_positions (
   speed_kmh REAL,
   accuracy_m REAL,
   updated_at INTEGER NOT NULL,
+  stream TEXT,
   expires_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS chaser_positions_updated_idx ON chaser_positions(updated_at);
@@ -382,4 +385,5 @@ export const COLUMN_MIGRATIONS: readonly { table: string; column: string; sql: s
   { table: "posts", column: "nws_report", sql: "ALTER TABLE posts ADD COLUMN nws_report TEXT" },
   { table: "posts", column: "nws_confirmed_at", sql: "ALTER TABLE posts ADD COLUMN nws_confirmed_at INTEGER" },
   { table: "posts", column: "mping_id", sql: "ALTER TABLE posts ADD COLUMN mping_id TEXT" },
+  { table: "chaser_positions", column: "stream", sql: "ALTER TABLE chaser_positions ADD COLUMN stream TEXT" },
 ];

@@ -1,0 +1,38 @@
+# Sets up cron-job.org to start the Shorts on time (shorts/README.md, "A
+# reliable schedule"): one job per Short, plus breaking news every 10 minutes,
+# created or updated through cron-job.org's API. Run it once after adding the
+# two secrets, and again whenever the times in shorts/cron-job-org.ts change.
+name: Set up cron-job.org
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Create or update the cron-job.org jobs
+        # Each secret under the names it might have been saved as; the script says which it used.
+        env:
+          CRONJOB_API_KEY: ${{ secrets.CRONJOB_API_KEY }}
+          CRON_JOB_API_KEY: ${{ secrets.CRON_JOB_API_KEY }}
+          CRONJOB_ORG_API_KEY: ${{ secrets.CRONJOB_ORG_API_KEY }}
+          CRON_JOB_ORG_API_KEY: ${{ secrets.CRON_JOB_ORG_API_KEY }}
+          CRONJOB_KEY: ${{ secrets.CRONJOB_KEY }}
+          CRON_API_KEY: ${{ secrets.CRON_API_KEY }}
+          SHORTS_DISPATCH_TOKEN: ${{ secrets.SHORTS_DISPATCH_TOKEN }}
+          DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+          PAT: ${{ secrets.PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          npx --yes esbuild@0.28.2 shorts/cron-job-org.ts --bundle --platform=node --format=esm --target=node22 --outfile="$RUNNER_TEMP/cron-job-org.mjs" --log-level=warning
+          node "$RUNNER_TEMP/cron-job-org.mjs"

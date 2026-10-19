@@ -1,15 +1,17 @@
 "use client";
 
-import { X } from "lucide-react";
+import { ExternalLink, Play, X } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { useFormat } from "@/hooks/use-format";
-import { CHASER_STALE_MS, type ChaserDto } from "@/lib/chasers";
+import type { LiveChaserStream } from "@/lib/chaser-streams";
+import { CHASER_STALE_MS, type ChaserDto, type LiveStream } from "@/lib/chasers";
 import { badgeFor } from "@/lib/community";
 import { compassPoint } from "@/lib/geo";
 import { useT } from "@/lib/i18n/use-t";
 import { timeAgo } from "@/lib/time";
 import { cn } from "@/lib/utils";
-import { IconButton } from "../ui/button";
+import { Button, buttonClass, IconButton } from "../ui/button";
 import { Avatar } from "../ui/misc";
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
@@ -24,6 +26,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 /** A storm chaser picked on the map: who, how fast and which way, and how fresh the position is. */
 export function ChaserDetail({
   chaser: c,
+  live,
   fetchedAt,
   now,
   onClose,
@@ -31,6 +34,8 @@ export function ChaserDetail({
   className,
 }: {
   chaser: ChaserDto;
+  /** Their linked stream, when it's live right now: plays that video. */
+  live?: LiveChaserStream | null;
   /** When the list was fetched; `ageSec` is as of then. */
   fetchedAt: number;
   now: number;
@@ -80,11 +85,50 @@ export function ChaserDetail({
           <span className={cn(stale && "text-ink-3")}>{timeAgo(sentAt, now, t)}</span>
         </Fact>
       </dl>
+      {c.stream && <WatchLive stream={live ? { url: live.url, embed: live.embed } : c.stream} name={c.displayName} live={!!live} />}
       <p className="label">
         {c.mine
           ? t("You're sharing your live position with signed-in spotters. Stop anytime in Settings → Account.")
           : t("Shared live by this spotter while they chase; it updates about every minute. Never drive toward a storm to meet anyone.")}
       </p>
+    </div>
+  );
+}
+
+/**
+ * The chaser's YouTube stream: plays here when YouTube allows embedding it (a
+ * video or a channel id), otherwise opens on YouTube.
+ */
+function WatchLive({ stream, name, live }: { stream: LiveStream; name: string; live: boolean }) {
+  const t = useT();
+  const [playing, setPlaying] = useState(false);
+  const open = (
+    <a href={stream.url} target="_blank" rel="noopener noreferrer" className={buttonClass(stream.embed ? "ghost" : "primary", "sm")}>
+      {stream.embed ? <ExternalLink className="size-4" aria-hidden /> : <Play className="size-4" aria-hidden />}
+      {stream.embed ? t("Open on YouTube") : t("Watch live")}
+    </a>
+  );
+  if (!stream.embed) return <div>{open}</div>;
+  return (
+    <div className="space-y-2">
+      {playing ? (
+        <iframe
+          src={stream.embed}
+          title={t("{name}'s live stream", { name })}
+          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+          className="aspect-video w-full rounded-[var(--radius-control)] border border-line bg-black"
+        />
+      ) : null}
+      <div className="flex flex-wrap items-center gap-1">
+        {live && !playing && <span className="rounded-[3px] bg-nogo px-1 text-[10px] leading-4 font-bold tracking-wide text-white uppercase">{t("Live")}</span>}
+        <Button variant={playing ? "ghost" : "primary"} size="sm" onClick={() => setPlaying((p) => !p)}>
+          {playing ? <X className="size-4" aria-hidden /> : <Play className="size-4" aria-hidden />}
+          {playing ? t("Close player") : t("Watch live")}
+        </Button>
+        {open}
+      </div>
     </div>
   );
 }

@@ -265,6 +265,19 @@ export const RADAR: Record<string, string> = {
 
   // ─── radar-controls.tsx / severe-mode.tsx: storm chasers ──────────────────
   "Storm chasers (live)": "Cazadores de tormentas (en vivo)",
+  // Chasers panel (components/radar/chaser-streams)
+  Chasers: "Cazadores",
+  "Live now · {n} chaser": "En vivo · {n} cazador",
+  "Live now · {n} chasers": "En vivo · {n} cazadores",
+  "No storm chasers on the list are live right now.": "Ningún cazador de la lista está en vivo ahora.",
+  "Storm chasers on YouTube": "Cazadores de tormentas en YouTube",
+  "Not live": "Sin transmisión",
+  "{n} watching": "{n} viendo",
+  "started {ago}": "empezó {ago}",
+  "On the map": "En el mapa",
+  "Show on map": "Ver en el mapa",
+  "Streams belong to the chasers. Chasers who share their position in Storm Central (Settings → Account) show on the map with LIVE when they stream. Never drive toward a storm to meet anyone.":
+    "Las transmisiones son de los cazadores. Los que comparten su posición en Storm Central (Ajustes → Cuenta) aparecen en el mapa con EN VIVO cuando transmiten. Nunca manejes hacia una tormenta para encontrarte con alguien.",
   "Spotters sharing their live position, seen by signed-in members. Share yours in Settings → Account.":
     "Observadores que comparten su ubicación en vivo, visibles para miembros con sesión iniciada. Comparte la tuya en Configuración → Cuenta.",
 };

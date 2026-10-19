@@ -181,10 +181,15 @@ official warning source.
 
 ## A reliable schedule (cron-job.org)
 
-GitHub often starts scheduled runs late or drops them. For posts on time, let a free outside scheduler start the workflow instead (the GitHub schedules stay as a backup; each kind still posts once a day):
+GitHub often starts scheduled runs late or drops them. For posts on time, let a free outside scheduler start the workflows instead (the GitHub schedules stay as a backup; each kind still posts once a day, and each breaking event once).
 
-1. GitHub → Settings → Developer settings → Fine-grained tokens → Generate: only this repository, permission **Actions: Read and write**.
-2. At cron-job.org, add a job per kind: `POST https://api.github.com/repos/KingCreeper531/StormCentral/actions/workflows/youtube-shorts.yml/dispatches`, headers `Authorization: Bearer <token>`, `Accept: application/vnd.github+json`, body `{"ref":"main","inputs":{"kind":"recap","scheduled":"true"}}`, in your own time zone (daylight saving is then handled for you).
+**Let GitHub set it up** (the "Set up cron-job.org" workflow creates or updates one job per Short, plus breaking news every 10 minutes, offset 5 minutes from GitHub's own run):
+
+1. cron-job.org → **Settings → API**: create an API key, with no IP restriction (GitHub's runners change address). Save it as the repository secret `CRONJOB_API_KEY`.
+2. GitHub → Settings → Developer settings → **Fine-grained tokens** → Generate: only this repository, permission **Actions: Read and write**. Save it as the repository secret `SHORTS_DISPATCH_TOKEN` (cron-job.org sends it to start the workflows).
+3. **Actions → Set up cron-job.org → Run workflow.** Run it again whenever the times in `shorts/cron-job-org.ts` change; it updates the jobs it made instead of adding more.
+
+**Or by hand:** with that token, add a job per kind at cron-job.org: `POST https://api.github.com/repos/KingCreeper531/StormCentral/actions/workflows/youtube-shorts.yml/dispatches`, headers `Authorization: Bearer <token>`, `Accept: application/vnd.github+json`, body `{"ref":"main","inputs":{"kind":"recap","scheduled":"true"}}`, in your own time zone (daylight saving is then handled for you).
 
 | Kind | Time (Eastern) |
 |---|---|
@@ -193,6 +198,7 @@ GitHub often starts scheduled runs late or drops them. For posts on time, let a 
 | fire | 4:30 PM daily |
 | weekly | 9:40 AM Sundays |
 | recap | 11:15 PM daily |
+| breaking | every 10 minutes (`youtube-breaking.yml`, body `{"ref":"main","inputs":{"scheduled":"true"}}`) |
 
 ## Notes
 

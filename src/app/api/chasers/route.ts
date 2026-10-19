@@ -1,5 +1,5 @@
 import { getSessionUser } from "@/lib/auth/session";
-import { MIN_UPDATE_MS, positionSchema, type ChasersResponse } from "@/lib/chasers";
+import { MIN_UPDATE_MS, parseStream, positionSchema, type ChasersResponse } from "@/lib/chasers";
 import { firstIssue } from "@/lib/community";
 import { listChasers, pruneChasers, stopSharing, upsertPosition } from "@/lib/server/chaser-repo";
 import { forbidden, sameOrigin, suspended, tooMany, unauthorized } from "@/lib/server/guard";
@@ -42,6 +42,7 @@ export async function PUT(req: Request) {
   if (!parsed.success) return badRequest(firstIssue(parsed.error));
   const now = Date.now();
   if (parsed.data.until <= now) return badRequest("Sharing has already ended");
+  if (parsed.data.stream && !parseStream(parsed.data.stream)) return badRequest("That isn't a YouTube channel or live video link");
   const expiresAt = await upsertPosition(user.id, parsed.data, now);
   return Response.json({ expiresAt }, { headers: noStore });
 }

@@ -1,7 +1,7 @@
 import "server-only";
 import { and, desc, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
 import { isDeveloper, isTrustedSpotter } from "../auth/session";
-import { CHASER_MAX_AGE_MS, MAX_SHARE_MS, roundCoord, type ChaserDto, type PositionInput } from "../chasers";
+import { CHASER_MAX_AGE_MS, MAX_SHARE_MS, parseStream, roundCoord, type ChaserDto, type PositionInput } from "../chasers";
 import { avatarUrl } from "../community";
 import { getDb } from "../db/client";
 import { chaserPositions, users } from "../db/schema";
@@ -16,6 +16,8 @@ export async function upsertPosition(userId: string, p: PositionInput, now = Dat
     heading: p.heading == null ? null : Math.round(p.heading) % 360,
     speedKmh: p.speedKmh == null ? null : Math.round(p.speedKmh),
     accuracyM: p.accuracyM == null ? null : Math.round(p.accuracyM),
+    // Kept in its checked form; anything that isn't a YouTube link is dropped.
+    stream: parseStream(p.stream)?.url ?? null,
     updatedAt: now,
     expiresAt: Math.min(p.until, now + MAX_SHARE_MS),
   };
@@ -80,5 +82,6 @@ export async function listChasers(viewerId: string, now = Date.now()): Promise<C
     speedKmh: r.p.speedKmh,
     ageSec: Math.max(0, Math.round((now - r.p.updatedAt) / 1000)),
     mine: r.p.userId === viewerId,
+    stream: parseStream(r.p.stream),
   }));
 }
