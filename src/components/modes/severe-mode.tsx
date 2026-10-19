@@ -189,8 +189,11 @@ export function SevereMode() {
     crossfade: radar.crossfade,
     futureHours: radar.future && !isSite ? 6 : 0,
     historyMinutes: radar.history === "4h" ? 240 : radar.history === "2h" ? 120 : 0,
+    // Extrapolating velocity or dual-pol means nothing: reflectivity only.
+    nowcast: { map, enabled: radar.nowcast && (!isSite || radarFamily === "reflectivity") },
   });
   const showingForecast = !!loop.frames[loop.index]?.forecast;
+  const showingNowcast = !!loop.frames[loop.index]?.nowcast;
   // Other countries' radar is matched to the loop's observed scans (forecast frames get none).
   const loopTimes = useMemo(() => loop.frames.map((f) => (f.forecast ? Number.NaN : f.time)), [loop.frames]);
 
@@ -294,22 +297,22 @@ export function SevereMode() {
     isSite && site ? (
       <>
         <span className="shrink-0 font-mono">{noaaTag ?? `${site.icao} ${productCode}`}</span>
-        <span className="min-w-0 truncate">
-          {site.place}, {site.state}
-        </span>
+        <span className="min-w-0 truncate">{showingNowcast ? t("Extrapolated, not observed") : `${site.place}, ${site.state}`}</span>
       </>
     ) : (
       <>
-        <span className="shrink-0 font-mono">{showingForecast ? "HRRR" : (noaaTag ?? "N0Q")}</span>
+        <span className="shrink-0 font-mono">{showingNowcast ? t("Future") : showingForecast ? "HRRR" : (noaaTag ?? "N0Q")}</span>
         <span className="min-w-0 truncate">
           {t(
-            showingForecast
-              ? "Model forecast, not observed"
-              : loop.usingFallback
-                ? "Mosaic (rolling)"
-                : loop.source === "noaa"
-                  ? "Multi-radar national mosaic, 1 km"
-                  : "National mosaic",
+            showingNowcast
+              ? "Extrapolated, not observed"
+              : showingForecast
+                ? "Model forecast, not observed"
+                : loop.usingFallback
+                  ? "Mosaic (rolling)"
+                  : loop.source === "noaa"
+                    ? "Multi-radar national mosaic, 1 km"
+                    : "National mosaic",
           )}
         </span>
       </>
@@ -618,7 +621,11 @@ export function SevereMode() {
   // Desktop: legend card above the transport. Short screens: one row with an
   // inline legend. Phones: a legend strip inside the transport box, all of it
   // riding on top of the sheet.
-  const legendCode = showingForecast && !isSite ? t("HRRR forecast") : (noaaTag ?? (isSite && site ? `${site.icao} ${productCode}` : "N0Q"));
+  const legendCode = showingNowcast
+    ? t("Extrapolated")
+    : showingForecast && !isSite
+      ? t("HRRR forecast")
+      : (noaaTag ?? (isSite && site ? `${site.icao} ${productCode}` : "N0Q"));
   const sentenceCaseFamily = t(FAMILIES[family].label).toLowerCase();
   const dock = (
     <div ref={dockRef} className="pointer-events-none flex flex-col items-start gap-2 [&>*]:pointer-events-auto">

@@ -48,6 +48,8 @@ export interface RadarSettings {
   showTracks: boolean;
   /** HRRR model forecast frames after the live loop (national mosaic). */
   future: boolean;
+  /** Future radar: the newest reflectivity scan extrapolated an hour ahead (lib/radar/nowcast). */
+  nowcast: boolean;
   /** NOAA lightning strike density. */
   showLightning: boolean;
   /** Blend radar pixels when zoomed in (velocity and dual-pol stay sharp). */
@@ -171,6 +173,7 @@ export const DEFAULT_RADAR: RadarSettings = {
   showSites: true,
   showTracks: true,
   future: true,
+  nowcast: true,
   showLightning: true,
   smooth: true,
   history: "latest",
@@ -182,9 +185,17 @@ export const DEFAULT_RADAR: RadarSettings = {
   showSpotterWarnings: true,
 };
 
-function normalizeRadar(r: RadarSettings): RadarSettings {
+/** Saved radar settings made whole: defaults for anything a previous version didn't store. */
+export function normalizeRadar(r: RadarSettings): RadarSettings {
   const kinds = Array.isArray(r.alertKinds) ? r.alertKinds.filter((k): k is AlertCategory => (ALERT_CATEGORIES as readonly string[]).includes(k)) : DEFAULT_RADAR.alertKinds;
-  return { ...r, alertKinds: [...new Set(kinds)], intlAlerts: r.intlAlerts !== false, intlRadar: r.intlRadar !== false, showSpotterWarnings: r.showSpotterWarnings !== false };
+  return {
+    ...r,
+    alertKinds: [...new Set(kinds)],
+    intlAlerts: r.intlAlerts !== false,
+    intlRadar: r.intlRadar !== false,
+    showSpotterWarnings: r.showSpotterWarnings !== false,
+    nowcast: r.nowcast !== false,
+  };
 }
 
 export const useAppStore = create<AppState>()(

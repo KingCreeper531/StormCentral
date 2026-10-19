@@ -191,6 +191,15 @@ export function RadarControls({
           <p className="label">{t("National weather services' composites (Canada, Germany, Finland, Netherlands, Japan), matched to the loop's times.")}</p>
         </div>
         <div>
+          <Toggle label={t("Future radar (next hour)")} checked={settings.nowcast} onChange={(nowcast) => onChange({ nowcast })} />
+          {settings.nowcast && (
+            <p className="label">
+              {t("An extrapolation: storms keep moving the way they are, but don't grow, weaken or form.")}
+              {activeFamily !== "reflectivity" && ` ${t("Shown with reflectivity only.")}`}
+            </p>
+          )}
+        </div>
+        <div>
           <Toggle label={t("Future radar (next 6 hours)")} checked={settings.future} onChange={(future) => onChange({ future })} />
           <p className="label">{isSite ? t("Shown with the national mosaic only.") : t("HRRR model forecast after the live scans, marked in orange on the timeline.")}</p>
         </div>
