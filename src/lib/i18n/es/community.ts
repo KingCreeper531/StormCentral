@@ -259,6 +259,12 @@ export const COMMUNITY: Record<string, string> = {
 
   // ─── chaser-detail.tsx: a storm chaser on the map ─────────────────────────
   "Close chaser": "Cerrar cazador",
+  Live: "En vivo",
+  "Watch live": "Ver en vivo",
+  "Close player": "Cerrar reproductor",
+  "Open on YouTube": "Abrir en YouTube",
+  "{name}'s live stream": "Transmisión en vivo de {name}",
+  "That isn't a YouTube channel or live video link": "Eso no es un canal de YouTube ni un enlace de video en vivo",
   Heading: "Rumbo",
   Updated: "Actualizado",
   Parked: "Estacionado",

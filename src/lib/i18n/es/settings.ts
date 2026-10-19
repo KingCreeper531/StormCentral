@@ -228,6 +228,10 @@ export const SETTINGS: Record<string, string> = {
   // ─── chaser-panel.tsx: sharing my position as a storm chaser ──────────────
   "Storm chasing": "Caza de tormentas",
   "Share my location as a storm chaser": "Compartir mi ubicación como cazador de tormentas",
+  "Your YouTube live stream (optional)": "Tu transmisión en vivo de YouTube (opcional)",
+  "Your channel or a live video link. Spotters who tap your marker get a Watch live button.":
+    "Tu canal o el enlace de un video en vivo. Quien toque tu marcador verá un botón Ver en vivo.",
+  "That isn't a YouTube channel or live video link.": "Eso no es un canal de YouTube ni un enlace de video en vivo.",
   "While this is on and Storm Central is open, signed-in spotters see your live position, speed and heading on the radar map. It turns off by itself after the time below, and your position is deleted when you stop or sign out.":
     "Mientras esté activado y Storm Central esté abierto, los observadores con sesión iniciada ven tu ubicación en vivo, tu velocidad y tu rumbo en el mapa de radar. Se desactiva solo después del tiempo de abajo, y tu ubicación se elimina cuando lo detienes o cierras sesión.",
   "Stop sharing after": "Dejar de compartir después de",

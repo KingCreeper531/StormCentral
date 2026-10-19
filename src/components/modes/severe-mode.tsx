@@ -14,17 +14,19 @@ import { FAMILIES, familiesAvailable, resolveTilts, siteProducts } from "@/lib/r
 import { iemSiteId } from "@/lib/radar/frames";
 import { satelliteLabel } from "@/lib/radar/satellite";
 import { getSite, nearestSites } from "@/lib/radar/site-utils";
-import { useChasers, useForecast, useLocalAlerts, useOutlook, useRadarProducts, useReportsInView, useStormCells, useStormReports, useTropical } from "@/hooks/queries";
+import { useChasers, useChaserStreams, useForecast, useLocalAlerts, useOutlook, useRadarProducts, useReportsInView, useStormCells, useStormReports, useTropical } from "@/hooks/queries";
 import { useFormat } from "@/hooks/use-format";
 import { useMapAlerts } from "@/hooks/use-map-alerts";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import { useIsDesktop, useMediaQuery } from "@/hooks/use-media-query";
 import { useNow } from "@/hooks/use-now";
 import { useRadarLoop } from "@/hooks/use-radar-loop";
-import { COMMUNITY_ENABLED } from "@/lib/platform";
+import { liveFor, liveIndex, type LiveChaserStream } from "@/lib/chaser-streams";
+import { COMMUNITY_ENABLED, IS_STATIC_BUNDLE } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
 import { ChaserDetail } from "../community/chaser-detail";
+import { ChaserStreams } from "../radar/chaser-streams";
 import { PostCard } from "../community/post-card";
 import { MapView } from "../map/map-view";
 import { OutlookLayer } from "../map/layers/outlook-layer";
@@ -59,7 +61,7 @@ import { ErrorNote } from "../ui/misc";
 import { Sheet, type Detent } from "../ui/sheet";
 import { Tabs } from "../ui/tabs";
 
-type PanelTab = "alerts" | "storms" | "radar";
+type PanelTab = "alerts" | "storms" | "radar" | "chasers";
 /** What's selected on the map: a warning, a spotter post, an NWS storm report, a radar cell, a tropical cyclone or a storm chaser (by username). */
 type Selection = { kind: "alert" | "post" | "lsr" | "cell" | "storm" | "chaser"; id: string };
 /** Hours of NWS storm reports on the map. */
@@ -214,6 +216,11 @@ export function SevereMode() {
   const cellList = useMemo(() => cells.data?.cells ?? [], [cells.data]);
   const storms = useMemo(() => tropical.data?.storms ?? [], [tropical.data]);
   const chaserList = useMemo(() => chasers.data?.chasers ?? [], [chasers.data]);
+  // Live storm chaser streams: the Chasers tab, and LIVE on the chasers layer.
+  const streams = useChaserStreams(tab === "chasers" || radar.showChasers);
+  const liveByKey = useMemo(() => liveIndex(streams.data?.live ?? []), [streams.data]);
+  const liveOf = (c: { stream: Parameters<typeof liveFor>[0] }) => liveFor(c.stream, liveByKey);
+  const chaserForStream = (s: LiveChaserStream) => chaserList.find((c) => liveOf(c)?.videoId === s.videoId) ?? null;
 
   const ranked = useMemo<RankedAlert[]>(() => {
     const out = new Map<string, RankedAlert>();
@@ -461,6 +468,8 @@ export function SevereMode() {
           { value: "alerts", label: t("Warnings"), count: ranked.length },
           ...(stormsTab ? [{ value: "storms" as const, label: t("Storms") }] : []),
           { value: "radar", label: t("Layers") },
+          // The live streams need the server, which the Android app doesn't have.
+          ...(!IS_STATIC_BUNDLE ? [{ value: "chasers" as const, label: t("Chasers"), count: streams.data?.live.length }] : []),
         ]}
       />
       {hidePanel || headerTransport}
@@ -566,7 +575,7 @@ export function SevereMode() {
   ) : activeStorm ? (
     <TropicalDetail storm={activeStorm} timeZone={timeZone} className="p-4" />
   ) : activeChaser ? (
-    <ChaserDetail chaser={activeChaser} fetchedAt={chasers.dataUpdatedAt} now={now} className="p-4" />
+    <ChaserDetail chaser={activeChaser} live={liveOf(activeChaser)} fetchedAt={chasers.dataUpdatedAt} now={now} className="p-4" />
   ) : null;
 
   const section = (title: string, pending: boolean, error: unknown, what: string, children: React.ReactNode) => (
@@ -622,6 +631,18 @@ export function SevereMode() {
       </div>
     ) : inlineSelection ? (
       selectionBody
+    ) : tab === "chasers" && !IS_STATIC_BUNDLE ? (
+      <ChaserStreams
+        data={streams.data}
+        pending={streams.isLoading}
+        error={streams.error}
+        chaserFor={chaserForStream}
+        onShowOnMap={(c) => {
+          setRadar({ showChasers: true });
+          focusPoint("chaser", c.username, c.lon, c.lat);
+        }}
+        now={now}
+      />
     ) : tab === "storms" && stormsTab ? (
       stormsBody
     ) : (
@@ -735,7 +756,9 @@ export function SevereMode() {
         {radar.showCells && <StormCellsLayer cells={cellList} selectedId={selectedId("cell")} onSelect={(id) => select("cell", id)} />}
         {radar.showStormReports && <StormReportsLayer reports={lsrList} now={now} hours={LSR_HOURS} selectedId={selectedId("lsr")} onSelect={(id) => select("lsr", id)} />}
         {COMMUNITY_ENABLED && radar.showReports && <ReportsLayer posts={(reports.data ?? []) as PostDto[]} now={now} onSelect={(id) => select("post", id)} />}
-        {COMMUNITY_ENABLED && radar.showChasers && <ChasersLayer chasers={chaserList} fetchedAt={chasers.dataUpdatedAt} now={now} onSelect={(u) => select("chaser", u)} />}
+        {COMMUNITY_ENABLED && radar.showChasers && (
+          <ChasersLayer chasers={chaserList} isLive={(c) => !!liveOf(c)} fetchedAt={chasers.dataUpdatedAt} now={now} onSelect={(u) => select("chaser", u)} />
+        )}
         <UserMarker lat={loc.lat} lon={loc.lon} />
       </MapView>
 
@@ -789,7 +812,7 @@ export function SevereMode() {
                 {activeLsr && <StormReportDetail report={activeLsr} now={now} timeZone={timeZone} onClose={clearSelection} />}
                 {activeCell && <StormCellDetail cell={activeCell} now={now} timeZone={timeZone} location={loc} onClose={clearSelection} />}
                 {activeStorm && <TropicalDetail storm={activeStorm} timeZone={timeZone} onClose={clearSelection} />}
-                {activeChaser && <ChaserDetail chaser={activeChaser} fetchedAt={chasers.dataUpdatedAt} now={now} onClose={clearSelection} />}
+                {activeChaser && <ChaserDetail chaser={activeChaser} live={liveOf(activeChaser)} fetchedAt={chasers.dataUpdatedAt} now={now} onClose={clearSelection} />}
               </motion.div>
             )}
           </AnimatePresence>

@@ -40,8 +40,56 @@ export const positionSchema = z.object({
   accuracyM: nullableNumber(0, MAX_ACCURACY_M),
   /** When sharing turns itself off (epoch ms), capped at 12 hours from now by the server. */
   until: z.number().int().positive(),
+  /** The chaser's YouTube live stream, as they typed it (parseStream checks it). */
+  stream: z.string().trim().max(200).nullish(),
 });
 export type PositionInput = z.infer<typeof positionSchema>;
+
+/** A chaser's YouTube live stream: where to watch it, and a player address when it can play in Storm Central. */
+export interface LiveStream {
+  url: string;
+  /** Null for a channel known only by its @handle: YouTube can't embed that one's live stream, so it opens on YouTube. */
+  embed: string | null;
+  /** What it points at, to match against the live streams list (lib/chaser-streams). */
+  videoId?: string;
+  channelId?: string;
+  /** Lower case, with the @. */
+  handle?: string;
+}
+
+const VIDEO_ID = /^[\w-]{11}$/;
+const CHANNEL_ID = /^UC[\w-]{22}$/;
+const HANDLE = /^@[\w.-]{3,30}$/;
+
+/**
+ * A YouTube channel or live video, from what a chaser pasted: a video or
+ * /live/ link, youtu.be, a /channel/UC… link, a youtube.com/@handle link or
+ * just "@handle". Anything else (other sites included) is null, so only
+ * YouTube addresses ever reach the map.
+ */
+export function parseStream(input: string | null | undefined): LiveStream | null {
+  const raw = (input ?? "").trim();
+  if (!raw) return null;
+  if (HANDLE.test(raw)) return { url: `https://www.youtube.com/${raw}/live`, embed: null, handle: raw.toLowerCase() };
+  let u: URL;
+  try {
+    u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.toLowerCase().replace(/^(www|m)\./, "");
+  const parts = u.pathname.split("/").filter(Boolean);
+  const video = (id: string | null | undefined): LiveStream | null =>
+    id && VIDEO_ID.test(id) ? { url: `https://www.youtube.com/watch?v=${id}`, embed: `https://www.youtube-nocookie.com/embed/${id}?autoplay=1`, videoId: id } : null;
+  if (host === "youtu.be") return video(parts[0]);
+  if (host !== "youtube.com") return null;
+  if (parts[0] === "watch") return video(u.searchParams.get("v"));
+  if (parts[0] === "live" || parts[0] === "embed") return video(parts[1]);
+  if (parts[0] === "channel" && parts[1] && CHANNEL_ID.test(parts[1]))
+    return { url: `https://www.youtube.com/channel/${parts[1]}/live`, embed: `https://www.youtube.com/embed/live_stream?channel=${parts[1]}&autoplay=1`, channelId: parts[1] };
+  if (parts[0] && HANDLE.test(parts[0])) return { url: `https://www.youtube.com/${parts[0]}/live`, embed: null, handle: parts[0].toLowerCase() };
+  return null;
+}
 
 export interface ChaserDto {
   username: string;
@@ -58,6 +106,8 @@ export interface ChaserDto {
   /** Seconds since the position was sent, as of the response. */
   ageSec: number;
   mine: boolean;
+  /** Their YouTube live stream, when they linked one. */
+  stream: LiveStream | null;
 }
 
 export interface ChasersResponse {
