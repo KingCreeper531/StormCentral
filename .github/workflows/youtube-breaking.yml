@@ -71,11 +71,9 @@ jobs:
           path: shorts/.state
           key: shorts-breaking-state-${{ github.run_id }}
           restore-keys: shorts-breaking-state-
-      - name: Build
+      - name: Build the check
         if: steps.on.outputs.run == 'true'
-        run: |
-          npx --yes esbuild@0.28.2 shorts/breaking-check.ts --bundle --platform=node --format=esm --target=node22 --outfile="$RUNNER_TEMP/shorts/check.mjs" --log-level=warning
-          npx --yes esbuild@0.28.2 shorts/main.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNNER_TEMP/shorts/shorts.mjs" --log-level=warning
+        run: npx --yes esbuild@0.28.2 shorts/breaking-check.ts --bundle --platform=node --format=esm --target=node22 --outfile="$RUNNER_TEMP/shorts/check.mjs" --log-level=warning
       - name: Look for a new event
         id: check
         if: steps.on.outputs.run == 'true'
@@ -94,6 +92,7 @@ jobs:
           "$RUNNER_TEMP/shorts/node_modules/.bin/playwright-core" install --with-deps chromium
           command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
           pipx install edge-tts==7.3.1 || echo "::warning::Couldn't install edge-tts; the Short will have no narration."
+          npx --yes esbuild@0.28.2 shorts/main.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNNER_TEMP/shorts/shorts.mjs" --log-level=warning
       - name: Make the Short
         id: make
         if: steps.go.outputs.go == 'true'
@@ -114,7 +113,9 @@ jobs:
         run: node "$RUNNER_TEMP/shorts/shorts.mjs"
       - name: Mark it as posted
         if: steps.make.outputs.uploaded == 'true'
-        run: node "$RUNNER_TEMP/shorts/check.mjs" mark "${{ steps.make.outputs.breaking_keys }}"
+        env:
+          KEYS: ${{ steps.make.outputs.breaking_keys }}
+        run: node "$RUNNER_TEMP/shorts/check.mjs" mark "$KEYS"
       - uses: actions/cache/save@v4
         if: steps.make.outputs.uploaded == 'true'
         with:
