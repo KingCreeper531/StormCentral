@@ -1,9 +1,11 @@
+import { after } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { conditionsSchema, firstIssue, isGenericPlace, MAX_IMAGE_BYTES, postSchema } from "@/lib/community";
 import { placeNameAt } from "@/lib/server/reverse-geocode";
 import { createPost, listPosts, type FeedQuery } from "@/lib/server/community-repo";
 import { forbidden, sameOrigin, suspended, tooMany, unauthorized } from "@/lib/server/guard";
 import { imageSize, sniffImage, stripMetadata } from "@/lib/server/image";
+import { maybeSyncNwsConfirmations } from "@/lib/server/nws-sync";
 import { rateLimit } from "@/lib/server/rate-limit";
 import { badRequest } from "@/lib/server/respond";
 
@@ -33,6 +35,8 @@ export async function GET(req: Request) {
   } else {
     q = { sort: "latest", cursor: sp.get("cursor") };
   }
+  // Match recent reports to the NWS's storm reports now and then, after answering.
+  after(maybeSyncNwsConfirmations);
   return Response.json(await listPosts(q, viewer?.id ?? null), { headers: noStore });
 }
 

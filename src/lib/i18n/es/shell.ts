@@ -63,6 +63,7 @@ export const SHELL: Record<string, string> = {
   "If you are nearby and seeing the same conditions, press {x} on a report. Confirmations raise the reporter’s rank and move reliable reports up the Top 24 h list.": "Si estás cerca y ves las mismas condiciones, toca {x} en un reporte. Las confirmaciones suben el rango de quien reporta y llevan los reportes confiables más arriba en Destacados 24 h.",
   Rank: "Rango",
   Confirmations: "Confirmaciones",
+  "NWS-confirmed": "Confirmados por el NWS",
   "Report locations are rounded to about 1 km (half a mile) unless you choose to share precise GPS. Photo metadata, including GPS, is removed on your device and again on the server.": "La ubicación de los reportes se redondea a cerca de 1 km (media milla), a menos que elijas compartir tu GPS exacto. Los metadatos de las fotos, incluido el GPS, se eliminan en tu dispositivo y otra vez en el servidor.",
   "Post real weather you saw yourself. No fake or exaggerated reports.": "Publica el tiempo real que viste tú mismo. Nada de reportes falsos o exagerados.",
   "Be respectful. No harassment, hate, threats or sexual content.": "Sé respetuoso. Nada de acoso, odio, amenazas ni contenido sexual.",
