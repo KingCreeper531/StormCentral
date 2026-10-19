@@ -5,7 +5,7 @@ import { useFormat } from "@/hooks/use-format";
 import { useT } from "@/lib/i18n/use-t";
 import { bearingDeg, haversineKm } from "@/lib/geo";
 import { modelPoint, readoutFrom, type ModelReadout } from "@/lib/pro/model";
-import { MAX_COLOR_DISTANCE, samplePixel, valueFromColor } from "@/lib/pro/sample";
+import { MAX_COLOR_DISTANCE, sampleImagePixel, samplePixel, valueFromColor } from "@/lib/pro/sample";
 import { HC_CLASSES, type ValueScale } from "@/lib/pro/scales";
 import { useProSync } from "@/lib/pro/sync";
 import type { RadarSite } from "@/lib/radar/site-utils";
@@ -54,9 +54,17 @@ export function ReadoutHud({ site }: { site: RadarSite | null }) {
       const out = await Promise.all(
         entries.map(async ([, p]): Promise<PaneValue | null> => {
           const frame = p.frame();
-          const scale = frame ? p.scale(frame) : null;
-          if (!frame || !scale) return null;
-          const px = await samplePixel({ tileUrl: frame.tileUrl, tileSize: frame.tileSize ?? 256, maxzoom: frame.maxzoom }, cursor.lng, cursor.lat, p.zoom());
+          if (!frame) return null;
+          // Decoded radar: the gate's exact value.
+          if (p.exact) {
+            const text = p.exact(frame, cursor.lat, cursor.lng);
+            return text == null ? null : { label: p.label, text: text || t("no echo") };
+          }
+          const scale = p.scale(frame);
+          if (!scale) return null;
+          const px = frame.image
+            ? await sampleImagePixel(frame.image.url, [frame.image.coordinates[3][0], frame.image.coordinates[3][1], frame.image.coordinates[1][0], frame.image.coordinates[1][1]], cursor.lng, cursor.lat)
+            : await samplePixel({ tileUrl: frame.tileUrl, tileSize: frame.tileSize ?? 256, maxzoom: frame.maxzoom }, cursor.lng, cursor.lat, p.zoom());
           return { label: p.label, text: describe(px, scale, t) };
         }),
       );

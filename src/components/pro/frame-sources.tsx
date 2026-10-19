@@ -1,31 +1,46 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useNoaaTimes, useRadarProducts } from "@/hooks/queries";
 import { useRadarLoop } from "@/hooks/use-radar-loop";
-import { mrmsLayer, PRO_PRODUCTS, satelliteFrames, type ProProductId } from "@/lib/pro/products";
+import { listLevel2, listLevel3, newest } from "@/lib/pro/nexrad/aws";
+import { decodedVersion, jobKey, peekDecoded, requestDecode, subscribeDecoded, type DecodeJob } from "@/lib/pro/nexrad/client";
+import { l3CodeFor, mrmsLayer, PRO_PRODUCTS, satelliteFrames, type ProProductId } from "@/lib/pro/products";
+import { DECODED_SCALES, type ValueScale } from "@/lib/pro/scales";
+import { corners, fetchServerIndex, serverFrames } from "@/lib/pro/server";
 import { useProSync } from "@/lib/pro/sync";
 import { iemSiteId, type RadarFrame } from "@/lib/radar/frames";
 import { noaaFrames, noaaTilesUsable } from "@/lib/radar/noaa";
-import { FAMILIES, resolveTilts, type ProductFamily, type ResolvedTilt, type TiltPrefix } from "@/lib/radar/products";
+import { FAMILIES, resolveTilts, TILTS, type ProductFamily, type ResolvedTilt, type TiltPrefix } from "@/lib/radar/products";
 import { pickSatellite } from "@/lib/radar/satellite";
+import { useAppStore } from "@/store/app-store";
 import { usePro } from "./pro-context";
+import type { ProCaps } from "./use-pro-caps";
 
 /** Everything a pane knows about its product's loop. */
 export interface PaneFeed {
   frames: RadarFrame[];
   family: ProductFamily | null;
-  /** Tilts the site is sending for this product (site products only). */
+  /** Tilts the pane can switch between (site products). */
   tilts: ResolvedTilt[];
   /** The tilt actually shown. */
   tilt: ResolvedTilt | null;
-  /** Where the tiles come from: "NOAA KTLX SR", "IEM", "MRMS", "GIBS". */
+  /** Level II: the volume's elevation angles. */
+  elevations?: number[];
+  /** Where the data comes from: "NOAA KTLX SR", "IEM", "MRMS", "GIBS", "NOAA L3 TLX N0C". */
   source: string;
   loading: boolean;
   /** Nothing to show (no scans, source unreachable). */
   empty: boolean;
   /** The data source lists the site's products and this one isn't among them. */
   missing?: boolean;
+  /** Why there's nothing (shown instead of the generic note). */
+  note?: string;
+  /** Colour scale of decoded or server products (tile products are recognised from their URLs). */
+  scale?: ValueScale | null;
+  /** Frames hold decoded radar: the readout reads exact values instead of colours. */
+  decoded?: boolean;
 }
 
 export const EMPTY_FEED: PaneFeed = { frames: [], family: null, tilts: [], tilt: null, source: "", loading: true, empty: false };
@@ -34,39 +49,189 @@ interface SourceProps {
   product: ProProductId;
   site: string;
   tilt: TiltPrefix;
+  elev: number;
   frameCount: number;
   /** This pane sets the loop's times (so satellite panes don't follow themselves). */
   basis: boolean;
+  caps: ProCaps;
   onFeed: (f: PaneFeed) => void;
 }
 
 /** Report a feed upward whenever what it shows changes. */
 function useReport(onFeed: (f: PaneFeed) => void, feed: PaneFeed) {
-  const { frames, family, tilts, tilt, source, loading, empty, missing = false } = feed;
+  const { frames, family, tilts, tilt, elevations, source, loading, empty, missing = false, note, scale, decoded } = feed;
   useEffect(() => {
-    onFeed({ frames, family, tilts, tilt, source, loading, empty, missing });
-  }, [onFeed, frames, family, tilts, tilt, source, loading, empty, missing]);
+    onFeed({ frames, family, tilts, tilt, elevations, source, loading, empty, missing, note, scale, decoded });
+  }, [onFeed, frames, family, tilts, tilt, elevations, source, loading, empty, missing, note, scale, decoded]);
 }
+
+const noTilts: ResolvedTilt[] = [];
+
+/** Every Level III tilt, for products decoded from AWS (all six are published). */
+const tiltsFor = (letter: string): ResolvedTilt[] => TILTS.map((t) => ({ ...t, code: `${t.prefix}${letter}` }));
 
 function SiteSource({ product, site, tilt, frameCount, onFeed }: SourceProps) {
   const def = PRO_PRODUCTS[product];
   const family = def.kind === "site" ? def.family : "reflectivity";
+  const letter = def.kind === "site" ? def.l3Letter : undefined;
   const products = useRadarProducts(iemSiteId(site));
   const available = useMemo(() => (products.data?.products.length ? new Set(products.data.products) : null), [products.data]);
-  const tilts = useMemo(() => resolveTilts(family, available), [family, available]);
+  const iemTilts = useMemo(() => resolveTilts(family, available), [family, available]);
+  // Reflectivity and velocity switch to decoded Level III above the lowest tilt, so offer all six.
+  const tilts = useMemo(() => (letter ? tiltsFor(letter) : iemTilts), [letter, iemTilts]);
   const chosen = tilts.find((x) => x.prefix === tilt) ?? tilts[0] ?? null;
-  const code = chosen?.code ?? `N0${FAMILIES[family].letters[0]}`;
-  const loop = useRadarLoop({ site, product: code, frameCount, speed: 1, crossfade: false, autoplay: false });
+  const code = iemTilts.find((x) => x.prefix === "N0")?.code ?? `N0${FAMILIES[family].letters[0]}`;
+  const loop = useRadarLoop({ site, product: letter ? `N0${FAMILIES[family].letters[0]}` : (chosen?.code ?? code), frameCount, speed: 1, crossfade: false, autoplay: false });
   useReport(onFeed, {
     frames: loop.frames,
     family,
     tilts,
     tilt: chosen,
-    source: loop.sourceLabel ? `NOAA ${loop.sourceLabel}` : `IEM ${site} ${code}`,
+    source: loop.sourceLabel ? `NOAA ${loop.sourceLabel}` : `IEM ${site} ${chosen?.code ?? code}`,
     loading: loop.isLoading,
     empty: !loop.isLoading && !loop.frames.length,
     // IEM listed the site's products and this family isn't among them.
-    missing: !!available && !tilts.length && !loop.frames.length,
+    missing: !letter && !!available && !iemTilts.length && !loop.frames.length,
+  });
+  return null;
+}
+
+/** Decode a list of files (once each, cached) and return the frames that are ready, in order. */
+function useDecodedFrames(jobs: readonly { job: DecodeJob; time: number }[]) {
+  useEffect(() => {
+    for (const j of jobs) requestDecode(j.job);
+  }, [jobs]);
+  // Re-render as frames land (anywhere); `readyKey` below decides whether this pane's changed.
+  useSyncExternalStore(subscribeDecoded, decodedVersion, () => 0);
+  // Identity only changes when the set of finished frames does.
+  // (Newline-separated: job keys themselves contain "|".)
+  const readyKey = jobs.map((j) => (peekDecoded(jobKey(j.job))?.state === "done" ? jobKey(j.job) : "")).join("\n");
+  const frames = useMemo<RadarFrame[]>(() => {
+    const done = new Set(readyKey.split("\n"));
+    return jobs.flatMap(({ job, time }) => {
+      const e = done.has(jobKey(job)) ? peekDecoded(jobKey(job)) : undefined;
+      if (e?.state !== "done") return [];
+      return [{ id: e.frame.key, time, tileUrl: "", maxzoom: 0, image: { url: e.frame.url, coordinates: corners(e.frame.bounds) } }];
+    });
+  }, [jobs, readyKey]);
+  let failed = 0;
+  let cuts: number[] = [];
+  let elevation: number | null = null;
+  for (const j of jobs) {
+    const e = peekDecoded(jobKey(j.job));
+    if (e?.state === "error") {
+      failed++;
+      if (e.cuts?.length) cuts = e.cuts;
+    } else if (e?.state === "done") {
+      if (e.frame.cuts.length) cuts = e.frame.cuts;
+      elevation = e.frame.sweep.elevation;
+    }
+  }
+  return { frames, failed, cuts, elevation };
+}
+
+function L3Source({ product, site, tilt, frameCount, caps, onFeed }: SourceProps) {
+  const def = PRO_PRODUCTS[product];
+  const code = l3CodeFor(product, tilt)!;
+  const site3 = iemSiteId(site);
+  const scaleId = def.kind === "l3" || def.kind === "site" ? (def.scale ?? "ref") : "ref";
+  const letter = def.kind === "l3" ? def.letter : def.kind === "site" ? def.l3Letter : undefined;
+  const spanMin = frameCount * 7 + 20;
+  const list = useQuery({
+    queryKey: ["pro-l3", site3, code, spanMin],
+    queryFn: ({ signal }) => listLevel3(site3, code, Date.now() - spanMin * 60_000, signal),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+    retry: 1,
+  });
+  const jobs = useMemo(
+    () => newest(list.data ?? [], frameCount).map((f) => ({ time: f.time, job: { kind: "l3", url: f.url, scale: scaleId, maxPx: caps.l3Px } as DecodeJob })),
+    [list.data, frameCount, scaleId, caps.l3Px],
+  );
+  const { frames, failed, elevation } = useDecodedFrames(jobs);
+  // Nominal angles, except the shown tilt's actual one (it varies with the scan pattern).
+  const tilts = useMemo(() => (letter ? tiltsFor(letter).map((x) => (x.prefix === tilt && elevation != null ? { ...x, angle: elevation } : x)) : noTilts), [letter, tilt, elevation]);
+  const shown = tilts.find((x) => x.prefix === tilt) ?? null;
+  useReport(onFeed, {
+    frames,
+    family: def.kind === "site" ? def.family : null,
+    tilts,
+    tilt: shown,
+    source: `NOAA Level III ${site3} ${code}`,
+    loading: list.isLoading || (jobs.length > 0 && !frames.length && failed < jobs.length),
+    empty: list.isError || (list.isSuccess && !jobs.length) || (jobs.length > 0 && failed === jobs.length),
+    scale: DECODED_SCALES[scaleId],
+    decoded: true,
+  });
+  return null;
+}
+
+function VolumeSource({ product, site, elev, frameCount, caps, onFeed }: SourceProps) {
+  const def = PRO_PRODUCTS[product];
+  const moment = def.kind === "l2" ? def.moment : "REF";
+  const scaleId = def.kind === "l2" ? def.scale : "ref";
+  const count = Math.min(frameCount, 6);
+  const spanMin = count * 7 + 30;
+  const list = useQuery({
+    queryKey: ["pro-l2", site, spanMin],
+    queryFn: ({ signal }) => listLevel2(site, Date.now() - spanMin * 60_000, signal),
+    refetchInterval: 90_000,
+    staleTime: 45_000,
+    retry: 1,
+  });
+  const jobs = useMemo(
+    () => newest(list.data ?? [], count).map((f) => ({ time: f.time, job: { kind: "l2", url: f.url, moment, angle: elev, scale: scaleId, maxPx: caps.l2Px } as DecodeJob })),
+    [list.data, count, moment, elev, scaleId, caps.l2Px],
+  );
+  const { frames, failed, cuts, elevation } = useDecodedFrames(jobs);
+  const elevations = useMemo(() => [...new Set(cuts.map((c) => Math.round(c * 10) / 10))].sort((a, b) => a - b), [cuts]);
+  const allFailed = jobs.length > 0 && failed === jobs.length;
+  useReport(onFeed, {
+    frames,
+    family: null,
+    tilts: noTilts,
+    tilt: elevation != null ? { prefix: "N0", angle: elevation, code: moment } : null,
+    elevations,
+    source: `NOAA Level II ${site}`,
+    loading: list.isLoading || (jobs.length > 0 && !frames.length && !allFailed),
+    empty: list.isError || (list.isSuccess && !jobs.length) || allFailed,
+    note: allFailed && elevations.length ? "This tilt isn't in the radar's current scan pattern" : undefined,
+    scale: DECODED_SCALES[scaleId],
+    decoded: true,
+  });
+  return null;
+}
+
+function DesktopOnly({ onFeed }: SourceProps) {
+  useReport(onFeed, { frames: [], family: null, tilts: noTilts, tilt: null, source: "", loading: false, empty: true, note: "Level II volumes are desktop only" });
+  return null;
+}
+
+function ServerSource({ product, frameCount, onFeed }: SourceProps) {
+  const base = useAppStore((s) => s.proServer);
+  const def = PRO_PRODUCTS[product];
+  const id = def.kind === "server" ? def.serverId : "";
+  const index = useQuery({
+    queryKey: ["pro-server", base],
+    queryFn: ({ signal }) => fetchServerIndex(base, signal),
+    enabled: !!base,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+    retry: 1,
+  });
+  const p = index.data?.products[id];
+  const frames = useMemo(() => (p ? serverFrames(base, id, p, frameCount) : []), [p, base, id, frameCount]);
+  const scale = useMemo<ValueScale | null>(() => (p?.legend?.stops?.length ? { stops: p.legend.stops, unit: p.legend.unit, decimals: p.legend.decimals ?? 1 } : null), [p]);
+  useReport(onFeed, {
+    frames,
+    family: null,
+    tilts: noTilts,
+    tilt: null,
+    source: base ? `Pro data server` : "",
+    loading: !!base && index.isLoading,
+    empty: !base || index.isError || (index.isSuccess && !frames.length),
+    note: !base ? "Needs a Pro data server (Settings → Professional mode)" : index.isError ? "Pro data server unreachable" : undefined,
+    scale,
   });
   return null;
 }
@@ -76,7 +241,7 @@ function MosaicSource({ frameCount, onFeed }: SourceProps) {
   useReport(onFeed, {
     frames: loop.frames,
     family: "reflectivity",
-    tilts: [],
+    tilts: noTilts,
     tilt: null,
     source: loop.sourceLabel ? `NOAA ${loop.sourceLabel}` : "IEM N0Q",
     loading: loop.isLoading,
@@ -84,8 +249,6 @@ function MosaicSource({ frameCount, onFeed }: SourceProps) {
   });
   return null;
 }
-
-const noTilts: ResolvedTilt[] = [];
 
 function MrmsSource({ product, frameCount, onFeed }: SourceProps) {
   const layer = useMemo(() => mrmsLayer(product), [product]);
@@ -141,10 +304,13 @@ function SatelliteSource({ product, frameCount, basis, onFeed }: SourceProps) {
 
 /** Picks the loader for a product; renders nothing. */
 export function FrameSource(props: SourceProps) {
-  const kind = PRO_PRODUCTS[props.product].kind;
-  // Keyed so switching product kinds starts from a clean loader.
-  if (kind === "site") return <SiteSource key={`site-${props.site}`} {...props} />;
-  if (kind === "mosaic") return <MosaicSource key="mosaic" {...props} />;
-  if (kind === "mrms") return <MrmsSource key={`mrms-${props.product}`} {...props} />;
+  const def = PRO_PRODUCTS[props.product];
+  // Keyed so switching products starts from a clean loader.
+  if (def.kind === "l2") return props.caps.volume ? <VolumeSource key={`l2-${props.product}-${props.site}`} {...props} /> : <DesktopOnly {...props} />;
+  if (l3CodeFor(props.product, props.tilt)) return <L3Source key={`l3-${props.product}-${props.site}-${props.tilt}`} {...props} />;
+  if (def.kind === "site") return <SiteSource key={`site-${props.product}-${props.site}`} {...props} />;
+  if (def.kind === "server") return <ServerSource key={`srv-${props.product}`} {...props} />;
+  if (def.kind === "mosaic") return <MosaicSource key="mosaic" {...props} />;
+  if (def.kind === "mrms") return <MrmsSource key={`mrms-${props.product}`} {...props} />;
   return <SatelliteSource key={`sat-${props.product}`} {...props} />;
 }

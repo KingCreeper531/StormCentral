@@ -4,7 +4,6 @@ import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForecast, useNationalAlerts, useStormCells } from "@/hooks/queries";
 import { useHotkeys } from "@/hooks/use-hotkeys";
-import { useMediaQuery } from "@/hooks/use-media-query";
 import { useT } from "@/lib/i18n/use-t";
 import type { LatLon } from "@/lib/geo";
 import { isSatellite } from "@/lib/pro/products";
@@ -29,6 +28,7 @@ import { ReadoutHud } from "./readout-hud";
 import { SoundingPanel } from "./sounding-panel";
 import { StormToolsPanel } from "./storm-tools-panel";
 import { ProToolbar, TOOLS } from "./toolbar";
+import { useProCaps } from "./use-pro-caps";
 
 const GRID: Record<Layout, { cols: number; rows: number }> = { "1x1": { cols: 1, rows: 1 }, "1x2": { cols: 2, rows: 1 }, "2x2": { cols: 2, rows: 2 }, "3x3": { cols: 3, rows: 3 } };
 
@@ -45,7 +45,8 @@ const GRID: Record<Layout, { cols: number; rows: number }> = { "1x1": { cols: 1,
 export function ProfessionalWorkspace() {
   const t = useT();
   const home = useAppStore((s) => s.location);
-  const narrow = !useMediaQuery("(min-width: 768px)");
+  const caps = useProCaps();
+  const narrow = caps.narrow;
   const [sync] = useState(() => createProSync({ lng: home.lon, lat: home.lat, zoom: 6.4, source: "workspace" }));
   const [probes] = useState(() => new Map<string, PaneProbe>());
 
@@ -66,7 +67,8 @@ export function ProfessionalWorkspace() {
   const layout: Layout = narrow && (storedLayout === "2x2" || storedLayout === "3x3") ? "1x2" : storedLayout;
   const grid = narrow && layout === "1x2" ? { cols: 1, rows: 2 } : GRID[layout];
   const panes = useMemo(() => allPanes.slice(0, PANE_COUNT[layout]), [allPanes, layout]);
-  const frameCount = layout === "3x3" ? Math.min(frames, 8) : frames;
+  // Big grids and phones loop fewer frames (each frame is a full set of textures per panel).
+  const frameCount = Math.min(caps.maxFrames, layout === "3x3" ? Math.min(frames, 8) : frames);
   // The time basis: the first radar panel (satellite panels follow it).
   const basisId = (panes.find((p) => !isSatellite(p.product)) ?? panes[0])!.id;
 
@@ -226,6 +228,7 @@ export function ProfessionalWorkspace() {
                   n={i + 1}
                   site={site.icao}
                   frameCount={frameCount}
+                  caps={caps}
                   basis={p.id === basisId}
                   tool={tool}
                   alerts={alerts}

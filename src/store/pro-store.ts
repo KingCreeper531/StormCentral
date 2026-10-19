@@ -20,6 +20,8 @@ export interface PaneConfig {
   /** NEXRAD site (ICAO) for single-site products; null follows the workspace site. */
   site: string | null;
   tilt: TiltPrefix;
+  /** Level II products: the elevation angle (degrees) to show. */
+  elev: number;
   opacity: number;
   warnings: boolean;
   cells: boolean;
@@ -60,7 +62,7 @@ export interface ProState {
 const DEFAULT_PRODUCTS: ProProductId[] = ["ref", "vel", "srv", "cref", "cc", "zdr", "hc", "sat-ir", "eet"];
 
 export function defaultPanes(): PaneConfig[] {
-  return DEFAULT_PRODUCTS.map((product, i) => ({ id: `p${i + 1}`, product, site: null, tilt: "N0", opacity: 0.85, warnings: true, cells: false }));
+  return DEFAULT_PRODUCTS.map((product, i) => ({ id: `p${i + 1}`, product, site: null, tilt: "N0", elev: 0.5, opacity: 0.85, warnings: true, cells: false }));
 }
 
 const TILT_SET = new Set<string>(TILTS.map((t) => t.prefix));
@@ -76,6 +78,7 @@ function normalizePanes(raw: unknown): PaneConfig[] {
       product: isProProductId(p.product) ? p.product : d.product,
       site: typeof p.site === "string" && /^[A-Z]{4}$/.test(p.site) ? p.site : null,
       tilt: typeof p.tilt === "string" && TILT_SET.has(p.tilt) ? (p.tilt as TiltPrefix) : d.tilt,
+      elev: typeof p.elev === "number" && p.elev >= 0 && p.elev <= 20 ? p.elev : d.elev,
       opacity: typeof p.opacity === "number" ? Math.min(1, Math.max(0.1, p.opacity)) : d.opacity,
       warnings: typeof p.warnings === "boolean" ? p.warnings : d.warnings,
       cells: typeof p.cells === "boolean" ? p.cells : d.cells,

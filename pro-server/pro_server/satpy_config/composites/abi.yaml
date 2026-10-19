@@ -1,0 +1,29 @@
+# Extra ABI composites for Storm Central's pro-server.
+#
+# satpy (as of 0.60) ships an "ir_sandwich" composite only for SEVIRI and FCI
+# (etc/composites/seviri.yaml, fci.yaml). This file adds the same recipe for
+# ABI by mapping it onto the equivalent ABI bands:
+#   luminance  = C02 (0.64 um "red" visible, sun-zenith corrected)
+#   colour     = C13 (10.3 um "clean" IR window) coloured with satpy's built-in
+#                "colorized_ir_clouds" enhancement (spectral palette for
+#                193.15-253.15 K, greys for 253.15-303.15 K)
+# The compositor and enhancements are satpy's own (SandwichCompositor in
+# satpy.composites.resolution; enhancements in etc/enhancements/generic.yaml).
+# Only the band mapping lives here. This file is merged with satpy's built-in
+# abi.yaml when SATPY_CONFIG_PATH points at the parent directory.
+sensor_name: visir/abi
+
+composites:
+  colorized_ir_clouds:
+    compositor: !!python/name:satpy.composites.core.SingleBandCompositor
+    prerequisites:
+      - name: C13
+    standard_name: colorized_ir_clouds
+
+  ir_sandwich:
+    compositor: !!python/name:satpy.composites.resolution.SandwichCompositor
+    standard_name: ir_sandwich
+    prerequisites:
+      - name: C02
+        modifiers: [sunz_corrected]
+      - name: colorized_ir_clouds

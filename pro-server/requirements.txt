@@ -1,0 +1,150 @@
+# Fully pinned lock (identical for linux/amd64 and linux/arm64, CPython 3.12).
+# Regenerate: uv pip compile requirements.in --python-version 3.12 --python-platform aarch64-unknown-linux-gnu -o requirements.txt
+certifi==2026.10.18
+    # via
+    #   netcdf4
+    #   pyproj
+    #   requests
+cftime==1.6.6.1
+    # via netcdf4
+charset-normalizer==3.5.2
+    # via requests
+click==8.5.0
+    # via dask
+cloudpickle==3.1.2
+    # via dask
+configobj==5.0.9
+    # via pyresample
+dask==2026.8.0
+    # via
+    #   -r requirements.in
+    #   satpy
+defusedxml==0.7.1
+    # via pyorbital
+donfig==0.8.1.post1
+    # via
+    #   pyorbital
+    #   pyresample
+    #   satpy
+    #   zarr
+fsspec==2026.9.0
+    # via
+    #   dask
+    #   universal-pathlib
+google-crc32c==1.9.0
+    # via zarr
+idna==3.20
+    # via requests
+locket==1.0.0
+    # via partd
+msgspec==0.22.0
+    # via zarr
+netcdf4==1.7.5
+    # via -r requirements.in
+numcodecs==0.17.0
+    # via zarr
+numpy==2.5.4
+    # via
+    #   -r requirements.in
+    #   cftime
+    #   dask
+    #   netcdf4
+    #   numcodecs
+    #   pandas
+    #   pygrib
+    #   pykdtree
+    #   pyorbital
+    #   pyresample
+    #   satpy
+    #   scipy
+    #   shapely
+    #   trollimage
+    #   xarray
+    #   zarr
+packaging==26.3
+    # via
+    #   dask
+    #   netcdf4
+    #   pooch
+    #   pygrib
+    #   satpy
+    #   xarray
+    #   zarr
+pandas==3.0.6
+    # via xarray
+partd==1.4.2
+    # via dask
+pathlib-abc==0.5.2
+    # via universal-pathlib
+pillow==13.0.0
+    # via
+    #   -r requirements.in
+    #   satpy
+    #   trollimage
+platformdirs==4.13.5
+    # via
+    #   pooch
+    #   pyresample
+    #   satpy
+pooch==1.9.0
+    # via satpy
+pygrib==2.1.8
+    # via -r requirements.in
+pykdtree==1.4.3
+    # via
+    #   pyresample
+    #   satpy
+pyorbital==1.14.0
+    # via satpy
+pyproj==3.8.0
+    # via
+    #   pygrib
+    #   pyorbital
+    #   pyresample
+    #   satpy
+pyresample==1.35.0
+    # via
+    #   -r requirements.in
+    #   satpy
+python-dateutil==2.9.0.post0
+    # via pandas
+pyyaml==6.0.3
+    # via
+    #   dask
+    #   donfig
+    #   pyresample
+    #   satpy
+requests==2.34.2
+    # via
+    #   pooch
+    #   pyorbital
+satpy==0.60.0
+    # via -r requirements.in
+scipy==1.18.1
+    # via pyorbital
+shapely==2.2.0
+    # via pyresample
+six==1.17.0
+    # via python-dateutil
+toolz==1.2.0
+    # via
+    #   dask
+    #   partd
+trollimage==1.29.0
+    # via satpy
+trollsift==1.0.2
+    # via satpy
+typing-extensions==4.16.0
+    # via
+    #   numcodecs
+    #   zarr
+universal-pathlib==0.3.10
+    # via satpy
+urllib3==2.8.0
+    # via requests
+xarray==2026.9.0
+    # via
+    #   -r requirements.in
+    #   satpy
+zarr==3.4.1
+    # via satpy

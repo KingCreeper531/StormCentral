@@ -1,0 +1,43 @@
+# Serves the processor's output directory (mounted at /srv).
+#
+# SITE_ADDRESS comes from docker-compose (DOMAIN in .env):
+#   pro.example.com        -> automatic HTTPS (Let's Encrypt / ZeroSSL), HTTP redirects to HTTPS
+#   :80  (DOMAIN unset)    -> plain HTTP only, for testing (browsers on https:// pages will block it)
+{
+	# Optional: an address for certificate expiry notices.
+	# email you@example.com
+}
+
+{$SITE_ADDRESS::80} {
+	root * /srv
+
+	header {
+		Access-Control-Allow-Origin "*"
+		Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+
+	@index path /index.json
+	header @index Cache-Control "no-cache"
+
+	@png path *.png
+	header @png Cache-Control "public, max-age=86400, immutable"
+
+	@preflight method OPTIONS
+	respond @preflight 204
+
+	# in-progress temp files start with a dot
+	@hidden path */.*
+	respond @hidden 404
+
+	encode zstd gzip
+	file_server
+
+	# 404s etc.: keep CORS so the app sees the real status, and never cache them
+	handle_errors {
+		header Access-Control-Allow-Origin "*"
+		header Cache-Control "no-store"
+		respond "{err.status_code} {err.status_text}"
+	}
+}

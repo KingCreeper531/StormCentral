@@ -1,0 +1,47 @@
+# docker compose up -d --build
+# Set DOMAIN in .env (see .env.example). Without DOMAIN, Caddy serves plain HTTP on :80.
+services:
+  processor:
+    build: .
+    image: stormcentral-pro-server:latest
+    restart: unless-stopped
+    stop_grace_period: 60s # lets a GOES scan in progress finish
+    environment:
+      PRODUCTS: ${PRODUCTS:-all}
+      POLL_SECONDS: ${POLL_SECONDS:-120}
+      KEEP_FRAMES: ${KEEP_FRAMES:-12}
+      BACKFILL_FRAMES: ${BACKFILL_FRAMES:-3}
+      GOES_WIDTH: ${GOES_WIDTH:-3000}
+      MRMS_WIDTH: ${MRMS_WIDTH:-3500}
+      MRMS_MIN_SPACING_MINUTES: ${MRMS_MIN_SPACING_MINUTES:-0}
+      DASK_WORKERS: ${DASK_WORKERS:-2}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - output:/data/output
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  caddy:
+    image: caddy:2.10
+    restart: unless-stopped
+    depends_on: [processor]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      SITE_ADDRESS: ${DOMAIN:-:80}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - output:/srv:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  output:
+  caddy_data:
+  caddy_config:

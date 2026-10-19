@@ -26,13 +26,18 @@ import type { RadarFrame } from "./frames";
 
 /** The subset of maplibregl.Map we depend on (keeps this unit-testable). */
 export interface RadarMap {
-  addSource(id: string, source: {
-    type: "raster";
-    tiles: string[];
-    tileSize: number;
-    maxzoom: number;
-    attribution?: string;
-  }): unknown;
+  addSource(
+    id: string,
+    source:
+      | {
+          type: "raster";
+          tiles: string[];
+          tileSize: number;
+          maxzoom: number;
+          attribution?: string;
+        }
+      | { type: "image"; url: string; coordinates: [[number, number], [number, number], [number, number], [number, number]] },
+  ): unknown;
   removeSource(id: string): unknown;
   getSource(id: string): unknown;
   addLayer(layer: {
@@ -176,13 +181,18 @@ export class RadarLayerManager {
 
   private addFrame(f: RadarFrame) {
     const sourceId = SOURCE_PREFIX + f.id;
-    this.map.addSource(sourceId, {
-      type: "raster",
-      tiles: [f.tileUrl],
-      tileSize: f.tileSize ?? 256,
-      maxzoom: f.maxzoom,
-      attribution: f.attribution ?? this.opts.attribution,
-    });
+    this.map.addSource(
+      sourceId,
+      f.image
+        ? { type: "image", url: f.image.url, coordinates: f.image.coordinates }
+        : {
+            type: "raster",
+            tiles: [f.tileUrl],
+            tileSize: f.tileSize ?? 256,
+            maxzoom: f.maxzoom,
+            attribution: f.attribution ?? this.opts.attribution,
+          },
+    );
     const beforeId = this.opts.beforeId?.();
     this.map.addLayer(
       {

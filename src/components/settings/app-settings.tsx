@@ -1,6 +1,7 @@
 "use client";
 
 import { Bell, ChevronDown, ChevronRight, Download, Monitor, Moon, RefreshCw, Sun, UserRound } from "lucide-react";
+import { fetchServerIndex, normalizeServerUrl } from "@/lib/pro/server";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { checkForUpdate, installedVersion, type AvailableUpdate } from "@/lib/native/app-update";
@@ -449,7 +450,84 @@ function ProfessionalPanel() {
           {t("Open Pro")}
         </Button>
       )}
+      {on && <ProServerField />}
     </Panel>
+  );
+}
+
+/**
+ * Optional Pro data server (pro-server/ in the repository, e.g. on an Oracle
+ * Cloud free VM): GOES Day Cloud Phase / Night Fog / Sandwich and MRMS hail,
+ * rotation and VIL. Saved only once it's a usable https address.
+ */
+function ProServerField() {
+  const saved = useAppStore((s) => s.proServer);
+  const setSaved = useAppStore((s) => s.setProServer);
+  const t = useT();
+  const [draft, setDraft] = useState(saved);
+  const [state, setState] = useState<"idle" | "checking" | "ok" | "bad" | "unreachable">("idle");
+  const save = async () => {
+    const url = normalizeServerUrl(draft);
+    if (draft.trim() && !url) {
+      setState("bad");
+      return;
+    }
+    setSaved(url);
+    setDraft(url);
+    if (!url) {
+      setState("idle");
+      return;
+    }
+    setState("checking");
+    try {
+      await fetchServerIndex(url, AbortSignal.timeout(10_000));
+      setState("ok");
+    } catch {
+      setState("unreachable");
+    }
+  };
+  return (
+    <form
+      className="mt-4 border-t border-line pt-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+    >
+      <label className="label" htmlFor="pro-server">
+        {t("Pro data server")}
+      </label>
+      <div className="mt-1 flex gap-2">
+        <input
+          id="pro-server"
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setState("idle");
+          }}
+          placeholder="https://pro.example.com"
+          inputMode="url"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          className="h-9 min-w-0 flex-1 rounded-[var(--radius-control)] border border-line bg-surface-2 px-3 font-mono text-[13px] text-ink placeholder:text-ink-3 focus:border-line-strong pointer-coarse:h-11"
+        />
+        <Button type="submit" size="sm" disabled={state === "checking"}>
+          {t("Save")}
+        </Button>
+      </div>
+      <p className="label mt-1" role="status">
+        {state === "bad"
+          ? t("Use an https:// address (plain http only works for this computer).")
+          : state === "checking"
+            ? t("Checking…")
+            : state === "ok"
+              ? t("Connected.")
+              : state === "unreachable"
+                ? t("Saved, but the server didn't answer. Check the address and that it's running.")
+                : t("Optional. Adds GOES Day Cloud Phase, Night Fog and Sandwich, and MRMS hail size, rotation tracks and VIL. Set one up from pro-server/ in the Storm Central repository.")}
+      </p>
+    </form>
   );
 }
 

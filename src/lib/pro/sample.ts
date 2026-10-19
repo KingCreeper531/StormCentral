@@ -152,3 +152,18 @@ export async function samplePixel(src: PixelSource, lon: number, lat: number, ma
   const i = (sy * data.width + sx) * 4;
   return [data.data[i]!, data.data[i + 1]!, data.data[i + 2]!, data.data[i + 3]!];
 }
+
+/** RGBA under a point in a single Web Mercator image covering `bounds` ([w, s, e, n]). */
+export async function sampleImagePixel(url: string, bounds: readonly [number, number, number, number], lon: number, lat: number): Promise<[number, number, number, number] | null> {
+  const [w, s, e, n] = bounds;
+  if (lon < w || lon > e || lat < s || lat > n) return null;
+  const data = await tileData(url);
+  if (!data) return null;
+  const merc = (v: number) => Math.log(Math.tan(Math.PI / 4 + (v * Math.PI) / 360));
+  const fx = (lon - w) / (e - w);
+  const fy = (merc(n) - merc(lat)) / (merc(n) - merc(s));
+  const x = Math.min(data.width - 1, Math.max(0, Math.floor(fx * data.width)));
+  const y = Math.min(data.height - 1, Math.max(0, Math.floor(fy * data.height)));
+  const i = (y * data.width + x) * 4;
+  return [data.data[i]!, data.data[i + 1]!, data.data[i + 2]!, data.data[i + 3]!];
+}
