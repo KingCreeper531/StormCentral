@@ -1,0 +1,135 @@
+/**
+ * Professional mode (src/components/pro/**, lib/pro/**): the multi-panel
+ * workspace, its tools and the settings toggle. Meteorological abbreviations
+ * stay in English, as forecasters use them (CAPE, CIN, LCL, SRH, PWAT, TOA,
+ * RM/LM, θe, Z).
+ */
+export const PRO: Record<string, string> = {
+  // ─── settings + registry ───────────────────────────────────────────────────
+  "Professional mode": "Modo profesional",
+  "Professional Mode": "Modo profesional",
+  Pro: "Pro",
+  "Open Pro": "Abrir Pro",
+  "AWIPS-style multi-panel radar, sampling, soundings and storm tools": "Radar multipanel estilo AWIPS, muestreo, sondeos y herramientas de tormentas",
+  "Adds Pro to the modes: an AWIPS-style workspace with up to nine synced radar and satellite panels, cursor sampling, model soundings, cross-sections and storm tracking tools.":
+    "Agrega Pro a los modos: un espacio de trabajo estilo AWIPS con hasta nueve paneles de radar y satélite sincronizados, muestreo con el cursor, sondeos del modelo, cortes verticales y herramientas de seguimiento de tormentas.",
+
+  // ─── toolbar ───────────────────────────────────────────────────────────────
+  "Panel layout": "Distribución de paneles",
+  "Nearest ({site})": "La más cercana ({site})",
+  Tool: "Herramienta",
+  Inspect: "Inspeccionar",
+  Sounding: "Sondeo",
+  "Cross-section": "Corte vertical",
+  "Storm vector": "Vector de tormenta",
+  TOA: "TOA",
+  "Sample panels; click a warning to inspect it": "Muestrea los paneles; haz clic en un aviso para inspeccionarlo",
+  "Click for a model Skew-T and hodograph": "Haz clic para ver un Skew-T y una hodógrafa del modelo",
+  "Click A, then A′": "Haz clic en A y luego en A′",
+  "Click a storm at two loop times": "Haz clic en una tormenta en dos momentos del bucle",
+  "Click to add arrival points": "Haz clic para agregar puntos de llegada",
+  "Previous frame": "Cuadro anterior",
+  "Next frame": "Cuadro siguiente",
+  Point: "Punto",
+
+  // ─── panes ─────────────────────────────────────────────────────────────────
+  "Product for panel {n}": "Producto del panel {n}",
+  "Panel {n} settings": "Ajustes del panel {n}",
+  "Time basis: the loop steps through this panel's scan times": "Base de tiempo: el bucle avanza por los tiempos de escaneo de este panel",
+  "{product}: no data right now": "{product}: sin datos por ahora",
+  "{product} isn't available for {site} right now": "{product} no está disponible para {site} por ahora",
+  "Radar (site)": "Radar (estación)",
+  "Radar (national)": "Radar (nacional)",
+  "Base Reflectivity (MRMS mosaic)": "Reflectividad base (mosaico MRMS)",
+  "Composite Reflectivity (MRMS)": "Reflectividad compuesta (MRMS)",
+  "Echo Tops (MRMS)": "Topes de eco (MRMS)",
+  "Visible (ABI band 2)": "Visible (banda 2 de ABI)",
+  "Clean IR (ABI band 13)": "Infrarrojo limpio (banda 13 de ABI)",
+  "Water Vapor (latest)": "Vapor de agua (más reciente)",
+  "Air Mass RGB": "RGB de masa de aire",
+  GeoColor: "GeoColor",
+  "Dust RGB": "RGB de polvo",
+  "Fire Temperature RGB": "RGB de temperatura de incendios",
+
+  // ─── cursor readout ────────────────────────────────────────────────────────
+  "Move the pointer over a panel (or tap) to sample every panel at that spot.": "Mueve el puntero sobre un panel (o toca) para muestrear todos los paneles en ese punto.",
+  "Ground height": "Altura del terreno",
+  "Range and bearing from the radar": "Distancia y rumbo desde el radar",
+  "Model temperature / dew point": "Temperatura / punto de rocío del modelo",
+  "0–3 km bulk shear": "Cizalladura total 0–3 km",
+  "Precipitable water": "Agua precipitable",
+  "no echo": "sin eco",
+  Biological: "Biológico",
+  "Ice crystals": "Cristales de hielo",
+  "Dry snow": "Nieve seca",
+  "Wet snow": "Nieve húmeda",
+  "Heavy rain": "Lluvia fuerte",
+  "Big drops": "Gotas grandes",
+  Graupel: "Granizo blando",
+
+  // ─── side panel ────────────────────────────────────────────────────────────
+  "Hide panel": "Ocultar panel",
+  "Show panel": "Mostrar panel",
+  "Warning inspector": "Inspector de avisos",
+  "Click a warning polygon to inspect its impact-based tags. Pick a tool above for soundings, cross-sections and storm tracking.":
+    "Haz clic en el polígono de un aviso para ver sus etiquetas de impacto. Elige una herramienta arriba para sondeos, cortes verticales y seguimiento de tormentas.",
+  "Both clicks were on the same frame. Step the loop, then click the storm again.": "Los dos clics fueron en el mismo cuadro. Avanza el bucle y vuelve a hacer clic en la tormenta.",
+  "Click the start point (A) on any panel.": "Haz clic en el punto inicial (A) en cualquier panel.",
+  "Now click the end point (A′).": "Ahora haz clic en el punto final (A′).",
+
+  // ─── sounding ──────────────────────────────────────────────────────────────
+  "Loading the model profile…": "Cargando el perfil del modelo…",
+  "Couldn't load the model profile. Try again in a moment.": "No se pudo cargar el perfil del modelo. Reintenta en un momento.",
+  "The model has too few levels above the ground here.": "Aquí el modelo tiene muy pocos niveles sobre el terreno.",
+  "Model valid {time}": "Modelo válido {time}",
+  Parcel: "Parcela",
+  Surface: "Superficie",
+  "Mixed layer": "Capa de mezcla",
+  "Most unstable": "Más inestable",
+  "LCL ({parcel})": "LCL ({parcel})",
+  "Lifted index of the surface parcel at 500 hPa": "Índice de elevación de la parcela de superficie a 500 hPa",
+  "Lapse 0–3 km": "Gradiente 0–3 km",
+  "Lapse 700–500": "Gradiente 700–500",
+  "Shear 0–1 km": "Cizalladura 0–1 km",
+  "Shear 0–3 km": "Cizalladura 0–3 km",
+  "Shear 0–6 km": "Cizalladura 0–6 km",
+  "Bunkers RM": "Bunkers RM",
+  "Critical angle": "Ángulo crítico",
+  "Model profile from Open-Meteo (HRRR/NAM/GFS blend) for the current hour, not an observed sounding. SRH uses the Bunkers right mover.":
+    "Perfil del modelo de Open-Meteo (combinación HRRR/NAM/GFS) para la hora actual, no un sondeo observado. El SRH usa el movimiento derecho de Bunkers.",
+
+  // ─── cross-section ─────────────────────────────────────────────────────────
+  "Loading the cross-section…": "Cargando el corte vertical…",
+  "Couldn't load the cross-section. Try again in a moment.": "No se pudo cargar el corte vertical. Reintenta en un momento.",
+  "Vertical cross-section": "Corte vertical",
+  "Dashed lines: 0 °C (white) and −20 °C (blue), the hail growth zone between them. Model data for the current hour.":
+    "Líneas discontinuas: 0 °C (blanca) y −20 °C (azul); entre ellas, la zona de crecimiento de granizo. Datos del modelo para la hora actual.",
+
+  // ─── storm vector + TOA ────────────────────────────────────────────────────
+  "Click the storm's core on any panel.": "Haz clic en el núcleo de la tormenta en cualquier panel.",
+  "Step the loop a few frames (← →) and click the same core again.": "Avanza el bucle unos cuadros (← →) y vuelve a hacer clic en el mismo núcleo.",
+  From: "Desde",
+  "As of": "A las",
+  "Time of arrival": "Hora de llegada",
+  passed: "ya pasó",
+  "off track": "fuera de la trayectoria",
+  "Nothing within two hours of the track.": "Nada a menos de dos horas de la trayectoria.",
+  "Yellow: inside the ±20° fan (likely path). Use the TOA tool to add points.": "Amarillo: dentro del abanico de ±20° (trayectoria probable). Usa la herramienta TOA para agregar puntos.",
+  "New vector": "Nuevo vector",
+  "Clear points": "Borrar puntos",
+
+  // ─── warning inspector ─────────────────────────────────────────────────────
+  "Damage threat: {tier}": "Amenaza de daños: {tier}",
+  Base: "Base",
+  Considerable: "Considerable",
+  Destructive: "Destructivo",
+  Catastrophic: "Catastrófico",
+  "Tornado observed": "Tornado observado",
+  "Tornado possible": "Posible tornado",
+  "Radar indicated": "Indicado por radar",
+  "Max hail": "Granizo máximo",
+  "Max wind": "Viento máximo",
+  Expires: "Vence",
+  Motion: "Movimiento",
+  "This product has no HAZARD / SOURCE / IMPACT section.": "Este producto no tiene sección HAZARD / SOURCE / IMPACT.",
+};

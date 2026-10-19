@@ -147,3 +147,43 @@ src/ (one app) ──┼─ desktop ──► standalone server ─► Electron 
 **Hosted mode.** With the `STORMCENTRAL_URL` repository variable set, both apps load that deployment instead (Electron loads the URL; Capacitor's `server.url`). Every user then shares one spotter network, and web changes reach the apps on deploy, without a new release.
 
 **Releases.** `.github/workflows/release.yml` checks the code (typecheck, lint, tests). It then builds the installer on Windows and smoke-tests the bundled server's native database module there, and builds the APK on Linux. For a `v<version>` tag matching `package.json`, it publishes one GitHub release with `StormCentral-Setup-<version>.exe`, its blockmap, `latest.yml` (the electron-updater feed) and `StormCentral-<version>.apk`.
+
+## 9. Professional mode
+
+An AWIPS II / CAVE-style workspace, off by default (**Settings → General → Professional mode** adds the **Pro** mode, hotkey `6`). It lives in `src/components/pro/` and `src/lib/pro/`, and loads as its own chunk like the other map modes.
+
+```
+ProfessionalWorkspace          sync bus (zustand/vanilla) + pane registry + tool actions (React context)
+├─ ProToolbar                  layout 1×1 · 1×2 · 2×2 · 3×3, radar site, tool, loop transport (Zulu clock)
+├─ Pane × 1–9                  one MapLibre map each
+│  ├─ FrameSource              per product kind: site (useRadarLoop) · mosaic · MRMS (NOAA times) · satellite (GIBS / nowCOAST)
+│  ├─ ProFrames                RadarLayerManager frame pool, stepped by the sync clock
+│  ├─ CameraSync, CursorSync   imperative subscriptions: jumpTo / crosshair transform
+│  ├─ WarningsLayer, StormCellsLayer, ToolOverlay (A–A′, vector, TOA fan), ToolClicks
+│  └─ PaneHeader               product, tilt, opacity, overlays; frame time written to the DOM
+├─ side panel                  SoundingPanel (SkewT + Hodograph) · CrossSectionPanel · StormToolsPanel · IbwInspector
+└─ ReadoutHud                  lat/lon, ground height, range/bearing, every pane's value, model fields
+```
+
+**State.** Settings that should survive a reload (layout, each pane's product/tilt/opacity/overlays, site, frame count, speed) are a persisted Zustand store, `src/store/pro-store.ts`. The fast-changing shared view is a separate **vanilla** store, `src/lib/pro/sync.ts`: camera `{lng, lat, zoom, source}`, the loop `timeline`/`index`/`playing`, the time-basis pane's buffer status, and the cursor. Panes subscribe to it outside React and apply changes straight to MapLibre, so panning a 3×3 layout or stepping the loop renders no React components. Only the small widgets that display these values read them through `useProSync`, and the frame clocks write their text node directly.
+
+**Spatial sync.** A move event that carries user input (`originalEvent`) is published with the pane's id; the other panes `jumpTo` it. Programmatic jumps carry no input event, so they're never re-published, and there's no echo loop or "who leads" logic.
+
+**Temporal sync.** AWIPS-style time matching: the first radar pane is the **time basis** (marked `TB`) and the loop steps through its scan times, waiting on frames that pane hasn't buffered. Every pane shows its newest frame at or before the clock (`frameAt`), so products that scan at different times (super-res reflectivity, IEM dual-pol, 2-minute MRMS, 10-minute GOES) stay on the same moment. Satellite frames are stamped with the loop time they pair with (scan time + GIBS latency).
+
+**Cursor sampling.** The tile services return rendered PNGs, not data, so values are read back from colour (`lib/pro/sample.ts`): the tile under the cursor is fetched once (LRU of decoded tiles), and the pixel is matched to the closest point on the colour scale that drew it, interpolating between stops. NOAA's scales (`lib/pro/scales.ts`) were sampled from its own legend images and pinned to their printed values (reflectivity, super-res velocity with range folding, echo tops); IEM's Level-III tiles use the radar mode's legends. Values are shown as approximate (≈).
+
+**Model data.** Soundings, the readout's T/Td/CAPE/CIN/shear/PWAT and the cross-section come from Open-Meteo's pressure-level forecast for the current hour (`lib/pro/model.ts`), already decoded from GRIB2 and blended from HRRR/NAM/GFS. `lib/pro/thermo.ts` does the analysis: Bolton LCL, RK4 moist adiabats, virtual-temperature CAPE/CIN for SB/ML(100 hPa)/MU parcels, LI, PWAT, 0–3 km and 700–500 hPa lapse rates, bulk shear, Bunkers (2000) storm motion, 0–1/0–3 km SRH and critical angle, unit-tested against a synthetic spring sounding.
+
+**Storm tools** (`lib/pro/storm-tools.ts`): storm motion from two clicks at two loop times, the ±20° time-of-arrival fan with 15/30/45/60-minute isochrones, and closest-approach times for your location, saved places and clicked points. **IBW** (`lib/pro/ibw.ts`): damage-threat tier, detection and tagged hail/wind from the CAP parameters, and the HAZARD / SOURCE / IMPACT paragraphs from the text.
+
+### What the free tile services can't provide, and how to add it
+
+| Gap | Why | Path |
+|---|---|---|
+| Tilts above 3.4°, full volumes to 19.5° | IEM publishes Level-III tiles for the lowest four to six tilts | Read Level II volumes from [NEXRAD on AWS](https://registry.opendata.aws/noaa-nexrad/) (`unidata-nexrad-level2`, through a small proxy if the bucket's CORS rules don't allow the app's origin) and decode with [`nexrad-level-2-data`](https://github.com/netbymatt/nexrad-level-2-data) in a Web Worker; render polar gates in a MapLibre custom WebGL layer. |
+| Exact gate values, VIL | Tiles are colour images; VIL isn't published as tiles | The same Level II decode for Z/V/ZDR/ρHV; for VIL, the Level III digital VIL (product 134) and enhanced echo tops (135) files from `unidata-nexrad-level3`, decoded with [`nexrad-level-3-data`](https://github.com/netbymatt/nexrad-level-3-data) (check its supported-product list) or server-side with [MetPy](https://unidata.github.io/MetPy/). |
+| Day Cloud Phase, Night Fog, Sandwich RGBs | They need channel math on raw ABI bands; GIBS only serves fixed composites | ABI L1b/L2 netCDF from [NOAA GOES on AWS](https://registry.opendata.aws/noaa-goes/) (`noaa-goes19`), which are NetCDF-4 (HDF5), so decode them with [`h5wasm`](https://github.com/usnistgov/h5wasm) in a worker ([`netcdfjs`](https://github.com/cheminfo/netcdfjs) only reads classic NetCDF), combined per the CIRA/RAMMB recipes in a WebGL fragment shader. |
+| Raw GRIB2 (HRRR native levels, RAP) | Browsers have no practical GRIB2 decoder for JPEG2000/CCSDS-packed fields | Decode server-side with [wgrib2](https://www.cpc.ncep.noaa.gov/products/wesley/wgrib2/) or [ecCodes](https://confluence.ecmwf.int/display/ECC) (`pygrib`/`cfgrib`) and serve small JSON or PNG grids; or keep using Open-Meteo, which does this already. |
+
+**Rendering at scale.** For many pre-rendered rasters, MapLibre's raster sources (one per frame, flipped by opacity) are hard to beat. Gate-level data or model grids drawn as data rather than images want a MapLibre `CustomLayerInterface` with a WebGL2 shader doing the colour table lookup on the GPU, or [deck.gl](https://deck.gl) through `@deck.gl/mapbox`'s interleaved `MapboxOverlay`. The Skew-T, hodograph and cross-section are plain SVG: a sounding is a few hundred points, and SVG keeps them crisp, themeable and accessible without another dependency (alternatives: [`d3-skewt`](https://github.com/rsobash/d3-skewt) for D3 users, [MetPy](https://unidata.github.io/MetPy/) server-side).
