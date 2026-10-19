@@ -8,7 +8,7 @@ import { useMapAlerts } from "@/hooks/use-map-alerts";
 import { useNow } from "@/hooks/use-now";
 import { useT } from "@/lib/i18n/use-t";
 import type { LatLon } from "@/lib/geo";
-import { isSatellite } from "@/lib/pro/products";
+import { isSatellite, shownProduct } from "@/lib/pro/products";
 import { stormMotion } from "@/lib/pro/storm-tools";
 import { createProSync, syncTime } from "@/lib/pro/sync";
 import type { RadarFrame } from "@/lib/radar/frames";
@@ -73,7 +73,16 @@ export function ProfessionalWorkspace() {
   // Phones get one or two stacked panels.
   const layout: Layout = narrow && (storedLayout === "2x2" || storedLayout === "3x3") ? "1x2" : storedLayout;
   const grid = narrow && layout === "1x2" ? { cols: 1, rows: 2 } : GRID[layout];
-  const panes = useMemo(() => allPanes.slice(0, PANE_COUNT[layout]), [allPanes, layout]);
+  // A saved product this device can't show (a Level II volume on a phone, a server product with no server) shows its nearest stand-in.
+  const volume = caps.volume;
+  const panes = useMemo(
+    () =>
+      allPanes.slice(0, PANE_COUNT[layout]).map((p) => {
+        const product = shownProduct(p.product, { volume });
+        return product === p.product ? p : { ...p, product };
+      }),
+    [allPanes, layout, volume],
+  );
   // Big grids and phones loop fewer frames (each frame is a full set of textures per panel).
   const frameCount = Math.min(caps.maxFrames, layout === "3x3" ? Math.min(frames, 8) : frames);
   // The time basis: the first radar panel (satellite panels follow it).

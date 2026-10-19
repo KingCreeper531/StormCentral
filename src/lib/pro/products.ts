@@ -20,6 +20,7 @@ import type { NoaaLayer } from "../radar/noaa";
 import { INTL_RADARS, type IntlRadarId } from "../radar/intl";
 import { DEFAULT_LATENCY_MIN, GIBS_WMS, gibsTime, SATELLITE_ATTRIBUTION, SLOT_MS, satelliteSlot, type GoesSat } from "../radar/satellite";
 import type { RadarFrame } from "../radar/frames";
+import { PRO_SERVER } from "./server";
 import { DECODED_SCALES, type DecodedScaleId } from "./scales";
 import type { Moment } from "./nexrad/level2";
 
@@ -213,4 +214,35 @@ export function satelliteFrames(id: ProProductId, sat: GoesSat, loopTimes: reado
     .sort((a, b) => a - b)
     .slice(-Math.min(count, 10))
     .map((slot) => ({ id: `gibs-${p.layer}-${sat}-${slot}`, time: slot + SAT_LATENCY_MS, tileUrl: gibsUrl(p.layer, sat, slot), maxzoom: p.maxzoom, attribution: SATELLITE_ATTRIBUTION }));
+}
+
+/**
+ * Whether a product works on this device: Level II volumes need a desktop
+ * (`volume`), and the Pro data server's products need a server to be set up.
+ * Products that don't are left out of the menus.
+ */
+export function productUsable(id: ProProductId, caps: { volume: boolean }): boolean {
+  const p = PRO_PRODUCTS[id];
+  if (p.kind === "l2") return caps.volume;
+  if (p.kind === "server") return !!PRO_SERVER;
+  return true;
+}
+
+/** What a saved panel shows when its product doesn't work here: the nearest product that does. */
+const STAND_IN: Partial<Record<ProProductId, ProProductId>> = {
+  "vol-ref": "ref",
+  "vol-vel": "vel",
+  "vol-zdr": "zdr",
+  "vol-cc": "cc",
+  "mrms-mesh": "cref",
+  "mrms-mesh60": "cref",
+  "mrms-rotation": "vel",
+  "mrms-vil": "vil",
+  "goes-dcp": "sat-vis",
+  "goes-nightmicro": "sat-ir",
+  "goes-sandwich": "sat-ir",
+};
+
+export function shownProduct(id: ProProductId, caps: { volume: boolean }): ProProductId {
+  return productUsable(id, caps) ? id : (STAND_IN[id] ?? "ref");
 }

@@ -13,8 +13,7 @@ export const RADAR: Record<string, string> = {
   "Nearest to location": "La más cercana a la ubicación",
   "You can also select a site on the map.": "También puedes elegir una estación en el mapa.",
   Product: "Producto",
-  "Velocity and dual-pol products switch to single-site data.":
-    "Los productos de velocidad y polarización dual cambian a datos de un solo radar.",
+  "The other products switch to single-site data.": "Los demás productos cambian a datos de un solo radar.",
   "Elevation tilt": "Ángulo de elevación",
   Display: "Visualización",
   Frames: "Cuadros",

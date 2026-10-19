@@ -8,14 +8,13 @@ import { listLevel2, listLevel3, newest } from "@/lib/pro/nexrad/aws";
 import { decodedVersion, jobKey, peekDecoded, requestDecode, subscribeDecoded, type DecodeJob } from "@/lib/pro/nexrad/client";
 import { l3CodeFor, mrmsLayer, PRO_PRODUCTS, satelliteFrames, type ProProductId } from "@/lib/pro/products";
 import { DECODED_SCALES, type ValueScale } from "@/lib/pro/scales";
-import { corners, fetchServerIndex, serverFrames } from "@/lib/pro/server";
+import { corners, fetchServerIndex, PRO_SERVER, serverFrames } from "@/lib/pro/server";
 import { useProSync } from "@/lib/pro/sync";
 import { iemSiteId, type RadarFrame } from "@/lib/radar/frames";
 import { INTL_RADARS, intlFrame } from "@/lib/radar/intl";
 import { noaaFrames, noaaTilesUsable } from "@/lib/radar/noaa";
 import { FAMILIES, resolveTilts, TILTS, type ProductFamily, type ResolvedTilt, type TiltPrefix } from "@/lib/radar/products";
 import { pickSatellite } from "@/lib/radar/satellite";
-import { useAppStore } from "@/store/app-store";
 import { usePro } from "./pro-context";
 import type { ProCaps } from "./use-pro-caps";
 
@@ -203,13 +202,8 @@ function VolumeSource({ product, site, elev, frameCount, caps, onFeed }: SourceP
   return null;
 }
 
-function DesktopOnly({ onFeed }: SourceProps) {
-  useReport(onFeed, { frames: [], family: null, tilts: noTilts, tilt: null, source: "", loading: false, empty: true, note: "Level II volumes are desktop only" });
-  return null;
-}
-
 function ServerSource({ product, frameCount, onFeed }: SourceProps) {
-  const base = useAppStore((s) => s.proServer);
+  const base = PRO_SERVER;
   const def = PRO_PRODUCTS[product];
   const id = def.kind === "server" ? def.serverId : "";
   const index = useQuery({
@@ -231,7 +225,7 @@ function ServerSource({ product, frameCount, onFeed }: SourceProps) {
     source: base ? `Pro data server` : "",
     loading: !!base && index.isLoading,
     empty: !base || index.isError || (index.isSuccess && !frames.length),
-    note: !base ? "Needs a Pro data server (Settings → Professional mode)" : index.isError ? "Pro data server unreachable" : undefined,
+    note: index.isError ? "Pro data server unreachable" : undefined,
     scale,
   });
   return null;
@@ -326,7 +320,8 @@ function SatelliteSource({ product, frameCount, basis, onFeed }: SourceProps) {
 export function FrameSource(props: SourceProps) {
   const def = PRO_PRODUCTS[props.product];
   // Keyed so switching products starts from a clean loader.
-  if (def.kind === "l2") return props.caps.volume ? <VolumeSource key={`l2-${props.product}-${props.site}`} {...props} /> : <DesktopOnly {...props} />;
+  // Products this device can't show never reach here (see `shownProduct`).
+  if (def.kind === "l2") return <VolumeSource key={`l2-${props.product}-${props.site}`} {...props} />;
   if (l3CodeFor(props.product, props.tilt)) return <L3Source key={`l3-${props.product}-${props.site}-${props.tilt}`} {...props} />;
   if (def.kind === "site") return <SiteSource key={`site-${props.product}-${props.site}`} {...props} />;
   if (def.kind === "server") return <ServerSource key={`srv-${props.product}`} {...props} />;
