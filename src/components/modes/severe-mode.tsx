@@ -14,8 +14,9 @@ import { FAMILIES, resolveTilts } from "@/lib/radar/products";
 import { iemSiteId } from "@/lib/radar/frames";
 import { satelliteLabel } from "@/lib/radar/satellite";
 import { getSite, nearestSites } from "@/lib/radar/site-utils";
-import { useForecast, useLocalAlerts, useNationalAlerts, useOutlook, useRadarProducts, useReportsInView, useStormCells, useStormReports, useTropical } from "@/hooks/queries";
+import { useForecast, useLocalAlerts, useOutlook, useRadarProducts, useReportsInView, useStormCells, useStormReports, useTropical } from "@/hooks/queries";
 import { useFormat } from "@/hooks/use-format";
+import { useMapAlerts } from "@/hooks/use-map-alerts";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import { useIsDesktop, useMediaQuery } from "@/hooks/use-media-query";
 import { useNow } from "@/hooks/use-now";
@@ -37,6 +38,7 @@ import { SitesLayer } from "../map/layers/sites-layer";
 import { TracksLayer } from "../map/layers/tracks-layer";
 import { UserMarker } from "../map/layers/user-marker";
 import { WarningsLayer } from "../map/layers/warnings-layer";
+import { IntlRadarLayers } from "../map/layers/intl-radar-layer";
 import { AlertDetail } from "../radar/alert-detail";
 import { AlertList, alertUntil, HazardSwatch, type RankedAlert } from "../radar/alert-list";
 import { WarningSquares } from "../radar/warning-squares";
@@ -159,6 +161,7 @@ export function SevereMode() {
   const selectedAlert = selectedId("alert");
   const [satImage, setSatImage] = useState<SatelliteImage | null>(null);
   const [bbox, setBbox] = useState<BBox | null>(null);
+  const intlView = useMemo<[number, number, number, number] | null>(() => (bbox ? [bbox.west, bbox.south, bbox.east, bbox.north] : null), [bbox]);
   /** A request to frame bounds; `n` makes repeat requests for the same bounds distinct. */
   const [fitRequest, setFitRequest] = useState<{ bounds: Bounds; n: number } | null>(null);
   const fitDone = useRef(0);
@@ -184,9 +187,12 @@ export function SevereMode() {
     historyMinutes: radar.history === "4h" ? 240 : radar.history === "2h" ? 120 : 0,
   });
   const showingForecast = !!loop.frames[loop.index]?.forecast;
+  // Other countries' radar is matched to the loop's observed scans (forecast frames get none).
+  const loopTimes = useMemo(() => loop.frames.map((f) => (f.forecast ? Number.NaN : f.time)), [loop.frames]);
 
   // ── Overlays ──────────────────────────────────────────────────────────────
-  const national = useNationalAlerts(true);
+  // Storm-based warnings plus the watches, advisories, discussions… picked in the layer settings.
+  const { national, hazards, spotter, all: mapAlerts } = useMapAlerts();
   const local = useLocalAlerts();
   const outlook = useOutlook(radar.showOutlook, radar.outlookKind);
   const reports = useReportsInView(bbox, radar.showReports);
@@ -210,7 +216,7 @@ export function SevereMode() {
     return [...out.values()].sort((x, y) => Number(y.inside) - Number(x.inside) || y.alert.rank - x.alert.rank || x.distanceKm - y.distanceKm);
   }, [national.data, local.data, loc, radiusKm]);
 
-  const allAlerts = useMemo(() => [...(national.data?.alerts ?? []), ...(local.data?.alerts ?? [])], [national.data, local.data]);
+  const allAlerts = useMemo(() => [...(national.data?.alerts ?? []), ...(local.data?.alerts ?? []), ...hazards, ...spotter], [national.data, local.data, hazards, spotter]);
   const alertById = (id: string | null) => (id ? allAlerts.find((a) => a.id === id) : undefined);
   const activeAlert = alertById(selectedAlert);
   const activeReport = (reports.data ?? []).find((p) => p.id === selectedId("post"));
@@ -690,10 +696,11 @@ export function SevereMode() {
         {radar.showOutlook && <OutlookLayer features={outlook.data?.features ?? []} kind={outlook.data?.kind ?? radar.outlookKind} />}
         {radar.showTropical && <TropicalLayer storms={storms} selectedId={selectedId("storm")} onSelect={(id) => select("storm", id)} />}
         {radar.showLightning && <LightningLayer />}
+        {radar.intlRadar && <IntlRadarLayers view={intlView} loopTimes={loopTimes} index={loop.index} opacity={radar.opacity} crossfadeMs={loop.crossfadeMs} />}
         <RadarLayer frames={loop.frames} index={loop.index} opacity={radar.opacity} crisp={(FAMILIES[family].crisp && isSite) || !radar.smooth} crossfadeMs={loop.crossfadeMs} onStatus={loop.onStatus} />
         {radar.showWarnings && (
           <WarningsLayer
-            alerts={national.data?.alerts ?? []}
+            alerts={mapAlerts}
             selectedId={selectedAlert}
             onSelect={(id) => {
               const a = alertById(id);
