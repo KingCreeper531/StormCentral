@@ -93,6 +93,13 @@ IEM scan index ──► immutable frames ──► MapLibre frame pool ──�
   - Worst case: 20 frames × (≈24 visible + 48 cached tiles) × 256 KB is bounded by design, and typical usage is far lower.
 - **Graceful degradation.** If the IEM index is unreachable, the national mosaic falls back to IEM's rolling `-m05m…-m55m` composite layers, which need no index.
 - **Discovery-driven product UI.** Available products and tilts per site come from IEM (`operation=products`), so the UI never offers a tilt or dual-pol product the radar isn't producing.
+- **Future radar, extrapolated** (`lib/radar/nowcast.ts`, run in `nowcast.worker.ts`, driven by `hooks/use-nowcast.ts`). On the device, with no server involved, so it also works in the Android app:
+  1. The worker draws the newest reflectivity scan and the one ~15 minutes before it onto a Web Mercator grid over the view, plus a 15 % margin, up to 768 px across. It uses the loop's own tiles, or one WMS image for NOAA. Drawing is nearest-pixel, so palette colours stay exact.
+  2. It turns the colours into an echo-intensity proxy and block-matches it on a grid coarsened to ≥ 2 km pixels: 24 px blocks, ±14 px search, a sub-pixel parabola through the best match, and blocks without texture rejected.
+  3. It cleans the vectors: a 3×3 median, inverse-distance fill for blocks without echoes, and the mean motion when the field disagrees with itself.
+  4. Semi-Lagrangian advection traces each pixel back along the field, one 10-minute step further per frame, to make +10 … +60 minute PNGs that fade slightly with lead time.
+
+  These frames are MapLibre image sources in the same frame pool, after the live scans, marked green on the timeline. The HRRR model frames (orange) pick up after them. The forecast is redone for each new scan, or when the view moves a quarter of its size or zooms ¾ of a level. The previous set stays up until the new one is ready. It's reflectivity only, and silently absent when there's too little echo, a scan's tiles didn't load, or the browser has no `OffscreenCanvas` in workers. Echoes keep their strength: no growth, decay or initiation, which the toggle says.
 
 Overlays (warnings, storm tracks, SPC outlook, radar sites, spotter reports, AQI heat raster) are null-rendering React components that insert into named **z-order slots**: invisible marker layers created on map load. Stacking is therefore deterministic regardless of mount order, and radar renders beneath the basemap's place labels. Selections from map clicks go to React state and render in overlay panels (a bottom sheet on phones); user content is never injected into map popups as HTML.
 
