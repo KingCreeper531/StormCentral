@@ -1,8 +1,9 @@
 import "server-only";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { createClient, type Client } from "@libsql/client";
-import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
+import type { Client } from "@libsql/client";
+import type { LibSQLDatabase } from "drizzle-orm/libsql";
+import { drizzle } from "drizzle-orm/libsql/web";
 import { COLUMN_MIGRATIONS, SCHEMA_SQL, schema } from "./schema";
 
 export type Db = LibSQLDatabase<typeof schema>;
@@ -17,22 +18,32 @@ interface DbHandle {
  * per process. Local dev uses an embedded SQLite file; set DATABASE_URL to a
  * libsql:// (Turso) URL for serverless deployments.
  * Stored on globalThis so dev-mode HMR doesn't leak a pool per reload.
+ *
+ * Only a local file needs the native SQLite driver, so it's loaded just for
+ * that; a remote database goes through the plain-fetch web client. Vercel
+ * builds leave the native driver (~20 MB per function, per deployment) out
+ * entirely (next.config.ts).
  */
 const g = globalThis as typeof globalThis & { __stormcentralDb?: Promise<DbHandle> };
 
-export function openDb(url: string, authToken?: string): Promise<DbHandle> {
-  if (url.startsWith("file:")) {
+async function connect(url: string, authToken?: string): Promise<Client> {
+  if (url.startsWith("file:") || url === ":memory:") {
+    if (process.env.VERCEL) throw new Error("A file: DATABASE_URL can't work on Vercel: connect a Turso database (Storage tab), then redeploy.");
     const file = url.slice("file:".length);
     if (file && !file.startsWith(":memory:")) mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
+    return (await import("@libsql/client")).createClient({ url, authToken });
   }
-  const client = createClient({ url, authToken });
-  return client.executeMultiple(SCHEMA_SQL).then(async () => {
-    for (const m of COLUMN_MIGRATIONS) {
-      const cols = await client.execute(`PRAGMA table_info(${m.table})`);
-      if (!cols.rows.some((r) => r.name === m.column)) await client.execute(m.sql);
-    }
-    return { client, db: drizzle(client, { schema }) };
-  });
+  return (await import("@libsql/client/web")).createClient({ url, authToken });
+}
+
+export async function openDb(url: string, authToken?: string): Promise<DbHandle> {
+  const client = await connect(url, authToken);
+  await client.executeMultiple(SCHEMA_SQL);
+  for (const m of COLUMN_MIGRATIONS) {
+    const cols = await client.execute(`PRAGMA table_info(${m.table})`);
+    if (!cols.rows.some((r) => r.name === m.column)) await client.execute(m.sql);
+  }
+  return { client, db: drizzle({ client, schema }) };
 }
 
 /**
