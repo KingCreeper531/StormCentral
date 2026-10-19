@@ -61,6 +61,14 @@ describe("who may issue", () => {
     expect((await r.issuePermission(user(ALICE, { suspendedUntil: Date.now() + 1000 }))).ok).toBe(false);
     delete process.env.WARNGEN_MIN_REPUTATION;
   });
+
+  it("lets a granted Trusted Spotter issue without the confirmations", async () => {
+    expect((await r.issuePermission(user("u-zenitsu132"))).ok).toBe(true);
+    expect((await r.issuePermission(user(BOB))).ok).toBe(false);
+    process.env.TRUSTED_SPOTTERS = BOB.slice(2);
+    expect((await r.issuePermission(user(BOB))).ok).toBe(true);
+    delete process.env.TRUSTED_SPOTTERS;
+  });
 });
 
 describe("spotter warnings", () => {

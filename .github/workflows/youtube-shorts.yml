@@ -12,6 +12,11 @@
 # "true" (and SHORTS_KINDS, when set, lists the kind). "Run workflow" renders
 # the chosen kind from the latest data to download from the run, and uploads
 # only when asked to.
+#
+# A local model in Ollama rewrites the narrator's script livelier, every line
+# checked against the facts (shorts/script.ts). It's on unless the variable
+# SHORTS_AI is "false" (or "AI narration" is unticked on a manual run); if
+# Ollama fails, the plain script is read.
 name: YouTube Shorts
 
 # GitHub sometimes starts a scheduled run very late or drops it, so each kind
@@ -49,6 +54,10 @@ on:
         description: Behave like a scheduled run (for an outside scheduler such as cron-job.org; uploads, skips quiet days, posts once a day)
         type: boolean
         default: false
+      ai:
+        description: AI narration (Ollama rewrites the script livelier; the run also keeps a copy with the plain narration to compare)
+        type: boolean
+        default: true
 
 concurrency:
   # One run of a kind at a time (the backup waits for the first, then sees its posted marker).
@@ -64,6 +73,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 80
     env:
+      # Manual runs: the "AI narration" box. Scheduled runs (and outside schedulers): the SHORTS_AI variable, on by default.
+      SHORTS_AI: ${{ (github.event_name == 'workflow_dispatch' && !inputs.scheduled) && (inputs.ai && 'true' || 'false') || vars.SHORTS_AI || 'true' }}
+      SHORTS_AI_MODEL: ${{ vars.SHORTS_AI_MODEL || 'gemma3:12b' }}
       SHORTS_KIND: ${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || ((github.event.schedule == '30 20 * * *' || github.event.schedule == '10 21 * * *') && 'fire') || 'outlook' }}
     steps:
       - id: today
@@ -103,6 +115,14 @@ jobs:
           "$RUNNER_TEMP/shorts/node_modules/.bin/playwright-core" install --with-deps chromium
           command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
           pipx install edge-tts==7.3.1 || echo "::warning::Couldn't install edge-tts; the Short will have no narration."
+      # The AI narrator runs on the runner's CPU (4 cores, 16 GB): no GPU or API key. If this fails, the plain script is read.
+      - name: Start the AI narrator (Ollama)
+        if: steps.go.outputs.go == 'true' && env.SHORTS_AI == 'true'
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama pull "$SHORTS_AI_MODEL"
       - name: Build
         if: steps.go.outputs.go == 'true'
         run: npx --yes esbuild@0.28.2 shorts/main.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNNER_TEMP/shorts/shorts.mjs" --log-level=warning
@@ -129,6 +149,7 @@ jobs:
           SHORTS_VOICE_NAME: ${{ vars.SHORTS_VOICE_NAME || 'en-US-AndrewNeural' }}
           SHORTS_TROPICAL_MAX: ${{ vars.SHORTS_TROPICAL_MAX || '2' }}
           SHORTS_FIRE_MAX: ${{ vars.SHORTS_FIRE_MAX || '1' }}
+          SHORTS_AI_COMPARE: ${{ (github.event_name == 'workflow_dispatch' && !inputs.scheduled && inputs.ai) && '1' || '0' }}
         run: node "$RUNNER_TEMP/shorts/shorts.mjs"
       - uses: actions/cache/save@v4
         if: always() && env.SHORTS_KIND == 'fire' && hashFiles('shorts/.state/fire-sizes.json') != ''
