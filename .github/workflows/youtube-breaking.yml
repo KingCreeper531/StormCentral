@@ -1,0 +1,131 @@
+# Breaking-news Shorts (shorts/README.md, "Breaking news"): every 10 minutes
+# a quick look, with no browser, for a Tornado or Flash Flood Emergency, an
+# Extreme Wind Warning, a PDS tornado warning or watch, or an SPC High Risk
+# that hasn't been posted. Only then is the renderer installed and the Short
+# made and uploaded. Posted events are kept in the Actions cache
+# (shorts/.state/breaking.json), at most SHORTS_BREAKING_DAILY_MAX (default 2)
+# a day, since YouTube's quota allows about 6 uploads in all.
+#
+# Scheduled runs happen only when the repository variable SHORTS_ENABLED is
+# "true" (and SHORTS_KINDS, when set, lists "breaking"). "Run workflow" makes
+# the top event right now, or a saved test scenario (never uploaded).
+name: YouTube Breaking Shorts
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Upload to YouTube (otherwise only render it, to download from this run)
+        type: boolean
+        default: false
+      fixture:
+        description: Test with a saved scenario from shorts/fixtures/breaking instead of live alerts (never uploaded)
+        type: choice
+        options: [none, tornado-emergency, pds-watch, high-risk]
+        default: none
+      scheduled:
+        description: Behave like a scheduled run (for an outside scheduler such as cron-job.org; new events only, within the daily cap)
+        type: boolean
+        default: false
+
+concurrency:
+  # One run at a time, so two runs can't post the same event.
+  group: youtube-breaking
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  breaking:
+    if: (github.event_name == 'workflow_dispatch' && !inputs.scheduled) || vars.SHORTS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      MANUAL: ${{ github.event_name == 'workflow_dispatch' && !inputs.scheduled }}
+      FIXTURE: ${{ inputs.fixture != 'none' && inputs.fixture || '' }}
+      SHORTS_STATE_DIR: shorts/.state
+      SHORTS_BREAKING_DAILY_MAX: ${{ vars.SHORTS_BREAKING_DAILY_MAX || '2' }}
+    steps:
+      - id: on
+        env:
+          KINDS: ${{ vars.SHORTS_KINDS }}
+        run: |
+          if [ "$MANUAL" = true ] || [ -z "$KINDS" ] || echo ",${KINDS// /}," | grep -qi ",breaking,"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "breaking isn't in SHORTS_KINDS ($KINDS); skipping."
+          fi
+      - uses: actions/checkout@v5
+        if: steps.on.outputs.run == 'true'
+      - uses: actions/setup-node@v5
+        if: steps.on.outputs.run == 'true'
+        with:
+          node-version: 22
+      # The events posted so far: the newest saved state.
+      - uses: actions/cache/restore@v4
+        if: steps.on.outputs.run == 'true'
+        with:
+          path: shorts/.state
+          key: shorts-breaking-state-${{ github.run_id }}
+          restore-keys: shorts-breaking-state-
+      - name: Build the check
+        if: steps.on.outputs.run == 'true'
+        run: npx --yes esbuild@0.28.2 shorts/breaking-check.ts --bundle --platform=node --format=esm --target=node22 --outfile="$RUNNER_TEMP/shorts/check.mjs" --log-level=warning
+      - name: Look for a new event
+        id: check
+        if: steps.on.outputs.run == 'true'
+        env:
+          SHORTS_FIXTURES: ${{ env.FIXTURE && format('shorts/fixtures/breaking/{0}', env.FIXTURE) || '' }}
+          # The scenarios' evening, so their warnings haven't expired.
+          SHORTS_NOW: ${{ env.FIXTURE && '2026-05-20T19:00:00Z' || '' }}
+        run: node "$RUNNER_TEMP/shorts/check.mjs"
+      - id: go
+        if: steps.check.outputs.event != '' || (env.MANUAL == 'true' && steps.check.outputs.any == 'true')
+        run: echo "go=true" >> "$GITHUB_OUTPUT"
+      - name: Install the renderer (Chromium, ffmpeg and the narrator's edge-tts)
+        if: steps.go.outputs.go == 'true'
+        run: |
+          npm install --prefix "$RUNNER_TEMP/shorts" --no-audit --no-fund playwright-core@1.56.1
+          "$RUNNER_TEMP/shorts/node_modules/.bin/playwright-core" install --with-deps chromium
+          command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+          pipx install edge-tts==7.3.1 || echo "::warning::Couldn't install edge-tts; the Short will have no narration."
+          npx --yes esbuild@0.28.2 shorts/main.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNNER_TEMP/shorts/shorts.mjs" --log-level=warning
+      - name: Make the Short
+        id: make
+        if: steps.go.outputs.go == 'true'
+        env:
+          SHORTS_KIND: breaking
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SHORTS_UPLOAD: ${{ !env.FIXTURE && (github.event_name == 'schedule' || inputs.upload || inputs.scheduled) && '1' || '0' }}
+          SHORTS_LATEST: ${{ env.MANUAL == 'true' && '1' || '0' }}
+          SHORTS_FIXTURES: ${{ env.FIXTURE && format('shorts/fixtures/breaking/{0}', env.FIXTURE) || '' }}
+          SHORTS_NOW: ${{ env.FIXTURE && '2026-05-20T19:00:00Z' || '' }}
+          SHORTS_BREAKING_EVENT: ${{ steps.check.outputs.event }}
+          SHORTS_PRIVACY: ${{ vars.SHORTS_PRIVACY || 'public' }}
+          SHORTS_PLAYLISTS: ${{ vars.SHORTS_PLAYLISTS || 'true' }}
+          SHORTS_VOICE: ${{ vars.SHORTS_VOICE || 'true' }}
+          SHORTS_VOICE_NAME: ${{ vars.SHORTS_VOICE_NAME || 'en-US-AndrewNeural' }}
+        run: node "$RUNNER_TEMP/shorts/shorts.mjs"
+      - name: Mark it as posted
+        if: steps.make.outputs.uploaded == 'true'
+        env:
+          KEYS: ${{ steps.make.outputs.breaking_keys }}
+        run: node "$RUNNER_TEMP/shorts/check.mjs" mark "$KEYS"
+      - uses: actions/cache/save@v4
+        if: steps.make.outputs.uploaded == 'true'
+        with:
+          path: shorts/.state
+          key: shorts-breaking-state-${{ github.run_id }}
+      - uses: actions/upload-artifact@v4
+        if: always() && hashFiles('shorts/out/*.mp4') != ''
+        with:
+          name: breaking-short-${{ github.run_id }}
+          path: |
+            shorts/out/*.mp4
+            shorts/out/*.json
+          retention-days: 7

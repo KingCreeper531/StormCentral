@@ -11,9 +11,10 @@ import { CATEGORIES, CATEGORY_IDS, SEVERITY_LABELS, type Category, isGenericPlac
 import { getFreshPosition } from "@/lib/device-position";
 import { useT } from "@/lib/i18n/use-t";
 import { preparePhoto } from "@/lib/image-client";
+import { MPING_OPTIONS } from "@/lib/mping";
 import { currentHourIndex } from "@/lib/weather/view";
 import { cn } from "@/lib/utils";
-import { qk, useSession } from "@/hooks/queries";
+import { qk, useMpingEnabled, useSession } from "@/hooks/queries";
 import { useAppStore } from "@/store/app-store";
 import { Button, buttonClass, IconButton } from "../ui/button";
 import { Skeleton } from "../ui/misc";
@@ -22,6 +23,25 @@ import { WeatherIcon } from "../ui/weather-icon";
 import { errorText } from "./moderation";
 
 const FIELD_LABEL = "mb-2 block text-[13px] font-medium text-ink-2";
+const SELECT =
+  "h-9 w-full min-w-0 rounded-[var(--radius-control)] border border-line bg-surface-2 px-3 text-sm text-ink outline-none focus:border-accent pointer-coarse:h-11 pointer-coarse:text-base";
+
+/** Whether the spotter last chose to send reports on to mPING (remembered on this device only). */
+const MPING_PREF = "stormcentral:mping";
+const readMpingPref = () => {
+  try {
+    return localStorage.getItem(MPING_PREF) === "1";
+  } catch {
+    return false;
+  }
+};
+const writeMpingPref = (on: boolean) => {
+  try {
+    localStorage.setItem(MPING_PREF, on ? "1" : "0");
+  } catch {
+    /* private mode: just not remembered */
+  }
+};
 
 /**
  * Report composer. Phones: a full-height sheet with Cancel / title / Post in
@@ -48,6 +68,11 @@ export function Composer() {
   const [photo, setPhoto] = useState<{ blob: Blob; url: string; width: number; height: number } | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [precise, setPrecise] = useState(false);
+  const [toMping, setToMping] = useState(readMpingPref);
+  const [mpingKey, setMpingKey] = useState("");
+  // Offered only when the server can send to mPING and mPING takes this kind of report.
+  const mpingOptions = useMpingEnabled(open && !!user).data ? MPING_OPTIONS[category] : undefined;
+  const sendToMping = !!mpingOptions && toMping;
   const fileRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -66,6 +91,7 @@ export function Composer() {
     setBody("");
     setPhoto(null);
     setPrecise(false);
+    setMpingKey("");
   };
 
   const submit = useMutation({
@@ -85,6 +111,7 @@ export function Composer() {
       // "My location" (GPS without a town name) is left out; the server names the town from the coordinates.
       if (!isGenericPlace(loc.name)) fd.set("place", loc.name.slice(0, 80));
       fd.set("precise", String(precise));
+      if (sendToMping && mpingKey) fd.set("mping", mpingKey);
       // Ground truth vs. model: snapshot what the forecast said right now.
       const f = qc.getQueryData<Forecast>(qk.forecast(loc));
       if (f) {
@@ -128,7 +155,7 @@ export function Composer() {
   };
 
   const close = () => setOpen(false);
-  const canPost = !submit.isPending && body.trim().length >= 3;
+  const canPost = !submit.isPending && body.trim().length >= 3 && (!sendToMping || !!mpingKey);
   const spinner = submit.isPending && <Loader2 className="size-4 animate-spin" aria-hidden />;
 
   const header = (
@@ -236,7 +263,10 @@ export function Composer() {
                           <button
                             key={id}
                             type="button"
-                            onClick={() => setCategory(id)}
+                            onClick={() => {
+                              setCategory(id);
+                              setMpingKey("");
+                            }}
                             aria-pressed={active}
                             className={cn(
                               "flex min-h-11 min-w-0 items-center gap-2 rounded-[var(--radius-control)] border px-2.5 py-1.5 text-left text-[13px] font-medium transition-colors md:flex-col md:justify-center md:gap-1 md:px-1 md:py-2 md:text-center md:text-[11px] md:leading-tight",
@@ -321,6 +351,38 @@ export function Composer() {
                       </span>
                     </span>
                   </label>
+
+                  {mpingOptions && (
+                    <div className="space-y-2">
+                      <label className="flex cursor-pointer items-start gap-2.5">
+                        <input
+                          type="checkbox"
+                          checked={toMping}
+                          onChange={(e) => {
+                            setToMping(e.target.checked);
+                            writeMpingPref(e.target.checked);
+                          }}
+                          className="mt-0.5 size-4 shrink-0 accent-[var(--color-accent)]"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-[13px] font-medium text-ink">{t("Also send to NOAA's mPING")}</span>
+                          <span className="label mt-0.5 block">{t("Helps NWS forecasters and researchers. mPING gets the report type, time and location, not your name.")}</span>
+                        </span>
+                      </label>
+                      {toMping && (
+                        <select required value={mpingKey} onChange={(e) => setMpingKey(e.target.value)} aria-label={t("What to send to mPING")} className={SELECT}>
+                          <option value="" disabled>
+                            {t("What did you see?")}
+                          </option>
+                          {mpingOptions.map((o) => (
+                            <option key={o.key} value={o.key}>
+                              {t(o.label)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
 
                   <p className="label">
                     {rulesBefore}

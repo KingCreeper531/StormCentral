@@ -7,21 +7,12 @@ import { spotterWarnings, users } from "../db/schema";
 import { ringBounds, type Ring } from "../warngen/geometry";
 import { DEFAULT_ISSUE_REPUTATION, isWarnKind, WARN_BASES, WARN_THREATS, type WarnBasis, type WarnThreat } from "../warngen/products";
 import type { IssueRequest, SpotterWarningDto, UpdateRequest } from "../warngen/schema";
-import { notBlocked } from "./community-repo";
+import { notBlocked, reputationSql as reputation } from "./community-repo";
 
 /** Ended warnings stay listed (greyed out) this long. */
 const RECENT_MS = 30 * 60_000;
 /** Active warnings one spotter may have at once. */
 export const MAX_ACTIVE_PER_USER = 6;
-
-/**
- * Confirmations of a user's reports (their reputation). Written against the
- * outer query's `users` table by name: Drizzle leaves columns unqualified in
- * single-table selects, where `id` would bind to the subquery's posts.
- */
-const reputation = sql<number>`(
-  SELECT COUNT(*) FROM verifications v JOIN posts p2 ON p2.id = v.post_id WHERE p2.user_id = "users"."id"
-)`;
 
 /** WARNGEN_MIN_REPUTATION (0 opens WarnGen to every member), else Trusted Spotter rank. */
 export function issueReputation(): number {

@@ -11,6 +11,14 @@ export const COMMUNITY: Record<string, string> = {
   Reports: "Reportes",
   reports: "los reportes",
   "Spotter reports": "Reportes de observadores",
+  "Confirmed by NWS": "Confirmado por el NWS",
+  "NWS storm report": "Reporte de tormenta del NWS",
+  "Counts as {n} confirmations.": "Cuenta como {n} confirmaciones.",
+  "Also send to NOAA's mPING": "Enviar también a mPING de NOAA",
+  "Helps NWS forecasters and researchers. mPING gets the report type, time and location, not your name.":
+    "Ayuda a los meteorólogos del NWS y a investigadores. mPING recibe el tipo de reporte, la hora y la ubicación, no tu nombre.",
+  "What to send to mPING": "Qué enviar a mPING",
+  "What did you see?": "¿Qué viste?",
   Feed: "Lista de reportes",
   Latest: "Recientes",
   Nearby: "Cercanos",
@@ -248,4 +256,15 @@ export const COMMUNITY: Record<string, string> = {
   "This reset link has expired or was already used. Ask for a new one.": "Este enlace venció o ya se usó. Pide uno nuevo.",
   "Your current password isn't right": "Tu contraseña actual no es correcta",
   "Internal server error": "Error interno del servidor",
+
+  // ─── chaser-detail.tsx: a storm chaser on the map ─────────────────────────
+  "Close chaser": "Cerrar cazador",
+  Heading: "Rumbo",
+  Updated: "Actualizado",
+  Parked: "Estacionado",
+  "You're sharing your live position with signed-in spotters. Stop anytime in Settings → Account.":
+    "Estás compartiendo tu ubicación en vivo con los observadores con sesión iniciada. Detenlo cuando quieras en Configuración → Cuenta.",
+  "Shared live by this spotter while they chase; it updates about every minute. Never drive toward a storm to meet anyone.":
+    "Compartida en vivo por este observador mientras persigue tormentas; se actualiza más o menos cada minuto. Nunca manejes hacia una tormenta para encontrarte con alguien.",
+  "Sharing has already ended": "El tiempo para compartir ya terminó",
 };

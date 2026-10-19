@@ -1,0 +1,260 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="short.css" />
+<script src="vendor/d3-array.min.js"></script>
+<script src="vendor/d3-geo.min.js"></script>
+<script src="vendor/topojson-client.min.js"></script>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script src="common.js"></script>
+<script>
+/*
+ * Breaking news (about 24-34 s, timed to its narration). DATA:
+ *   { states, logo,
+ *     event: { trigger, headline: ["TORNADO", "EMERGENCY"], color, issuer, areas: ["Cleveland", "McClain"], areasLabel: "Counties in Oklahoma",
+ *              more, where, stateNames,
+ *              until: "8:15 PM CDT" | null, chips: [{ label, value }], shapes: FeatureCollection, context: FeatureCollection,
+ *              motion: { lon, lat, headingDeg, speedKt } | null, radar: { url, west, south, east, north } | null, zoomed },
+ *     lines: { intro, situation, until, safety }, timing: { situation, until, safety, end } }
+ */
+const { ctx, D, C, W, PANEL, MAP, clamp, seg, easeOut, easeInOut, lerp, rr, text, fitText, fitSize, wrap } = SC;
+const E = D.event, L = D.lines, T = D.timing;
+const RED = "#ff3b30";
+const END = T.end;
+const spc = E.trigger === "pds-tornado-watch" || E.trigger === "high-risk";
+const map = SC.makeMap(SC.usProjection(), {
+  source: `Source: ${spc ? "NOAA Storm Prediction Center" : "National Weather Service"}${E.radar ? " · Radar: Iowa Environmental Mesonet" : ""}`,
+});
+
+/** d3-geo wants polygons wound clockwise; GeoJSON from the NWS, IEM and SPC can come either way. */
+function d3Wound(geom) {
+  if (!geom) return null;
+  const fix = (rings) => (d3.geoArea({ type: "Polygon", coordinates: rings }) > 2 * Math.PI ? rings.map((r) => r.slice().reverse()) : rings);
+  if (geom.type === "Polygon") return { type: "Polygon", coordinates: fix(geom.coordinates) };
+  if (geom.type === "MultiPolygon") return { type: "MultiPolygon", coordinates: geom.coordinates.map(fix) };
+  return geom;
+}
+for (const fc of [E.shapes, E.context]) fc.features = fc.features.filter((f) => f.geometry).map((f) => ({ ...f, geometry: d3Wound(f.geometry) }));
+
+// Where the camera ends up: close on a warning's polygon, the whole box or area for a watch or High Risk.
+const stateShapes = { type: "FeatureCollection", features: SC.conus.features.filter((f) => E.stateNames.includes(f.properties.name)) };
+const target = E.shapes.features.length ? E.shapes : stateShapes.features.length ? stateShapes : null;
+const close = target ? map.fit(target, E.zoomed ? { frac: 0.45, maxK: 120 } : { frac: 0.7, maxK: 4 }) : map.home;
+const ZOOM0 = T.situation - 1.4, ZOOM1 = T.situation + 0.6;
+/**
+ * A fly-to for zooms of 50x and more: the scale changes geometrically and the
+ * centre follows it, so the target slides steadily to the middle instead of
+ * leaving the frame halfway.
+ */
+function fly(a, b, z) {
+  const k = Math.exp(lerp(Math.log(a.k), Math.log(b.k), z));
+  const w = Math.abs(b.k - a.k) < 1e-6 ? z : (1 - a.k / k) / (1 - a.k / b.k);
+  return { k, c: [lerp(a.c[0], b.c[0], w), lerp(a.c[1], b.c[1], w)] };
+}
+
+const radarImg = E.radar ? Object.assign(new Image(), { src: E.radar.url }) : null;
+const pulse = (t, speed = 5) => 0.65 + 0.35 * Math.sin(t * speed);
+const win = (t, a, b) => easeOut(seg(t, a, a + 0.5)) * (1 - easeOut(seg(t, b - 0.4, b)));
+
+/** Rings pulsing out behind the intro, in the event's colour, gone by 3 s. */
+function alertIntro(t) {
+  const a = 1 - easeInOut(seg(t, 2.2, 3.0));
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  const g = ctx.createRadialGradient(W / 2, 720, 40, W / 2, 720, 760);
+  g.addColorStop(0, `${E.color}55`); g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, 1500);
+  for (let i = 0; i < 3; i++) {
+    const p = ((t * 0.9 + i / 3) % 1);
+    ctx.beginPath(); ctx.arc(W / 2, 720, 140 + p * 520, 0, Math.PI * 2);
+    ctx.strokeStyle = E.color; ctx.globalAlpha = a * (1 - p) * 0.7; ctx.lineWidth = 6; ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** A bar across the top that keeps flashing until the end card. */
+function alertBar(t) {
+  const a = 1 - easeOut(seg(t, END, END + 0.6));
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a * pulse(t, 6);
+  ctx.fillStyle = E.color; ctx.fillRect(0, 0, W, 14);
+  ctx.restore();
+}
+
+function radarUnderlay(z) {
+  return () => {
+    if (!radarImg || !radarImg.complete || z <= 0) return;
+    const r = E.radar;
+    const pts = [[r.west, r.north], [r.east, r.north], [r.east, r.south], [r.west, r.south]].map((p) => map.projection(p));
+    if (pts.some((p) => !p)) return;
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    ctx.save(); ctx.globalAlpha *= 0.85 * z;
+    ctx.drawImage(radarImg, Math.min(...xs), Math.min(...ys), Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+    ctx.restore();
+  };
+}
+
+/** The storm's position from the warning, with an arrow the way it's heading. */
+function stormMarker(t, cam, a) {
+  if (!E.motion || a <= 0) return;
+  const m = E.motion;
+  const p = map.screen([m.lon, m.lat], cam);
+  const h = (m.headingDeg * Math.PI) / 180;
+  const q = map.screen([m.lon + (Math.sin(h) * 0.05) / Math.cos((m.lat * Math.PI) / 180), m.lat + Math.cos(h) * 0.05], cam);
+  if (!p || !q) return;
+  const ang = Math.atan2(q[1] - p[1], q[0] - p[0]);
+  ctx.save(); ctx.globalAlpha *= a;
+  const ring = (t * 1.2) % 1;
+  ctx.beginPath(); ctx.arc(p[0], p[1], 16 + ring * 40, 0, Math.PI * 2); ctx.strokeStyle = E.color; ctx.globalAlpha = a * (1 - ring); ctx.lineWidth = 4; ctx.stroke();
+  ctx.globalAlpha = a;
+  ctx.save(); ctx.translate(p[0], p[1]); ctx.rotate(ang);
+  ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(96, 0); ctx.strokeStyle = "#fff"; ctx.lineWidth = 6; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(116, 0); ctx.lineTo(92, -14); ctx.lineTo(92, 14); ctx.closePath(); ctx.fillStyle = "#fff"; ctx.fill();
+  ctx.restore();
+  ctx.beginPath(); ctx.arc(p[0], p[1], 14, 0, Math.PI * 2); ctx.fillStyle = E.color; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = "#fff"; ctx.stroke();
+  const label = /tornado/.test(E.trigger) ? "TORNADO" : "STORM";
+  ctx.font = `800 30px "SC Inter"`;
+  ctx.lineWidth = 7; ctx.strokeStyle = "rgba(3,6,13,0.85)"; ctx.lineJoin = "round";
+  ctx.strokeText(label, p[0] + 24, p[1] - 22); ctx.fillStyle = "#fff"; ctx.fillText(label, p[0] + 24, p[1] - 22);
+  ctx.restore();
+}
+
+/** "BREAKING" on the map's corner, flashing. */
+function breakingChip(t, a) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha *= a;
+  rr(MAP.x + 24, MAP.y + 24, 232, 62, 14); ctx.fillStyle = RED; ctx.globalAlpha = a * pulse(t, 6); ctx.fill();
+  ctx.globalAlpha = a;
+  text("BREAKING", MAP.x + 140, MAP.y + 68, { size: 34, weight: 800, align: "center", spacing: 3 });
+  ctx.restore();
+}
+
+// ── panels ───────────────────────────────────────────────────────────────
+
+function label(s, y, a = 1) {
+  text(s, PANEL.x + 10, y, { size: 32, weight: 600, color: C.ink2, alpha: a });
+}
+
+function levelBars(t, y, t0) {
+  for (let i = 0; i < 5; i++) {
+    const fill = easeOut(seg(t, t0 + i * 0.15, t0 + 0.3 + i * 0.15));
+    const x = PANEL.x + 10 + i * 196;
+    rr(x, y, 180, 24, 12); ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.fill();
+    ctx.save(); rr(x, y, 180 * fill, 24, 12); ctx.fillStyle = Object.values(SC.RISK_COLORS)[i]; ctx.fill(); ctx.restore();
+  }
+}
+
+function areasPanel(t, a) {
+  if (E.trigger === "high-risk") {
+    label("Storm Prediction Center, Day 1 outlook", PANEL.y + 48, a);
+    text("HIGH RISK", PANEL.x + 10, PANEL.y + 170, { size: 120, weight: 800, color: E.color, alpha: a, spacing: -1 });
+    if (E.where) text(E.where, PANEL.x + 10, PANEL.y + 250, { size: fitSize(E.where, PANEL.w - 20, 48, 700), weight: 700, alpha: a });
+    return;
+  }
+  label(E.areasLabel, PANEL.y + 48, a);
+  const list = E.areas.join("  ·  ") + (E.more ? `  ·  +${E.more} more` : "");
+  const { size, lines } = fitText(list, PANEL.w - 20, 230, { max: 50, min: 34, weight: 700 });
+  lines.forEach((l, i) => text(l, PANEL.x + 10, PANEL.y + 112 + i * size * 1.3, { size, weight: 700, alpha: a }));
+  text(E.issuer, PANEL.x + 10, PANEL.y + 370, { size: fitSize(E.issuer, PANEL.w - 20, 32, 500), weight: 500, color: C.ink3, alpha: a });
+}
+
+function situationPanel(t, a) {
+  label("What's happening", PANEL.y + 48, a);
+  const { size, lines } = fitText(L.situation, PANEL.w - 20, PANEL.h - 90, { max: 50, min: 32, weight: 600 });
+  lines.forEach((l, i) => {
+    const la = easeOut(seg(t, T.situation + 0.3 + i * 0.3, T.situation + 0.8 + i * 0.3));
+    text(l, PANEL.x + 10, PANEL.y + 116 + i * size * 1.3 + (1 - la) * 14, { size, weight: 600, alpha: a * la });
+  });
+}
+
+function chipRows(t, y, a) {
+  let x = PANEL.x + 10, row = 0;
+  E.chips.forEach((c, i) => {
+    ctx.font = `600 26px "SC Inter"`; const lw = ctx.measureText(c.label).width;
+    ctx.font = `800 40px "SC Inter"`; const vw = ctx.measureText(c.value).width;
+    const w = Math.max(lw, vw) + 48;
+    if (x + w > PANEL.x + PANEL.w) { x = PANEL.x + 10; row++; }
+    const cy = y + row * 128;
+    const ca = a * easeOut(seg(t, T.until + 0.4 + i * 0.25, T.until + 0.9 + i * 0.25));
+    ctx.save(); ctx.globalAlpha *= ca;
+    rr(x, cy, w, 112, 20); ctx.fillStyle = "rgba(255,255,255,0.06)"; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = E.color; ctx.stroke();
+    text(c.label, x + 24, cy + 40, { size: 26, weight: 600, color: C.ink2 });
+    text(c.value, x + 24, cy + 90, { size: 40, weight: 800, color: E.color });
+    ctx.restore();
+    x += w + 18;
+  });
+}
+
+function untilPanel(t, a) {
+  if (E.trigger === "high-risk") {
+    label("The highest of SPC's five levels", PANEL.y + 48, a);
+    text("Level 5 of 5", PANEL.x + 10, PANEL.y + 150, { size: 84, weight: 800, alpha: a });
+    ctx.save(); ctx.globalAlpha *= a; levelBars(t, PANEL.y + 200, T.until + 0.3); ctx.restore();
+    return;
+  }
+  if (E.until) {
+    label("In effect until", PANEL.y + 48, a);
+    text(E.until, PANEL.x + 10, PANEL.y + 150, { size: 96, weight: 800, alpha: a });
+  }
+  chipRows(t, PANEL.y + (E.until ? 190 : 40), a);
+}
+
+function safetyPanel(t, a) {
+  ctx.save(); ctx.globalAlpha *= a;
+  rr(PANEL.x, PANEL.y + 10, 14, PANEL.h - 40, 7); ctx.fillStyle = E.color; ctx.fill();
+  ctx.restore();
+  text("What to do", PANEL.x + 44, PANEL.y + 58, { size: 32, weight: 600, color: C.ink2, alpha: a });
+  const { size, lines } = fitText(L.safety, PANEL.w - 60, PANEL.h - 110, { max: 58, min: 36, weight: 700 });
+  lines.forEach((l, i) => text(l, PANEL.x + 44, PANEL.y + 132 + i * size * 1.25, { size, weight: 700, alpha: a }));
+}
+
+// Each panel shows until the next one starts; a missing line skips its panel.
+const stages = [
+  { draw: areasPanel, from: 3.4 },
+  ...(L.situation ? [{ draw: situationPanel, from: T.situation }] : []),
+  ...(E.until || E.chips.length || E.trigger === "high-risk" ? [{ draw: untilPanel, from: T.until }] : []),
+  { draw: safetyPanel, from: T.safety },
+];
+stages.forEach((s, i) => (s.to = i + 1 < stages.length ? stages[i + 1].from : END));
+
+window.render = function (t) {
+  SC.background();
+  alertIntro(t);
+  const ma = easeOut(seg(t, 2.8, 3.6));
+  if (ma > 0) {
+    ctx.save(); ctx.globalAlpha = ma;
+    const z = easeInOut(seg(t, ZOOM0, ZOOM1));
+    const cam = fly(map.home, close, z);
+    const flash = 0.55 + 0.45 * Math.sin(t * 5);
+    map.draw(
+      cam,
+      [
+        { features: E.context.features, alpha: 0.55, fill: (f) => f.properties.fill, stroke: (f) => f.properties.stroke, lineWidth: 1.5 },
+        { features: stateShapes.features, alpha: E.shapes.features.length ? 0 : 0.5 * flash, fill: () => `${E.color}55`, stroke: () => E.color, lineWidth: 3 },
+        { features: E.shapes.features, alpha: 1, fill: () => `${E.color}${E.radar ? "33" : "55"}`, stroke: () => E.color, lineWidth: E.zoomed ? 5 : 4, featureAlpha: () => lerp(flash, 1, z) },
+      ],
+      (c) => {
+        map.cities(c, 0.9 * z);
+        stormMarker(t, c, easeOut(seg(t, ZOOM1 - 0.3, ZOOM1 + 0.4)));
+        breakingChip(t, 1);
+      },
+      radarUnderlay(z),
+    );
+    ctx.restore();
+  }
+  SC.header(t, { kicker: "BREAKING", kickerColor: RED, lines: E.headline, title: E.headline.join(" ").replace(/\b(\w)(\w*)/g, (_, a, b) => a + b.toLowerCase()).replace(/\bPds\b/, "PDS"), date: E.where || E.stateNames.join(", ") });
+  for (const s of stages) {
+    const a = win(t, s.from, s.to);
+    if (a <= 0) continue;
+    ctx.save(); ctx.globalAlpha = a; s.draw(t, 1); ctx.restore();
+  }
+  alertBar(t);
+  SC.endCard(t, END, "Follow for breaking severe weather");
+};
+window.DUR = Math.ceil(END + 6);
+</script>
+</body>
+</html>

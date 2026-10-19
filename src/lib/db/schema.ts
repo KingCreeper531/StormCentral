@@ -81,8 +81,13 @@ export const posts = sqliteTable(
     createdAt: integer("created_at").notNull(),
     /** Hidden from everyone but its author while flagged reports await a moderator. */
     hidden: integer("hidden").notNull().default(0),
+    /** JSON of the NWS Local Storm Report that confirmed this one (lib/nws-match), when one did. */
+    nwsReport: text("nws_report"),
+    nwsConfirmedAt: integer("nws_confirmed_at"),
+    /** The report's id at NOAA's mPING once it was sent there (lib/mping). */
+    mpingId: text("mping_id"),
   },
-  (t) => [index("posts_created_idx").on(t.createdAt), index("posts_geo_idx").on(t.lat, t.lon)],
+  (t) => [index("posts_created_idx").on(t.createdAt), index("posts_geo_idx").on(t.lat, t.lon), index("posts_user_idx").on(t.userId)],
 );
 
 export const verifications = sqliteTable(
@@ -203,6 +208,30 @@ export const spotterWarnings = sqliteTable(
   (t) => [index("spotter_warnings_expires_idx").on(t.expiresAt), index("spotter_warnings_user_idx").on(t.userId, t.issuedAt), uniqueIndex("spotter_warnings_number_idx").on(t.year, t.number)],
 );
 
+/**
+ * Spotters sharing their live position as storm chasers: one row each, only
+ * the latest fix (no history), deleted when they stop sharing and pruned once
+ * stale or past the sharing window.
+ */
+export const chaserPositions = sqliteTable(
+  "chaser_positions",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lat: real("lat").notNull(),
+    lon: real("lon").notNull(),
+    /** Degrees clockwise from north; null when standing still or unknown. */
+    heading: real("heading"),
+    speedKmh: real("speed_kmh"),
+    accuracyM: real("accuracy_m"),
+    updatedAt: integer("updated_at").notNull(),
+    /** When sharing turns itself off (the window picked in Settings, at most 12 h). */
+    expiresAt: integer("expires_at").notNull(),
+  },
+  (t) => [index("chaser_positions_updated_idx").on(t.updatedAt)],
+);
+
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
@@ -252,10 +281,14 @@ CREATE TABLE IF NOT EXISTS posts (
   media_id TEXT REFERENCES media(id) ON DELETE SET NULL,
   conditions TEXT,
   created_at INTEGER NOT NULL,
-  hidden INTEGER NOT NULL DEFAULT 0
+  hidden INTEGER NOT NULL DEFAULT 0,
+  nws_report TEXT,
+  nws_confirmed_at INTEGER,
+  mping_id TEXT
 );
 CREATE INDEX IF NOT EXISTS posts_created_idx ON posts(created_at);
 CREATE INDEX IF NOT EXISTS posts_geo_idx ON posts(lat, lon);
+CREATE INDEX IF NOT EXISTS posts_user_idx ON posts(user_id);
 CREATE TABLE IF NOT EXISTS verifications (
   post_id TEXT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -322,9 +355,20 @@ CREATE TABLE IF NOT EXISTS spotter_warnings (
 CREATE INDEX IF NOT EXISTS spotter_warnings_expires_idx ON spotter_warnings(expires_at);
 CREATE INDEX IF NOT EXISTS spotter_warnings_user_idx ON spotter_warnings(user_id, issued_at);
 CREATE UNIQUE INDEX IF NOT EXISTS spotter_warnings_number_idx ON spotter_warnings(year, number);
+CREATE TABLE IF NOT EXISTS chaser_positions (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  lat REAL NOT NULL,
+  lon REAL NOT NULL,
+  heading REAL,
+  speed_kmh REAL,
+  accuracy_m REAL,
+  updated_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS chaser_positions_updated_idx ON chaser_positions(updated_at);
 `;
 
-export const schema = { users, sessions, passwordResets, media, posts, verifications, comments, blocks, flags, spotterWarnings };
+export const schema = { users, sessions, passwordResets, media, posts, verifications, comments, blocks, flags, spotterWarnings, chaserPositions };
 
 /**
  * Columns added after a table first shipped. CREATE TABLE IF NOT EXISTS
@@ -335,4 +379,7 @@ export const COLUMN_MIGRATIONS: readonly { table: string; column: string; sql: s
   { table: "users", column: "suspended_until", sql: "ALTER TABLE users ADD COLUMN suspended_until INTEGER" },
   { table: "posts", column: "hidden", sql: "ALTER TABLE posts ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0" },
   { table: "comments", column: "hidden", sql: "ALTER TABLE comments ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0" },
+  { table: "posts", column: "nws_report", sql: "ALTER TABLE posts ADD COLUMN nws_report TEXT" },
+  { table: "posts", column: "nws_confirmed_at", sql: "ALTER TABLE posts ADD COLUMN nws_confirmed_at INTEGER" },
+  { table: "posts", column: "mping_id", sql: "ALTER TABLE posts ADD COLUMN mping_id TEXT" },
 ];

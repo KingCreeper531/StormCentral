@@ -132,11 +132,11 @@ function extrasIO(io: EngineIO): ExtrasIO {
     },
     fetchForecast: io.fetchForecast,
     fetchLightningKm: async (lat, lon, radiusKm) =>
-      (await getJson<{ nearestKm: number | null }>(`/api/lightning?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&radiusKm=${Math.round(radiusKm)}`)).nearestKm,
+      (await getJson<{ nearestKm: number | null }>(`/api/lightning?lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}&radiusKm=${Math.round(radiusKm)}`)).nearestKm,
     fetchNearbyReports: async (lat, lon, radiusKm) =>
       (await getJson<FeedResponse>(`/api/posts?sort=nearby&lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&radiusKm=${Math.round(radiusKm)}`)).posts,
     fetchNowcast: (lat, lon) => fetchNowcast(lat, lon),
-    fetchIncomingStorms: async (lat, lon) => (await getJson<StormEtaResponse>(`/api/storm-eta?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}`)).storms,
+    fetchIncomingStorms: async (lat, lon) => (await getJson<StormEtaResponse>(`/api/storm-eta?lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`)).storms,
     fetchActivity: async (since) => (await getJson<{ items: ActivityItem[] }>(`/api/activity?since=${Math.round(since)}`)).items,
     kvGet: io.kvGet,
     kvSet: io.kvSet,

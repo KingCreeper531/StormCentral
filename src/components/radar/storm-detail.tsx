@@ -58,9 +58,9 @@ function Title({ color, title, sub, onClose, closeLabel }: { color: string; titl
   );
 }
 
-function useMagnitude() {
+export function useMagnitude() {
   const fmt = useFormat();
-  return (r: StormReport): string | null => {
+  return (r: Pick<StormReport, "kind" | "magnitude" | "unit">): string | null => {
     const m = reportMagnitude(r);
     if (!m) return null;
     if (m.kind === "length") return fmt.precip(m.mm);

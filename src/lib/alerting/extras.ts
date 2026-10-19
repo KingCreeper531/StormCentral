@@ -8,6 +8,7 @@
  */
 import type { Forecast } from "../api/open-meteo";
 import type { ActivityItem, PostDto } from "../community";
+import { NWS_BONUS } from "../nws-match";
 import { translate, translatePlural, type Vars } from "../i18n/core";
 import type { IncomingStorm } from "../storm-eta";
 import { precipKind, rainOutlook, roundMinutes, type PrecipKind, type RainIntensity } from "../weather/rain-outlook";
@@ -360,6 +361,15 @@ export function activityNotification(cfg: WatchConfig, a: ActivityItem): AppNoti
       id: hashId(`activity:${a.id}`),
       title: tr(cfg, "{who} confirmed your report", { who }),
       body: what ? `“${what}”` : tr(cfg, "Your report is being confirmed by spotters nearby."),
+      kind: "activity",
+    };
+  }
+  if (a.kind === "nws") {
+    const counts = tr(cfg, "It matches an official NWS storm report and counts as {n} confirmations.", { n: NWS_BONUS });
+    return {
+      id: hashId(`activity:${a.id}`),
+      title: tr(cfg, "The NWS confirmed your report"),
+      body: what ? `“${what}” ${counts}` : counts,
       kind: "activity",
     };
   }

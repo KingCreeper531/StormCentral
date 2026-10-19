@@ -101,14 +101,14 @@
    * The big centred intro (logo, kicker, `lines`, date) that eases into the
    * header bar (logo, `title`, date) at 2.4-3.2 s.
    */
-  function header(t, { kicker = "STORM CENTRAL", lines, title, date }) {
+  function header(t, { kicker = "STORM CENTRAL", kickerColor = C.accent, lines, title, date }) {
     const m = easeInOut(seg(t, 2.4, 3.2));
     const ls = lerp(200, 92, m), lx = lerp(W / 2 - ls / 2, 56, m), ly = lerp(620, 120, m);
     if (logo.complete) { ctx.save(); rr(lx, ly, ls, ls, ls * 0.22); ctx.clip(); ctx.drawImage(logo, lx, ly, ls, ls); ctx.restore(); }
     ctx.save(); ctx.globalAlpha = easeOut(seg(t, 0.2, 0.8));
     if (m < 0.5) {
       const a = 1 - m * 2;
-      text(kicker, W / 2, 900, { size: 34, weight: 700, color: C.accent, align: "center", spacing: 6, alpha: a });
+      text(kicker, W / 2, 900, { size: 34, weight: 700, color: kickerColor, align: "center", spacing: 6, alpha: a });
       lines.forEach((l, i) => text(l, W / 2, 1010 + i * 102, { size: fitSize(l, W - 120, 96), weight: 700, align: "center", alpha: a }));
       text(date, W / 2, 1010 + lines.length * 102 - 12, { size: 40, weight: 500, color: C.ink2, align: "center", alpha: a });
     } else {
@@ -177,9 +177,10 @@
     }
     /**
      * layers: [{ features, alpha, fill(f), stroke(f), featureAlpha?(f), lineWidth? }];
-     * overlay(cam): drawn on top, in screen space, clipped to the box.
+     * overlay(cam): drawn on top, in screen space, clipped to the box;
+     * underlay(cam): drawn on the land before the layers, in projected space (a radar image, say).
      */
-    function draw(cam, layers = [], overlay) {
+    function draw(cam, layers = [], overlay, underlay) {
       const k = cam.k;
       ctx.save();
       rr(MAP.x, MAP.y, MAP.w, MAP.h, 28); ctx.fillStyle = base === "world" ? C.water : C.panel; ctx.fill();
@@ -188,6 +189,7 @@
       ctx.translate(mapCenter[0], mapCenter[1]); ctx.scale(k, k); ctx.translate(-cam.c[0], -cam.c[1]);
       if (base === "world" && world) { ctx.beginPath(); path(world); ctx.fillStyle = C.land; ctx.fill(); }
       else { ctx.beginPath(); path(conus); ctx.fillStyle = C.land; ctx.fill(); }
+      if (underlay) underlay(cam);
       for (const L of layers) {
         if (!(L.alpha > 0)) continue;
         for (const f of L.features) {

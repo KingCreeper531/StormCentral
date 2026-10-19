@@ -2,6 +2,7 @@
  * Community "Spotter Network" — shared (client + server) definitions.
  */
 import { z } from "zod";
+import type { NwsReportRef } from "./nws-match";
 import { translator, type Translator } from "./i18n/core";
 
 export const CATEGORIES = {
@@ -118,6 +119,8 @@ export const postSchema = z.object({
     .union([z.boolean(), z.enum(["true", "false", "on"])])
     .optional()
     .transform((v) => v === true || v === "true" || v === "on"),
+  /** Opt-in: also send it to NOAA's mPING, as this MPING_OPTIONS entry (lib/mping). */
+  mping: z.string().trim().max(40).optional(),
 });
 
 export const commentSchema = z.object({
@@ -240,6 +243,8 @@ export interface PostDto {
   isOwn: boolean;
   /** Only ever true for the author: hidden from everyone else while flags await a moderator. */
   hidden: boolean;
+  /** The NWS Local Storm Report that confirmed it (lib/nws-match), when one did. */
+  nws: NwsReportRef | null;
   distanceKm?: number;
 }
 
@@ -254,9 +259,9 @@ export interface CommentDto {
 
 /** Someone confirmed or commented on one of your reports (GET /api/activity). */
 export interface ActivityItem {
-  /** Stable id: "c:<commentId>" or "v:<postId>:<username>". */
+  /** Stable id: "c:<commentId>", "v:<postId>:<username>" or "n:<postId>" (the NWS confirmed it). */
   id: string;
-  kind: "confirm" | "comment";
+  kind: "confirm" | "comment" | "nws";
   at: number;
   postId: string;
   /** The start of your report's text. */

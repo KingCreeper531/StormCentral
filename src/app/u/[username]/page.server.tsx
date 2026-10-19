@@ -63,9 +63,10 @@ export default async function ProfilePage({ params }: Params) {
         )}
 
         <div className="mt-4 grid grid-cols-1 gap-4 border-t border-line pt-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] sm:gap-6">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <Stat label={<T>Reports</T>} value={profile.posts} />
             <Stat label={<T>Confirmations</T>} value={profile.reputation} />
+            <Stat label={<T>NWS-confirmed</T>} value={profile.nwsConfirmed} />
           </div>
           <div className="min-w-0">
             <RankProgress reputation={profile.reputation} tier={tier} nextTier={nextTier} />

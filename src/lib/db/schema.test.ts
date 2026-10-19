@@ -5,7 +5,7 @@ import { createClient } from "@libsql/client";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { afterAll, describe, expect, it } from "vitest";
-import { blocks, comments, flags, media, passwordResets, posts, SCHEMA_SQL, schema, sessions, spotterWarnings, users, verifications } from "./schema";
+import { blocks, chaserPositions, comments, flags, media, passwordResets, posts, SCHEMA_SQL, schema, sessions, spotterWarnings, users, verifications } from "./schema";
 
 const dir = mkdtempSync(path.join(tmpdir(), "sc-db-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -42,6 +42,12 @@ describe("schema drift", () => {
     expect(w?.revision).toBe(0);
     expect(w?.threat).toBe("base");
     expect(w?.cancelledAt).toBeNull();
+
+    await db.insert(chaserPositions).values({ userId: "u1", lat: 35.2, lon: -97.4, heading: null, updatedAt: now, expiresAt: now + 3_600_000 });
+    await expect(db.insert(chaserPositions).values({ userId: "u1", lat: 35, lon: -97, updatedAt: now, expiresAt: now })).rejects.toThrow(); // one position per person
+    const [c] = await db.select().from(chaserPositions).where(eq(chaserPositions.userId, "u1"));
+    expect(c?.heading).toBeNull();
+    expect(c?.speedKmh).toBeNull();
 
     const [m] = await db.select().from(media).where(eq(media.id, "m1"));
     expect(Buffer.from(m!.bytes)).toEqual(Buffer.from([1, 2, 3]));

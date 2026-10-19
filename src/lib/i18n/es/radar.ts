@@ -28,6 +28,10 @@ export const RADAR: Record<string, string> = {
   "Blends pixels when zoomed in for a cleaner picture. Velocity and dual-pol stay sharp.":
     "Mezcla los píxeles al acercar el mapa para una imagen más limpia. La velocidad y la polarización dual se mantienen nítidas.",
   "Smooth cross-fade": "Transición suave",
+  "Future radar (next hour)": "Radar futuro (próxima hora)",
+  "An extrapolation: storms keep moving the way they are, but don't grow, weaken or form.":
+    "Una extrapolación: las tormentas siguen moviéndose como lo hacen ahora, pero no crecen, no se debilitan ni se forman nuevas.",
+  "Shown with reflectivity only.": "Solo se muestra con la reflectividad.",
   "Future radar (next 6 hours)": "Radar futuro (próximas 6 horas)",
   "Shown with the national mosaic only.": "Solo se muestra con el mosaico nacional.",
   "HRRR model forecast after the live scans, marked in orange on the timeline.":
@@ -58,6 +62,7 @@ export const RADAR: Record<string, string> = {
   "{n} min ago": "Hace {n} min",
   "{h} h {m} min ago": "Hace {h} h {m} min",
   "Forecast {time}": "Pronóstico {time}",
+  "+{n} min · Future": "+{n} min · Futuro",
   "Loading scans": "Cargando escaneos",
   "No scans": "Sin escaneos",
   "Previous frame": "Cuadro anterior",
@@ -257,4 +262,9 @@ export const RADAR: Record<string, string> = {
   "Open the product on {site}": "Abrir el producto en {site}",
   "Unofficial spotter-network warning. Not from the National Weather Service: always follow official warnings.":
     "Aviso no oficial de la red de observadores. No es del Servicio Meteorológico Nacional: sigue siempre los avisos oficiales.",
+
+  // ─── radar-controls.tsx / severe-mode.tsx: storm chasers ──────────────────
+  "Storm chasers (live)": "Cazadores de tormentas (en vivo)",
+  "Spotters sharing their live position, seen by signed-in members. Share yours in Settings → Account.":
+    "Observadores que comparten su ubicación en vivo, visibles para miembros con sesión iniciada. Comparte la tuya en Configuración → Cuenta.",
 };
