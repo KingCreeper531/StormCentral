@@ -12,6 +12,7 @@ import { clockIn } from "@/lib/weather/view";
 import { useAppStore } from "@/store/app-store";
 import { IconButton } from "../ui/button";
 import { AlertTag, HazardSwatch } from "./alert-list";
+import { productLink, useFullAlert } from "./use-full-alert";
 import { isSpotterSource, type AlertReports } from "@/lib/alert-reports";
 import { placeName, reportMagnitude, reportTitle, sourceLabel } from "@/lib/feeds/storm-parse";
 import { useFormat } from "@/hooks/use-format";
@@ -35,7 +36,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
  * swatch and event name when the surrounding header already shows them.
  */
 export function AlertDetail({
-  alert: a,
+  alert: given,
   now,
   onClose,
   hideTitle = false,
@@ -55,6 +56,9 @@ export function AlertDetail({
 }) {
   const t = useT();
   const loc = useAppStore((s) => s.location);
+  // Hazard-map alerts arrive without their text: fetch it now.
+  const { alert: a, loading, failed } = useFullAlert(given);
+  const link = productLink(a);
   const [expanded, setExpanded] = useState(false);
   const textId = useId();
   const eta = a.motion ? stormEta(a.motion, loc, 15, now) : null;
@@ -122,9 +126,26 @@ export function AlertDetail({
       {reports && <SpotterReports r={reports} now={now} />}
 
       <div className="mt-3 border-t border-line pt-3">
-        {a.headline && <p className="text-sm font-medium text-ink">{a.headline}</p>}
+        {a.source === "spotter" && (
+          <p className="mb-2 rounded-[4px] bg-caution/15 px-2 py-1.5 text-[12px] font-semibold text-ink">
+            {t("Unofficial spotter-network warning. Not from the National Weather Service: always follow official warnings.")}
+          </p>
+        )}
+        {a.headline && a.source !== "spotter" && <p className="text-sm font-medium text-ink">{a.headline}</p>}
+        {a.areaDesc && a.source && a.source !== "nws" && <p className="mt-1 text-xs text-ink-3">{a.areaDesc}</p>}
+        {loading && <p className="mt-2 text-[13px] text-ink-3">{t("Loading the full text…")}</p>}
+        {failed && <p className="mt-2 text-[13px] text-caution">{t("Couldn't load the full text right now.")}</p>}
         <div id={textId}>
-          <p className={cn("text-[13px] leading-relaxed break-words whitespace-pre-line text-ink-2", a.headline && "mt-2", !expanded && "line-clamp-6")}>{a.description}</p>
+          <p
+            className={cn(
+              "break-words whitespace-pre-line text-ink-2",
+              a.source === "spotter" ? "font-mono text-[12px] leading-snug" : "text-[13px] leading-relaxed",
+              a.headline && a.source !== "spotter" && "mt-2",
+              !expanded && "line-clamp-6",
+            )}
+          >
+            {a.description}
+          </p>
           {a.instruction && expanded && (
             <div className="mt-3">
               <p className="label">{t("Safety instructions")}</p>
@@ -141,6 +162,11 @@ export function AlertDetail({
         >
           {expanded ? t("Show less") : a.instruction ? t("Full text and safety instructions") : t("Full text")}
         </button>
+        {link && (
+          <a href={link} target="_blank" rel="noopener noreferrer" className="mt-1 block text-[13px] font-medium text-accent hover:underline pointer-coarse:min-h-11">
+            {t("Open the product on {site}", { site: new URL(link).hostname.replace(/^www\./, "") })} ↗
+          </a>
+        )}
       </div>
     </div>
   );

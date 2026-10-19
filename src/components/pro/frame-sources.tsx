@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { useNoaaTimes, useRadarProducts } from "@/hooks/queries";
+import { useIntlTimes, useNoaaTimes, useRadarProducts } from "@/hooks/queries";
 import { useRadarLoop } from "@/hooks/use-radar-loop";
 import { listLevel2, listLevel3, newest } from "@/lib/pro/nexrad/aws";
 import { decodedVersion, jobKey, peekDecoded, requestDecode, subscribeDecoded, type DecodeJob } from "@/lib/pro/nexrad/client";
@@ -11,6 +11,7 @@ import { DECODED_SCALES, type ValueScale } from "@/lib/pro/scales";
 import { corners, fetchServerIndex, serverFrames } from "@/lib/pro/server";
 import { useProSync } from "@/lib/pro/sync";
 import { iemSiteId, type RadarFrame } from "@/lib/radar/frames";
+import { INTL_RADARS, intlFrame } from "@/lib/radar/intl";
 import { noaaFrames, noaaTilesUsable } from "@/lib/radar/noaa";
 import { FAMILIES, resolveTilts, TILTS, type ProductFamily, type ResolvedTilt, type TiltPrefix } from "@/lib/radar/products";
 import { pickSatellite } from "@/lib/radar/satellite";
@@ -276,6 +277,25 @@ function MrmsSource({ product, frameCount, onFeed }: SourceProps) {
   return null;
 }
 
+/** Another country's radar composite: its newest scans (the loop clock time-matches them to the other panes). */
+function IntlSource({ product, frameCount, onFeed }: SourceProps) {
+  const def = PRO_PRODUCTS[product];
+  const r = INTL_RADARS[def.kind === "intl" ? def.source : "eccc"];
+  const [q] = useIntlTimes([r.id], Math.min(250, frameCount * r.stepMin + 20));
+  const list = q?.data?.times;
+  const frames = useMemo(() => (list ?? []).slice(-frameCount).map((t) => intlFrame(r, t)), [list, frameCount, r]);
+  useReport(onFeed, {
+    frames,
+    family: null,
+    tilts: noTilts,
+    tilt: null,
+    source: r.agency,
+    loading: !q || q.isLoading,
+    empty: !!q && (q.isError || (q.isSuccess && !frames.length)),
+  });
+  return null;
+}
+
 function SatelliteSource({ product, frameCount, basis, onFeed }: SourceProps) {
   const { sync } = usePro();
   const timeline = useProSync(sync, (s) => s.timeline);
@@ -312,5 +332,6 @@ export function FrameSource(props: SourceProps) {
   if (def.kind === "server") return <ServerSource key={`srv-${props.product}`} {...props} />;
   if (def.kind === "mosaic") return <MosaicSource key="mosaic" {...props} />;
   if (def.kind === "mrms") return <MrmsSource key={`mrms-${props.product}`} {...props} />;
+  if (def.kind === "intl") return <IntlSource key={`intl-${props.product}`} {...props} />;
   return <SatelliteSource key={`sat-${props.product}`} {...props} />;
 }

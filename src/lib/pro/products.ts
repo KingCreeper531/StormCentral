@@ -11,10 +11,13 @@
  *  - GOES-East/West ABI from NASA GIBS (visible, clean IR, Air Mass, GeoColor,
  *    Dust and Fire Temperature RGBs), 10-minute slots;
  *  - GOES water vapor from NOAA nowCOAST (latest image only: no time
- *    dimension).
+ *    dimension);
+ *  - other countries' national radar composites (Canada, Germany, Finland,
+ *    the Netherlands, Japan) from their weather services (lib/radar/intl).
  */
 import { FAMILIES, type LegendStop, type ProductFamily } from "../radar/products";
 import type { NoaaLayer } from "../radar/noaa";
+import { INTL_RADARS, type IntlRadarId } from "../radar/intl";
 import { DEFAULT_LATENCY_MIN, GIBS_WMS, gibsTime, SATELLITE_ATTRIBUTION, SLOT_MS, satelliteSlot, type GoesSat } from "../radar/satellite";
 import type { RadarFrame } from "../radar/frames";
 import { DECODED_SCALES, type DecodedScaleId } from "./scales";
@@ -41,6 +44,11 @@ export const PRO_PRODUCT_IDS = [
   "mrms-mesh60",
   "mrms-rotation",
   "mrms-vil",
+  "intl-eccc",
+  "intl-dwd",
+  "intl-fmi",
+  "intl-knmi",
+  "intl-jma",
   "sat-vis",
   "sat-ir",
   "sat-wv",
@@ -56,7 +64,7 @@ export type ProProductId = (typeof PRO_PRODUCT_IDS)[number];
 
 export const isProProductId = (v: unknown): v is ProProductId => typeof v === "string" && (PRO_PRODUCT_IDS as readonly string[]).includes(v);
 
-export type ProGroup = "Radar (site)" | "Radar (volume)" | "Radar (national)" | "Satellite";
+export type ProGroup = "Radar (site)" | "Radar (volume)" | "Radar (national)" | "Radar (other countries)" | "Satellite";
 
 interface Base {
   id: ProProductId;
@@ -76,6 +84,8 @@ export type ProProduct =
   | (Base & { kind: "mrms"; layer: string })
   /** Rendered by the Pro data server (pro-server/), once one is set in Settings. */
   | (Base & { kind: "server"; serverId: string })
+  /** Another country's national radar composite (lib/radar/intl). */
+  | (Base & { kind: "intl"; source: IntlRadarId })
   | (Base & { kind: "gibs"; layer: string; maxzoom: number })
   | (Base & { kind: "nowcoast"; layer: string });
 
@@ -91,6 +101,15 @@ const site = (id: ProProductId, family: ProductFamily, l3Letter?: string, scale?
 });
 const l3 = (id: ProProductId, label: string, short: string, scale: DecodedScaleId, at: { letter: string } | { code: string }): ProProduct => ({ id, kind: "l3", label, short, scale, group: "Radar (site)", ...at });
 const vol = (id: ProProductId, label: string, short: string, moment: Moment, scale: DecodedScaleId): ProProduct => ({ id, kind: "l2", moment, scale, label, short, group: "Radar (volume)" });
+
+const intl = (id: ProProductId, source: IntlRadarId, short: string): ProProduct => ({
+  id,
+  kind: "intl",
+  source,
+  short,
+  label: `${INTL_RADARS[source].country} (${INTL_RADARS[source].short}, ${INTL_RADARS[source].measures})`,
+  group: "Radar (other countries)",
+});
 
 export const PRO_PRODUCTS: Record<ProProductId, ProProduct> = {
   ref: site("ref", "reflectivity", "B", "ref"),
@@ -113,6 +132,11 @@ export const PRO_PRODUCTS: Record<ProProductId, ProProduct> = {
   "mrms-mesh60": { id: "mrms-mesh60", kind: "server", serverId: "mrms-mesh60", label: "Hail size, 60-min max (MRMS)", short: "MESH60", group: "Radar (national)" },
   "mrms-rotation": { id: "mrms-rotation", kind: "server", serverId: "mrms-rotation", label: "Rotation track, 60 min (MRMS)", short: "ROT", group: "Radar (national)" },
   "mrms-vil": { id: "mrms-vil", kind: "server", serverId: "mrms-vil", label: "VIL (MRMS)", short: "VIL", group: "Radar (national)" },
+  "intl-eccc": intl("intl-eccc", "eccc", "CAN"),
+  "intl-dwd": intl("intl-dwd", "dwd", "DEU"),
+  "intl-fmi": intl("intl-fmi", "fmi", "FIN"),
+  "intl-knmi": intl("intl-knmi", "knmi", "NLD"),
+  "intl-jma": intl("intl-jma", "jma", "JPN"),
   "sat-vis": { id: "sat-vis", kind: "gibs", layer: "ABI_Band2_Red_Visible_1km", label: "Visible (ABI band 2)", short: "VIS", group: "Satellite", maxzoom: 8 },
   "sat-ir": { id: "sat-ir", kind: "gibs", layer: "ABI_Band13_Clean_Infrared", label: "Clean IR (ABI band 13)", short: "IR", group: "Satellite", maxzoom: 7 },
   "sat-wv": { id: "sat-wv", kind: "nowcoast", layer: "goes_water_vapor_imagery", label: "Water Vapor (latest)", short: "WV", group: "Satellite" },

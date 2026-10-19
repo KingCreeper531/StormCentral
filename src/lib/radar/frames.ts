@@ -22,6 +22,10 @@ export interface RadarFrame {
   attribution?: string;
   /** Tile edge in px (default 256). WMS sources render 512 px tiles: a quarter of the requests. */
   tileSize?: 256 | 512;
+  /** Coverage [w, s, e, n]: no tiles are requested outside it. */
+  bounds?: [number, number, number, number];
+  /** Below this zoom the source has no tiles. */
+  minzoom?: number;
   /** A single georeferenced image instead of tiles (decoded radar): top-left, top-right, bottom-right, bottom-left. */
   image?: { url: string; coordinates: [[number, number], [number, number], [number, number], [number, number]] };
 }

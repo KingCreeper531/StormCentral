@@ -8,6 +8,7 @@ import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import type { RadarSettings } from "@/store/app-store";
 import { Toggle } from "../ui/misc";
+import { AlertKindsPicker } from "./alert-kinds";
 import { Segmented } from "../ui/segmented";
 import { sentenceCase } from "./radar-legend";
 
@@ -187,6 +188,10 @@ export function RadarControls({
         </div>
         <Toggle label={t("Smooth cross-fade")} checked={settings.crossfade} onChange={(crossfade) => onChange({ crossfade })} />
         <div>
+          <Toggle label={t("Other countries' radar")} checked={settings.intlRadar} onChange={(intlRadar) => onChange({ intlRadar })} />
+          <p className="label">{t("National weather services' composites (Canada, Germany, Finland, Netherlands, Japan), matched to the loop's times.")}</p>
+        </div>
+        <div>
           <Toggle label={t("Future radar (next 6 hours)")} checked={settings.future} onChange={(future) => onChange({ future })} />
           <p className="label">{isSite ? t("Shown with the national mosaic only.") : t("HRRR model forecast after the live scans, marked in orange on the timeline.")}</p>
         </div>
@@ -210,6 +215,19 @@ export function RadarControls({
       <Group title={t("Overlays")}>
         <div className="-mt-1 divide-y divide-line">
           <Toggle label={t("NWS warnings")} checked={settings.showWarnings} onChange={(showWarnings) => onChange({ showWarnings })} />
+          {settings.showWarnings && (
+            <div className="space-y-2 py-2.5">
+              <p className="label">{t("Storm-based warnings always show. Also draw:")}</p>
+              <AlertKindsPicker settings={settings} onChange={onChange} />
+            </div>
+          )}
+          {COMMUNITY_ENABLED && (
+            <Toggle
+              label={t("Spotter network warnings (unofficial)")}
+              checked={settings.showSpotterWarnings}
+              onChange={(showSpotterWarnings) => onChange({ showSpotterWarnings })}
+            />
+          )}
           <Toggle label={t("Projected storm tracks")} checked={settings.showTracks} onChange={(showTracks) => onChange({ showTracks })} />
           <Toggle label={t("Lightning (last 15 min)")} checked={settings.showLightning} onChange={(showLightning) => onChange({ showLightning })} />
           <Toggle label={t("Radar storm cells")} checked={settings.showCells} onChange={(showCells) => onChange({ showCells })} />

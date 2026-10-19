@@ -26,6 +26,8 @@ export interface ToolActions {
   xsect: (p: LatLon) => void;
   vector: (p: LatLon) => void;
   toa: (p: LatLon) => void;
+  /** WarnGen: place the storm (first click), then track it (a second click on another frame). */
+  warngen: (p: LatLon) => void;
   selectAlert: (id: string) => void;
 }
 

@@ -5,9 +5,9 @@
  * doesn't bust the cache; refetch intervals come from the mode registry so
  * the active mode polls its feeds hard while everything else idles.
  */
-import { keepPreviousData, useInfiniteQuery, useQuery, type QueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQueries, useQuery, type QueryClient } from "@tanstack/react-query";
 import { getJson } from "@/lib/api/http";
-import { COMMUNITY_ENABLED } from "@/lib/platform";
+import { COMMUNITY_ENABLED, IS_STATIC_BUNDLE } from "@/lib/platform";
 import { fetchAirGrid, fetchAirQuality, fetchRecentPrecip, type GridVariable } from "@/lib/api/open-meteo";
 import { keyTag, loadForecast } from "@/lib/forecast-load";
 import { translator } from "@/lib/i18n/core";
@@ -30,11 +30,16 @@ import type { TropicalResponse } from "@/lib/feeds/tropical";
 import type { BBox, LatLon } from "@/lib/geo";
 import { MAX_GAUGE_RADIUS_KM, useAppStore } from "@/store/app-store";
 import { pollFor, type Feed, type ModeId } from "@/modes/registry";
-import type { NoaaTimesResponse } from "@/lib/feeds/radar";
+import type { IntlTimesResponse, NoaaTimesResponse } from "@/lib/feeds/radar";
+import type { IntlRadarId } from "@/lib/radar/intl";
 import type { ClimateResponse } from "@/lib/feeds/climate";
 import type { FloodGaugesResponse } from "@/lib/feeds/flood-gauges";
 import type { ForecasterNotesResponse } from "@/lib/feeds/forecaster-notes";
 import type { WildfiresResponse } from "@/lib/feeds/wildfires";
+import type { HazardsResponse } from "@/lib/feeds/hazards";
+import type { AlertTextResponse } from "@/lib/feeds/alerts";
+import type { WeatherAlert } from "@/lib/api/types";
+import type { SpotterWarningsResponse } from "@/lib/warngen/schema";
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 const r1 = (v: number) => Math.round(v * 10) / 10;
@@ -68,6 +73,7 @@ export const qk = {
   climate: (p: LatLon) => ["climate", Math.round(p.lat * 4) / 4, Math.round(p.lon * 4) / 4] as const,
   wildfires: (p: LatLon) => ["wildfires", Math.round(p.lat * 4) / 4, Math.round(p.lon * 4) / 4] as const,
   session: ["session"] as const,
+  spotterWarnings: ["spotterWarnings"] as const,
   posts: (params: Record<string, string>) => ["posts", params] as const,
 };
 
@@ -157,6 +163,42 @@ export function useNationalAlerts(force = false) {
     enabled: hydrated && (enabled || force),
     refetchInterval: refetchInterval ?? (force ? 60_000 : undefined),
     staleTime: 40_000,
+  });
+}
+
+/**
+ * Every hazard polygon (watches, advisories, statements, marine, SPC/WPC
+ * discussions, other countries' warnings) for the radar maps. Polls gently:
+ * these products change far less often than storm-based warnings.
+ */
+export function useHazards(enabled: boolean) {
+  const hydrated = useAppStore((s) => s.hydrated);
+  const intl = useAppStore((s) => s.radar.intlAlerts);
+  const sources = intl ? "nws,spc,wpc,eccc,dwd" : "nws,spc,wpc";
+  return useQuery({
+    queryKey: ["hazards", sources] as const,
+    queryFn: ({ signal }) => getJson<HazardsResponse>(`/api/hazards?sources=${sources}`, { signal, timeoutMs: 40_000 }),
+    enabled: hydrated && enabled,
+    // On the phone app the feed runs on the device (a couple of MB per refresh): poll less.
+    refetchInterval: IS_STATIC_BUNDLE ? 5 * 60_000 : 2 * 60_000,
+    staleTime: 90_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * The full text of a hazard-map alert, which arrives without it: the NWS
+ * alert from api.weather.gov, or an SPC/WPC discussion from IEM's archive.
+ */
+export function useAlertText(alert: WeatherAlert | null | undefined) {
+  const product = alert?.lean && alert.url?.includes("/nwstext/") ? alert.url.split("/nwstext/")[1] : null;
+  const id = alert?.lean && alert.source === "nws" ? alert.id : null;
+  return useQuery({
+    queryKey: ["alertText", id ?? product ?? "-"] as const,
+    queryFn: ({ signal }) => getJson<AlertTextResponse>(id ? `/api/alerts?id=${encodeURIComponent(id)}` : `/api/alerts?product=${encodeURIComponent(product!)}`, { signal }),
+    enabled: !!(id || product),
+    staleTime: 10 * 60_000,
+    retry: 1,
   });
 }
 
@@ -438,5 +480,34 @@ export function useIncomingStorms() {
     enabled: hydrated,
     refetchInterval: 2 * 60_000,
     staleTime: 60_000,
+  });
+}
+
+/** Times of other countries' radar composites (lib/radar/intl), one query per source. */
+export function useIntlTimes(sources: readonly IntlRadarId[], minutes: number) {
+  const hydrated = useAppStore((s) => s.hydrated);
+  return useQueries({
+    queries: sources.map((src) => ({
+      queryKey: ["intl-times", src, minutes] as const,
+      queryFn: ({ signal }: { signal: AbortSignal }) => getJson<IntlTimesResponse>(`/api/radar/intl?src=${src}&minutes=${minutes}`, { signal }),
+      enabled: hydrated,
+      refetchInterval: 2 * 60_000,
+      staleTime: 60_000,
+    })),
+  });
+}
+
+/**
+ * Spotter-network warnings (Professional mode's WarnGen): members only, so
+ * nothing is fetched until someone is signed in.
+ */
+export function useSpotterWarnings(enabled = true) {
+  const session = useSession();
+  return useQuery({
+    queryKey: qk.spotterWarnings,
+    queryFn: ({ signal }) => getJson<SpotterWarningsResponse>("/api/spotter-warnings", { signal }),
+    enabled: COMMUNITY_ENABLED && enabled && !!session.data,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 }

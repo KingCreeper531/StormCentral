@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { OutlookKind } from "@/lib/api/types";
 import type { LatLon } from "@/lib/geo";
+import { ALERT_CATEGORIES, type AlertCategory } from "@/lib/alerts";
 import type { ProductFamily, TiltPrefix } from "@/lib/radar/products";
 import type { Speed } from "@/lib/radar/playback";
 import { DEFAULT_FORECAST_SOURCE, isForecastSourceId, type ForecastSourceId } from "@/lib/forecast-sources";
@@ -58,6 +59,19 @@ export interface RadarSettings {
   warningsView: "squares" | "list";
   /** Warnings tab: within the search radius, or every active warning in the US. */
   warningsScope: "nearby" | "all";
+  /**
+   * Which other hazard polygons the radar maps draw besides storm-based
+   * warnings (those always show with the warnings overlay): zone/county
+   * warnings, watches, advisories, statements, marine products, SPC/WPC
+   * discussions.
+   */
+  alertKinds: AlertCategory[];
+  /** Warnings from other countries' weather services (Canada, Germany). */
+  intlAlerts: boolean;
+  /** Radar composites from other countries' weather services, time-matched to the loop. */
+  intlRadar: boolean;
+  /** Unofficial warnings issued by spotters with Professional mode's WarnGen (signed-in members only). */
+  showSpotterWarnings: boolean;
 }
 
 export type RadarHistory = "latest" | "2h" | "4h";
@@ -166,7 +180,16 @@ export const DEFAULT_RADAR: RadarSettings = {
   history: "latest",
   warningsView: "squares",
   warningsScope: "nearby",
+  alertKinds: [...ALERT_CATEGORIES],
+  intlAlerts: true,
+  intlRadar: true,
+  showSpotterWarnings: true,
 };
+
+function normalizeRadar(r: RadarSettings): RadarSettings {
+  const kinds = Array.isArray(r.alertKinds) ? r.alertKinds.filter((k): k is AlertCategory => (ALERT_CATEGORIES as readonly string[]).includes(k)) : DEFAULT_RADAR.alertKinds;
+  return { ...r, alertKinds: [...new Set(kinds)], intlAlerts: r.intlAlerts !== false, intlRadar: r.intlRadar !== false, showSpotterWarnings: r.showSpotterWarnings !== false };
+}
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -238,7 +261,7 @@ export const useAppStore = create<AppState>()(
           ...current,
           ...p,
           mode: isModeId(p.mode) ? p.mode : current.mode,
-          radar: { ...current.radar, ...p.radar },
+          radar: normalizeRadar({ ...current.radar, ...p.radar }),
           drone: { ...current.drone, ...p.drone },
           units: { ...current.units, ...p.units },
           radiusKm: typeof p.radiusKm === "number" && p.radiusKm > 0 ? Math.min(MAX_RADIUS_KM, p.radiusKm) : current.radiusKm,

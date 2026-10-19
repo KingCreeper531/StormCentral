@@ -239,4 +239,23 @@ export const RADAR: Record<string, string> = {
     "El mapa dejó de dibujarse. Mantén Storm Central en pantalla mientras se exporta la animación.",
   "No frames could be captured.": "No se pudo capturar ningún cuadro.",
   "Couldn't read the exported file.": "No se pudo leer el archivo exportado.",
+
+  // ─── hazard polygons and other countries' radar ─────────────────────────────
+  "Storm-based warnings always show. Also draw:": "Los avisos por tormenta siempre se muestran. Dibujar también:",
+  "Hazard polygons": "Polígonos de peligros",
+  "Other warnings": "Otros avisos",
+  Watches: "Vigilancias",
+  Advisories: "Advertencias",
+  Statements: "Comunicados",
+  "SPC/WPC discussions": "Discusiones del SPC/WPC",
+  "Canada & Germany": "Canadá y Alemania",
+  "Spotter network warnings (unofficial)": "Avisos de la red de observadores (no oficiales)",
+  "Other countries' radar": "Radar de otros países",
+  "National weather services' composites (Canada, Germany, Finland, Netherlands, Japan), matched to the loop's times.":
+    "Compuestos de los servicios meteorológicos nacionales (Canadá, Alemania, Finlandia, Países Bajos, Japón), sincronizados con las horas del bucle.",
+  "Loading the full text…": "Cargando el texto completo…",
+  "Couldn't load the full text right now.": "No se pudo cargar el texto completo ahora.",
+  "Open the product on {site}": "Abrir el producto en {site}",
+  "Unofficial spotter-network warning. Not from the National Weather Service: always follow official warnings.":
+    "Aviso no oficial de la red de observadores. No es del Servicio Meteorológico Nacional: sigue siempre los avisos oficiales.",
 };

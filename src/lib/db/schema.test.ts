@@ -5,7 +5,7 @@ import { createClient } from "@libsql/client";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { afterAll, describe, expect, it } from "vitest";
-import { blocks, comments, flags, media, passwordResets, posts, SCHEMA_SQL, schema, sessions, users, verifications } from "./schema";
+import { blocks, comments, flags, media, passwordResets, posts, SCHEMA_SQL, schema, sessions, spotterWarnings, users, verifications } from "./schema";
 
 const dir = mkdtempSync(path.join(tmpdir(), "sc-db-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -33,6 +33,15 @@ describe("schema drift", () => {
     await db.insert(blocks).values({ blockerId: "u1", blockedId: "u3", createdAt: now });
     await db.insert(flags).values({ id: "f1", reporterId: "u3", targetType: "post", targetId: "p1", reason: "spam", createdAt: now });
     await expect(db.insert(flags).values({ id: "f2", reporterId: "u3", targetType: "post", targetId: "p1", reason: "hate", createdAt: now })).rejects.toThrow(); // one flag per person per target
+
+    const ring = JSON.stringify([[-97.5, 35.1], [-97.2, 35.1], [-97.2, 35.4], [-97.5, 35.1]]);
+    const warning = { userId: "u1", year: 2026, kind: "TOR", polygon: ring, west: -97.5, south: 35.1, east: -97.2, north: 35.4, issuedAt: now, updatedAt: now, expiresAt: now + 1_800_000, basis: "radar" };
+    await db.insert(spotterWarnings).values({ id: "w1", number: 1, ...warning });
+    await expect(db.insert(spotterWarnings).values({ id: "w2", number: 1, ...warning })).rejects.toThrow(); // numbers are unique per year
+    const [w] = await db.select().from(spotterWarnings).where(eq(spotterWarnings.id, "w1"));
+    expect(w?.revision).toBe(0);
+    expect(w?.threat).toBe("base");
+    expect(w?.cancelledAt).toBeNull();
 
     const [m] = await db.select().from(media).where(eq(media.id, "m1"));
     expect(Buffer.from(m!.bytes)).toEqual(Buffer.from([1, 2, 3]));

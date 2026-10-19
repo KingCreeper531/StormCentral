@@ -1,4 +1,5 @@
 /** Shapes returned by our own /api routes (shared by server and client). */
+import type { AlertCategory } from "../alerts";
 import type { PolygonalGeometry } from "../geo";
 
 export interface StormMotion {
@@ -37,7 +38,20 @@ export interface WeatherAlert {
   rank: number;
   motion: StormMotion | null;
   geometry: PolygonalGeometry | null;
+  /** Who issued it (NWS when absent). */
+  source?: AlertSource;
+  /** Warning / watch / advisory / statement / marine / discussion (lib/alerts `alertCategory`). */
+  category?: AlertCategory;
+  /** Zone- or county-based area rather than a storm-based polygon: drawn lighter. */
+  area?: boolean;
+  /** Only the summary was sent: fetch the full text with `/api/alerts?id=` when it's opened. */
+  lean?: boolean;
+  /** The full product on the issuer's site. */
+  url?: string | null;
 }
+
+/** Spotter: an unofficial warning from the spotter network (Professional mode's WarnGen). */
+export type AlertSource = "nws" | "spc" | "wpc" | "eccc" | "dwd" | "spotter";
 
 export interface AlertsResponse {
   alerts: WeatherAlert[];

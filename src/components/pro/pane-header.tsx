@@ -12,7 +12,7 @@ import { Toggle } from "../ui/misc";
 import type { PaneFeed } from "./frame-sources";
 import { usePro } from "./pro-context";
 
-const GROUPS: ProProduct["group"][] = ["Radar (site)", "Radar (volume)", "Radar (national)", "Satellite"];
+const GROUPS: ProProduct["group"][] = ["Radar (site)", "Radar (volume)", "Radar (national)", "Radar (other countries)", "Satellite"];
 
 /** The listed angle closest to `v` (or `v` itself when there's no list yet). */
 const nearest = (list: readonly number[], v: number) => (list.length ? list.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a)) : v);

@@ -3,8 +3,9 @@ import { climateFeed } from "./climate";
 import { floodGaugesFeed } from "./flood-gauges";
 import { forecasterNotesFeed } from "./forecaster-notes";
 import { gnssFeed } from "./gnss";
+import { hazardsFeed } from "./hazards";
 import { outlookFeed } from "./outlook";
-import { noaaTimesFeed, radarProductsFeed, radarScansFeed } from "./radar";
+import { intlTimesFeed, noaaTimesFeed, radarProductsFeed, radarScansFeed } from "./radar";
 import { riversFeed } from "./rivers";
 import { spaceWeatherFeed } from "./space-weather";
 import { stormCellsFeed } from "./storm-cells";
@@ -17,6 +18,7 @@ import { wildfiresFeed } from "./wildfires";
 export const FEEDS: ReadonlyMap<string, Feed> = new Map(
   [
     alertsFeed,
+    hazardsFeed,
     outlookFeed,
     spaceWeatherFeed,
     riversFeed,
@@ -24,6 +26,7 @@ export const FEEDS: ReadonlyMap<string, Feed> = new Map(
     radarScansFeed,
     radarProductsFeed,
     noaaTimesFeed,
+    intlTimesFeed,
     stormReportsFeed,
     stormCellsFeed,
     tropicalFeed,

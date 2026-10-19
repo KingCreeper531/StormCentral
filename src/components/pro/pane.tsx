@@ -21,6 +21,7 @@ import { EMPTY_FEED, FrameSource, type PaneFeed } from "./frame-sources";
 import { CameraSync, CursorSync, ProFrames, ToolClicks, ToolOverlay, type ToolShapes } from "./pane-layers";
 import { PaneHeader } from "./pane-header";
 import { usePro } from "./pro-context";
+import { WarnGenOverlay } from "./warngen-overlay";
 import type { ProCaps } from "./use-pro-caps";
 
 interface Props {
@@ -105,6 +106,7 @@ export const Pane = memo(function Pane({ config, n, site, frameCount, basis, too
         {config.warnings && <WarningsLayer alerts={alerts} selectedId={selectedAlert} onSelect={selectAlert} />}
         {config.cells && <StormCellsLayer cells={cells} selectedId={null} onSelect={() => {}} />}
         <ToolOverlay shapes={shapes} />
+        {tool === "warngen" && <WarnGenOverlay />}
         <ToolClicks tool={tool} />
         <UserMarker lat={home.lat} lon={home.lon} />
       </MapView>

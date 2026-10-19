@@ -1,7 +1,7 @@
 "use client";
 
 import { Maximize2 } from "lucide-react";
-import { useNationalAlerts } from "@/hooks/queries";
+import { useMapAlerts } from "@/hooks/use-map-alerts";
 import { useRadarLoop } from "@/hooks/use-radar-loop";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,7 @@ export function RadarPreview({ now, timeZone, className }: { now: number; timeZo
   const t = useT();
   const loc = useAppStore((s) => s.location);
   const setMode = useAppStore((s) => s.setMode);
-  const alerts = useNationalAlerts(true);
+  const alerts = useMapAlerts().all;
   const loop = useRadarLoop({ site: null, product: "N0Q", frameCount: 10, speed: 1, crossfade: true });
 
   return (
@@ -38,7 +38,7 @@ export function RadarPreview({ now, timeZone, className }: { now: number; timeZo
       <div className="relative h-64 border-t border-line sm:h-80 lg:h-auto lg:min-h-80 lg:flex-1">
         <MapView center={loc} zoom={6} interactive={false}>
           <RadarLayer frames={loop.frames} index={loop.index} opacity={0.8} crisp={false} crossfadeMs={loop.crossfadeMs} onStatus={loop.onStatus} />
-          <WarningsLayer alerts={alerts.data?.alerts ?? []} selectedId={null} onSelect={() => setMode("severe")} />
+          <WarningsLayer alerts={alerts} selectedId={null} onSelect={() => setMode("severe")} />
           <UserMarker lat={loc.lat} lon={loc.lon} />
         </MapView>
         <div className="absolute inset-x-2 bottom-2 sm:inset-x-3 sm:bottom-3">
