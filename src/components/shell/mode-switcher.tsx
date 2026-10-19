@@ -3,7 +3,8 @@
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
-import { MODE_IDS, MODES } from "@/modes/registry";
+import { MODES, visibleModes } from "@/modes/registry";
+import { useAppStore } from "@/store/app-store";
 import { useModeNav } from "./use-mode-nav";
 
 /**
@@ -11,18 +12,19 @@ import { useModeNav } from "./use-mode-nav";
  * accent rule sits on the bar's bottom edge. Below xl (tablets, phones in
  * landscape) the short tab-bar label stacks under the icon, since a tooltip
  * never shows on touch; xl+ puts the full label beside it. Hover/focus prefetches
- * the target mode's feeds; keys 1–5 switch instantly (registered here only,
+ * the target mode's feeds; keys 1–5 (6 for Professional Mode) switch instantly (registered here only,
  * so the phone tab bar doesn't double-bind them).
  */
 export function ModeSwitcher({ className }: { className?: string }) {
   const { active, select, warm } = useModeNav();
   const t = useT();
+  const modes = visibleModes(useAppStore((s) => s.professional));
 
-  useHotkeys(Object.fromEntries(MODE_IDS.map((id) => [MODES[id].hotkey, () => select(id)])));
+  useHotkeys(Object.fromEntries(modes.map((id) => [MODES[id].hotkey, () => select(id)])));
 
   return (
     <nav aria-label={t("Operating mode")} className={cn("items-stretch", className)}>
-      {MODE_IDS.map((id) => {
+      {modes.map((id) => {
         const m = MODES[id];
         const Icon = m.Icon;
         const on = id === active;

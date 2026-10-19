@@ -2,24 +2,26 @@
 
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
-import { MODE_IDS, MODES } from "@/modes/registry";
+import { MODES, visibleModes } from "@/modes/registry";
+import { useAppStore } from "@/store/app-store";
 import { useModeNav } from "./use-mode-nav";
 
 /**
- * Phone navigation (< md): the five modes in a fixed bottom bar, safe-area
+ * Phone navigation (< md): the modes (five, six with Professional Mode on) in a fixed bottom bar, safe-area
  * padded. Its height is `--tabbar-h`, which page shells pad by.
  */
 export function TabBar() {
   const { active, select } = useModeNav();
   const t = useT();
+  const modes = visibleModes(useAppStore((s) => s.professional));
 
   return (
     <nav
       aria-label={t("Operating mode")}
       className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-canvas pb-[env(safe-area-inset-bottom)] md:hidden"
     >
-      <div className="grid h-14 grid-cols-5">
-        {MODE_IDS.map((id) => {
+      <div className="grid h-14" style={{ gridTemplateColumns: `repeat(${modes.length}, minmax(0, 1fr))` }}>
+        {modes.map((id) => {
           const m = MODES[id];
           const Icon = m.Icon;
           const on = id === active;

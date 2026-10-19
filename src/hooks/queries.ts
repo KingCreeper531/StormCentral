@@ -418,7 +418,7 @@ export function useReportsInView(bbox: BBox | null, enabled: boolean) {
 export function prefetchMode(qc: QueryClient, mode: ModeId, loc: LatLon) {
   const opts = { staleTime: 60_000 };
   if (mode === "air") void qc.prefetchQuery({ queryKey: qk.air(loc), queryFn: ({ signal }) => fetchAirQuality(loc.lat, loc.lon, signal), ...opts });
-  if (mode === "severe")
+  if (mode === "severe" || mode === "professional")
     void qc.prefetchQuery({ queryKey: qk.nationalAlerts, queryFn: ({ signal }) => getJson<AlertsResponse>("/api/alerts?scope=national", { signal, timeoutMs: 25_000 }), ...opts });
   if (mode === "drone") {
     void qc.prefetchQuery({ queryKey: qk.kp, queryFn: ({ signal }) => getJson<SpaceWeatherResponse>("/api/space-weather", { signal }), ...opts });

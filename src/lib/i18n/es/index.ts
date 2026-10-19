@@ -39,6 +39,7 @@ import { LIB } from "./lib";
 import { MAP } from "./map";
 import { MODES } from "./modes";
 import { NOTIFY } from "./notify";
+import { PRO } from "./pro";
 import { RADAR } from "./radar";
 import { SETTINGS } from "./settings";
 import { SHELL } from "./shell";
@@ -55,4 +56,5 @@ export const ES: Readonly<Record<string, string>> = {
   ...SETTINGS,
   ...ALERTS,
   ...NOTIFY,
+  ...PRO,
 };

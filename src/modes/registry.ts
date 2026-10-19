@@ -1,11 +1,11 @@
-import { CloudSun, Drone, Fish, Leaf, Radar, type LucideIcon } from "lucide-react";
+import { CloudSun, Drone, Fish, LayoutGrid, Leaf, Radar, type LucideIcon } from "lucide-react";
 
 /**
  * Mode registry — the single source of truth for what each operating mode
  * is, how it looks, and how aggressively it polls. Modes are *projections*
  * over shared, normalised data: switching never refetches what's cached.
  */
-export const MODE_IDS = ["daily", "severe", "drone", "angler", "air"] as const;
+export const MODE_IDS = ["daily", "severe", "drone", "angler", "air", "professional"] as const;
 export type ModeId = (typeof MODE_IDS)[number];
 
 export interface ModeDef {
@@ -19,6 +19,8 @@ export interface ModeDef {
   hotkey: string;
   /** Map-first modes hide the sky background and go edge-to-edge. */
   immersiveMap: boolean;
+  /** Only offered while this setting is on (Settings → General). */
+  requires?: "professional";
 }
 
 export const MODES: Record<ModeId, ModeDef> = {
@@ -27,7 +29,22 @@ export const MODES: Record<ModeId, ModeDef> = {
   drone: { id: "drone", label: "UAV pilot", short: "UAV", tagline: "Winds aloft, shear, Kp, ceiling and GNSS", Icon: Drone, hotkey: "3", immersiveMap: false },
   angler: { id: "angler", label: "Angler", short: "Angler", tagline: "River gauges, pressure trend and solunar", Icon: Fish, hotkey: "4", immersiveMap: false },
   air: { id: "air", label: "Air quality", short: "Air", tagline: "AQI map, particulates, ozone and pollen", Icon: Leaf, hotkey: "5", immersiveMap: false },
+  professional: {
+    id: "professional",
+    label: "Professional Mode",
+    short: "Pro",
+    tagline: "AWIPS-style multi-panel radar, sampling, soundings and storm tools",
+    Icon: LayoutGrid,
+    hotkey: "6",
+    immersiveMap: true,
+    requires: "professional",
+  },
 };
+
+/** The modes to offer: everything, minus Professional Mode while its setting is off. */
+export function visibleModes(professional: boolean): ModeId[] {
+  return MODE_IDS.filter((id) => MODES[id].requires !== "professional" || professional);
+}
 
 export const isModeId = (v: unknown): v is ModeId => typeof v === "string" && (MODE_IDS as readonly string[]).includes(v);
 
@@ -57,17 +74,17 @@ export type Feed =
 const MIN = 60_000;
 
 export const POLLING: Record<Feed, Partial<Record<ModeId, number | false>> & { default: number | false }> = {
-  forecast: { default: 10 * MIN, severe: 5 * MIN },
+  forecast: { default: 10 * MIN, severe: 5 * MIN, professional: 5 * MIN },
   air: { default: false, daily: 30 * MIN, air: 15 * MIN },
-  localAlerts: { default: 5 * MIN, severe: MIN },
-  nationalAlerts: { default: false, severe: 45_000 },
-  radar: { default: false, daily: 2 * MIN, severe: MIN },
+  localAlerts: { default: 5 * MIN, severe: MIN, professional: MIN },
+  nationalAlerts: { default: false, severe: 45_000, professional: 45_000 },
+  radar: { default: false, daily: 2 * MIN, severe: MIN, professional: MIN },
   kp: { default: false, drone: 15 * MIN },
   rivers: { default: false, angler: 10 * MIN },
   gnss: { default: false, drone: 10 * MIN },
-  outlook: { default: false, daily: 30 * MIN, severe: 10 * MIN },
-  stormReports: { default: false, severe: 2 * MIN },
-  stormCells: { default: false, severe: 2 * MIN },
+  outlook: { default: false, daily: 30 * MIN, severe: 10 * MIN, professional: 10 * MIN },
+  stormReports: { default: false, severe: 2 * MIN, professional: 2 * MIN },
+  stormCells: { default: false, severe: 2 * MIN, professional: 2 * MIN },
   tropical: { default: false, daily: 30 * MIN, severe: 15 * MIN },
   floodGauges: { default: false, daily: 15 * MIN },
   forecasterNotes: { default: false, daily: 30 * MIN },

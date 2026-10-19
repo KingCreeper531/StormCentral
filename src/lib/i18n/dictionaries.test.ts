@@ -7,11 +7,12 @@ import { LIB } from "./es/lib";
 import { MAP } from "./es/map";
 import { MODES } from "./es/modes";
 import { NOTIFY } from "./es/notify";
+import { PRO } from "./es/pro";
 import { RADAR } from "./es/radar";
 import { SETTINGS } from "./es/settings";
 import { SHELL } from "./es/shell";
 
-const AREAS = { ALERTS, COMMON, COMMUNITY, DAILY, LIB, MAP, MODES, NOTIFY, RADAR, SETTINGS, SHELL };
+const AREAS = { ALERTS, COMMON, COMMUNITY, DAILY, LIB, MAP, MODES, NOTIFY, PRO, RADAR, SETTINGS, SHELL };
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
 describe("Spanish dictionaries", () => {

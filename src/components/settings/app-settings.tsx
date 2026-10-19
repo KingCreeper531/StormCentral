@@ -430,6 +430,29 @@ function LocationPanel() {
   );
 }
 
+/** Professional mode: adds the Pro workspace to the modes. */
+function ProfessionalPanel() {
+  const on = useAppStore((s) => s.professional);
+  const setOn = useAppStore((s) => s.setProfessional);
+  const setMode = useAppStore((s) => s.setMode);
+  const t = useT();
+  return (
+    <Panel title={t("Professional mode")}>
+      <Toggle label={t("Professional mode")} checked={on} onChange={setOn} />
+      <p className="label mt-1">
+        {t(
+          "Adds Pro to the modes: an AWIPS-style workspace with up to nine synced radar and satellite panels, cursor sampling, model soundings, cross-sections and storm tracking tools.",
+        )}
+      </p>
+      {on && (
+        <Button size="sm" className="mt-3" onClick={() => setMode("professional")}>
+          {t("Open Pro")}
+        </Button>
+      )}
+    </Panel>
+  );
+}
+
 /** How far to look for warnings, spotter reports and river gauges. */
 function RadiusPanel() {
   const radiusKm = useAppStore((s) => s.radiusKm);
@@ -526,6 +549,7 @@ export function AppSettings() {
             <TimePanel />
             <LocationPanel />
             <RadiusPanel />
+            <ProfessionalPanel />
           </>
         )}
         {current === "alerts" && (
