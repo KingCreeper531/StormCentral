@@ -23,6 +23,10 @@
  *   SHORTS_SKIP_QUIET=true outlook: no video on days without a severe risk
  *   SHORTS_VOICE=false     no narrator (otherwise edge-tts reads a script timed to the scenes; see voice.ts)
  *   SHORTS_VOICE_NAME      the narrator's voice (default en-US-AndrewNeural)
+ *   SHORTS_AI=true         livelier narration: a local model (Ollama) rewrites the script, every line checked against the facts (script.ts)
+ *   SHORTS_AI_MODEL        the Ollama model (default llama3.1:8b)
+ *   OLLAMA_HOST            where Ollama listens (default 127.0.0.1:11434)
+ *   SHORTS_AI_COMPARE=1    also save each video with the plain narration, as <key>-plain.mp4
  *   SHORTS_TROPICAL_MAX    tropical: at most this many storms (default 2, strongest first)
  *   SHORTS_FIRE_MAX        fire: at most this many fires (default 1)
  *   SHORTS_STATE_DIR       fire: where yesterday's fire sizes are kept (default shorts/.state)
@@ -30,17 +34,18 @@
  *   SHORTS_FIXTURES        a folder of saved source files to use instead of fetching (testing)
  *   SHORTS_SAVE            a folder to save the fetched source files into (to make fixtures)
  */
-import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fireKind } from "./kinds/fire";
 import { outlookKind } from "./kinds/outlook";
 import { recapKind } from "./kinds/recap";
 import { tropicalKind } from "./kinds/tropical";
 import { weeklyKind } from "./kinds/weekly";
-import { narration } from "./narration";
+import { narration, type Cue } from "./narration";
 import { renderShort } from "./render";
+import { livelyNarration } from "./script";
 import type { Kind, Video } from "./video";
-import { addVoice, DEFAULT_VOICE } from "./voice";
+import { addVoice, DEFAULT_VOICE, seconds } from "./voice";
 import { accessToken, addToPlaylist, credentialsFromEnv, uploadVideo, YouTubeError, type VideoMeta } from "./youtube";
 
 const env = process.env;
@@ -86,15 +91,34 @@ async function main() {
   for (const v of videos) {
     const out = join(outDir, `${v.key}.mp4`);
     const meta = metaOf(v);
-    writeFileSync(join(outDir, `${v.key}.json`), JSON.stringify({ ...meta, playlist: v.playlist }, null, 2));
+    const saveMeta = (said?: Cue[]) =>
+      writeFileSync(join(outDir, `${v.key}.json`), JSON.stringify({ ...meta, playlist: v.playlist, ...(said ? { narration: said } : {}) }, null, 2));
+    saveMeta();
     console.log(`\n── ${v.key} ──\nTitle: ${v.title}\nTítulo: ${v.es.title}\n\n${v.description}\n`);
     const started = Date.now();
     await renderShort(v.template, v.data, out);
     console.log(`Rendered ${out} in ${Math.round((Date.now() - started) / 1000)} s.`);
     if (env.SHORTS_VOICE !== "false") {
+      const voice = env.SHORTS_VOICE_NAME || DEFAULT_VOICE;
+      const plain = narration(v);
+      let cues = plain;
+      if (env.SHORTS_AI === "true" && plain.length) {
+        cues = await livelyNarration(v, plain, await seconds(out), { host: env.OLLAMA_HOST, model: env.SHORTS_AI_MODEL || undefined }).catch((err: unknown) => {
+          console.warn(`::warning::The AI narrator failed; using the plain script: ${err instanceof Error ? err.message : err}`);
+          return plain;
+        });
+        if (env.SHORTS_AI_COMPARE === "1") {
+          const other = join(outDir, `${v.key}-plain.mp4`);
+          copyFileSync(out, other);
+          await addVoice(other, plain, voice).catch((err: unknown) => console.warn(`::warning::No plain narration for ${v.key}: ${err instanceof Error ? err.message : err}`));
+        }
+      }
       // A narrator is nice to have: when the voice service is down, the Short still goes up, silent.
-      await addVoice(out, narration(v), env.SHORTS_VOICE_NAME || DEFAULT_VOICE).then(
-        () => console.log("Added the narration."),
+      await addVoice(out, cues, voice).then(
+        (said) => {
+          console.log("Added the narration.");
+          saveMeta(said);
+        },
         (err: unknown) => console.warn(`::warning::No narration for ${v.key}: ${err instanceof Error ? err.message : err}`),
       );
     }
