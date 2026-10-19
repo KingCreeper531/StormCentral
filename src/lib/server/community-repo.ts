@@ -7,12 +7,19 @@ import { isDeveloper, isTrustedSpotter } from "../auth/session";
 import { getDb } from "../db/client";
 import { comments, flags, media, posts, users, verifications } from "../db/schema";
 import { haversineKm, type BBox, type LatLon } from "../geo";
+import { NWS_BONUS, parseNwsRef } from "../nws-match";
 
 const PAGE = 20;
 
-/** Reputation = verifications received across all of a user's posts. */
-const reputationSql = sql<number>`(
-  SELECT COUNT(*) FROM verifications v JOIN posts p2 ON p2.id = v.post_id WHERE p2.user_id = ${users.id}
+/**
+ * Reputation = confirmations received across a user's reports, plus NWS_BONUS
+ * for each report the NWS confirmed. Written against the outer query's `users`
+ * table by name: Drizzle leaves columns unqualified in single-table selects
+ * (the profile), where `id` would bind to the subquery's posts.
+ */
+export const reputationSql = sql<number>`(
+  (SELECT COUNT(*) FROM verifications v JOIN posts p2 ON p2.id = v.post_id WHERE p2.user_id = "users"."id")
+  + ${sql.raw(String(NWS_BONUS))} * (SELECT COUNT(*) FROM posts p3 WHERE p3.user_id = "users"."id" AND p3.nws_confirmed_at IS NOT NULL)
 )`;
 
 /** No block between the viewer and the user in `userCol`, in either direction. */
@@ -135,6 +142,7 @@ export async function listPosts(q: FeedQuery, viewerId: string | null): Promise<
     viewerVerified: mine.has(r.post.id),
     isOwn: viewerId === r.post.userId,
     hidden: r.post.hidden !== 0,
+    nws: parseNwsRef(r.post.nwsReport),
   }));
 
   if (q.sort === "nearby") {
@@ -157,6 +165,13 @@ function parseConditions(json: string | null): ConditionsSnapshot | null {
   }
 }
 
+/** Where a report is stored and shown: ~1.1 km by default to protect home locations, ~110 m when the spotter opts in. */
+export function storedPosition(lat: number, lon: number, precise?: boolean): LatLon {
+  const digits = precise ? 3 : 2;
+  const round = (v: number) => Math.round(v * 10 ** digits) / 10 ** digits;
+  return { lat: round(lat), lon: round(lon) };
+}
+
 export async function createPost(input: {
   userId: string;
   body: string;
@@ -173,9 +188,7 @@ export async function createPost(input: {
   const now = Date.now();
   const id = randomUUID();
   const mediaId = input.image ? randomUUID() : null;
-  // ~1.1 km default precision protects home locations; opt-in ~110 m.
-  const digits = input.precise ? 3 : 2;
-  const round = (v: number) => Math.round(v * 10 ** digits) / 10 ** digits;
+  const at = storedPosition(input.lat, input.lon, input.precise);
 
   await db.transaction(async (tx) => {
     if (input.image && mediaId) {
@@ -196,8 +209,8 @@ export async function createPost(input: {
       body: input.body,
       category: input.category,
       severity: input.severity,
-      lat: round(input.lat),
-      lon: round(input.lon),
+      lat: at.lat,
+      lon: at.lon,
       place: input.place || null,
       mediaId,
       conditions: input.conditions ? JSON.stringify(input.conditions) : null,
@@ -246,15 +259,16 @@ export async function toggleVerification(postId: string, userId: string) {
 }
 
 /**
- * Confirmations and visible comments by other people on `userId`'s reports
- * since `since` (epoch ms), newest last, skipping accounts either side blocked.
+ * Confirmations and visible comments by other people on `userId`'s reports,
+ * and the NWS confirming one, since `since` (epoch ms), newest last, skipping
+ * accounts either side blocked.
  */
 export async function listActivity(userId: string, since: number, limit = 30): Promise<ActivityItem[]> {
   const db = await getDb();
   const now = Date.now();
   const preview = (body: string) => body.replace(/\s+/g, " ").trim().slice(0, 80);
   const shownUser = or(isNull(users.suspendedUntil), lte(users.suspendedUntil, now));
-  const [confirms, replies] = await Promise.all([
+  const [confirms, replies, nws] = await Promise.all([
     db
       .select({ postId: verifications.postId, at: verifications.createdAt, body: posts.body, username: users.username, displayName: users.displayName })
       .from(verifications)
@@ -270,6 +284,12 @@ export async function listActivity(userId: string, since: number, limit = 30): P
       .innerJoin(users, eq(users.id, comments.userId))
       .where(and(eq(posts.userId, userId), sql`${comments.userId} <> ${userId}`, gte(comments.createdAt, since), eq(comments.hidden, 0), shownUser, notBlocked(userId, comments.userId)))
       .orderBy(desc(comments.createdAt))
+      .limit(limit),
+    db
+      .select({ postId: posts.id, at: posts.nwsConfirmedAt, body: posts.body })
+      .from(posts)
+      .where(and(eq(posts.userId, userId), gte(posts.nwsConfirmedAt, since)))
+      .orderBy(desc(posts.nwsConfirmedAt))
       .limit(limit),
   ]);
   const items: ActivityItem[] = [
@@ -290,6 +310,15 @@ export async function listActivity(userId: string, since: number, limit = 30): P
       postPreview: preview(r.body),
       actor: { username: r.username, displayName: r.displayName },
       text: r.text.slice(0, 300),
+    })),
+    ...nws.map((r) => ({
+      id: `n:${r.postId}`,
+      kind: "nws" as const,
+      at: r.at ?? 0,
+      postId: r.postId,
+      postPreview: preview(r.body),
+      actor: { username: "", displayName: "National Weather Service" },
+      text: null,
     })),
   ];
   return items.sort((a, b) => a.at - b.at).slice(-limit);
@@ -358,7 +387,8 @@ export async function getProfile(username: string) {
       createdAt: users.createdAt,
       suspendedUntil: users.suspendedUntil,
       reputation: reputationSql,
-      posts: sql<number>`(SELECT COUNT(*) FROM posts p WHERE p.user_id = ${users.id})`,
+      posts: sql<number>`(SELECT COUNT(*) FROM posts p WHERE p.user_id = "users"."id")`,
+      nwsConfirmed: sql<number>`(SELECT COUNT(*) FROM posts p WHERE p.user_id = "users"."id" AND p.nws_confirmed_at IS NOT NULL)`,
     })
     .from(users)
     .where(eq(users.username, username));
@@ -371,6 +401,7 @@ export async function getProfile(username: string) {
     avatarUrl: avatarUrl(row.avatarMediaId),
     reputation: Number(row.reputation),
     posts: Number(row.posts),
+    nwsConfirmed: Number(row.nwsConfirmed),
     developer: isDeveloper(row.username),
     trusted: isTrustedSpotter(row.username),
   };

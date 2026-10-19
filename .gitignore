@@ -33,6 +33,7 @@ npm-debug.log*
 # written by `next dev` (Next.js 16 agent hints)
 /AGENTS.md
 
-# YouTube Shorts (shorts/): rendered videos and the posted-today marker.
+# YouTube Shorts (shorts/): rendered videos, the posted-today marker, and saved state (fire sizes, posted breaking news).
 shorts/out/
 shorts/.posted/
+shorts/.state/

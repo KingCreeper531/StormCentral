@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import type { RadarLoop } from "@/hooks/use-radar-loop";
 import { translator, type Translator } from "@/lib/i18n/core";
 import { useT } from "@/lib/i18n/use-t";
+import { nowcastLabel } from "@/lib/radar/nowcast";
 import { SPEEDS, type Speed } from "@/lib/radar/playback";
 import { cn } from "@/lib/utils";
 import { clockIn, fmtIn } from "@/lib/weather/view";
@@ -30,6 +31,7 @@ const clock = (timeZone: string | undefined, locale: string) => fmtIn(timeZone, 
 export function frameTimeLabel(loop: RadarLoop, timeZone?: string, t: Translator = translator("en")): string | null {
   const frame = loop.frames[loop.index];
   if (!frame) return null;
+  if (frame.nowcast) return nowcastLabel(frame.leadMinutes ?? 0, t);
   const time = clockIn(timeZone, frame.time, t.locale);
   return frame.forecast ? t("Forecast {time}", { time }) : `${frame.approximate ? "~" : ""}${time}`;
 }
@@ -159,14 +161,18 @@ export function RadarTimeline({
               {loop.frames.map((f, i) => {
                 const current = i === loop.index;
                 const ready = loop.ready[i];
-                // Model forecast frames (future radar) read as a distinct, dimmer run after "now".
+                // Frames after "now" read as distinct, dimmer runs: future radar (green), then the HRRR model (orange).
                 const forecast = f.forecast;
                 return (
                   <button
                     key={f.id}
                     type="button"
                     onClick={() => loop.setIndex(i)}
-                    className={cn("group relative h-full min-w-0 flex-1", forecast && i === loop.liveCount && "ml-1.5")}
+                    className={cn(
+                      "group relative h-full min-w-0 flex-1",
+                      forecast && i === loop.liveCount && "ml-1.5",
+                      forecast && !f.nowcast && loop.frames[i - 1]?.nowcast && "ml-1",
+                    )}
                     aria-label={t("Frame {time}", { time: fmt.format(f.time) })}
                     tabIndex={-1}
                   >
@@ -178,7 +184,10 @@ export function RadarTimeline({
                         current
                           ? "h-4 bg-accent"
                           : ready
-                            ? cn("h-1.5 group-hover:bg-ink", forecast ? "bg-series-2/70" : i === loop.liveCount - 1 ? "bg-ink-2" : "bg-ink-3")
+                            ? cn(
+                                "h-1.5 group-hover:bg-ink",
+                                f.nowcast ? "bg-series-3/70" : forecast ? "bg-series-2/70" : i === loop.liveCount - 1 ? "bg-ink-2" : "bg-ink-3",
+                              )
                             : "h-1.5 border border-line-strong transition-[border-color] duration-100 group-hover:border-ink-3",
                       )}
                     />

@@ -73,6 +73,7 @@ const post = (over: Partial<PostDto>): PostDto => ({
   viewerVerified: false,
   isOwn: false,
   hidden: false,
+  nws: null,
   distanceKm: 12.9,
   ...over,
 });
@@ -235,5 +236,16 @@ describe("activity on your reports", () => {
     expect(since).toBe(NOW);
     expect(out.map((n) => n.title)).toEqual(["Sam commented on your report", "Kim confirmed your report"]);
     expect(sent).toHaveLength(2);
+  });
+
+  it("announces the NWS confirming a report", async () => {
+    const { io: x } = io({
+      fetchActivity: async () => [item({ id: "n:p1", kind: "nws", actor: { username: "", displayName: "National Weather Service" }, text: null })],
+    });
+    const c = cfg({ activity: { enabled: true } });
+    await checkActivity(c, x);
+    const [n] = await checkActivity(c, { ...x, now: () => NOW + 60_000 });
+    expect(n?.title).toBe("The NWS confirmed your report");
+    expect(n?.body).toBe("“Hail in Moore” It matches an official NWS storm report and counts as 5 confirmations.");
   });
 });

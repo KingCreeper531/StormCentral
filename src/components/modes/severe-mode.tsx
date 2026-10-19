@@ -14,7 +14,7 @@ import { FAMILIES, familiesAvailable, resolveTilts, siteProducts } from "@/lib/r
 import { iemSiteId } from "@/lib/radar/frames";
 import { satelliteLabel } from "@/lib/radar/satellite";
 import { getSite, nearestSites } from "@/lib/radar/site-utils";
-import { useForecast, useLocalAlerts, useOutlook, useRadarProducts, useReportsInView, useStormCells, useStormReports, useTropical } from "@/hooks/queries";
+import { useChasers, useForecast, useLocalAlerts, useOutlook, useRadarProducts, useReportsInView, useStormCells, useStormReports, useTropical } from "@/hooks/queries";
 import { useFormat } from "@/hooks/use-format";
 import { useMapAlerts } from "@/hooks/use-map-alerts";
 import { useHotkeys } from "@/hooks/use-hotkeys";
@@ -24,6 +24,7 @@ import { useRadarLoop } from "@/hooks/use-radar-loop";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
+import { ChaserDetail } from "../community/chaser-detail";
 import { PostCard } from "../community/post-card";
 import { MapView } from "../map/map-view";
 import { OutlookLayer } from "../map/layers/outlook-layer";
@@ -34,6 +35,7 @@ import { StormCellsLayer } from "../map/layers/storm-cells-layer";
 import { StormReportsLayer } from "../map/layers/storm-reports-layer";
 import { TropicalLayer } from "../map/layers/tropical-layer";
 import { ReportsLayer } from "../map/layers/reports-layer";
+import { ChasersLayer } from "../map/layers/chasers-layer";
 import { SitesLayer } from "../map/layers/sites-layer";
 import { TracksLayer } from "../map/layers/tracks-layer";
 import { UserMarker } from "../map/layers/user-marker";
@@ -58,8 +60,8 @@ import { Sheet, type Detent } from "../ui/sheet";
 import { Tabs } from "../ui/tabs";
 
 type PanelTab = "alerts" | "storms" | "radar";
-/** What's selected on the map: a warning, a spotter post, an NWS storm report, a radar cell or a tropical cyclone. */
-type Selection = { kind: "alert" | "post" | "lsr" | "cell" | "storm"; id: string };
+/** What's selected on the map: a warning, a spotter post, an NWS storm report, a radar cell, a tropical cyclone or a storm chaser (by username). */
+type Selection = { kind: "alert" | "post" | "lsr" | "cell" | "storm" | "chaser"; id: string };
 /** Hours of NWS storm reports on the map. */
 const LSR_HOURS = 6;
 type Padding = { top: number; right: number; bottom: number; left: number };
@@ -189,8 +191,11 @@ export function SevereMode() {
     crossfade: radar.crossfade,
     futureHours: radar.future && !isSite ? 6 : 0,
     historyMinutes: radar.history === "4h" ? 240 : radar.history === "2h" ? 120 : 0,
+    // Extrapolating velocity or dual-pol means nothing: reflectivity only.
+    nowcast: { map, enabled: radar.nowcast && (!isSite || radarFamily === "reflectivity") },
   });
   const showingForecast = !!loop.frames[loop.index]?.forecast;
+  const showingNowcast = !!loop.frames[loop.index]?.nowcast;
   // Other countries' radar is matched to the loop's observed scans (forecast frames get none).
   const loopTimes = useMemo(() => loop.frames.map((f) => (f.forecast ? Number.NaN : f.time)), [loop.frames]);
 
@@ -204,9 +209,11 @@ export function SevereMode() {
   const lsr = useStormReports(true, LSR_HOURS);
   const cells = useStormCells(radar.showCells);
   const tropical = useTropical(radar.showTropical);
+  const chasers = useChasers(radar.showChasers);
   const lsrList = useMemo(() => lsr.data?.reports ?? [], [lsr.data]);
   const cellList = useMemo(() => cells.data?.cells ?? [], [cells.data]);
   const storms = useMemo(() => tropical.data?.storms ?? [], [tropical.data]);
+  const chaserList = useMemo(() => chasers.data?.chasers ?? [], [chasers.data]);
 
   const ranked = useMemo<RankedAlert[]>(() => {
     const out = new Map<string, RankedAlert>();
@@ -227,6 +234,7 @@ export function SevereMode() {
   const activeLsr = lsrList.find((r) => r.id === selectedId("lsr"));
   const activeCell = cellList.find((c) => c.id === selectedId("cell"));
   const activeStorm = storms.find((s) => s.id === selectedId("storm"));
+  const activeChaser = radar.showChasers ? chaserList.find((c) => c.username === selectedId("chaser")) : undefined;
 
   // ── Selection ─────────────────────────────────────────────────────────────
   /** Without the floating column, details show in the panel/sheet: switch to warnings and reveal it. */
@@ -242,7 +250,7 @@ export function SevereMode() {
   };
   const select = (kind: Selection["kind"], id: string) => {
     setSel({ kind, id });
-    revealSelection(kind === "alert" || kind === "post" ? "alerts" : "storms");
+    revealSelection(kind === "alert" || kind === "post" || kind === "chaser" ? "alerts" : "storms");
   };
   const selectAlert = (id: string) => select("alert", id);
   const clearSelection = () => setSel(null);
@@ -294,22 +302,22 @@ export function SevereMode() {
     isSite && site ? (
       <>
         <span className="shrink-0 font-mono">{noaaTag ?? `${site.icao} ${productCode}`}</span>
-        <span className="min-w-0 truncate">
-          {site.place}, {site.state}
-        </span>
+        <span className="min-w-0 truncate">{showingNowcast ? t("Extrapolated, not observed") : `${site.place}, ${site.state}`}</span>
       </>
     ) : (
       <>
-        <span className="shrink-0 font-mono">{showingForecast ? "HRRR" : (noaaTag ?? "N0Q")}</span>
+        <span className="shrink-0 font-mono">{showingNowcast ? t("Future") : showingForecast ? "HRRR" : (noaaTag ?? "N0Q")}</span>
         <span className="min-w-0 truncate">
           {t(
-            showingForecast
-              ? "Model forecast, not observed"
-              : loop.usingFallback
-                ? "Mosaic (rolling)"
-                : loop.source === "noaa"
-                  ? "Multi-radar national mosaic, 1 km"
-                  : "National mosaic",
+            showingNowcast
+              ? "Extrapolated, not observed"
+              : showingForecast
+                ? "Model forecast, not observed"
+                : loop.usingFallback
+                  ? "Mosaic (rolling)"
+                  : loop.source === "noaa"
+                    ? "Multi-radar national mosaic, 1 km"
+                    : "National mosaic",
           )}
         </span>
       </>
@@ -323,7 +331,7 @@ export function SevereMode() {
       ? t("Over your location, until {time}", { time: alertUntil(r.alert, timeZone, t.locale) })
       : t("{distance} away, until {time}", { distance: fmt.distanceKm(r.distanceKm), time: alertUntil(r.alert, timeZone, t.locale) });
   const top = ranked[0];
-  const hasSelection = !!(activeAlert || activeReport || activeLsr || activeCell || activeStorm);
+  const hasSelection = !!(activeAlert || activeReport || activeLsr || activeCell || activeStorm || activeChaser);
   /** The selection replaces the list (and the tabs) in the panel/sheet. */
   const inlineSelection = !floatDetail && hasSelection && tab !== "radar";
 
@@ -377,7 +385,9 @@ export function SevereMode() {
         ? t("Radar storm cell")
         : activeStorm
           ? stormTitle(activeStorm.classification, activeStorm.name, t)
-          : t("Spotter report");
+          : activeChaser
+            ? t("Storm chaser")
+            : t("Spotter report");
 
   // Phone peek: one useful line — the selection, else the highest-ranked warning nearby.
   let peek: { color: string | null; title: string; sub: string };
@@ -387,6 +397,8 @@ export function SevereMode() {
   } else if (activeReport) {
     const cat = CATEGORIES[activeReport.category] ?? CATEGORIES.observation;
     peek = { color: null, title: t("Spotter report"), sub: activeReport.place ? `${t(cat.label)}, ${activeReport.place}` : t(cat.label) };
+  } else if (activeChaser) {
+    peek = { color: null, title: selectionTitle, sub: activeChaser.displayName };
   } else if (activeLsr || activeCell || activeStorm) {
     peek = { color: null, title: selectionTitle, sub: t("Tap for details") };
   } else if (top) {
@@ -553,6 +565,8 @@ export function SevereMode() {
     <StormCellDetail cell={activeCell} now={now} timeZone={timeZone} location={loc} hideTitle className="p-4" />
   ) : activeStorm ? (
     <TropicalDetail storm={activeStorm} timeZone={timeZone} className="p-4" />
+  ) : activeChaser ? (
+    <ChaserDetail chaser={activeChaser} fetchedAt={chasers.dataUpdatedAt} now={now} className="p-4" />
   ) : null;
 
   const section = (title: string, pending: boolean, error: unknown, what: string, children: React.ReactNode) => (
@@ -618,7 +632,11 @@ export function SevereMode() {
   // Desktop: legend card above the transport. Short screens: one row with an
   // inline legend. Phones: a legend strip inside the transport box, all of it
   // riding on top of the sheet.
-  const legendCode = showingForecast && !isSite ? t("HRRR forecast") : (noaaTag ?? (isSite && site ? `${site.icao} ${productCode}` : "N0Q"));
+  const legendCode = showingNowcast
+    ? t("Extrapolated")
+    : showingForecast && !isSite
+      ? t("HRRR forecast")
+      : (noaaTag ?? (isSite && site ? `${site.icao} ${productCode}` : "N0Q"));
   const sentenceCaseFamily = t(FAMILIES[family].label).toLowerCase();
   const dock = (
     <div ref={dockRef} className="pointer-events-none flex flex-col items-start gap-2 [&>*]:pointer-events-auto">
@@ -717,6 +735,7 @@ export function SevereMode() {
         {radar.showCells && <StormCellsLayer cells={cellList} selectedId={selectedId("cell")} onSelect={(id) => select("cell", id)} />}
         {radar.showStormReports && <StormReportsLayer reports={lsrList} now={now} hours={LSR_HOURS} selectedId={selectedId("lsr")} onSelect={(id) => select("lsr", id)} />}
         {COMMUNITY_ENABLED && radar.showReports && <ReportsLayer posts={(reports.data ?? []) as PostDto[]} now={now} onSelect={(id) => select("post", id)} />}
+        {COMMUNITY_ENABLED && radar.showChasers && <ChasersLayer chasers={chaserList} fetchedAt={chasers.dataUpdatedAt} now={now} onSelect={(u) => select("chaser", u)} />}
         <UserMarker lat={loc.lat} lon={loc.lon} />
       </MapView>
 
@@ -765,11 +784,12 @@ export function SevereMode() {
                 </div>
               </motion.div>
             )}
-            {(activeLsr || activeCell || activeStorm) && (
+            {(activeLsr || activeCell || activeStorm || activeChaser) && (
               <motion.div key={sel?.id} {...appear} className="overlay pointer-events-auto max-h-full overflow-y-auto overscroll-contain p-4">
                 {activeLsr && <StormReportDetail report={activeLsr} now={now} timeZone={timeZone} onClose={clearSelection} />}
                 {activeCell && <StormCellDetail cell={activeCell} now={now} timeZone={timeZone} location={loc} onClose={clearSelection} />}
                 {activeStorm && <TropicalDetail storm={activeStorm} timeZone={timeZone} onClose={clearSelection} />}
+                {activeChaser && <ChaserDetail chaser={activeChaser} fetchedAt={chasers.dataUpdatedAt} now={now} onClose={clearSelection} />}
               </motion.div>
             )}
           </AnimatePresence>

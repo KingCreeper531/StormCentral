@@ -40,9 +40,12 @@ import type { HazardsResponse } from "@/lib/feeds/hazards";
 import type { AlertTextResponse } from "@/lib/feeds/alerts";
 import type { WeatherAlert } from "@/lib/api/types";
 import type { SpotterWarningsResponse } from "@/lib/warngen/schema";
+import type { ChasersResponse } from "@/lib/chasers";
 
+// Request URLs use the same rounding as their query keys, so nearby users share the CDN's cached response.
 const r2 = (v: number) => Math.round(v * 100) / 100;
 const r1 = (v: number) => Math.round(v * 10) / 10;
+const q4 = (v: number) => Math.round(v * 4) / 4;
 
 export const qk = {
   /**
@@ -62,7 +65,7 @@ export const qk = {
   products: (site: string) => ["products", site] as const,
   kp: ["kp"] as const,
   rivers: (p: LatLon) => ["rivers", r2(p.lat), r2(p.lon)] as const,
-  gnss: (p: LatLon) => ["gnss", Math.round(p.lat * 4) / 4, Math.round(p.lon * 4) / 4] as const,
+  gnss: (p: LatLon) => ["gnss", q4(p.lat), q4(p.lon)] as const,
   outlook: (day: number, kind: OutlookKind) => ["outlook", day, kind] as const,
   stormReports: (hours: number) => ["stormReports", hours] as const,
   stormCells: ["stormCells"] as const,
@@ -74,6 +77,7 @@ export const qk = {
   wildfires: (p: LatLon) => ["wildfires", Math.round(p.lat * 4) / 4, Math.round(p.lon * 4) / 4] as const,
   session: ["session"] as const,
   spotterWarnings: ["spotterWarnings"] as const,
+  chasers: ["chasers"] as const,
   posts: (params: Record<string, string>) => ["posts", params] as const,
 };
 
@@ -262,7 +266,7 @@ export function useRivers() {
   const { enabled, refetchInterval } = usePoll("rivers");
   return useQuery({
     queryKey: [...qk.rivers(loc), radiusKm],
-    queryFn: ({ signal }) => getJson<RiversResponse>(`/api/rivers?lat=${loc.lat}&lon=${loc.lon}&radiusKm=${radiusKm}`, { signal, timeoutMs: 25_000 }),
+    queryFn: ({ signal }) => getJson<RiversResponse>(`/api/rivers?lat=${r2(loc.lat)}&lon=${r2(loc.lon)}&radiusKm=${radiusKm}`, { signal, timeoutMs: 25_000 }),
     enabled,
     refetchInterval,
     staleTime: 5 * 60_000,
@@ -274,7 +278,7 @@ export function useGnss() {
   const { enabled, refetchInterval } = usePoll("gnss");
   return useQuery({
     queryKey: qk.gnss(loc),
-    queryFn: ({ signal }) => getJson<GnssResponse>(`/api/gnss?lat=${loc.lat}&lon=${loc.lon}`, { signal, timeoutMs: 30_000 }),
+    queryFn: ({ signal }) => getJson<GnssResponse>(`/api/gnss?lat=${q4(loc.lat)}&lon=${q4(loc.lon)}`, { signal, timeoutMs: 30_000 }),
     enabled,
     refetchInterval,
     staleTime: 5 * 60_000,
@@ -352,7 +356,7 @@ export function useFloodGauges() {
   const { enabled, refetchInterval } = usePoll("floodGauges");
   return useQuery({
     queryKey: qk.floodGauges(loc, radiusKm),
-    queryFn: ({ signal }) => getJson<FloodGaugesResponse>(`/api/flood-gauges?lat=${loc.lat}&lon=${loc.lon}&radiusKm=${radiusKm}`, { signal, timeoutMs: 30_000 }),
+    queryFn: ({ signal }) => getJson<FloodGaugesResponse>(`/api/flood-gauges?lat=${r1(loc.lat)}&lon=${r1(loc.lon)}&radiusKm=${radiusKm}`, { signal, timeoutMs: 30_000 }),
     enabled,
     refetchInterval,
     staleTime: 10 * 60_000,
@@ -366,7 +370,7 @@ export function useForecasterNotes() {
   const { enabled, refetchInterval } = usePoll("forecasterNotes");
   return useQuery({
     queryKey: qk.forecasterNotes(loc),
-    queryFn: ({ signal }) => getJson<ForecasterNotesResponse>(`/api/forecaster-notes?lat=${loc.lat.toFixed(3)}&lon=${loc.lon.toFixed(3)}`, { signal, timeoutMs: 25_000 }),
+    queryFn: ({ signal }) => getJson<ForecasterNotesResponse>(`/api/forecaster-notes?lat=${r2(loc.lat)}&lon=${r2(loc.lon)}`, { signal, timeoutMs: 25_000 }),
     enabled,
     refetchInterval,
     staleTime: 10 * 60_000,
@@ -424,6 +428,16 @@ export function useSession() {
   });
 }
 
+/** Whether the server sends reports on to NOAA's mPING; asked only while the composer is open. */
+export function useMpingEnabled(enabled: boolean) {
+  return useQuery({
+    queryKey: ["mping"],
+    queryFn: ({ signal }) => getJson<{ mping?: boolean }>("/api/auth/me", { signal }).then((r) => r.mping === true),
+    enabled: COMMUNITY_ENABLED && enabled,
+    staleTime: 60 * 60_000,
+  });
+}
+
 export function useFeed(params: Record<string, string>) {
   return useInfiniteQuery({
     queryKey: qk.posts(params),
@@ -464,10 +478,10 @@ export function prefetchMode(qc: QueryClient, mode: ModeId, loc: LatLon) {
     void qc.prefetchQuery({ queryKey: qk.nationalAlerts, queryFn: ({ signal }) => getJson<AlertsResponse>("/api/alerts?scope=national", { signal, timeoutMs: 25_000 }), ...opts });
   if (mode === "drone") {
     void qc.prefetchQuery({ queryKey: qk.kp, queryFn: ({ signal }) => getJson<SpaceWeatherResponse>("/api/space-weather", { signal }), ...opts });
-    void qc.prefetchQuery({ queryKey: qk.gnss(loc), queryFn: ({ signal }) => getJson<GnssResponse>(`/api/gnss?lat=${loc.lat}&lon=${loc.lon}`, { signal }), ...opts });
+    void qc.prefetchQuery({ queryKey: qk.gnss(loc), queryFn: ({ signal }) => getJson<GnssResponse>(`/api/gnss?lat=${q4(loc.lat)}&lon=${q4(loc.lon)}`, { signal }), ...opts });
   }
   if (mode === "angler")
-    void qc.prefetchQuery({ queryKey: qk.rivers(loc), queryFn: ({ signal }) => getJson<RiversResponse>(`/api/rivers?lat=${loc.lat}&lon=${loc.lon}`, { signal }), ...opts });
+    void qc.prefetchQuery({ queryKey: qk.rivers(loc), queryFn: ({ signal }) => getJson<RiversResponse>(`/api/rivers?lat=${r2(loc.lat)}&lon=${r2(loc.lon)}`, { signal }), ...opts });
 }
 
 /** Strong radar storms heading for the selected location within the hour (every 2 minutes while the page shows). */
@@ -476,7 +490,7 @@ export function useIncomingStorms() {
   const hydrated = useAppStore((s) => s.hydrated);
   return useQuery({
     queryKey: ["stormEta", r2(loc.lat), r2(loc.lon)] as const,
-    queryFn: ({ signal }) => getJson<StormEtaResponse>(`/api/storm-eta?lat=${loc.lat.toFixed(3)}&lon=${loc.lon.toFixed(3)}`, { signal }),
+    queryFn: ({ signal }) => getJson<StormEtaResponse>(`/api/storm-eta?lat=${r2(loc.lat)}&lon=${r2(loc.lon)}`, { signal }),
     enabled: hydrated,
     refetchInterval: 2 * 60_000,
     staleTime: 60_000,
@@ -506,6 +520,22 @@ export function useSpotterWarnings(enabled = true) {
   return useQuery({
     queryKey: qk.spotterWarnings,
     queryFn: ({ signal }) => getJson<SpotterWarningsResponse>("/api/spotter-warnings", { signal }),
+    enabled: COMMUNITY_ENABLED && enabled && !!session.data,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * Storm chasers sharing their live position (members only, like spotter
+ * warnings). Polled each minute while the map layer is on; TanStack pauses
+ * the poll while the tab is hidden.
+ */
+export function useChasers(enabled: boolean) {
+  const session = useSession();
+  return useQuery({
+    queryKey: qk.chasers,
+    queryFn: ({ signal }) => getJson<ChasersResponse>("/api/chasers", { signal }),
     enabled: COMMUNITY_ENABLED && enabled && !!session.data,
     refetchInterval: 60_000,
     staleTime: 30_000,

@@ -1,0 +1,93 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.fixture.tor.2",
+      "type": "Feature",
+      "geometry": { "type": "Polygon", "coordinates": [[[-97.62, 35.28], [-97.36, 35.41], [-97.27, 35.35], [-97.55, 35.2], [-97.62, 35.28]]] },
+      "properties": {
+        "id": "urn:oid:2.49.0.1.840.0.fixture.tor.2",
+        "areaDesc": "Cleveland, OK; McClain, OK; Oklahoma, OK",
+        "sent": "2026-05-20T19:52:00-05:00",
+        "effective": "2026-05-20T19:52:00-05:00",
+        "expires": "2026-05-20T20:30:00-05:00",
+        "ends": "2026-05-20T20:30:00-05:00",
+        "status": "Actual",
+        "messageType": "Update",
+        "severity": "Extreme",
+        "certainty": "Observed",
+        "urgency": "Immediate",
+        "event": "Tornado Warning",
+        "senderName": "NWS Norman OK",
+        "headline": "Tornado Warning issued May 20 at 7:52PM CDT until May 20 at 8:30PM CDT by NWS Norman OK",
+        "description": "TORNADO EMERGENCY FOR MOORE AND SOUTH OKLAHOMA CITY...\n\nAt 752 PM CDT, a confirmed large and destructive tornado was located\nnear Moore, moving east at 25 mph.\n\nTORNADO EMERGENCY for Moore and south Oklahoma City. This is a\nPARTICULARLY DANGEROUS SITUATION. TAKE COVER NOW!\n\nHAZARD...Deadly tornado.\n\nSOURCE...Emergency management confirmed tornado.\n\nIMPACT...You are in a life-threatening situation. Flying debris may be\ndeadly to those caught without shelter.",
+        "instruction": "To repeat, a large, extremely dangerous and potentially deadly tornado\nis on the ground. To protect your life, TAKE COVER NOW!",
+        "parameters": {
+          "AWIPSidentifier": ["SVSOUN"],
+          "NWSheadline": ["TORNADO EMERGENCY FOR MOORE AND SOUTH OKLAHOMA CITY"],
+          "VTEC": ["/O.CON.KOUN.TO.W.0045.000000T0000Z-260521T0130Z/"],
+          "eventMotionDescription": ["2026-05-21T00:52:00-00:00...storm...270DEG...22KT...3532 9752"],
+          "tornadoDetection": ["OBSERVED"],
+          "tornadoDamageThreat": ["CATASTROPHIC"],
+          "maxHailSize": ["2.75"]
+        }
+      }
+    },
+    {
+      "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.fixture.tor.1",
+      "type": "Feature",
+      "geometry": { "type": "Polygon", "coordinates": [[[-97.7, 35.25], [-97.4, 35.4], [-97.3, 35.33], [-97.6, 35.18], [-97.7, 35.25]]] },
+      "properties": {
+        "id": "urn:oid:2.49.0.1.840.0.fixture.tor.1",
+        "areaDesc": "Cleveland, OK; McClain, OK",
+        "sent": "2026-05-20T19:40:00-05:00",
+        "effective": "2026-05-20T19:40:00-05:00",
+        "expires": "2026-05-20T20:30:00-05:00",
+        "ends": "2026-05-20T20:30:00-05:00",
+        "status": "Actual",
+        "messageType": "Alert",
+        "severity": "Extreme",
+        "certainty": "Observed",
+        "urgency": "Immediate",
+        "event": "Tornado Warning",
+        "senderName": "NWS Norman OK",
+        "headline": "Tornado Warning issued May 20 at 7:40PM CDT until May 20 at 8:30PM CDT by NWS Norman OK",
+        "description": "At 740 PM CDT, a confirmed tornado was located near Newcastle, moving east at 25 mph.\n\nHAZARD...Damaging tornado.",
+        "instruction": "TAKE COVER NOW!",
+        "parameters": {
+          "VTEC": ["/O.NEW.KOUN.TO.W.0045.260521T0040Z-260521T0130Z/"],
+          "eventMotionDescription": ["2026-05-21T00:40:00-00:00...storm...270DEG...22KT...3530 9760"],
+          "tornadoDetection": ["OBSERVED"],
+          "tornadoDamageThreat": ["CONSIDERABLE"]
+        }
+      }
+    },
+    {
+      "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.fixture.tor.3",
+      "type": "Feature",
+      "geometry": { "type": "Polygon", "coordinates": [[[-96.6, 36.1], [-96.4, 36.2], [-96.3, 36.1], [-96.5, 36.0], [-96.6, 36.1]]] },
+      "properties": {
+        "id": "urn:oid:2.49.0.1.840.0.fixture.tor.3",
+        "areaDesc": "Creek, OK",
+        "sent": "2026-05-20T19:45:00-05:00",
+        "effective": "2026-05-20T19:45:00-05:00",
+        "expires": "2026-05-20T20:15:00-05:00",
+        "ends": "2026-05-20T20:15:00-05:00",
+        "status": "Actual",
+        "messageType": "Alert",
+        "severity": "Extreme",
+        "certainty": "Observed",
+        "urgency": "Immediate",
+        "event": "Tornado Warning",
+        "senderName": "NWS Tulsa OK",
+        "headline": "Tornado Warning issued May 20 at 7:45PM CDT until May 20 at 8:15PM CDT by NWS Tulsa OK",
+        "description": "At 745 PM CDT, a severe thunderstorm capable of producing a tornado was located near Bristow, moving east at 30 mph.",
+        "instruction": "TAKE COVER NOW!",
+        "parameters": {
+          "VTEC": ["/O.NEW.KTSA.TO.W.0031.260521T0045Z-260521T0115Z/"],
+          "tornadoDetection": ["RADAR INDICATED"]
+        }
+      }
+    }
+  ]
+}

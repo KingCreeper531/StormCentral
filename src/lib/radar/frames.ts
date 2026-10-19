@@ -16,8 +16,11 @@ export interface RadarFrame {
   maxzoom: number;
   /** True if `time` is approximate (offset-based mosaic frames). */
   approximate?: boolean;
-  /** Model forecast (HRRR) rather than an observed scan. */
+  /** Not an observed scan: HRRR model forecast, or future radar (`nowcast`). */
   forecast?: boolean;
+  /** Future radar: the newest scan extrapolated `leadMinutes` ahead (lib/radar/nowcast). */
+  nowcast?: boolean;
+  leadMinutes?: number;
   /** Source credit when it differs from the layer's default (IEM). */
   attribution?: string;
   /** Tile edge in px (default 256). WMS sources render 512 px tiles: a quarter of the requests. */

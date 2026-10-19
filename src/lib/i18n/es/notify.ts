@@ -57,6 +57,8 @@ export const NOTIFY: Record<string, string> = {
   "Moving {dir} at {speed}.": "Se mueve hacia {dir} a {speed}.",
   "Watch for a tornado warning and be ready to take shelter.": "Mantente atento a un aviso de tornado y listo para refugiarte.",
   "{who} confirmed your report": "{who} confirmó tu reporte",
+  "The NWS confirmed your report": "El NWS confirmó tu reporte",
+  "It matches an official NWS storm report and counts as {n} confirmations.": "Coincide con un reporte oficial de tormenta del NWS y cuenta como {n} confirmaciones.",
   "Your report is being confirmed by spotters nearby.": "Observadores cercanos están confirmando tu reporte.",
   "{who} commented on your report": "{who} comentó tu reporte",
   "{n} new reaction to your reports": "{n} nueva reacción a tus reportes",

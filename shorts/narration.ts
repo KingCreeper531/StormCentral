@@ -148,7 +148,24 @@ function fire(d: FireData): Cue[] {
   ];
 }
 
+interface BreakingData {
+  lines: { intro: string; situation: string | null; until: string | null; safety: string };
+  timing: { situation: number; until: number; safety: number };
+}
+
+/** Breaking news (kinds/breaking.ts writes the lines from the alert's facts and times the scenes to them). */
+function breaking(d: BreakingData): Cue[] {
+  const { lines: l, timing: t } = d;
+  return [
+    { at: 0.4, text: l.intro },
+    ...(l.situation ? [{ at: t.situation, text: l.situation }] : []),
+    ...(l.until ? [{ at: t.until, text: l.until }] : []),
+    { at: t.safety, text: l.safety },
+  ];
+}
+
 const BY_TEMPLATE: Record<string, (d: never) => Cue[]> = {
+  "breaking.html": breaking,
   "fire.html": fire,
   "outlook.html": outlook,
   "recap.html": recap,

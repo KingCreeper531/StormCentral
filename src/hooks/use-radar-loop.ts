@@ -5,6 +5,7 @@ import { hrrrFrames } from "@/lib/radar/hrrr";
 import { frameBudget, framesFromScans, iemSiteId, MOSAIC_SITE, mosaicOffsetFrames, type RadarFrame } from "@/lib/radar/frames";
 import type { BufferStatus } from "@/lib/radar/layer-manager";
 import { crossfadeFor, frameDelayMs, nextPlayableIndex, stepIndex, type Speed } from "@/lib/radar/playback";
+import { useNowcast, type NowcastMap } from "./use-nowcast";
 import { useNoaaTimes, useRadarScans } from "./queries";
 import { noaaFrames, noaaLayerFor, noaaTilesUsable } from "@/lib/radar/noaa";
 
@@ -20,6 +21,8 @@ export interface RadarLoopOptions {
   autoplay?: boolean;
   /** Append this many hours of HRRR model forecast (national mosaic only). */
   futureHours?: number;
+  /** Future radar: the newest scan extrapolated an hour ahead over this map's view (reflectivity only). */
+  nowcast?: { map: NowcastMap | null; enabled: boolean };
   /** Spread the loop's frames over this many minutes of history (0: the latest scans). */
   historyMinutes?: number;
 }
@@ -38,7 +41,7 @@ export interface RadarLoop {
   source: RadarSource;
   /** "MRMS" or "KTLX SR" while NOAA is the source. */
   sourceLabel: string | null;
-  /** Frames before this index are observed scans; the rest are model forecast. */
+  /** Frames before this index are observed scans; the rest are future radar, then model forecast. */
   liveCount: number;
   setIndex: (i: number) => void;
   toggle: () => void;
@@ -53,7 +56,7 @@ export interface RadarLoop {
  * The clock only advances onto frames whose tiles are buffered, so the
  * viewer never sees a half-loaded frame.
  */
-export function useRadarLoop({ site, product, frameCount, speed, crossfade, autoplay = true, futureHours = 0, historyMinutes = 0 }: RadarLoopOptions): RadarLoop {
+export function useRadarLoop({ site, product, frameCount, speed, crossfade, autoplay = true, futureHours = 0, historyMinutes = 0, nowcast }: RadarLoopOptions): RadarLoop {
   const isMosaic = site === null;
   const iemSite = isMosaic ? MOSAIC_SITE : iemSiteId(site);
   const iemProduct = isMosaic ? "N0Q" : product;
@@ -97,11 +100,16 @@ export function useRadarLoop({ site, product, frameCount, speed, crossfade, auto
   const source: RadarSource = !useIem && live.length ? "noaa" : "iem";
   // Future frames follow the newest scan (which stands in for "now"); each new scan rebuilds them.
   const lastLive = live.at(-1)?.time ?? 0;
+  const extrapolated = useNowcast(live, nowcast?.map ?? null, !!nowcast?.enabled);
+  // The previous set stays up while a new scan's is computed: only what's still ahead of the newest scan.
+  const ahead = useMemo(() => extrapolated.filter((f) => f.time > lastLive), [extrapolated, lastLive]);
+  // The model forecast picks up where future radar ends.
+  const lastAhead = ahead.at(-1)?.time ?? lastLive;
   const future = useMemo(
-    () => (isMosaic && futureHours > 0 && lastLive ? hrrrFrames(lastLive, lastLive, futureHours) : []),
-    [isMosaic, futureHours, lastLive],
+    () => (isMosaic && futureHours > 0 && lastLive ? hrrrFrames(lastAhead, lastLive, futureHours) : []),
+    [isMosaic, futureHours, lastLive, lastAhead],
   );
-  const frames = useMemo(() => (future.length ? [...live, ...future] : live), [live, future]);
+  const frames = useMemo(() => (ahead.length || future.length ? [...live, ...ahead, ...future] : live), [live, ahead, future]);
   const liveCount = live.length;
 
   const [index, setIndexState] = useState(0);

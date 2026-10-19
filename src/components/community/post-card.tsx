@@ -1,11 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BadgeCheck, EyeOff, Loader2, MessageSquare, Trash2 } from "lucide-react";
+import { BadgeCheck, EyeOff, Loader2, MessageSquare, ShieldCheck, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { getJson } from "@/lib/api/http";
 import { badgeFor, CATEGORIES, DEVELOPER_BADGE, SEVERITY_LABELS, type CommentDto, type PostDto, isGenericPlace } from "@/lib/community";
+import { placeName, reportTitle } from "@/lib/feeds/storm-parse";
+import { NWS_BONUS, type NwsReportRef } from "@/lib/nws-match";
 import { useT } from "@/lib/i18n/use-t";
 import { timeAgo } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -14,6 +16,7 @@ import { useSession } from "@/hooks/queries";
 import { useFormat } from "@/hooks/use-format";
 import { useNow } from "@/hooks/use-now";
 import { Button } from "../ui/button";
+import { useMagnitude } from "../radar/storm-detail";
 import { Avatar } from "../ui/misc";
 import { ActionMenu, confirmBlock, errorText, ReportDialog, useBlock, type MenuAction } from "./moderation";
 
@@ -154,9 +157,17 @@ export function PostCard({ post, now: nowProp, compact = false }: { post: PostDt
           {swatch && <span aria-hidden className="size-1.5 shrink-0 rounded-[1px]" style={{ background: swatch }} />}
           {t(SEVERITY_LABELS[post.severity] ?? "")}
         </span>
+        {post.nws && (
+          <span className={cn(CHIP, "border-go/40 text-ink")}>
+            <ShieldCheck className="size-3 shrink-0 text-go" aria-hidden />
+            {t("Confirmed by NWS")}
+          </span>
+        )}
       </div>
 
       <p className={cn("mt-2 text-sm leading-relaxed break-words whitespace-pre-wrap text-ink", compact && "line-clamp-3")}>{post.body}</p>
+
+      {post.nws && !compact && <NwsMatch report={post.nws} />}
 
       {post.image && !compact && (
         // eslint-disable-next-line @next/next/no-img-element
@@ -365,5 +376,23 @@ function Comments({ postId, now }: { postId: string; now: number }) {
       )}
       {reporting && <ReportDialog type="comment" id={reporting} onClose={() => setReporting(null)} />}
     </div>
+  );
+}
+
+/** The NWS storm report that confirmed a report: what, where and when, as the NWS logged it. */
+function NwsMatch({ report: r }: { report: NwsReportRef }) {
+  const t = useT();
+  const magnitude = useMagnitude();
+  const size = magnitude(r);
+  const where = [placeName(r.place), r.state].filter(Boolean).join(", ");
+  const when = new Date(r.time).toLocaleTimeString(t.locale, { hour: "numeric", minute: "2-digit" });
+  return (
+    <p className="mt-3 text-xs text-ink-3">
+      <span className="text-ink-2">
+        {t("NWS storm report")}: {t(reportTitle(r.typeText))}
+        {size && ` ${size}`} · {where} · <span className="tabular">{when}</span>
+      </span>{" "}
+      {t("Counts as {n} confirmations.", { n: NWS_BONUS })}
+    </p>
   );
 }

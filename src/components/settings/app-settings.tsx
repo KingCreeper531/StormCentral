@@ -6,7 +6,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { checkForUpdate, installedVersion, type AvailableUpdate } from "@/lib/native/app-update";
 import { appUpdater, appUpdaterAvailable, type UpdaterStatus } from "@/lib/native/app-updater";
 import { desktopBridge, type DesktopUpdateStatus } from "@/lib/native/desktop";
-import { GITHUB_REPO, isNativeApp } from "@/lib/platform";
+import { COMMUNITY_ENABLED, GITHUB_REPO, isNativeApp } from "@/lib/platform";
 import { deviceZone, type ClockPref, type ZonePref } from "@/lib/clock";
 import { LANGS, type LangPref } from "@/lib/i18n/lang";
 import { useT } from "@/lib/i18n/use-t";
@@ -22,6 +22,7 @@ import { Panel } from "../ui/panel";
 import { Segmented } from "../ui/segmented";
 import { Tabs } from "../ui/tabs";
 import { AccountSection } from "./account-panel";
+import { ChaserPanel } from "./chaser-panel";
 import { AddonsSection, ThemePicker } from "./addons-panel";
 import { DesktopSettings } from "./desktop-settings";
 import { WidgetPanel } from "./widget-panel";
@@ -558,7 +559,15 @@ export function AppSettings() {
             <WidgetPanel />
           </>
         )}
-        {current === "account" && (signedIn ? <AccountSection /> : <SignedOutAccount />)}
+        {current === "account" &&
+          (signedIn ? (
+            <>
+              <AccountSection />
+              {COMMUNITY_ENABLED && <ChaserPanel />}
+            </>
+          ) : (
+            <SignedOutAccount />
+          ))}
         {current === "addons" && <AddonsSection />}
         {current === "app" && (
           <>

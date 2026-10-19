@@ -11,6 +11,8 @@
  *   weekly    the next eight days of outlooks (Sundays)
  *   tropical  an update for each named storm (while there are any)
  *   fire      the most significant active wildfire (when one is big, growing or far from contained)
+ *   breaking  a Tornado or Flash Flood Emergency, Extreme Wind Warning, PDS tornado warning or watch, or SPC High Risk
+ *             (checked every 10 minutes by .github/workflows/youtube-breaking.yml)
  *
  * Environment:
  *   SHORTS_KIND            which kind to make (default outlook)
@@ -29,13 +31,17 @@
  *   SHORTS_AI_COMPARE=1    also save each video with the plain narration, as <key>-plain.mp4
  *   SHORTS_TROPICAL_MAX    tropical: at most this many storms (default 2, strongest first)
  *   SHORTS_FIRE_MAX        fire: at most this many fires (default 1)
- *   SHORTS_STATE_DIR       fire: where yesterday's fire sizes are kept (default shorts/.state)
+ *   SHORTS_BREAKING_MAX    breaking: at most this many events per run (default 1)
+ *   SHORTS_BREAKING_DAILY_MAX  breaking: at most this many a day (default 2; YouTube's quota allows about 6 uploads)
+ *   SHORTS_BREAKING_EVENT  breaking: the event key to make first (from breaking-check.ts)
+ *   SHORTS_STATE_DIR       fire, breaking: where yesterday's fire sizes and the posted events are kept (default shorts/.state)
  *   SHORTS_OUT_DIR         where the MP4s and their metadata go (default shorts/out)
  *   SHORTS_FIXTURES        a folder of saved source files to use instead of fetching (testing)
  *   SHORTS_SAVE            a folder to save the fetched source files into (to make fixtures)
  */
 import { appendFileSync, copyFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { breakingKind } from "./kinds/breaking";
 import { fireKind } from "./kinds/fire";
 import { outlookKind } from "./kinds/outlook";
 import { recapKind } from "./kinds/recap";
@@ -49,13 +55,15 @@ import { addVoice, DEFAULT_VOICE, seconds } from "./voice";
 import { accessToken, addToPlaylist, credentialsFromEnv, uploadVideo, YouTubeError, type VideoMeta } from "./youtube";
 
 const env = process.env;
-const KINDS: Record<string, Kind> = { outlook: outlookKind, recap: recapKind, weekly: weeklyKind, tropical: tropicalKind, fire: fireKind };
+const KINDS: Record<string, Kind> = { outlook: outlookKind, recap: recapKind, weekly: weeklyKind, tropical: tropicalKind, fire: fireKind, breaking: breakingKind };
 const PLAYLIST_ABOUT: Record<string, string> = {
   "Daily Severe Weather Outlook": "Every morning: the day's severe weather outlook from NOAA's Storm Prediction Center, on a map.",
   "Storm Reports": "On active severe weather days: the day's tornado, wind and hail reports from the National Weather Service.",
   "Severe Weather: Week Ahead": "Every Sunday: the severe weather outlook for the next eight days.",
   "Tropical Updates": "Hurricane and tropical storm updates from the National Hurricane Center, while storms are active.",
   "Wildfire Updates": "Updates on significant US wildfires from the National Interagency Fire Center: size, growth and containment.",
+  "Breaking Severe Weather":
+    "Tornado and flash flood emergencies, PDS tornado warnings and watches, and High Risk days, as they're issued. Not an official warning source; follow the National Weather Service.",
 };
 
 function setOutput(name: string, value: string) {
@@ -102,7 +110,8 @@ async function main() {
       const voice = env.SHORTS_VOICE_NAME || DEFAULT_VOICE;
       const plain = narration(v);
       let cues = plain;
-      if (env.SHORTS_AI === "true" && plain.length) {
+      // Breaking news reads the warning's facts as written: no AI rewording of life-threatening warnings.
+      if (env.SHORTS_AI === "true" && plain.length && v.template !== "breaking.html") {
         cues = await livelyNarration(v, plain, await seconds(out), { host: env.OLLAMA_HOST, model: env.SHORTS_AI_MODEL || undefined }).catch((err: unknown) => {
           console.warn(`::warning::The AI narrator failed; using the plain script: ${err instanceof Error ? err.message : err}`);
           return plain;
