@@ -121,7 +121,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 15
         run: |
-          curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION=OLLAMA_VERSION_PIN sh
+          curl -fsSL https://ollama.com/install.sh | sh
           ollama pull "$SHORTS_AI_MODEL"
       - name: Build
         if: steps.go.outputs.go == 'true'
