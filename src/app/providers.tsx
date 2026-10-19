@@ -8,12 +8,14 @@ import { useEffect, useState } from "react";
 import { AlertWatcher } from "@/components/alerts/alert-watcher";
 import { DesktopTraySync } from "@/components/shell/desktop-tray-sync";
 import { LocationFollower } from "@/components/shell/location-follower";
+import { ChaserBeacon } from "@/components/community/chaser-beacon";
 import { isTransient, retryDelay } from "@/lib/api/http";
-import { IS_STATIC_BUNDLE } from "@/lib/platform";
+import { COMMUNITY_ENABLED, IS_STATIC_BUNDLE } from "@/lib/platform";
 import { themeVars } from "@/lib/addons/manifest";
 import { applyCustomVars, applyTheme, resolveTheme } from "@/lib/theme";
 import { selectActiveTheme, useAddonsStore } from "@/store/addons-store";
 import { useAlertsStore } from "@/store/alerts-store";
+import { useChaserStore } from "@/store/chaser-store";
 import { sunPosition } from "@/lib/astro/sun";
 import { useLang } from "@/lib/i18n/use-t";
 import { useAppStore } from "@/store/app-store";
@@ -50,6 +52,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     void useAppStore.persist.rehydrate();
     void useAlertsStore.persist.rehydrate();
     void useAddonsStore.persist.rehydrate();
+    void useChaserStore.persist.rehydrate();
     // Not in the Android bundle: its assets come from the app's local file server.
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production" && !IS_STATIC_BUNDLE) {
       navigator.serviceWorker.register("/sw.js").catch(() => {
@@ -122,6 +125,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <AlertWatcher />
         <DesktopTraySync />
         <LocationFollower />
+        {COMMUNITY_ENABLED && <ChaserBeacon />}
       </MotionConfig>
     </PersistQueryClientProvider>
   );

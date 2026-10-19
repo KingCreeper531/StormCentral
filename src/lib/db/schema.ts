@@ -208,6 +208,30 @@ export const spotterWarnings = sqliteTable(
   (t) => [index("spotter_warnings_expires_idx").on(t.expiresAt), index("spotter_warnings_user_idx").on(t.userId, t.issuedAt), uniqueIndex("spotter_warnings_number_idx").on(t.year, t.number)],
 );
 
+/**
+ * Spotters sharing their live position as storm chasers: one row each, only
+ * the latest fix (no history), deleted when they stop sharing and pruned once
+ * stale or past the sharing window.
+ */
+export const chaserPositions = sqliteTable(
+  "chaser_positions",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lat: real("lat").notNull(),
+    lon: real("lon").notNull(),
+    /** Degrees clockwise from north; null when standing still or unknown. */
+    heading: real("heading"),
+    speedKmh: real("speed_kmh"),
+    accuracyM: real("accuracy_m"),
+    updatedAt: integer("updated_at").notNull(),
+    /** When sharing turns itself off (the window picked in Settings, at most 12 h). */
+    expiresAt: integer("expires_at").notNull(),
+  },
+  (t) => [index("chaser_positions_updated_idx").on(t.updatedAt)],
+);
+
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
@@ -331,9 +355,20 @@ CREATE TABLE IF NOT EXISTS spotter_warnings (
 CREATE INDEX IF NOT EXISTS spotter_warnings_expires_idx ON spotter_warnings(expires_at);
 CREATE INDEX IF NOT EXISTS spotter_warnings_user_idx ON spotter_warnings(user_id, issued_at);
 CREATE UNIQUE INDEX IF NOT EXISTS spotter_warnings_number_idx ON spotter_warnings(year, number);
+CREATE TABLE IF NOT EXISTS chaser_positions (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  lat REAL NOT NULL,
+  lon REAL NOT NULL,
+  heading REAL,
+  speed_kmh REAL,
+  accuracy_m REAL,
+  updated_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS chaser_positions_updated_idx ON chaser_positions(updated_at);
 `;
 
-export const schema = { users, sessions, passwordResets, media, posts, verifications, comments, blocks, flags, spotterWarnings };
+export const schema = { users, sessions, passwordResets, media, posts, verifications, comments, blocks, flags, spotterWarnings, chaserPositions };
 
 /**
  * Columns added after a table first shipped. CREATE TABLE IF NOT EXISTS
