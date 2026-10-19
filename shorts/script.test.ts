@@ -51,6 +51,8 @@ describe("checkLine", () => {
     expect(check("Trudy has 40 miles per hour winds and barely a wiggle in its movement.", trudy)).toMatch(/moving/);
     expect(check("Trudy is heading west with 40 miles per hour winds.", facts("It's a tropical storm with maximum winds of 40 mph, moving west at 7 mph."))).toBeNull();
     expect(check("Tuesday looks beautifully quiet.", facts("Tuesday, quiet."))).toMatch(/beautifully/);
+    expect(check("Trudy is weakening, down to 40 miles per hour.", trudy)).toMatch(/weakening/);
+    expect(check("Trudy is weakening, down to 40 miles per hour.", facts(trudy.scene, `${trudy.allowed} It is forecast to weaken.`))).toBeNull();
   });
 
   it("lets the opening line tease any fact, including a 'no'", () => {

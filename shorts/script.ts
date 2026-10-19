@@ -226,7 +226,8 @@ export function checkLine(line: string, f: LineFacts): string | null {
   const directions = new Set([...facts.matchAll(DIRECTIONS)].map((m) => root(m[0])));
   for (const m of line.matchAll(DIRECTIONS)) if (!directions.has(root(m[0]))) return `"${m[0]}" isn't in the facts`;
   for (const [hazard, re] of HAZARDS) if (re.test(line) && !re.test(facts)) return `${hazard} aren't in the facts`;
-  for (const m of line.matchAll(LOADED)) if (!new RegExp(`\\b${esc(m[0])}`, "i").test(facts)) return `"${m[0]}" isn't in the facts`;
+  // By stem, so "weakening" matches the facts' "forecast to weaken".
+  for (const m of line.matchAll(LOADED)) if (!new RegExp(`\\b${esc(m[0].replace(/(ing|ed|es|s)$/i, ""))}`, "i").test(facts)) return `"${m[0]}" isn't in the facts`;
 
   for (const m of line.matchAll(WEATHER)) if (!hasWord(facts, m[0])) return `"${m[0]}" isn't in the facts`;
 
