@@ -22,6 +22,8 @@ export interface RadarFrame {
   attribution?: string;
   /** Tile edge in px (default 256). WMS sources render 512 px tiles: a quarter of the requests. */
   tileSize?: 256 | 512;
+  /** A single georeferenced image instead of tiles (decoded radar): top-left, top-right, bottom-right, bottom-left. */
+  image?: { url: string; coordinates: [[number, number], [number, number], [number, number], [number, number]] };
 }
 
 export const MOSAIC_SITE = "USCOMP";

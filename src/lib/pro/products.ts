@@ -17,6 +17,8 @@ import { FAMILIES, type LegendStop, type ProductFamily } from "../radar/products
 import type { NoaaLayer } from "../radar/noaa";
 import { DEFAULT_LATENCY_MIN, GIBS_WMS, gibsTime, SATELLITE_ATTRIBUTION, SLOT_MS, satelliteSlot, type GoesSat } from "../radar/satellite";
 import type { RadarFrame } from "../radar/frames";
+import { DECODED_SCALES, type DecodedScaleId } from "./scales";
+import type { Moment } from "./nexrad/level2";
 
 export const PRO_PRODUCT_IDS = [
   "ref",
@@ -25,9 +27,20 @@ export const PRO_PRODUCT_IDS = [
   "cc",
   "zdr",
   "hc",
+  "kdp",
+  "vil",
+  "eet-site",
+  "vol-ref",
+  "vol-vel",
+  "vol-zdr",
+  "vol-cc",
   "mosaic",
   "cref",
   "eet",
+  "mrms-mesh",
+  "mrms-mesh60",
+  "mrms-rotation",
+  "mrms-vil",
   "sat-vis",
   "sat-ir",
   "sat-wv",
@@ -35,30 +48,71 @@ export const PRO_PRODUCT_IDS = [
   "sat-geocolor",
   "sat-dust",
   "sat-firetemp",
+  "goes-dcp",
+  "goes-nightmicro",
+  "goes-sandwich",
 ] as const;
 export type ProProductId = (typeof PRO_PRODUCT_IDS)[number];
 
 export const isProProductId = (v: unknown): v is ProProductId => typeof v === "string" && (PRO_PRODUCT_IDS as readonly string[]).includes(v);
 
-export type ProProduct =
-  | { id: ProProductId; kind: "site"; family: ProductFamily; label: string; short: string; group: "Radar (site)" }
-  | { id: ProProductId; kind: "mosaic"; label: string; short: string; group: "Radar (national)" }
-  | { id: ProProductId; kind: "mrms"; layer: string; label: string; short: string; group: "Radar (national)" }
-  | { id: ProProductId; kind: "gibs"; layer: string; label: string; short: string; group: "Satellite"; maxzoom: number }
-  | { id: ProProductId; kind: "nowcoast"; layer: string; label: string; short: string; group: "Satellite" };
+export type ProGroup = "Radar (site)" | "Radar (volume)" | "Radar (national)" | "Satellite";
 
-const site = (id: ProProductId, family: ProductFamily): ProProduct => ({ id, kind: "site", family, label: FAMILIES[family].label, short: FAMILIES[family].short, group: "Radar (site)" });
+interface Base {
+  id: ProProductId;
+  label: string;
+  short: string;
+  group: ProGroup;
+}
+
+export type ProProduct =
+  /** Site tiles (NOAA super-res / IEM) at the lowest tilt; decoded Level III (`l3Letter`) above it. */
+  | (Base & { kind: "site"; family: ProductFamily; l3Letter?: string; scale?: DecodedScaleId })
+  /** Decoded Level III from AWS: a tilt-based product (`letter`) or a single one (`code`). */
+  | (Base & { kind: "l3"; letter?: string; code?: string; scale: DecodedScaleId })
+  /** Decoded Level II volume (desktop): any cut of a moment. */
+  | (Base & { kind: "l2"; moment: Moment; scale: DecodedScaleId })
+  | (Base & { kind: "mosaic" })
+  | (Base & { kind: "mrms"; layer: string })
+  /** Rendered by the Pro data server (pro-server/), once one is set in Settings. */
+  | (Base & { kind: "server"; serverId: string })
+  | (Base & { kind: "gibs"; layer: string; maxzoom: number })
+  | (Base & { kind: "nowcoast"; layer: string });
+
+const site = (id: ProProductId, family: ProductFamily, l3Letter?: string, scale?: DecodedScaleId): ProProduct => ({
+  id,
+  kind: "site",
+  family,
+  l3Letter,
+  scale,
+  label: FAMILIES[family].label,
+  short: FAMILIES[family].short,
+  group: "Radar (site)",
+});
+const l3 = (id: ProProductId, label: string, short: string, scale: DecodedScaleId, at: { letter: string } | { code: string }): ProProduct => ({ id, kind: "l3", label, short, scale, group: "Radar (site)", ...at });
+const vol = (id: ProProductId, label: string, short: string, moment: Moment, scale: DecodedScaleId): ProProduct => ({ id, kind: "l2", moment, scale, label, short, group: "Radar (volume)" });
 
 export const PRO_PRODUCTS: Record<ProProductId, ProProduct> = {
-  ref: site("ref", "reflectivity"),
-  vel: site("vel", "velocity"),
+  ref: site("ref", "reflectivity", "B", "ref"),
+  vel: site("vel", "velocity", "G", "vel"),
   srv: site("srv", "srv"),
-  cc: site("cc", "cc"),
-  zdr: site("zdr", "zdr"),
-  hc: site("hc", "hc"),
+  cc: l3("cc", FAMILIES.cc.label, "CC", "cc", { letter: "C" }),
+  zdr: l3("zdr", FAMILIES.zdr.label, "ZDR", "zdr", { letter: "X" }),
+  hc: l3("hc", FAMILIES.hc.label, "HC", "hc", { letter: "H" }),
+  kdp: l3("kdp", "Specific Differential Phase", "KDP", "kdp", { letter: "K" }),
+  vil: l3("vil", "Digital VIL", "VIL", "vil", { code: "DVL" }),
+  "eet-site": l3("eet-site", "Enhanced Echo Tops (site)", "EET", "eet", { code: "EET" }),
+  "vol-ref": vol("vol-ref", "Reflectivity, any tilt (Level II)", "Z", "REF", "ref"),
+  "vol-vel": vol("vol-vel", "Velocity, any tilt (Level II)", "V", "VEL", "vel"),
+  "vol-zdr": vol("vol-zdr", "ZDR, any tilt (Level II)", "ZDR", "ZDR", "zdr"),
+  "vol-cc": vol("vol-cc", "CC (ρHV), any tilt (Level II)", "ρHV", "RHO", "cc"),
   mosaic: { id: "mosaic", kind: "mosaic", label: "Base Reflectivity (MRMS mosaic)", short: "MOSAIC", group: "Radar (national)" },
   cref: { id: "cref", kind: "mrms", layer: "conus_cref_qcd", label: "Composite Reflectivity (MRMS)", short: "CREF", group: "Radar (national)" },
   eet: { id: "eet", kind: "mrms", layer: "conus_neet_v18", label: "Echo Tops (MRMS)", short: "EET", group: "Radar (national)" },
+  "mrms-mesh": { id: "mrms-mesh", kind: "server", serverId: "mrms-mesh", label: "Hail size, MESH (MRMS)", short: "MESH", group: "Radar (national)" },
+  "mrms-mesh60": { id: "mrms-mesh60", kind: "server", serverId: "mrms-mesh60", label: "Hail size, 60-min max (MRMS)", short: "MESH60", group: "Radar (national)" },
+  "mrms-rotation": { id: "mrms-rotation", kind: "server", serverId: "mrms-rotation", label: "Rotation track, 60 min (MRMS)", short: "ROT", group: "Radar (national)" },
+  "mrms-vil": { id: "mrms-vil", kind: "server", serverId: "mrms-vil", label: "VIL (MRMS)", short: "VIL", group: "Radar (national)" },
   "sat-vis": { id: "sat-vis", kind: "gibs", layer: "ABI_Band2_Red_Visible_1km", label: "Visible (ABI band 2)", short: "VIS", group: "Satellite", maxzoom: 8 },
   "sat-ir": { id: "sat-ir", kind: "gibs", layer: "ABI_Band13_Clean_Infrared", label: "Clean IR (ABI band 13)", short: "IR", group: "Satellite", maxzoom: 7 },
   "sat-wv": { id: "sat-wv", kind: "nowcoast", layer: "goes_water_vapor_imagery", label: "Water Vapor (latest)", short: "WV", group: "Satellite" },
@@ -66,7 +120,18 @@ export const PRO_PRODUCTS: Record<ProProductId, ProProduct> = {
   "sat-geocolor": { id: "sat-geocolor", kind: "gibs", layer: "ABI_GeoColor", label: "GeoColor", short: "GEOCOLOR", group: "Satellite", maxzoom: 8 },
   "sat-dust": { id: "sat-dust", kind: "gibs", layer: "ABI_Dust", label: "Dust RGB", short: "DUST", group: "Satellite", maxzoom: 7 },
   "sat-firetemp": { id: "sat-firetemp", kind: "gibs", layer: "ABI_FireTemp", label: "Fire Temperature RGB", short: "FIRE", group: "Satellite", maxzoom: 7 },
+  "goes-dcp": { id: "goes-dcp", kind: "server", serverId: "goes-dcp", label: "Day Cloud Phase Distinction", short: "DCP", group: "Satellite" },
+  "goes-nightmicro": { id: "goes-nightmicro", kind: "server", serverId: "goes-nightmicro", label: "Night Fog (Nighttime Microphysics)", short: "NFOG", group: "Satellite" },
+  "goes-sandwich": { id: "goes-sandwich", kind: "server", serverId: "goes-sandwich", label: "IR Sandwich", short: "SANDWICH", group: "Satellite" },
 };
+
+/** The Level III product code for a pane, or null when it uses tiles or another source. */
+export function l3CodeFor(id: ProProductId, tilt: string): string | null {
+  const p = PRO_PRODUCTS[id];
+  if (p.kind === "l3") return p.code ?? `${tilt}${p.letter}`;
+  if (p.kind === "site" && p.l3Letter && tilt !== "N0") return `${tilt}${p.l3Letter}`;
+  return null;
+}
 
 /** GIBS only carries the RGB composites for GOES-East (which still covers the CONUS). */
 const EAST_ONLY = new Set(["ABI_Air_Mass", "ABI_GeoColor", "ABI_Dust", "ABI_FireTemp"]);
@@ -75,12 +140,13 @@ const EAST_ONLY = new Set(["ABI_Air_Mass", "ABI_GeoColor", "ABI_Dust", "ABI_Fire
 export function productLegend(id: ProProductId): { stops: LegendStop[]; unit: string } | null {
   const p = PRO_PRODUCTS[id];
   if (p.kind === "site") return { stops: FAMILIES[p.family].legend, unit: FAMILIES[p.family].unit };
+  if (p.kind === "l3" || p.kind === "l2") return { stops: DECODED_SCALES[p.scale].stops, unit: DECODED_SCALES[p.scale].unit };
   if (p.kind === "mosaic" || id === "cref") return { stops: FAMILIES.reflectivity.legend, unit: "dBZ" };
   return null;
 }
 
 export const isSatellite = (id: ProProductId) => PRO_PRODUCTS[id].group === "Satellite";
-export const needsSite = (id: ProProductId) => PRO_PRODUCTS[id].kind === "site";
+export const needsSite = (id: ProProductId) => ["site", "l3", "l2"].includes(PRO_PRODUCTS[id].kind);
 
 /** The NOAA layer behind an MRMS product (frames via noaaFrames). */
 export function mrmsLayer(id: ProProductId): NoaaLayer | null {

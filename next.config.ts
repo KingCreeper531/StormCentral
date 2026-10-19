@@ -21,6 +21,11 @@ const isStaticExport = target === "mobile";
  */
 const CONNECT = [
   "'self'",
+  // Decoded radar (Pro mode) hands MapLibre its images as blob: URLs.
+  "blob:",
+  // A Pro data server on this computer (plain http is only allowed on loopback).
+  "http://127.0.0.1:*",
+  "http://localhost:*",
   "https://api.open-meteo.com",
   "https://air-quality-api.open-meteo.com",
   "https://geocoding-api.open-meteo.com",

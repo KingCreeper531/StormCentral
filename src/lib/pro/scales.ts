@@ -100,3 +100,123 @@ export function scaleForTiles(tileUrl: string, family: ProductFamily | null): Va
   if (tileUrl.includes("mesonet.agron.iastate.edu")) return family ? familyScale(family) : familyScale("reflectivity");
   return null;
 }
+
+// ── Scales for decoded NEXRAD data (exact values, our own colours) ──────────
+
+/** NEXRAD Level III hydrometeor classes (value = code ÷ 10). */
+export const L3_HC_CLASSES: Record<number, string> = {
+  1: "Biological",
+  2: "Ground clutter",
+  3: "Ice crystals",
+  4: "Dry snow",
+  5: "Wet snow",
+  6: "Rain",
+  7: "Heavy rain",
+  8: "Big drops",
+  9: "Graupel",
+  10: "Hail and rain",
+  11: "Large hail",
+  12: "Giant hail",
+  14: "Unknown",
+};
+
+export type DecodedScaleId = "ref" | "vel" | "cc" | "zdr" | "kdp" | "hc" | "vil" | "eet";
+
+export const DECODED_SCALES: Record<DecodedScaleId, ValueScale & { clearBelow?: boolean }> = {
+  ref: { stops: FAMILIES.reflectivity.legend.filter((s, i, a) => i === 0 || s.value > a[i - 1]!.value), unit: "dBZ", decimals: 1, clearBelow: true },
+  vel: { stops: FAMILIES.velocity.legend, unit: "kt", decimals: 0, special: [{ color: "#8a2be2", label: "RF" }] },
+  cc: { stops: FAMILIES.cc.legend, unit: "ρhv", decimals: 3, special: [{ color: "#8a2be2", label: "RF" }] },
+  zdr: { stops: FAMILIES.zdr.legend, unit: "dB", decimals: 2, special: [{ color: "#8a2be2", label: "RF" }] },
+  kdp: {
+    stops: [
+      { value: -1, color: "#4b4b4b" },
+      { value: 0, color: "#8c8c8c" },
+      { value: 0.5, color: "#2d8ae6" },
+      { value: 1, color: "#28c828" },
+      { value: 2, color: "#ffe100" },
+      { value: 3, color: "#ff8c00" },
+      { value: 4, color: "#e60000" },
+      { value: 6, color: "#ff5aaa" },
+      { value: 8, color: "#ffffff" },
+    ],
+    unit: "°/km",
+    decimals: 2,
+  },
+  hc: {
+    stops: [
+      { value: 1, color: "#9c9c9c" },
+      { value: 2, color: "#5c5c5c" },
+      { value: 3, color: "#e7a2a2" },
+      { value: 4, color: "#7ec8ff" },
+      { value: 5, color: "#2f58ff" },
+      { value: 6, color: "#76d576" },
+      { value: 7, color: "#058b05" },
+      { value: 8, color: "#ffd700" },
+      { value: 9, color: "#e88e00" },
+      { value: 10, color: "#e0000f" },
+      { value: 11, color: "#b0005a" },
+      { value: 12, color: "#ff00ff" },
+      { value: 14, color: "#c8c8c8" },
+    ],
+    unit: "class",
+    decimals: 0,
+    categorical: true,
+  },
+  vil: {
+    stops: [
+      { value: 1, color: "#8fb3d9" },
+      { value: 5, color: "#2f7fd8" },
+      { value: 10, color: "#1fb51f" },
+      { value: 15, color: "#0e7d0e" },
+      { value: 20, color: "#f2e600" },
+      { value: 25, color: "#f2a900" },
+      { value: 35, color: "#f25c00" },
+      { value: 45, color: "#d60000" },
+      { value: 55, color: "#a8006b" },
+      { value: 65, color: "#e000e0" },
+      { value: 75, color: "#ffffff" },
+    ],
+    unit: "kg/m²",
+    decimals: 1,
+    clearBelow: true,
+  },
+  eet: { ...NOAA_ECHO_TOPS, stops: NOAA_ECHO_TOPS.stops.filter((s) => s.value >= 0), clearBelow: true },
+};
+
+const hex = (c: string): [number, number, number] => {
+  const n = parseInt(c.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+
+/**
+ * Colour for a value on a scale: interpolated between stops (categorical
+ * scales take the nearest stop), clamped at the top, and clamped or clear at
+ * the bottom.
+ */
+export function scaleColor(scale: ValueScale & { clearBelow?: boolean }, v: number): [number, number, number] | null {
+  const s = scale.stops;
+  if (!s.length || !Number.isFinite(v)) return null;
+  if (scale.categorical) {
+    let best = s[0]!;
+    for (const x of s) if (Math.abs(x.value - v) < Math.abs(best.value - v)) best = x;
+    return Math.abs(best.value - v) < 0.5 ? hex(best.color) : null;
+  }
+  if (v < s[0]!.value) return scale.clearBelow ? null : hex(s[0]!.color);
+  for (let i = 1; i < s.length; i++) {
+    const a = s[i - 1]!;
+    const b = s[i]!;
+    if (v <= b.value) {
+      const f = (v - a.value) / (b.value - a.value || 1);
+      const ca = hex(a.color);
+      const cb = hex(b.color);
+      return [0, 1, 2].map((k) => Math.round(ca[k]! + f * (cb[k]! - ca[k]!))) as [number, number, number];
+    }
+  }
+  return hex(s.at(-1)!.color);
+}
+
+/** Text for a decoded value (exact, no ≈). */
+export function formatDecoded(scale: ValueScale, v: number, t: (s: string) => string = (s) => s): string {
+  if (scale.categorical) return t(L3_HC_CLASSES[Math.round(v)] ?? "Unknown");
+  return `${v.toFixed(scale.decimals)} ${scale.unit}`;
+}
