@@ -105,6 +105,13 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_BUILD_TARGET: isStaticExport ? "mobile" : "web",
     NEXT_PUBLIC_GITHUB_REPO: process.env.GITHUB_REPOSITORY ?? "",
   },
+  // Vercel always talks to a remote (Turso) database through the web client
+  // (lib/db/client), so the native SQLite driver, two Linux builds of ~10 MB
+  // each, stays out of every function. Function size counts toward Vercel's
+  // Functions Storage once per deployment kept.
+  ...(process.env.VERCEL && {
+    outputFileTracingExcludes: { "*": ["node_modules/libsql/**", "node_modules/@libsql/{linux,darwin,win32}-*/**"] },
+  }),
   ...(target === "desktop" && {
     output: "standalone",
     // No next/image in the app, so the desktop bundle doesn't need sharp's ~45 MB of libvips.
