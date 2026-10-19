@@ -47,12 +47,16 @@ const MODE_COMPONENTS: Record<ModeId, React.ComponentType> = {
   drone: dynamic(() => import("../modes/drone-mode").then((m) => m.DroneMode), { loading: ModeLoading }),
   angler: dynamic(() => import("../modes/angler-mode").then((m) => m.AnglerMode), { loading: ModeLoading }),
   air: dynamic(() => import("../modes/air-mode").then((m) => m.AirMode), { ssr: false, loading: ModeLoading }),
+  professional: dynamic(() => import("../pro/professional-workspace").then((m) => m.ProfessionalWorkspace), { ssr: false, loading: MapLoading }),
 };
 
 export function AppShell() {
   useUrlSync();
   const hydrated = useAppStore((s) => s.hydrated);
-  const mode = useAppStore((s) => s.mode);
+  const storeMode = useAppStore((s) => s.mode);
+  const professional = useAppStore((s) => s.professional);
+  // A link (?mode=professional) or old state can't open the Pro workspace while Professional mode is off.
+  const mode = storeMode === "professional" && !professional ? "severe" : storeMode;
   const location = useAppStore((s) => s.location);
   const forecast = useForecast();
   const localAlerts = useLocalAlerts();

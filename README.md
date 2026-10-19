@@ -23,7 +23,7 @@ Get it at **[stormcentralwx.com](https://www.stormcentralwx.com)**: Windows from
 
 ## Modes
 
-Press **1–5** to switch modes and **⌘K / Ctrl-K** to search any place. Hovering a mode tab prefetches its data. On phones the modes live in a bottom tab bar, and Radar mode's warnings and layer controls sit in a draggable bottom sheet (peek / half / full).
+Press **1–5** (and **6** for Pro, when it's on) to switch modes and **⌘K / Ctrl-K** to search any place. Hovering a mode tab prefetches its data. On phones the modes live in a bottom tab bar, and Radar mode's warnings and layer controls sit in a draggable bottom sheet (peek / half / full).
 
 | Mode | What you get |
 |---|---|
@@ -32,6 +32,7 @@ Press **1–5** to switch modes and **⌘K / Ctrl-K** to search any place. Hover
 | **UAV Pilot** | Flyability score with a factor breakdown per airframe class, an hourly go/no-go strip, wind at flight altitude vs. the airframe limit, a 10/80/120/180 m wind profile with **bulk shear and veer**, NOAA Kp index, **GNSS sky plot with satellite count and PDOP/HDOP** (SGP4 from CelesTrak), an estimated cloud ceiling against the Part 107 500-ft clearance, visibility and density altitude. |
 | **Angler** | Bite Index with explained reasons, an hourly bite timeline with solunar bands, moon phase and solunar major/minor periods, a 48 h barometer with Met Office tendency terms, **USGS real-time river gauges** (discharge, stage, 24 h change, water temperature), and an estimated water temperature where no gauge reports one. |
 | **Air & Allergy** | A **model-derived AQI / PM2.5 heatmap** sampled across the visible map, current US AQI with health guidance, pollutant breakdown, 48 h AQI and UV forecast, the cleanest 2-hour outdoor window, and NAB-scaled pollen (CAMS covers Europe). |
+| **Pro** (fullscreen, optional) | An AWIPS II-style workspace for advanced users, switched on under **Settings → General → Professional mode**. Up to **nine map panels** (1×1, 1×2, 2×2, 3×3) that pan, zoom and loop together, each with its own product (site reflectivity, velocity, SRV, CC, ZDR, HC at any tilt the radar is sending; MRMS mosaic, composite reflectivity and echo tops; GOES visible, clean IR, water vapor, Air Mass, GeoColor, Dust, Fire Temperature), opacity, warnings and storm cells. A **cursor readout** samples every panel at once (≈ dBZ, kt, CC, ZDR, class, echo tops) along with ground height, range and bearing from the radar, and model T, Td, CAPE, CIN, 0–3 km shear and PWAT. Tools: **model soundings** (Skew-T with SB/ML/MU parcels, CAPE/CIN, LI, PWAT, lapse rates, hodograph with Bunkers motion, 0–1/0–3 km SRH, critical angle), a **vertical cross-section** along A–A′ (θe, 0 °C and −20 °C), a **storm vector** from two clicks, a **time-of-arrival fan** for your places, and a **warning inspector** with the impact-based tags (Considerable, Destructive, Observed) and HAZARD/SOURCE/IMPACT text. How it works: [ARCHITECTURE.md § 9](ARCHITECTURE.md#9-professional-mode). |
 
 ## Beyond a typical weather app
 
@@ -106,6 +107,8 @@ Every colour slot and layer option, plus ready-made examples to copy (Nord, Drac
 | Tropical cyclones (positions, cone, track) | [National Hurricane Center](https://www.nhc.noaa.gov) + NOAA map services |
 | Lightning strike density | [NOAA nowCOAST](https://nowcoast.noaa.gov) |
 | HRRR forecast reflectivity (future radar) | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/GIS/model.phtml) |
+| GOES water vapor (Pro mode) | [NOAA nowCOAST](https://nowcoast.noaa.gov) |
+| Model soundings and cross-sections (Pro mode) | [Open-Meteo](https://open-meteo.com) pressure-level forecasts |
 | GOES-East/West satellite imagery | [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api) |
 | Planetary Kp | [NOAA SWPC](https://www.swpc.noaa.gov) |
 | River discharge, stage, water temperature | [USGS Water Services](https://waterservices.usgs.gov) (OGC API fallback) |
@@ -122,9 +125,9 @@ Every colour slot and layer option, plus ready-made examples to copy (Nord, Drac
 
 | Key | Action |
 |---|---|
-| `1`–`5` | Daily · Severe · UAV · Angler · Air |
+| `1`–`6` | Daily · Severe · UAV · Angler · Air · Pro (when Professional mode is on) |
 | `⌘K` / `Ctrl-K`, `/` | Search places and commands |
-| `Space` | Play/pause the radar loop (Severe) |
+| `Space` | Play/pause the radar loop (Severe, Pro) |
 | `←` / `→` | Step radar frames |
 | `Esc` | Close dialogs and selections |
 
