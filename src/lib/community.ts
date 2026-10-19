@@ -34,12 +34,18 @@ export function tierFor(reputation: number) {
   return TIERS.find((t) => reputation >= t.min) ?? TIERS[TIERS.length - 1]!;
 }
 
+/** Confirmations needed for the Trusted Spotter rank. */
+export const TRUSTED_SPOTTER_MIN = TIERS.find((t) => t.name === "Trusted Spotter")!.min;
+
+/** What someone ranks as: their confirmations, raised to Trusted Spotter when they were granted it (TRUSTED_SPOTTERS). */
+export const rankOf = (author: { reputation: number; trusted?: boolean }) => (author.trusted ? Math.max(author.reputation, TRUSTED_SPOTTER_MIN) : author.reputation);
+
 /** Shown instead of the rank for the people who build Storm Central. */
 export const DEVELOPER_BADGE = { name: "Developer", color: "#5b9cf6" } as const;
 
 /** The badge next to someone's name: Developer, or their rank. */
-export function badgeFor(author: { reputation: number; developer?: boolean }) {
-  return author.developer ? DEVELOPER_BADGE : tierFor(author.reputation);
+export function badgeFor(author: { reputation: number; developer?: boolean; trusted?: boolean }) {
+  return author.developer ? DEVELOPER_BADGE : tierFor(rankOf(author));
 }
 
 const username = z
@@ -212,6 +218,8 @@ export interface PostAuthor {
   reputation: number;
   /** One of the app's developers (DEVELOPERS); shown as a badge instead of the rank. */
   developer: boolean;
+  /** Granted the Trusted Spotter rank (TRUSTED_SPOTTERS), whatever their confirmations. */
+  trusted: boolean;
 }
 
 export interface PostDto {

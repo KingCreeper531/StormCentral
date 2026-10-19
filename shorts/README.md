@@ -115,6 +115,33 @@ usually takes a few weeks.
 | `SHORTS_VOICE` | `true` | `false` turns off the narrator (Andrew, via edge-tts; no key needed) |
 | `SHORTS_VOICE_NAME` | `en-US-AndrewNeural` | another Microsoft neural voice for the narrator |
 | `SHORTS_PLAYLISTS` | `true` | `false` to leave videos out of playlists |
+| `SHORTS_AI` | `true` | `false` for the plain narration (AI narration, below) |
+| `SHORTS_AI_MODEL` | `gemma3:12b` | the Ollama model that writes it |
+
+## Livelier narration with AI
+
+The narrator's plain script is filled in from the data ("The tornado
+threat peaks at 10 percent."). With AI narration (on by default), a language
+model rewrites each line the way an upbeat TV meteorologist would say it,
+using only that line's facts. It runs in [Ollama](https://ollama.com) on
+the GitHub runner itself: free, no API key, no GPU, about 3 to 5 extra
+minutes per run.
+
+Every rewritten line is checked against the data before it's used: its
+numbers, places, days, risk level, hazards, times of day and directions
+must all come from the facts, a "no" or "not" has to stay (and can't be
+added), and alarm words ("outbreak", "deadly", "baseball-size") and advice
+("take cover") are only allowed when the source says them. A line that
+fails, or runs too long for its scene, is read the plain way instead; if
+Ollama can't start, the whole plain script is read. The run's log shows
+every line the model wrote and why any was turned down.
+
+- **Try it:** Run workflow (**AI narration** is ticked). The artifact has
+  the Short plus `<kind>-plain.mp4`, the same video with the plain
+  narration, to compare.
+- **Turn it off:** repository variable `SHORTS_AI` = `false`.
+- **Another model:** `SHORTS_AI_MODEL`, any Ollama model that fits in the
+  runner's 16 GB. The default, Gemma 3 12B, sounded the most natural in tests; Gemma 4 12B is more literal but flatter.
 
 ## A reliable schedule (cron-job.org)
 

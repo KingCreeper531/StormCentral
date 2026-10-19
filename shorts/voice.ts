@@ -16,7 +16,7 @@ export const DEFAULT_VOICE = "en-US-AndrewNeural";
 /** Silence kept between two lines when the first runs past the second's start. */
 const GAP = 0.25;
 
-const seconds = async (file: string) =>
+export const seconds = async (file: string) =>
   Number((await run("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file])).stdout.trim());
 
 async function speak(text: string, voice: string, out: string) {
@@ -41,15 +41,39 @@ export function layout(cues: Cue[], lengths: number[]): number[] {
   });
 }
 
-/** Adds the narration to `video` in place. */
-export async function addVoice(video: string, cues: Cue[], voice = DEFAULT_VOICE): Promise<void> {
-  if (!cues.length) return;
+/**
+ * Which rewritten line (script.ts) to put back to its plain wording when the
+ * narration runs past the end: the one that overruns its slot the most, or -1
+ * when it all fits or nothing is left to swap.
+ */
+export function longestRewrite(cues: Cue[], lengths: number[], total: number): number {
+  const starts = layout(cues, lengths);
+  if (starts.every((s, i) => s + lengths[i]! <= total)) return -1;
+  let worst = -1;
+  let over = -Infinity;
+  cues.forEach((c, i) => {
+    const slot = (cues[i + 1]?.at ?? total) - c.at;
+    if (c.plain && lengths[i]! - slot > over) [worst, over] = [i, lengths[i]! - slot];
+  });
+  return worst;
+}
+
+/** Adds the narration to `video` in place; returns the lines as read (a rewrite that didn't fit is back to its plain line). */
+export async function addVoice(video: string, lines: Cue[], voice = DEFAULT_VOICE): Promise<Cue[]> {
+  if (!lines.length) return lines;
+  const cues = [...lines];
   const dir = mkdtempSync(join(tmpdir(), "voice-"));
   try {
     const files = cues.map((_, i) => join(dir, `${i}.mp3`));
     for (const [i, c] of cues.entries()) await speak(c.text, voice, files[i]!);
     const lengths = await Promise.all(files.map(seconds));
     const total = await seconds(video);
+    for (let i = longestRewrite(cues, lengths, total); i >= 0; i = longestRewrite(cues, lengths, total)) {
+      console.log(`  Too long to fit; back to the plain line: ${cues[i]!.text}`);
+      cues[i] = { at: cues[i]!.at, text: cues[i]!.plain! };
+      await speak(cues[i]!.text, voice, files[i]!);
+      lengths[i] = await seconds(files[i]!);
+    }
     const starts = layout(cues, lengths);
     starts.forEach((s, i) => {
       const line = `${s.toFixed(1)}–${(s + lengths[i]!).toFixed(1)} s  ${cues[i]!.text}`;
@@ -65,6 +89,7 @@ export async function addVoice(video: string, cues: Cue[], voice = DEFAULT_VOICE
       "-map", "0:v", "-map", "[voice]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-t", String(total), "-movflags", "+faststart", tmp,
     ]);
     renameSync(tmp, video);
+    return cues;
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

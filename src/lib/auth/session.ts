@@ -47,6 +47,18 @@ export function isDeveloper(username: string) {
   return usernames(process.env.DEVELOPERS ?? DEFAULT_DEVELOPERS).includes(username.toLowerCase());
 }
 
+/** Spotters given the Trusted Spotter rank by hand, whatever their confirmations. */
+const GRANTED_TRUSTED_SPOTTERS = "zenitsu132";
+
+/**
+ * Accounts that rank at least Trusted Spotter (badge, profile and WarnGen)
+ * however few confirmations they have: the ones granted here, plus
+ * TRUSTED_SPOTTERS (comma-separated usernames).
+ */
+export function isTrustedSpotter(username: string) {
+  return usernames(`${GRANTED_TRUSTED_SPOTTERS},${process.env.TRUSTED_SPOTTERS ?? ""}`).includes(username.toLowerCase());
+}
+
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
 async function setCookie(token: string, expiresAt: number) {

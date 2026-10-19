@@ -102,7 +102,7 @@ export interface SpotterWarningDto {
   place: string | null;
   /** Towns inside the polygon, biggest first. */
   locations: string[];
-  issuer: { username: string; displayName: string; reputation: number; developer: boolean };
+  issuer: { username: string; displayName: string; reputation: number; developer: boolean; trusted: boolean };
   /** The viewer issued it (and so may update or cancel it). */
   mine: boolean;
 }

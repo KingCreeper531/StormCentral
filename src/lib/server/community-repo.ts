@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, gte, inArray, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import type { ActivityItem, CommentDto, ConditionsSnapshot, FeedResponse, PostDto } from "../community";
 import { avatarUrl, conditionsSchema } from "../community";
-import { isDeveloper } from "../auth/session";
+import { isDeveloper, isTrustedSpotter } from "../auth/session";
 import { getDb } from "../db/client";
 import { comments, flags, media, posts, users, verifications } from "../db/schema";
 import { haversineKm, type BBox, type LatLon } from "../geo";
@@ -128,6 +128,7 @@ export async function listPosts(q: FeedQuery, viewerId: string | null): Promise<
       avatarUrl: avatarUrl(r.avatarMediaId),
       reputation: Number(r.reputation),
       developer: isDeveloper(r.username),
+      trusted: isTrustedSpotter(r.username),
     },
     verifications: Number(r.verifications),
     comments: Number(r.comments),
@@ -307,7 +308,14 @@ export async function listComments(postId: string, viewerId: string | null): Pro
     id: r.c.id,
     body: r.c.body,
     createdAt: r.c.createdAt,
-    author: { username: r.username, displayName: r.displayName, avatarHue: r.avatarHue, avatarUrl: avatarUrl(r.avatarMediaId), developer: isDeveloper(r.username) },
+    author: {
+      username: r.username,
+      displayName: r.displayName,
+      avatarHue: r.avatarHue,
+      avatarUrl: avatarUrl(r.avatarMediaId),
+      developer: isDeveloper(r.username),
+      trusted: isTrustedSpotter(r.username),
+    },
     isOwn: r.c.userId === viewerId,
     hidden: r.c.hidden !== 0,
   }));
@@ -364,5 +372,6 @@ export async function getProfile(username: string) {
     reputation: Number(row.reputation),
     posts: Number(row.posts),
     developer: isDeveloper(row.username),
+    trusted: isTrustedSpotter(row.username),
   };
 }

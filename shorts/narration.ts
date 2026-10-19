@@ -9,6 +9,8 @@ export interface Cue {
   /** When the line should start, in seconds (pushed later if the one before runs long). */
   at: number;
   text: string;
+  /** The plain line, when `text` is the AI narrator's rewrite of it (script.ts). */
+  plain?: string;
 }
 
 export const STATE_NAMES: Record<string, string> = {

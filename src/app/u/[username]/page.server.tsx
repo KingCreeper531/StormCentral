@@ -7,7 +7,7 @@ import { Avatar, Stat } from "@/components/ui/misc";
 import { Panel } from "@/components/ui/panel";
 import { T } from "@/components/ui/t";
 import { getSessionUser } from "@/lib/auth/session";
-import { badgeFor, tierFor, TIERS } from "@/lib/community";
+import { badgeFor, rankOf, tierFor, TIERS } from "@/lib/community";
 import { getProfile } from "@/lib/server/community-repo";
 import { blockedBetween, isBlocking } from "@/lib/server/moderation-repo";
 import { HiddenFeedNote, JoinedLine, RankProgress, SuspensionNote } from "./profile-text";
@@ -30,9 +30,10 @@ export default async function ProfilePage({ params }: Params) {
   const separated = !!viewer && !isSelf && (iBlocked || (await blockedBetween(viewer.id, profile.id)));
   // Suspended accounts' reports are hidden from everyone but themselves and moderators.
   const showFeed = !separated && (!suspendedNow || isSelf || !!viewer?.moderator);
-  const tier = tierFor(profile.reputation);
+  // A granted Trusted Spotter ranks at least that; progress to the next rank still counts confirmations.
+  const tier = tierFor(rankOf(profile));
   const badge = badgeFor(profile);
-  const nextTier = [...TIERS].reverse().find((t) => t.min > profile.reputation);
+  const nextTier = [...TIERS].reverse().find((t) => t.min > rankOf(profile));
 
   return (
     <SubpageShell>
