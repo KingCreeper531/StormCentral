@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { spoken, type Cue } from "./narration";
-import { background, buildPrompt, checkLine, livelyNarration, parseLines, wordBudgets, type LineFacts } from "./script";
+import { background, buildPrompt, checkLine, digits, livelyNarration, parseLines, wordBudgets, type LineFacts } from "./script";
 import { longestRewrite } from "./voice";
 
 const facts = (scene: string, extra = "", words = 20): LineFacts => ({ scene, allowed: `${scene} ${extra}`.trim(), words });
-const check = (line: string, f: LineFacts) => checkLine(spoken(line), f);
+const check = (line: string, f: LineFacts) => checkLine(spoken(digits(line)), f);
 
 describe("checkLine", () => {
   const torn = facts("The tornado threat peaks at 10 percent.");
@@ -19,7 +19,8 @@ describe("checkLine", () => {
     expect(check("Storms could spin up near Wichita at 10 percent.", torn)).toMatch(/Wichita/);
     expect(check("Kansas has a 10 percent tornado threat.", torn)).toMatch(/Kansas/);
     expect(check("By Friday, tornado odds peak at 10 percent.", torn)).toMatch(/Friday/);
-    expect(check("Tornado odds are up to ten percent.", torn)).toMatch(/"ten"/);
+    expect(check("Tornado odds are up to fifteen percent.", torn)).toMatch(/number 15/);
+    expect(check("Tornado odds are up to ten percent, a dozen times over.", torn)).toMatch(/dozen/);
   });
 
   it("catches a state code the reader would say as a state", () => {
@@ -33,6 +34,24 @@ describe("checkLine", () => {
     expect(check("Tornadoes peak at 10 percent this afternoon.", torn)).toMatch(/afternoon/);
     expect(check("Tornadoes peak at 10 percent this afternoon.", facts(torn.scene, "Storms form this afternoon."))).toBeNull();
     expect(check("It's heading northeast at 12 miles per hour.", facts("It's moving north at 12 mph."))).toMatch(/northeast/);
+  });
+
+  it("lets a clock time stand for its part of the day", () => {
+    const by = facts("By Wednesday 5 PM, it's forecast to be a tropical depression.");
+    expect(check("By Wednesday evening, it should be down to a tropical depression.", by)).toBeNull();
+    expect(check("By Wednesday afternoon, it should be down to a tropical depression.", by)).toMatch(/afternoon/);
+  });
+
+  it("doesn't paint in weather the Short doesn't report, or movement it doesn't give", () => {
+    expect(check("Tuesday looks lovely and quiet.", facts("Tuesday, quiet."))).toMatch(/lovely/);
+    expect(check("Thursday stays sunny and quiet.", facts("Thursday, quiet."))).toMatch(/sunny/);
+    expect(check("Tropical Storm Trudy is barely moving.", facts("It's a tropical storm with maximum winds of 40 mph.", "The storm: Tropical Storm Trudy."))).toMatch(/barely moving/);
+  });
+
+  it("lets the opening line tease any fact, including a 'no'", () => {
+    const hook: LineFacts = { scene: "Here's your outlook for Monday.", hook: true, allowed: "Here's your outlook for Monday. Tornadoes aren't expected.", words: 12 };
+    expect(check("No tornadoes in sight this Monday, but let's dig in.", hook)).toBeNull();
+    expect(check("Let's dig into Monday's outlook!", hook)).toBeNull();
   });
 
   it("keeps a 'no' a 'no', and doesn't add one", () => {
@@ -53,6 +72,13 @@ describe("checkLine", () => {
   });
 });
 
+describe("digits", () => {
+  it("writes spelled-out numbers as digits, but leaves 'one' alone", () => {
+    expect(digits("Thirty-one large wildfires, five percent, and this one is big.")).toBe("31 large wildfires, 5 percent, and this one is big.");
+    expect(digits("twenty five and twelve")).toBe("25 and 12");
+  });
+});
+
 describe("wordBudgets", () => {
   it("fits each line to its slot, the last before the end card, never under the plain line", () => {
     const cues: Cue[] = [
@@ -65,7 +91,7 @@ describe("wordBudgets", () => {
 });
 
 describe("background", () => {
-  it("gives the outlook's whole summary and a storm's forecast trend", () => {
+  it("gives the outlook's whole summary and a storm's name and forecast trend", () => {
     expect(background({ template: "outlook.html", data: { outlook: { summary: "Severe storms are likely across OK." } } })).toEqual([
       "The Storm Prediction Center's summary: Severe storms are likely across Oklahoma.",
     ]);
@@ -75,6 +101,7 @@ describe("background", () => {
     });
     expect(tropical).toContain("Forecast: Tuesday 8 PM, Hurricane with 80 miles per hour winds.");
     expect(tropical).toContain("It is forecast to strengthen.");
+    expect(background({ template: "tropical.html", data: { storm: { title: "Tropical Storm Trudy", forecast: [] } } })).toContain("The storm: Tropical Storm Trudy.");
   });
 
   it("puts the plain lines and limits in the prompt", () => {

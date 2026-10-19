@@ -33,8 +33,9 @@ Rewrite every line so it sounds like an energetic, likable TV meteorologist talk
 Rules:
 - Exactly one line per scene, in the same order, each about its own scene. The first line may tease the biggest fact in the video as a hook.
 - Use only the facts in the plain lines and the background. Never add numbers, places, days, times of day, directions, hazards, sizes, impacts or advice that aren't there, and never make a threat sound bigger or smaller than the facts say.
-- Keep every number exactly as given, written in digits ("10 percent", "level 3 of 5").
-- Stay within each line's word limit; shorter is fine.
+- Keep every number exactly as given, always in digits, never spelled out ("10 percent", "level 3 of 5").
+- Don't describe the sky, temperature or how nice the weather is. In a week-ahead outlook, "quiet" only means no severe storms are expected.
+- Stay within each line's word limit; shorter is fine. Short, punchy sentences beat long ones.
 - No greetings tied to a time of day, no "folks", no emojis, hashtags or links, and don't ask viewers to like, follow or subscribe.
 - At most two exclamation marks in the whole script. Don't start lines the same way.
 
@@ -54,6 +55,7 @@ export function background(v: Pick<Video, "template" | "data">): string[] {
     const s = obj(d.storm);
     const fc = Array.isArray(s.forecast) ? s.forecast.map(obj) : [];
     const last = fc.at(-1);
+    if (typeof s.title === "string") out.push(`The storm: ${s.title}.`);
     if (typeof s.basin === "string") out.push(`Basin: ${s.basin}.`);
     if (typeof s.pressureMb === "number") out.push(`Central pressure: ${s.pressureMb} millibars.`);
     if (fc.length) out.push(`Forecast: ${fc.map((p) => `${p.when}, ${p.stage}${typeof p.windMph === "number" ? ` with ${p.windMph} mph winds` : ""}`).join("; ")}.`);
@@ -61,6 +63,7 @@ export function background(v: Pick<Video, "template" | "data">): string[] {
       out.push(last.windMph > s.windMph ? "It is forecast to strengthen." : "It is forecast to weaken.");
   } else if (v.template === "fire.html") {
     const f = obj(d.fire);
+    if (typeof f.name === "string") out.push(`The fire: the ${f.name}.`);
     if (typeof f.place === "string" && f.place) out.push(`Location: ${f.place}.`);
     if (typeof f.days === "number") out.push(`Burning for ${f.days} days.`);
   }
@@ -90,6 +93,21 @@ export function buildPrompt(v: Pick<Video, "template" | "data">, cues: Cue[], bu
 
 // ── Checking a rewritten line ───────────────────────────────────────────────
 
+const UNITS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+const TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+const COMPOUND = new RegExp(`\\b(${TENS.slice(2).join("|")})[- ](${UNITS.slice(1, 10).join("|")})\\b`, "gi");
+const SINGLE = new RegExp(`\\b(${["zero", ...UNITS.slice(2), ...TENS.slice(2)].join("|")})\\b`, "gi");
+
+/**
+ * Numbers the model spelled out, in digits ("five percent" → "5 percent",
+ * "Thirty-one" → "31"), so they're checked like the rest; the narrator reads
+ * them the same. "One" stays a word ("this one", "one of the").
+ */
+export function digits(line: string): string {
+  const value = (w: string) => (UNITS.includes(w.toLowerCase()) ? UNITS.indexOf(w.toLowerCase()) : TENS.indexOf(w.toLowerCase()) * 10);
+  return line.replace(COMPOUND, (_, t: string, u: string) => String(value(t) + value(u))).replace(SINGLE, (w: string) => String(value(w)));
+}
+
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const hasWord = (text: string, word: string) => new RegExp(`(^|[^a-z0-9])${esc(word.toLowerCase())}($|[^a-z0-9])`).test(text.toLowerCase());
 const numbersIn = (s: string) => (s.match(/\d+(?:[.,]\d+)*/g) ?? []).map((n) => n.replace(/,/g, "").replace(/\.$/, ""));
@@ -105,10 +123,19 @@ const REGIONS = [
 const NAMES = [...new Set([...Object.values(STATE_NAMES), ...DAY_NAMES, ...MONTHS, ...REGIONS])].sort((a, b) => b.length - a.length);
 /** Capitalized words a line may always use. */
 const ALWAYS = new Set(["i", "i'm", "i'll", "i've", "i'd", "storm", "central", "noaa", "nws", "spc", "nhc", "national", "weather", "service", "prediction", "center", "hurricane", "interagency", "fire", "u.s", "us", "am", "pm"]);
-const SPELLED =
-  /\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundreds?|thousands?|millions?|dozens?|half|twice|double|triple|single)\b/gi;
+const SPELLED = /\b(hundreds?|thousands?|millions?|dozens?|half|twice|double|triple|single)\b/gi;
 const RISK = /\b(marginal|slight|enhanced|moderate|high)\s+risk\b/gi;
 const DAY_PARTS = /\b(morning|afternoon|evening|tonight|overnight|night|midday|noon|midnight|weekend|tomorrow|yesterday)\b/gi;
+
+/** The parts of the day the facts' clock times fall in ("5 PM" → evening), which a line may name instead. */
+function dayPartsOf(facts: string): Set<string> {
+  const parts = new Set<string>();
+  for (const m of facts.matchAll(/\b(\d{1,2})(?::\d\d)?\s*([AP])\.?M\b/gi)) {
+    const h = (Number(m[1]) % 12) + (m[2]!.toUpperCase() === "P" ? 12 : 0);
+    parts.add(h < 5 ? "overnight" : h < 12 ? "morning" : h < 17 ? "afternoon" : h < 21 ? "evening" : "night");
+  }
+  return parts;
+}
 const DIRECTIONS = /\b(?:north|south|east|west)(?:east|west)?(?:ern|ward|wards|erly)?\b/gi;
 const HAZARDS: [string, RegExp][] = [
   ["tornadoes", /\btornad/i],
@@ -125,9 +152,11 @@ const HAZARDS: [string, RegExp][] = [
 ];
 /** Claims, sizes and alarm words that only the facts may bring up. */
 const LOADED =
-  /\b(catastroph\w*|devastat\w*|deadly|life-threatening|historic|record\w*|confirm\w*|EF-?\d|outbreak|derecho|emergency|particularly dangerous|PDS|monster|massive|violent|significant|destructive|evacuat\w*|shelter|take cover|huge|giant|intense|intensif\w*|strengthen\w*|weaken\w*|rapid\w*|explosive|strong tornad\w*|golf[- ]?balls?|baseballs?|softballs?|tennis[- ]balls?|grapefruits?|ping[- ]pong|half[- ]dollars?|quarters?|eggs?|walnuts?|marbles?|peas?|pennies|penny|nickels?|dimes?)\b/gi;
-const NOT = /\b(no|not|none|never|nothing|quiet|calm|unlikely|without)\b|n['’]t\b/i;
-const NOT_CLAIM = /\b(no|zero)\s+(severe|storms?|tornado(?:es)?|hail|wind)\b|\bnot\s+expected\b|n['’]t\s+expected\b|\bunlikely\b|\bquiet\b/i;
+  /\b(catastroph\w*|devastat\w*|deadly|life-threatening|historic|record\w*|confirm\w*|EF-?\d|outbreak|derecho|emergency|particularly dangerous|PDS|monster|massive|violent|significant|destructive|evacuat\w*|shelter|take cover|huge|giant|intense|intensif\w*|strengthen\w*|weaken\w*|rapid\w*|explosive|strong tornad\w*|breaking|behemoth|enormous|inferno|stall\w*|stationary|drift\w*|crawl\w*|barely moving|hardly moving|isn['’]t moving|not moving|golf[- ]?balls?|baseballs?|softballs?|tennis[- ]balls?|grapefruits?|ping[- ]pong|half[- ]dollars?|quarters?|eggs?|walnuts?|marbles?|peas?|pennies|penny|nickels?|dimes?)\b/gi;
+const NOT = /\b(no|not|none|never|nothing|quiet|calm|peaceful|tranquil|unlikely|without)\b|n['’]t\b/i;
+const NOT_CLAIM = /\b(no|zero)\s+(severe|storms?|tornado(?:es)?|hail|wind)\b|\bnot\s+expected\b|n['’]t\s+expected\b|\b(unlikely|quiet|calm|peaceful|tranquil)\b/i;
+/** Weather the Shorts never report (sky, temperature, "nice"): the model mustn't paint it in. */
+const WEATHER = /\b(clear|sunny|sunshine|lovely|beautiful|gorgeous|pleasant|nice|dry|warm\w*|hot|cold\w*|chilly|cool\w*|cloud\w*|fog\w*|humid\w*|muggy|breezy)\b/gi;
 const OFF_LIMITS = /https?:|www\.|#\w|\bsubscribe\b|\blike button\b|\bcomments? below\b|\bfolks\b|[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/iu;
 
 /** Capitalized words that don't start a sentence (names the model may have made up). */
@@ -146,8 +175,10 @@ function midSentenceNames(s: string): string[] {
 const root = (dir: string) => dir.toLowerCase().replace(/(ern|wards?|erly)$/, "");
 
 export interface LineFacts {
-  /** The plain line this one rewrites (for the first line, the whole plain script). */
+  /** The plain line this one rewrites. */
   scene: string;
+  /** The first line, which may tease any fact in the video. */
+  hook?: boolean;
   /** Everything the line may draw on: the scene, plus the background facts. */
   allowed: string;
   /** The line's word limit. */
@@ -178,14 +209,17 @@ export function checkLine(line: string, f: LineFacts): string | null {
   if (name) return `"${name}" isn't in the facts`;
 
   for (const m of line.matchAll(RISK)) if (!hasWord(facts, m[0])) return `"${m[0]}" isn't in the facts`;
-  for (const m of line.matchAll(DAY_PARTS)) if (!hasWord(facts, m[0])) return `"${m[0]}" isn't in the facts`;
+  const dayParts = dayPartsOf(facts);
+  for (const m of line.matchAll(DAY_PARTS)) if (!hasWord(facts, m[0]) && !dayParts.has(m[0].toLowerCase())) return `"${m[0]}" isn't in the facts`;
   const directions = new Set([...facts.matchAll(DIRECTIONS)].map((m) => root(m[0])));
   for (const m of line.matchAll(DIRECTIONS)) if (!directions.has(root(m[0]))) return `"${m[0]}" isn't in the facts`;
   for (const [hazard, re] of HAZARDS) if (re.test(line) && !re.test(facts)) return `${hazard} aren't in the facts`;
   for (const m of line.matchAll(LOADED)) if (!new RegExp(`\\b${esc(m[0])}`, "i").test(facts)) return `"${m[0]}" isn't in the facts`;
 
+  for (const m of line.matchAll(WEATHER)) if (!hasWord(facts, m[0])) return `"${m[0]}" isn't in the facts`;
+
   if (NOT.test(f.scene) && !NOT.test(line)) return "drops the scene's no/not";
-  if (NOT_CLAIM.test(line) && !NOT.test(f.scene)) return "says no/not where the scene doesn't";
+  if (NOT_CLAIM.test(line) && !NOT.test(f.hook ? facts : f.scene)) return "says no/not where the scene doesn't";
   return null;
 }
 
@@ -275,10 +309,12 @@ export async function livelyNarration(v: Pick<Video, "template" | "data">, plain
   const bg = background(v);
   const prompt = buildPrompt(v, plain, budgets, bg);
   const all = plain.map((c) => c.text).join(" ");
-  const facts = (i: number): LineFacts => {
-    const scene = i === 0 ? all : plain[i]!.text;
-    return { scene, allowed: [scene, ...bg].join(" "), words: budgets[i]! };
-  };
+  const facts = (i: number): LineFacts => ({
+    scene: plain[i]!.text,
+    hook: i === 0,
+    allowed: [i === 0 ? all : plain[i]!.text, ...bg].join(" "),
+    words: budgets[i]!,
+  });
 
   const drafts: (string | null)[][] = [];
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -295,7 +331,7 @@ export async function livelyNarration(v: Pick<Video, "template" | "data">, plain
     }
     log(`AI draft ${attempt} (${o.model || DEFAULT_MODEL}, ${Math.round((Date.now() - started) / 1000)} s):`);
     const checked = lines.map((line, i) => {
-      const said = spoken(line);
+      const said = spoken(digits(line));
       const why = checkLine(said, facts(i));
       log(`  ${why ? "✗" : "✓"} ${said}${why ? `  (${why})` : ""}`);
       return why ? null : said;

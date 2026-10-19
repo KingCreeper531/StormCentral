@@ -1,4 +1,4 @@
-name: TEMP AI narration bake-off
+name: TEMP AI narration previews
 on:
   push:
     branches: [claude/trusting-pasteur-qzc0fq]
@@ -14,9 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         model:
-          - { tag: "llama3.1:8b", slug: "llama3.1-8b" }
           - { tag: "gemma3:12b", slug: "gemma3-12b" }
-          - { tag: "qwen3.5:9b", slug: "qwen3.5-9b" }
           - { tag: "gemma4:12b", slug: "gemma4-12b" }
         kind: [outlook, recap, weekly, tropical, fire]
     steps:
@@ -27,7 +25,7 @@ jobs:
       - name: Install the renderer
         run: |
           npm install --prefix "$RUNNER_TEMP/shorts" --no-audit --no-fund playwright-core@1.56.1
-          "$RUNNER_TEMP/shorts/node_modules/.bin/playwright-core" install --with-deps chromium
+          "$RUNNER_TEMP/shorts/node_modules/.bin/playwright-core" install --with-deps chromium || (sleep 20 && "$RUNNER_TEMP/shorts/node_modules/.bin/playwright-core" install --with-deps chromium)
           command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
           pipx install edge-tts==7.3.1
       - name: Start Ollama
@@ -67,12 +65,11 @@ jobs:
         with:
           pattern: ai-*
           path: tmp-ai
-      - name: Commit the scripts to this branch
+      - name: Commit the videos and scripts to this branch
         run: |
-          find tmp-ai -name '*.mp4' -delete
           ls -R tmp-ai | head -100
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add tmp-ai
-          git commit -m "TEMP: AI narration bake-off scripts" || exit 0
+          git commit -m "TEMP: AI narration previews" || exit 0
           git push origin "HEAD:${GITHUB_REF_NAME}"
