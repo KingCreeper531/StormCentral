@@ -20,19 +20,23 @@ export interface ChaserState {
   status: BeaconStatus;
   /** When the server last took my position. */
   lastSentAt: number | null;
+  /** My YouTube live stream link, sent with my position so spotters can watch (lib/chasers parseStream). */
+  stream: string;
   setSharing: (on: boolean, now?: number) => void;
+  setStream: (stream: string) => void;
   setHours: (h: ShareHours, now?: number) => void;
   setStatus: (status: BeaconStatus, lastSentAt?: number) => void;
 }
 
-type Persisted = Pick<ChaserState, "sharing" | "hours" | "until">;
+type Persisted = Pick<ChaserState, "sharing" | "hours" | "until" | "stream">;
 
 /** Restored settings, made safe: a window that ended while the app was closed reads as off. */
 export function normalizeChaser(p: Partial<Persisted> | null | undefined, now: number): Persisted {
   const hours = (SHARE_HOURS as readonly number[]).includes(p?.hours as number) ? (p!.hours as ShareHours) : DEFAULT_SHARE_HOURS;
   const until = typeof p?.until === "number" && Number.isFinite(p.until) ? p.until : null;
   const sharing = p?.sharing === true && until != null && until > now;
-  return { sharing, hours, until: sharing ? until : null };
+  const stream = typeof p?.stream === "string" ? p.stream.slice(0, 200) : "";
+  return { sharing, hours, until: sharing ? until : null, stream };
 }
 
 export const useChaserStore = create<ChaserState>()(
@@ -44,6 +48,8 @@ export const useChaserStore = create<ChaserState>()(
       until: null,
       status: "off",
       lastSentAt: null,
+      stream: "",
+      setStream: (stream) => set({ stream: stream.slice(0, 200) }),
       setSharing: (on, now = Date.now()) =>
         set(on ? { sharing: true, until: now + get().hours * 3_600_000 } : { sharing: false, until: null, status: "off", lastSentAt: null }),
       // Picking another window while sharing restarts it from now.
@@ -56,7 +62,7 @@ export const useChaserStore = create<ChaserState>()(
       // Rehydrated from a client effect (Providers) so SSR markup and first render match.
       skipHydration: true,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s): Persisted => ({ sharing: s.sharing, hours: s.hours, until: s.until }),
+      partialize: (s): Persisted => ({ sharing: s.sharing, hours: s.hours, until: s.until, stream: s.stream }),
       merge: (persisted, current) => ({ ...current, ...normalizeChaser(persisted as Partial<Persisted>, Date.now()) }),
       onRehydrateStorage: () => () => useChaserStore.setState({ hydrated: true }),
     },

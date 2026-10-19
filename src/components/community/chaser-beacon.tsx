@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useSession } from "@/hooks/queries";
 import { HttpError } from "@/lib/api/http";
-import { MAX_ACCURACY_M, motionOf, SEND_INTERVAL_MS, shouldSend, type PositionInput, type SentFix } from "@/lib/chasers";
+import { MAX_ACCURACY_M, motionOf, parseStream, SEND_INTERVAL_MS, shouldSend, type PositionInput, type SentFix } from "@/lib/chasers";
 import { FRESH_MS, isUsableFix } from "@/lib/device-position";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { useChaserStore } from "@/store/chaser-store";
@@ -75,7 +75,9 @@ export function ChaserBeacon() {
       const motion = resend ? { heading: null, speedKmh: 0 } : motionOf(pos.coords, fix, sent, now);
       busy = true;
       try {
-        await chasers("PUT", { ...fix, ...motion, accuracyM: Math.min(MAX_ACCURACY_M, Math.round(pos.coords.accuracy)), until: end });
+        // Only a link that checks out goes along; a half-typed one would make the server refuse the position.
+        const stream = parseStream(store().stream) ? store().stream.trim() : null;
+        await chasers("PUT", { ...fix, ...motion, accuracyM: Math.min(MAX_ACCURACY_M, Math.round(pos.coords.accuracy)), until: end, stream });
         sent = { ...fix, at: now };
         if (live) store().setStatus("live", Date.now());
       } catch (err) {

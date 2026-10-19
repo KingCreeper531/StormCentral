@@ -41,6 +41,7 @@ import type { AlertTextResponse } from "@/lib/feeds/alerts";
 import type { WeatherAlert } from "@/lib/api/types";
 import type { SpotterWarningsResponse } from "@/lib/warngen/schema";
 import type { ChasersResponse } from "@/lib/chasers";
+import type { ChaserStreamsResponse } from "@/lib/chaser-streams";
 
 // Request URLs use the same rounding as their query keys, so nearby users share the CDN's cached response.
 const r2 = (v: number) => Math.round(v * 100) / 100;
@@ -531,6 +532,17 @@ export function useSpotterWarnings(enabled = true) {
  * warnings). Polled each minute while the map layer is on; TanStack pauses
  * the poll while the tab is hidden.
  */
+/** Storm chasers live on YouTube (the radar's Chasers panel, and LIVE on the chasers layer). Needs the server. */
+export function useChaserStreams(enabled: boolean) {
+  return useQuery({
+    queryKey: ["chaserStreams"],
+    queryFn: ({ signal }) => getJson<ChaserStreamsResponse>("/api/chaser-streams", { signal }),
+    enabled: !IS_STATIC_BUNDLE && enabled,
+    refetchInterval: 2 * 60_000,
+    staleTime: 60_000,
+  });
+}
+
 export function useChasers(enabled: boolean) {
   const session = useSession();
   return useQuery({

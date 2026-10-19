@@ -1,7 +1,7 @@
 "use client";
 
 import { useNow } from "@/hooks/use-now";
-import { SHARE_HOURS, type ShareHours } from "@/lib/chasers";
+import { parseStream, SHARE_HOURS, type ShareHours } from "@/lib/chasers";
 import { useT } from "@/lib/i18n/use-t";
 import { timeAgo } from "@/lib/time";
 import { clockIn } from "@/lib/weather/view";
@@ -23,6 +23,9 @@ export function ChaserPanel() {
   const lastSentAt = useChaserStore((s) => s.lastSentAt);
   const setSharing = useChaserStore((s) => s.setSharing);
   const setHours = useChaserStore((s) => s.setHours);
+  const stream = useChaserStore((s) => s.stream);
+  const setStream = useChaserStore((s) => s.setStream);
+  const streamOk = !stream.trim() || !!parseStream(stream);
   const showChasers = useAppStore((s) => s.radar.showChasers);
   const setRadar = useAppStore((s) => s.setRadar);
   const now = useNow(30_000);
@@ -55,6 +58,27 @@ export function ChaserPanel() {
           onChange={(h) => setHours(h)}
           options={SHARE_HOURS.map((h) => ({ value: h, label: t.plural(h, "{n} hour", "{n} hours") }))}
         />
+      </div>
+      <div className="mt-3">
+        <label htmlFor="chaser-stream" className="label mb-1.5 block">
+          {t("Your YouTube live stream (optional)")}
+        </label>
+        <input
+          id="chaser-stream"
+          type="url"
+          inputMode="url"
+          value={stream}
+          onChange={(e) => setStream(e.target.value)}
+          placeholder="youtube.com/@yourchannel"
+          aria-invalid={!streamOk}
+          aria-describedby="chaser-stream-hint"
+          className="h-9 w-full min-w-0 rounded-[var(--radius-control)] border border-line bg-surface-2 px-3 text-sm text-ink outline-none placeholder:text-ink-3 focus:border-accent aria-[invalid=true]:border-nogo pointer-coarse:h-11 pointer-coarse:text-base"
+        />
+        <p id="chaser-stream-hint" className="label mt-1">
+          {streamOk
+            ? t("Your channel or a live video link. Spotters who tap your marker get a Watch live button.")
+            : t("That isn't a YouTube channel or live video link.")}
+        </p>
       </div>
       {sharing && until != null && (
         <p className="mt-3 rounded-[var(--radius-control)] border border-line bg-surface-2 px-3 py-2 text-[13px] text-ink-2">
