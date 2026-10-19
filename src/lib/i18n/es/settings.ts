@@ -224,4 +224,20 @@ export const SETTINGS: Record<string, string> = {
     "Con la ventana cerrada, Storm Central sigue buscando avisos. Para salir, usa el ícono de la bandeja del sistema.",
   "Couldn't save that setting. Try again.": "No se pudo guardar esa configuración. Inténtalo de nuevo.",
   "Couldn't load the desktop app settings.": "No se pudo cargar la configuración de la app de escritorio.",
+
+  // ─── chaser-panel.tsx: sharing my position as a storm chaser ──────────────
+  "Storm chasing": "Caza de tormentas",
+  "Share my location as a storm chaser": "Compartir mi ubicación como cazador de tormentas",
+  "While this is on and Storm Central is open, signed-in spotters see your live position, speed and heading on the radar map. It turns off by itself after the time below, and your position is deleted when you stop or sign out.":
+    "Mientras esté activado y Storm Central esté abierto, los observadores con sesión iniciada ven tu ubicación en vivo, tu velocidad y tu rumbo en el mapa de radar. Se desactiva solo después del tiempo de abajo, y tu ubicación se elimina cuando lo detienes o cierras sesión.",
+  "Stop sharing after": "Dejar de compartir después de",
+  "{n} hour": "{n} hora",
+  "Sharing until {time}.": "Compartiendo hasta las {time}.",
+  "Location permission is off. Allow it for Storm Central to share your position.":
+    "El permiso de ubicación está desactivado. Permítelo para que Storm Central pueda compartir tu ubicación.",
+  "Couldn't send your position. Retrying with the next fix.": "No se pudo enviar tu ubicación. Se reintentará con la próxima lectura del GPS.",
+  "Live: last sent {ago}.": "En vivo: último envío {ago}.",
+  "Waiting for a GPS fix.": "Esperando la señal del GPS.",
+  "To see other chasers, turn on Storm chasers in the radar's layers.": "Para ver a otros cazadores, activa Cazadores de tormentas en las capas del radar.",
+  "Turn on now": "Activar ahora",
 };

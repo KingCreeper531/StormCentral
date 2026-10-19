@@ -253,6 +253,10 @@ export function RadarControls({
           {COMMUNITY_ENABLED && (
             <Toggle label={t("Spotter reports (6 h)")} checked={settings.showReports} onChange={(showReports) => onChange({ showReports })} />
           )}
+          {COMMUNITY_ENABLED && <Toggle label={t("Storm chasers (live)")} checked={settings.showChasers} onChange={(showChasers) => onChange({ showChasers })} />}
+          {COMMUNITY_ENABLED && settings.showChasers && (
+            <p className="label py-2.5">{t("Spotters sharing their live position, seen by signed-in members. Share yours in Settings → Account.")}</p>
+          )}
           <Toggle label={t("Radar sites")} checked={settings.showSites} onChange={(showSites) => onChange({ showSites })} />
         </div>
       </Group>

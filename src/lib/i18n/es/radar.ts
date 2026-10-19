@@ -257,4 +257,9 @@ export const RADAR: Record<string, string> = {
   "Open the product on {site}": "Abrir el producto en {site}",
   "Unofficial spotter-network warning. Not from the National Weather Service: always follow official warnings.":
     "Aviso no oficial de la red de observadores. No es del Servicio Meteorológico Nacional: sigue siempre los avisos oficiales.",
+
+  // ─── radar-controls.tsx / severe-mode.tsx: storm chasers ──────────────────
+  "Storm chasers (live)": "Cazadores de tormentas (en vivo)",
+  "Spotters sharing their live position, seen by signed-in members. Share yours in Settings → Account.":
+    "Observadores que comparten su ubicación en vivo, visibles para miembros con sesión iniciada. Comparte la tuya en Configuración → Cuenta.",
 };

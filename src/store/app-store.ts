@@ -71,6 +71,8 @@ export interface RadarSettings {
   intlRadar: boolean;
   /** Unofficial warnings issued by spotters with Professional mode's WarnGen (signed-in members only). */
   showSpotterWarnings: boolean;
+  /** Storm chasers sharing their live position (signed-in members only). Off unless turned on. */
+  showChasers: boolean;
 }
 
 export type RadarHistory = "latest" | "2h" | "4h";
@@ -180,11 +182,19 @@ export const DEFAULT_RADAR: RadarSettings = {
   intlAlerts: true,
   intlRadar: true,
   showSpotterWarnings: true,
+  showChasers: false,
 };
 
-function normalizeRadar(r: RadarSettings): RadarSettings {
+export function normalizeRadar(r: RadarSettings): RadarSettings {
   const kinds = Array.isArray(r.alertKinds) ? r.alertKinds.filter((k): k is AlertCategory => (ALERT_CATEGORIES as readonly string[]).includes(k)) : DEFAULT_RADAR.alertKinds;
-  return { ...r, alertKinds: [...new Set(kinds)], intlAlerts: r.intlAlerts !== false, intlRadar: r.intlRadar !== false, showSpotterWarnings: r.showSpotterWarnings !== false };
+  return {
+    ...r,
+    alertKinds: [...new Set(kinds)],
+    intlAlerts: r.intlAlerts !== false,
+    intlRadar: r.intlRadar !== false,
+    showSpotterWarnings: r.showSpotterWarnings !== false,
+    showChasers: r.showChasers === true,
+  };
 }
 
 export const useAppStore = create<AppState>()(

@@ -36,7 +36,7 @@ Press **1–5** (and **6** for Pro, when it's on) to switch modes and **⌘K / C
 
 ## Beyond a typical weather app
 
-- **Spotter Network**: sign in, post geotagged reports with photos and a severity level, and verify each other's observations. Confirmations build reputation tiers (Observer → Spotter → Trusted Spotter → Storm Chaser → Legend). Reports show up on the radar map.
+- **Spotter Network**: sign in, post geotagged reports with photos and a severity level, and verify each other's observations. Confirmations build reputation tiers (Observer → Spotter → Trusted Spotter → Storm Chaser → Legend). Reports show up on the radar map. Chasing? Turn on **Share my location as a storm chaser** (Settings → Account, off by default, for 1–12 hours) and signed-in spotters see your live position, speed and heading on the radar's **Storm chasers** layer.
 - **Ground truth vs. model**: each report stores what the forecast model said at that moment, so you can see where the model missed.
 - **Privacy by default**: report locations are rounded to about 1 km unless you opt in to precise GPS. Photo EXIF/GPS is stripped on your device *and* again on the server.
 - **Storm ETA**: the machine-readable storm-motion line in each NWS warning is parsed into a projected track and a live arrival estimate for your location.

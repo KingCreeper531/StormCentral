@@ -40,6 +40,7 @@ import type { HazardsResponse } from "@/lib/feeds/hazards";
 import type { AlertTextResponse } from "@/lib/feeds/alerts";
 import type { WeatherAlert } from "@/lib/api/types";
 import type { SpotterWarningsResponse } from "@/lib/warngen/schema";
+import type { ChasersResponse } from "@/lib/chasers";
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 const r1 = (v: number) => Math.round(v * 10) / 10;
@@ -74,6 +75,7 @@ export const qk = {
   wildfires: (p: LatLon) => ["wildfires", Math.round(p.lat * 4) / 4, Math.round(p.lon * 4) / 4] as const,
   session: ["session"] as const,
   spotterWarnings: ["spotterWarnings"] as const,
+  chasers: ["chasers"] as const,
   posts: (params: Record<string, string>) => ["posts", params] as const,
 };
 
@@ -506,6 +508,22 @@ export function useSpotterWarnings(enabled = true) {
   return useQuery({
     queryKey: qk.spotterWarnings,
     queryFn: ({ signal }) => getJson<SpotterWarningsResponse>("/api/spotter-warnings", { signal }),
+    enabled: COMMUNITY_ENABLED && enabled && !!session.data,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * Storm chasers sharing their live position (members only, like spotter
+ * warnings). Polled each minute while the map layer is on; TanStack pauses
+ * the poll while the tab is hidden.
+ */
+export function useChasers(enabled: boolean) {
+  const session = useSession();
+  return useQuery({
+    queryKey: qk.chasers,
+    queryFn: ({ signal }) => getJson<ChasersResponse>("/api/chasers", { signal }),
     enabled: COMMUNITY_ENABLED && enabled && !!session.data,
     refetchInterval: 60_000,
     staleTime: 30_000,
