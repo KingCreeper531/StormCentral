@@ -10,6 +10,7 @@ to the Storm Central YouTube channel. Nothing runs on your PC.
 | **Week ahead**: SPC's outlook for each of the next eight days, then the most active day | Sunday mornings | Severe Weather: Week Ahead |
 | **Hurricane update**: the National Hurricane Center's cone, track and forecast, with winds, pressure and movement | Every day at 11:40 AM Eastern, one per named storm (up to 2, strongest first); none when the tropics are quiet | Tropical Updates |
 | **Wildfire update**: the large active fires on the US map, then a zoom to the most significant one with its mapped perimeter, acres burned, containment, and how much it grew since the day before | Every day at 4:30 PM Eastern, when a fire is at least 5,000 acres and no more than 80% contained, or grew 1,000+ acres in a day; none otherwise | Wildfire Updates |
+| **Breaking news**: a Tornado Emergency, Flash Flood Emergency, Extreme Wind Warning, PDS tornado warning or watch, or SPC High Risk, with the polygon over radar, the counties, the end time, the damage tags and what to do | Within about 10 to 20 minutes of the NWS issuing it (checked every 10 minutes), at most 2 a day | Breaking Severe Weather |
 
 Every video ends with stormcentralwx.com. Each upload has a Spanish title
 and description as a YouTube translation, so viewers with Spanish set get
@@ -112,6 +113,7 @@ usually takes a few weeks.
 | `SHORTS_SKIP_QUIET` | `false` | `true` for no outlook video on days with no severe risk |
 | `SHORTS_TROPICAL_MAX` | `2` | at most this many hurricane updates a day |
 | `SHORTS_FIRE_MAX` | `1` | at most this many wildfire updates a day |
+| `SHORTS_BREAKING_DAILY_MAX` | `2` | at most this many breaking-news Shorts a day |
 | `SHORTS_VOICE` | `true` | `false` turns off the narrator (Andrew, via edge-tts; no key needed) |
 | `SHORTS_VOICE_NAME` | `en-US-AndrewNeural` | another Microsoft neural voice for the narrator |
 | `SHORTS_PLAYLISTS` | `true` | `false` to leave videos out of playlists |
@@ -143,6 +145,40 @@ every line the model wrote and why any was turned down.
 - **Another model:** `SHORTS_AI_MODEL`, any Ollama model that fits in the
   runner's 16 GB. The default, Gemma 3 12B, sounded the most natural in tests; Gemma 4 12B is more literal but flatter.
 
+## Breaking news
+
+`.github/workflows/youtube-breaking.yml` checks every 10 minutes for:
+
+- a **Tornado Emergency** or a **PDS Tornado Warning** (the NWS's "catastrophic"
+  or "considerable" tornado damage threat, or the words in the text),
+- a **Flash Flood Emergency**,
+- an **Extreme Wind Warning**,
+- a **PDS Tornado Watch** (SPC's PDS flag, via the Iowa Environmental Mesonet,
+  or the words in the watch),
+- a **High Risk** on SPC's Day 1 outlook.
+
+Each check is a few seconds with no browser. Only a new event installs the
+renderer and makes the Short. Each warning posts once, and again only if it's
+upgraded (a PDS warning that becomes an emergency); one ending within 20
+minutes is skipped. The narrator reads the NWS's own facts in fixed sentences
+(the AI narrator stays off for these), and every description says it's not an
+official warning source.
+
+- **On/off:** it runs with the other Shorts (`SHORTS_ENABLED`). To switch it
+  off on its own, set `SHORTS_KINDS` to the kinds you want without `breaking`
+  (e.g. `outlook,recap,weekly,tropical,fire`).
+- **Daily cap:** `SHORTS_BREAKING_DAILY_MAX` (default `2`). YouTube's quota
+  allows about 6 uploads a day across all the Shorts.
+- **Try it:** Run workflow → YouTube Breaking Shorts with a **fixture**
+  (tornado-emergency, pds-watch or high-risk) to render a saved scenario
+  (never uploaded), or with none to make whatever qualifies right now.
+- **On time:** GitHub runs a 10-minute schedule late or skips runs when it's
+  busy, so for breaking news an outside scheduler is worth it: a cron-job.org
+  job every 10 minutes posting to
+  `https://api.github.com/repos/KingCreeper531/StormCentral/actions/workflows/youtube-breaking.yml/dispatches`
+  with body `{"ref":"main","inputs":{"scheduled":"true"}}` (same token and
+  headers as below).
+
 ## A reliable schedule (cron-job.org)
 
 GitHub often starts scheduled runs late or drops them. For posts on time, let a free outside scheduler start the workflow instead (the GitHub schedules stay as a backup; each kind still posts once a day):
@@ -162,15 +198,19 @@ GitHub often starts scheduled runs late or drops them. For posts on time, let a 
 
 - YouTube's free quota (10,000 units a day) allows about 6 uploads a day.
   A busy day is the outlook, the recap and two hurricane updates (plus the
-  week ahead on Sundays): 4 or 5.
+  week ahead on Sundays): 4 or 5, which leaves room for the 2 breaking-news
+  Shorts a day at most. On a big outbreak day with hurricanes too, lower
+  `SHORTS_BREAKING_DAILY_MAX` or `SHORTS_TROPICAL_MAX`.
 - GitHub can start scheduled runs a few minutes late, and pauses schedules
   in a repository with no activity for 60 days (any commit wakes them).
 - Code: `main.ts` (one run: make a kind's videos, render, upload),
   `kinds/` (each kind: fetch its data, decide whether to post, write the
-  English and Spanish text; tested in `kinds/kinds.test.ts`), `meta.ts`
-  (shared text and the outlook's; tested in `meta.test.ts`), the pages
-  that draw each Short (`outlook.html`, `recap.html`, `weekly.html`,
-  `tropical.html`, on `common.js`), `render.ts` (Chromium draws a page
+  English and Spanish text; tested in `kinds/kinds.test.ts` and
+  `kinds/breaking.test.ts`), `breaking-check.ts` (the breaking-news quick
+  look), `fixtures/breaking/` (saved scenarios for tests and trial runs),
+  `meta.ts` (shared text and the outlook's; tested in `meta.test.ts`), the
+  pages that draw each Short (`outlook.html`, `recap.html`, `weekly.html`,
+  `tropical.html`, `fire.html`, `breaking.html`, on `common.js`), `render.ts` (Chromium draws a page
   frame by frame into ffmpeg), `youtube.ts` (OAuth, the upload, playlists),
   `vendor/` (maps, fonts and libraries; see its README).
 - Try it locally: `npx esbuild shorts/main.ts --bundle --platform=node
