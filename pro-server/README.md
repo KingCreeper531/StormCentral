@@ -264,16 +264,25 @@ The Storm Central web app is served over HTTPS, so browsers block requests to an
   `*.trycloudflare.com` URL for testing. A named tunnel on a domain in your
   Cloudflare account gives a permanent one. Cloudflare may cache the PNGs
   (`immutable`) but respects `no-cache` on `index.json`.
-* **The desktop app only:** it may use `http://127.0.0.1:PORT` (e.g. `--serve 8080`
-  on the same machine). Loopback is not treated as mixed content.
+* **Local testing:** a build of the app can use `http://127.0.0.1:PORT` (e.g.
+  `--serve 8080` on the same machine). Loopback is not treated as mixed content.
 
 ## Using it in the app
 
-Turn on **Settings → General → Professional mode**, enter the base URL in
-**Pro data server** (e.g. `https://pro.example.com` or `https://129-146-12-34.sslip.io`)
-and press **Save**. It says "Connected." once `index.json` answers. Then pick a product
-in any Pro panel: Day Cloud Phase, Night Fog and IR Sandwich under Satellite, and
-the MRMS hail size, rotation track and VIL products under Radar (national).
+The server's address is built into the app, so everyone gets the products
+without setting anything up. Until it's set, the products that need it don't
+appear in the Pro menus.
+
+1. **Web app (Vercel):** in the project's **Settings → Environment Variables**, add
+   `NEXT_PUBLIC_PRO_SERVER` = the base URL (e.g. `https://pro.example.com` or
+   `https://129-146-12-34.sslip.io`), then redeploy.
+2. **Windows and Android builds:** in the GitHub repository's **Settings → Secrets
+   and variables → Actions → Variables**, add `PRO_SERVER_URL` with the same URL.
+   The next release picks it up.
+
+Then Day Cloud Phase, Night Fog and IR Sandwich appear under Satellite in every
+Pro panel's product menu, and MRMS hail size, rotation track and VIL appear under
+Radar (national).
 
 ## Files
 

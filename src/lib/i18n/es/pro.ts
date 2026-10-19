@@ -151,20 +151,11 @@ export const PRO: Record<string, string> = {
   "Night Fog (Nighttime Microphysics)": "Niebla nocturna (microfísica nocturna)",
   "IR Sandwich": "Sándwich IR",
   "This tilt isn't in the radar's current scan pattern": "Este ángulo no está en el patrón de escaneo actual del radar",
-  "Level II volumes are desktop only": "Los volúmenes de Nivel II son solo para computadora",
-  "Needs a Pro data server (Settings → Professional mode)": "Necesita un servidor de datos Pro (Configuración → Modo profesional)",
   "Pro data server unreachable": "No se puede conectar con el servidor de datos Pro",
   "Ground clutter": "Ecos de terreno",
   "Hail and rain": "Granizo y lluvia",
   "Large hail": "Granizo grande",
   "Giant hail": "Granizo gigante",
-  "Pro data server": "Servidor de datos Pro",
-  "Use an https:// address (plain http only works for this computer).": "Usa una dirección https:// (http solo funciona para esta computadora).",
-  "Checking…": "Comprobando…",
-  "Connected.": "Conectado.",
-  "Saved, but the server didn't answer. Check the address and that it's running.": "Guardado, pero el servidor no respondió. Revisa la dirección y que esté en marcha.",
-  "Optional. Adds GOES Day Cloud Phase, Night Fog and Sandwich, and MRMS hail size, rotation tracks and VIL. Set one up from pro-server/ in the Storm Central repository.":
-    "Opcional. Agrega Fase de nubes diurna, Niebla nocturna y Sándwich de GOES, y tamaño de granizo, rastros de rotación y VIL de MRMS. Configura uno desde pro-server/ en el repositorio de Storm Central.",
 
   // ─── other countries' radar ────────────────────────────────────────────────
   "Radar (other countries)": "Radar (otros países)",

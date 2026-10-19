@@ -3,7 +3,7 @@
 import { SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useT } from "@/lib/i18n/use-t";
-import { PRO_PRODUCT_IDS, PRO_PRODUCTS, SAT_LATENCY_MS, type ProProduct, type ProProductId } from "@/lib/pro/products";
+import { PRO_PRODUCT_IDS, PRO_PRODUCTS, productUsable, SAT_LATENCY_MS, type ProProduct, type ProProductId } from "@/lib/pro/products";
 import { frameAt, syncTime } from "@/lib/pro/sync";
 import { useProStore, type PaneConfig } from "@/store/pro-store";
 import { cn } from "@/lib/utils";
@@ -63,10 +63,9 @@ export function PaneHeader({ config, n, feed, basis, compact, volume }: { config
         >
           {GROUPS.map((g) => (
             <optgroup key={g} label={t(g)}>
-              {PRO_PRODUCT_IDS.filter((id) => PRO_PRODUCTS[id].group === g).map((id) => (
-                <option key={id} value={id} disabled={PRO_PRODUCTS[id].kind === "l2" && !volume}>
+              {PRO_PRODUCT_IDS.filter((id) => PRO_PRODUCTS[id].group === g && productUsable(id, { volume })).map((id) => (
+                <option key={id} value={id}>
                   {PRO_PRODUCTS[id].short} · {t(PRO_PRODUCTS[id].label)}
-                  {PRO_PRODUCTS[id].kind === "l2" && !volume ? ` (${t("desktop")})` : ""}
                 </option>
               ))}
             </optgroup>

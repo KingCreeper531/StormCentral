@@ -46,6 +46,8 @@ env:
   # The hosted Storm Central (Vercel) both apps load, so every user shares one
   # spotter network. A repository variable STORMCENTRAL_URL overrides it.
   STORMCENTRAL_URL: ${{ vars.STORMCENTRAL_URL || 'https://storm-central-pi.vercel.app' }}
+  # The Pro data server built into the apps (pro-server/); its products stay hidden while it's empty.
+  NEXT_PUBLIC_PRO_SERVER: ${{ vars.PRO_SERVER_URL }}
 
 jobs:
   check:

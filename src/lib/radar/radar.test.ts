@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { compactUtc, framesFromScans, frameBudget, iemSiteId, mosaicOffsetFrames, MOSAIC_SITE } from "./frames";
 import { RadarLayerManager, type RadarMap } from "./layer-manager";
 import { crossfadeFor, frameDelayMs, nextPlayableIndex, stepIndex } from "./playback";
-import { familiesAvailable, resolveTilts } from "./products";
+import { familiesAvailable, resolveTilts, siteProducts } from "./products";
 import { getSite, nearestSites } from "./site-utils";
 
 describe("frames", () => {
@@ -173,5 +173,18 @@ describe("RadarLayerManager", () => {
     expect(statuses.at(-1)).toEqual([true, true, true]);
     mgr.destroy();
     vi.useRealTimers();
+  });
+});
+
+describe("siteProducts", () => {
+  it("adds NOAA's super-res reflectivity and velocity to what IEM lists for a WSR-88D", () => {
+    const codes = siteProducts("KTLX", ["N0S", "N0B"]);
+    expect([...codes].sort()).toEqual(["N0B", "N0G", "N0S"]);
+    expect(familiesAvailable(codes)).toEqual(["reflectivity", "velocity", "srv"]);
+  });
+
+  it("assumes IEM's usual pair until its list arrives, and adds nothing NOAA lacks", () => {
+    expect([...siteProducts("TJUA", undefined)].sort()).toEqual(["N0B", "N0S"]);
+    expect(familiesAvailable(siteProducts("TJUA", []))).toEqual(["reflectivity", "srv"]);
   });
 });

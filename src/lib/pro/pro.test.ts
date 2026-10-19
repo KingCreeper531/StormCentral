@@ -3,7 +3,7 @@ import { haversineKm } from "../geo";
 import { FAMILIES } from "../radar/products";
 import { ibwDetails, ibwSection } from "./ibw";
 import { parseProfile, PROFILE_LEVELS, transect, type OpenMeteoProfile } from "./model";
-import { isProProductId, PRO_PRODUCT_IDS, PRO_PRODUCTS, productLegend, satelliteFrames } from "./products";
+import { isProProductId, PRO_PRODUCT_IDS, PRO_PRODUCTS, productLegend, productUsable, satelliteFrames, shownProduct } from "./products";
 import { fillTileUrl, pixelAt, tileBbox, tileZoom, valueFromColor } from "./sample";
 import { arrivals, destination, motionFrom, stormMotion, toaFan } from "./storm-tools";
 import { frameAt, syncTime } from "./sync";
@@ -178,5 +178,23 @@ describe("value scales", () => {
     expect(scaleForTiles("https://opengeo.ncep.noaa.gov/geoserver/ktlx/ows?layers=ktlx_sr_bvel", "velocity")).toBe(NOAA_VELOCITY);
     expect(scaleForTiles("https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::TLX-N0C-202610191800/{z}/{x}/{y}.png", "cc")!.unit).toBe("ρhv");
     expect(scaleForTiles("https://gibs.earthdata.nasa.gov/wms", null)).toBeNull();
+  });
+});
+
+describe("products this device can show", () => {
+  it("hides Level II on phones and the data server's products until one is set up", () => {
+    expect(productUsable("vol-ref", { volume: true })).toBe(true);
+    expect(productUsable("vol-ref", { volume: false })).toBe(false);
+    // No NEXT_PUBLIC_PRO_SERVER in tests.
+    expect(PRO_PRODUCT_IDS.filter((id) => PRO_PRODUCTS[id].kind === "server").every((id) => !productUsable(id, { volume: true }))).toBe(true);
+    expect(productUsable("cc", { volume: false })).toBe(true);
+  });
+
+  it("swaps a saved product that doesn't work here for the nearest one that does", () => {
+    expect(shownProduct("vol-vel", { volume: false })).toBe("vel");
+    expect(shownProduct("vol-vel", { volume: true })).toBe("vol-vel");
+    expect(shownProduct("goes-nightmicro", { volume: true })).toBe("sat-ir");
+    expect(shownProduct("mrms-mesh", { volume: true })).toBe("cref");
+    for (const id of PRO_PRODUCT_IDS) expect(productUsable(shownProduct(id, { volume: false }), { volume: false })).toBe(true);
   });
 });

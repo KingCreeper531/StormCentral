@@ -186,6 +186,21 @@ export function resolveTilts(family: ProductFamily, available: ReadonlySet<strin
   return out;
 }
 
+/**
+ * The Level III codes a site's loop can use: what IEM lists for it, plus the
+ * 0.5° super-res reflectivity and velocity NOAA serves for every WSR-88D
+ * (lib/radar/noaa). IEM's tile service has carried only N0B and N0S lately, so
+ * those are assumed until its list arrives.
+ */
+export function siteProducts(icao: string, iem: readonly string[] | undefined): ReadonlySet<string> {
+  const codes = new Set(iem?.length ? iem : ["N0B", "N0S"]);
+  if (/^[KP][A-Z]{3}$/.test(icao.toUpperCase())) {
+    codes.add("N0B");
+    codes.add("N0G");
+  }
+  return codes;
+}
+
 export function familiesAvailable(available: ReadonlySet<string> | null): ProductFamily[] {
   return FAMILY_ORDER.filter((f) => resolveTilts(f, available).length > 0);
 }
