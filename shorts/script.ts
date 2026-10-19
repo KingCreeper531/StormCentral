@@ -11,7 +11,7 @@
 import { spoken, STATE_NAMES, type Cue } from "./narration";
 import type { Video } from "./video";
 
-export const DEFAULT_MODEL = "llama3.1:8b";
+export const DEFAULT_MODEL = "gemma3:12b";
 export const DEFAULT_HOST = "http://127.0.0.1:11434";
 /** How fast the narrator talks (edge-tts at its default rate), to size each line. */
 const WORDS_PER_SECOND = 2.7;
@@ -31,7 +31,8 @@ const SYSTEM = `You are the narrator of Storm Central, a weather channel on YouT
 Rewrite every line so it sounds like an energetic, likable TV meteorologist talking straight to the viewer: vivid verbs, natural rhythm, a little personality, and lines that flow into each other. Keep it warm and confident, never silly.
 
 Rules:
-- Exactly one line per scene, in the same order, each about its own scene. The first line may tease the biggest fact in the video as a hook.
+- Exactly one line per scene, in the same order, each about its own scene.
+- Open with a hook: the first line should grab the viewer with the most interesting fact in the video (the risk level, the storm's or fire's name, a big number), not a stock intro like "Let's dive in" or "Let's take a look".
 - Use only the facts in the plain lines and the background. Never add numbers, places, days, times of day, directions, hazards, sizes, impacts or advice that aren't there, and never make a threat sound bigger or smaller than the facts say.
 - Keep every number exactly as given, always in digits, never spelled out ("10 percent", "level 3 of 5").
 - Don't describe the sky, temperature or how nice the weather is. In a week-ahead outlook, "quiet" only means no severe storms are expected.
@@ -101,11 +102,15 @@ const SINGLE = new RegExp(`\\b(${["zero", ...UNITS.slice(2), ...TENS.slice(2)].j
 /**
  * Numbers the model spelled out, in digits ("five percent" → "5 percent",
  * "Thirty-one" → "31"), so they're checked like the rest; the narrator reads
- * them the same. "One" stays a word ("this one", "one of the").
+ * them the same. "One" stays a word ("this one", "one of the"), and so does
+ * a number word the facts use themselves (the Three Queens Fire).
  */
-export function digits(line: string): string {
+export function digits(line: string, facts = ""): string {
   const value = (w: string) => (UNITS.includes(w.toLowerCase()) ? UNITS.indexOf(w.toLowerCase()) : TENS.indexOf(w.toLowerCase()) * 10);
-  return line.replace(COMPOUND, (_, t: string, u: string) => String(value(t) + value(u))).replace(SINGLE, (w: string) => String(value(w)));
+  const keep = (w: string) => hasWord(facts, w);
+  return line
+    .replace(COMPOUND, (m: string, t: string, u: string) => (keep(m) ? m : String(value(t) + value(u))))
+    .replace(SINGLE, (w: string) => (keep(w) ? w : String(value(w))));
 }
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -125,6 +130,10 @@ const NAMES = [...new Set([...Object.values(STATE_NAMES), ...DAY_NAMES, ...MONTH
 const ALWAYS = new Set(["i", "i'm", "i'll", "i've", "i'd", "storm", "central", "noaa", "nws", "spc", "nhc", "national", "weather", "service", "prediction", "center", "hurricane", "interagency", "fire", "u.s", "us", "am", "pm"]);
 const SPELLED = /\b(hundreds?|thousands?|millions?|dozens?|half|twice|double|triple|single)\b/gi;
 const RISK = /\b(marginal|slight|enhanced|moderate|high)\s+risk\b/gi;
+/** SPC's category words: "slight chance" for a Marginal Risk would name the wrong level. */
+const CATEGORY = /\b(marginal\w*|slight\w*|enhanced|moderate\w*)\b/gi;
+/** Talk of a storm's motion, which needs the facts to give it. */
+const MOTION = /\b(mov(e|es|ing|ement)|drift\w*|crawl\w*|stall\w*|stationary|wiggl\w*|travel\w*|heading)\b/i;
 const DAY_PARTS = /\b(morning|afternoon|evening|tonight|overnight|night|midday|noon|midnight|weekend|tomorrow|yesterday)\b/gi;
 
 /** The parts of the day the facts' clock times fall in ("5 PM" → evening), which a line may name instead. */
@@ -156,7 +165,8 @@ const LOADED =
 const NOT = /\b(no|not|none|never|nothing|quiet|calm|peaceful|tranquil|unlikely|without)\b|n['’]t\b/i;
 const NOT_CLAIM = /\b(no|zero)\s+(severe|storms?|tornado(?:es)?|hail|wind)\b|\bnot\s+expected\b|n['’]t\s+expected\b|\b(unlikely|quiet|calm|peaceful|tranquil)\b/i;
 /** Weather the Shorts never report (sky, temperature, "nice"): the model mustn't paint it in. */
-const WEATHER = /\b(clear|sunny|sunshine|lovely|beautiful|gorgeous|pleasant|nice|dry|warm\w*|hot|cold\w*|chilly|cool\w*|cloud\w*|fog\w*|humid\w*|muggy|breezy)\b/gi;
+const WEATHER =
+  /\b(clear|sunny|sunshine|lovel\w*|beautiful\w*|gorgeous|pleasant\w*|nice\w*|dry|warm\w*|hot|cold\w*|chilly|cool\w*|cloud\w*|fog\w*|humid\w*|muggy|breezy)\b/gi;
 const OFF_LIMITS = /https?:|www\.|#\w|\bsubscribe\b|\blike button\b|\bcomments? below\b|\bfolks\b|[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/iu;
 
 /** Capitalized words that don't start a sentence (names the model may have made up). */
@@ -209,6 +219,8 @@ export function checkLine(line: string, f: LineFacts): string | null {
   if (name) return `"${name}" isn't in the facts`;
 
   for (const m of line.matchAll(RISK)) if (!hasWord(facts, m[0])) return `"${m[0]}" isn't in the facts`;
+  for (const m of line.matchAll(CATEGORY)) if (!new RegExp(`\\b${esc(m[0])}`, "i").test(facts)) return `"${m[0]}" isn't in the facts`;
+  if (MOTION.test(line) && !MOTION.test(facts)) return "says how it's moving; the facts don't";
   const dayParts = dayPartsOf(facts);
   for (const m of line.matchAll(DAY_PARTS)) if (!hasWord(facts, m[0]) && !dayParts.has(m[0].toLowerCase())) return `"${m[0]}" isn't in the facts`;
   const directions = new Set([...facts.matchAll(DIRECTIONS)].map((m) => root(m[0])));
@@ -331,7 +343,7 @@ export async function livelyNarration(v: Pick<Video, "template" | "data">, plain
     }
     log(`AI draft ${attempt} (${o.model || DEFAULT_MODEL}, ${Math.round((Date.now() - started) / 1000)} s):`);
     const checked = lines.map((line, i) => {
-      const said = spoken(digits(line));
+      const said = spoken(digits(line, facts(i).allowed));
       const why = checkLine(said, facts(i));
       log(`  ${why ? "✗" : "✓"} ${said}${why ? `  (${why})` : ""}`);
       return why ? null : said;

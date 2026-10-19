@@ -1,4 +1,4 @@
-name: TEMP AI narration previews
+name: TEMP AI narration final previews
 on:
   push:
     branches: [claude/trusting-pasteur-qzc0fq]
@@ -15,7 +15,6 @@ jobs:
       matrix:
         model:
           - { tag: "gemma3:12b", slug: "gemma3-12b" }
-          - { tag: "gemma4:12b", slug: "gemma4-12b" }
         kind: [outlook, recap, weekly, tropical, fire]
     steps:
       - uses: actions/checkout@v5

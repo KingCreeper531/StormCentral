@@ -4,7 +4,7 @@ import { background, buildPrompt, checkLine, digits, livelyNarration, parseLines
 import { longestRewrite } from "./voice";
 
 const facts = (scene: string, extra = "", words = 20): LineFacts => ({ scene, allowed: `${scene} ${extra}`.trim(), words });
-const check = (line: string, f: LineFacts) => checkLine(spoken(digits(line)), f);
+const check = (line: string, f: LineFacts) => checkLine(spoken(digits(line, f.allowed)), f);
 
 describe("checkLine", () => {
   const torn = facts("The tornado threat peaks at 10 percent.");
@@ -30,6 +30,7 @@ describe("checkLine", () => {
 
   it("keeps the risk level, hazards, times of day and directions to the facts", () => {
     expect(check("It's a Moderate Risk day, level 3 of 5!", facts("The top risk today is an Enhanced Risk, level 3 of 5."))).toMatch(/Moderate/);
+    expect(check("Monday brings a slight chance of storms.", facts("Monday, Marginal Risk."))).toMatch(/slight/);
     expect(check("Tornadoes peak at 10 percent, with hail too.", torn)).toMatch(/hail/);
     expect(check("Tornadoes peak at 10 percent this afternoon.", torn)).toMatch(/afternoon/);
     expect(check("Tornadoes peak at 10 percent this afternoon.", facts(torn.scene, "Storms form this afternoon."))).toBeNull();
@@ -45,7 +46,11 @@ describe("checkLine", () => {
   it("doesn't paint in weather the Short doesn't report, or movement it doesn't give", () => {
     expect(check("Tuesday looks lovely and quiet.", facts("Tuesday, quiet."))).toMatch(/lovely/);
     expect(check("Thursday stays sunny and quiet.", facts("Thursday, quiet."))).toMatch(/sunny/);
-    expect(check("Tropical Storm Trudy is barely moving.", facts("It's a tropical storm with maximum winds of 40 mph.", "The storm: Tropical Storm Trudy."))).toMatch(/barely moving/);
+    const trudy = facts("It's a tropical storm with maximum winds of 40 mph.", "The storm: Tropical Storm Trudy.");
+    expect(check("Tropical Storm Trudy is barely moving.", trudy)).toMatch(/moving/);
+    expect(check("Trudy has 40 miles per hour winds and barely a wiggle in its movement.", trudy)).toMatch(/moving/);
+    expect(check("Trudy is heading west with 40 miles per hour winds.", facts("It's a tropical storm with maximum winds of 40 mph, moving west at 7 mph."))).toBeNull();
+    expect(check("Tuesday looks beautifully quiet.", facts("Tuesday, quiet."))).toMatch(/beautifully/);
   });
 
   it("lets the opening line tease any fact, including a 'no'", () => {
@@ -76,6 +81,7 @@ describe("digits", () => {
   it("writes spelled-out numbers as digits, but leaves 'one' alone", () => {
     expect(digits("Thirty-one large wildfires, five percent, and this one is big.")).toBe("31 large wildfires, 5 percent, and this one is big.");
     expect(digits("twenty five and twelve")).toBe("25 and 12");
+    expect(digits("The Three Queens Fire is 3 weeks old.", "The Three Queens Fire in Washington.")).toBe("The Three Queens Fire is 3 weeks old.");
   });
 });
 

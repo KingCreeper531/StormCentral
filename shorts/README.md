@@ -116,7 +116,7 @@ usually takes a few weeks.
 | `SHORTS_VOICE_NAME` | `en-US-AndrewNeural` | another Microsoft neural voice for the narrator |
 | `SHORTS_PLAYLISTS` | `true` | `false` to leave videos out of playlists |
 | `SHORTS_AI` | `false` | `true` for AI narration (below) |
-| `SHORTS_AI_MODEL` | `llama3.1:8b` | the Ollama model that writes it |
+| `SHORTS_AI_MODEL` | `gemma3:12b` | the Ollama model that writes it |
 
 ## Livelier narration with AI (optional)
 
@@ -141,7 +141,7 @@ every line the model wrote and why any was turned down.
   to compare.
 - **Turn it on:** repository variable `SHORTS_AI` = `true`.
 - **Another model:** `SHORTS_AI_MODEL`, any Ollama model that fits in the
-  runner's 16 GB (8B to 12B models work best).
+  runner's 16 GB. The default, Gemma 3 12B, sounded the most natural in tests; Gemma 4 12B is more literal but flatter.
 
 ## A reliable schedule (cron-job.org)
 

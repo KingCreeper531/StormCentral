@@ -24,7 +24,7 @@
  *   SHORTS_VOICE=false     no narrator (otherwise edge-tts reads a script timed to the scenes; see voice.ts)
  *   SHORTS_VOICE_NAME      the narrator's voice (default en-US-AndrewNeural)
  *   SHORTS_AI=true         livelier narration: a local model (Ollama) rewrites the script, every line checked against the facts (script.ts)
- *   SHORTS_AI_MODEL        the Ollama model (default llama3.1:8b)
+ *   SHORTS_AI_MODEL        the Ollama model (default gemma3:12b)
  *   OLLAMA_HOST            where Ollama listens (default 127.0.0.1:11434)
  *   SHORTS_AI_COMPARE=1    also save each video with the plain narration, as <key>-plain.mp4
  *   SHORTS_TROPICAL_MAX    tropical: at most this many storms (default 2, strongest first)

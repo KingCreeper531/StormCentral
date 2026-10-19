@@ -75,7 +75,7 @@ jobs:
     env:
       # Manual runs: the "AI narration" box. Scheduled runs (and outside schedulers): the SHORTS_AI variable.
       SHORTS_AI: ${{ (github.event_name == 'workflow_dispatch' && !inputs.scheduled) && (inputs.ai && 'true' || 'false') || vars.SHORTS_AI || 'false' }}
-      SHORTS_AI_MODEL: ${{ vars.SHORTS_AI_MODEL || 'llama3.1:8b' }}
+      SHORTS_AI_MODEL: ${{ vars.SHORTS_AI_MODEL || 'gemma3:12b' }}
       SHORTS_KIND: ${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || ((github.event.schedule == '30 20 * * *' || github.event.schedule == '10 21 * * *') && 'fire') || 'outlook' }}
     steps:
       - id: today
