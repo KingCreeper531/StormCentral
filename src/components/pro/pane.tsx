@@ -5,7 +5,8 @@ import type { WeatherAlert } from "@/lib/api/types";
 import type { StormCell } from "@/lib/feeds/storm-cells";
 import { useT } from "@/lib/i18n/use-t";
 import { PRO_PRODUCTS } from "@/lib/pro/products";
-import { scaleForTiles } from "@/lib/pro/scales";
+import { decodedValueAt } from "@/lib/pro/nexrad/client";
+import { formatDecoded, scaleForTiles } from "@/lib/pro/scales";
 import { frameAt, syncTime } from "@/lib/pro/sync";
 import type { RadarFrame } from "@/lib/radar/frames";
 import type { BufferStatus } from "@/lib/radar/layer-manager";
@@ -20,6 +21,7 @@ import { EMPTY_FEED, FrameSource, type PaneFeed } from "./frame-sources";
 import { CameraSync, CursorSync, ProFrames, ToolClicks, ToolOverlay, type ToolShapes } from "./pane-layers";
 import { PaneHeader } from "./pane-header";
 import { usePro } from "./pro-context";
+import type { ProCaps } from "./use-pro-caps";
 
 interface Props {
   config: PaneConfig;
@@ -36,6 +38,7 @@ interface Props {
   shapes: ToolShapes;
   home: { lat: number; lon: number };
   compact: boolean;
+  caps: ProCaps;
   onBasisFeed: (frames: RadarFrame[]) => void;
   onBasisStatus: (s: BufferStatus) => void;
 }
@@ -44,7 +47,7 @@ interface Props {
  * One panel of the workspace: its own MapLibre map, kept in lock-step with
  * the others through the sync bus (camera, loop clock, cursor).
  */
-export const Pane = memo(function Pane({ config, n, site, frameCount, basis, tool, alerts, selectedAlert, cells, shapes, home, compact, onBasisFeed, onBasisStatus }: Props) {
+export const Pane = memo(function Pane({ config, n, site, frameCount, basis, tool, alerts, selectedAlert, cells, shapes, home, compact, caps, onBasisFeed, onBasisStatus }: Props) {
   const t = useT();
   const { probes, tools, sync } = usePro();
   const [feed, setFeed] = useState<PaneFeed>(EMPTY_FEED);
@@ -62,29 +65,39 @@ export const Pane = memo(function Pane({ config, n, site, frameCount, basis, too
   // Register with the cursor readout.
   const label = `P${n} ${def.short}${feed.tilt ? ` ${feed.tilt.angle}°` : ""}`;
   useEffect(() => {
-    const frames = feed.frames;
+    const { frames, family, scale: feedScale, decoded } = feed;
     const times = frames.map((f) => f.time);
     probes.set(config.id, {
       label,
-      family: feed.family,
+      family,
       frame: () => frames[frameAt(times, syncTime(sync.getState()))] ?? null,
       zoom: () => map.current?.getZoom() ?? 6,
-      scale: (frame) => scaleForTiles(frame.tileUrl, feed.family),
+      scale: (frame) => feedScale ?? scaleForTiles(frame.tileUrl, family),
+      // Decoded radar: the exact gate value.
+      exact:
+        decoded && feedScale
+          ? (frame, lat, lon) => {
+              const r = decodedValueAt(frame.id, lat, lon);
+              if (!r) return null;
+              if (r.special) return r.special;
+              return r.value == null ? "" : formatDecoded(feedScale, r.value, t);
+            }
+          : undefined,
     });
     return () => {
       probes.delete(config.id);
     };
-  }, [probes, config.id, label, feed.frames, feed.family, sync]);
+  }, [probes, config.id, label, feed, sync, t]);
 
-  const crisp = def.kind === "site" ? FAMILIES[def.family].crisp : false;
-  // The colour bar for whatever drew the tiles (NOAA and IEM use different ramps).
+  const crisp = feed.decoded || (def.kind === "site" && FAMILIES[def.family].crisp);
+  // The colour bar for whatever drew the frames (NOAA and IEM tiles use different ramps).
   const firstUrl = feed.frames[0]?.tileUrl;
-  const scale = firstUrl ? scaleForTiles(firstUrl, feed.family) : null;
+  const scale = feed.scale ?? (firstUrl ? scaleForTiles(firstUrl, feed.family) : null);
   const selectAlert = useCallback((id: string) => tools.selectAlert(id), [tools]);
 
   return (
     <div className="relative min-h-0 min-w-0 overflow-hidden bg-canvas">
-      <FrameSource product={config.product} site={config.site ?? site} tilt={config.tilt} frameCount={frameCount} basis={basis} onFeed={onFeed} />
+      <FrameSource product={config.product} site={config.site ?? site} tilt={config.tilt} elev={config.elev} frameCount={frameCount} basis={basis} caps={caps} onFeed={onFeed} />
       <MapView center={home} zoom={6.2} follow={false} onReady={(m) => (map.current = m)}>
         <CameraSync paneId={config.id} />
         <CursorSync paneId={config.id} crosshair={crosshair} />
@@ -100,7 +113,7 @@ export const Pane = memo(function Pane({ config, n, site, frameCount, basis, too
         <div className="absolute -top-3 left-[-0.5px] h-6 w-px bg-white mix-blend-difference" />
         <div className="absolute -left-3 top-[-0.5px] h-px w-6 bg-white mix-blend-difference" />
       </div>
-      <PaneHeader config={config} n={n} feed={feed} basis={basis} compact={compact} />
+      <PaneHeader config={config} n={n} feed={feed} basis={basis} compact={compact} volume={caps.volume} />
       {scale && scale.stops.length > 1 && (
         <div className="pointer-events-none absolute bottom-1.5 left-1.5 z-[5] w-36 rounded-[4px] bg-canvas/80 px-1.5 py-1 font-mono text-[9px] text-ink-2 backdrop-blur-sm">
           <div className="h-1.5 rounded-[2px]" style={{ background: legendGradient(scale.stops) }} />
@@ -113,7 +126,9 @@ export const Pane = memo(function Pane({ config, n, site, frameCount, basis, too
       )}
       {(feed.empty || (feed.loading && !feed.frames.length)) && (
         <div className={cn("pointer-events-none absolute inset-x-0 bottom-3 z-[5] text-center text-[11px]", feed.empty ? "text-caution" : "text-ink-3")}>
-          {feed.missing
+          {feed.note
+            ? t(feed.note)
+            : feed.missing
             ? t("{product} isn't available for {site} right now", { site: config.site ?? site, product: t(def.label) })
             : feed.empty
               ? t("{product}: no data right now", { product: t(def.label) })

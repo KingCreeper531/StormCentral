@@ -16,6 +16,8 @@ export interface PaneProbe {
   frame: () => RadarFrame | null;
   zoom: () => number;
   scale: (frame: RadarFrame) => ValueScale | null;
+  /** Exact value text for decoded frames ("" = no echo, null = outside the data). */
+  exact?: (frame: RadarFrame, lat: number, lon: number) => string | null;
 }
 
 /** Map clicks routed to the analysis tools. */

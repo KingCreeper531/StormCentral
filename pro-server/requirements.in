@@ -1,0 +1,10 @@
+# Direct dependencies; requirements.txt is the fully pinned lock generated from this with:
+#   uv pip compile requirements.in --python-version 3.12 --python-platform aarch64-unknown-linux-gnu -o requirements.txt
+satpy==0.60.0
+pyresample==1.35.0
+netCDF4==1.7.5
+pygrib==2.1.8
+numpy==2.5.4
+dask==2026.8.0
+xarray==2026.9.0
+pillow==13.0.0

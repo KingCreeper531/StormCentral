@@ -12,7 +12,10 @@ import { Toggle } from "../ui/misc";
 import type { PaneFeed } from "./frame-sources";
 import { usePro } from "./pro-context";
 
-const GROUPS: ProProduct["group"][] = ["Radar (site)", "Radar (national)", "Satellite"];
+const GROUPS: ProProduct["group"][] = ["Radar (site)", "Radar (volume)", "Radar (national)", "Satellite"];
+
+/** The listed angle closest to `v` (or `v` itself when there's no list yet). */
+const nearest = (list: readonly number[], v: number) => (list.length ? list.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a)) : v);
 
 const zulu = (ms: number) => {
   const d = new Date(ms);
@@ -42,7 +45,7 @@ function FrameClock({ feed, satellite }: { feed: PaneFeed; satellite: boolean })
   return <span ref={ref} className="font-mono tabular-nums" />;
 }
 
-export function PaneHeader({ config, n, feed, basis, compact }: { config: PaneConfig; n: number; feed: PaneFeed; basis: boolean; compact: boolean }) {
+export function PaneHeader({ config, n, feed, basis, compact, volume }: { config: PaneConfig; n: number; feed: PaneFeed; basis: boolean; compact: boolean; /** Level II products allowed on this device. */ volume: boolean }) {
   const t = useT();
   const setPane = useProStore((s) => s.setPane);
   const def = PRO_PRODUCTS[config.product];
@@ -61,8 +64,9 @@ export function PaneHeader({ config, n, feed, basis, compact }: { config: PaneCo
           {GROUPS.map((g) => (
             <optgroup key={g} label={t(g)}>
               {PRO_PRODUCT_IDS.filter((id) => PRO_PRODUCTS[id].group === g).map((id) => (
-                <option key={id} value={id}>
+                <option key={id} value={id} disabled={PRO_PRODUCTS[id].kind === "l2" && !volume}>
                   {PRO_PRODUCTS[id].short} · {t(PRO_PRODUCTS[id].label)}
+                  {PRO_PRODUCTS[id].kind === "l2" && !volume ? ` (${t("desktop")})` : ""}
                 </option>
               ))}
             </optgroup>
@@ -82,8 +86,22 @@ export function PaneHeader({ config, n, feed, basis, compact }: { config: PaneCo
             ))}
           </select>
         )}
+        {def.kind === "l2" && (
+          <select
+            aria-label={t("Elevation tilt")}
+            value={String(nearest(feed.elevations ?? [], config.elev))}
+            onChange={(e) => set({ elev: Number(e.target.value) })}
+            className="shrink-0 bg-transparent font-mono text-ink-2 outline-none"
+          >
+            {(feed.elevations?.length ? feed.elevations : [config.elev]).map((a) => (
+              <option key={a} value={String(a)}>
+                {a.toFixed(1)}°
+              </option>
+            ))}
+          </select>
+        )}
         <span className="shrink-0 text-ink-2">
-          <FrameClock feed={feed} satellite={def.group === "Satellite"} />
+          <FrameClock feed={feed} satellite={def.kind === "gibs" || def.kind === "nowcoast"} />
         </span>
         {basis && (
           <span title={t("Time basis: the loop steps through this panel's scan times")} className="shrink-0 rounded-sm bg-surface-3 px-1 font-mono text-[10px] text-ink-2">
