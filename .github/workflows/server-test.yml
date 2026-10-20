@@ -101,3 +101,32 @@ jobs:
           sudo journalctl -u caddy -n 30 --no-pager || true
           ls -la /opt/stormcentral/app /opt/stormcentral/app/current/ 2>&1 | head -30
           which -a node; node -v
+  stream-install:
+    # The stream and local AI roles, installed the way the stream server runs them (a dummy stream key: YouTube
+    # turns the connection away, which is fine; the install and the service are what's checked).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - name: Answers for setup.sh
+        run: |
+          sudo mkdir -p /etc/stormcentral
+          printf 'DOMAIN=\nYT_STREAM_KEY=ci-dummy-key\nYT_CLIENT_ID=\nYT_CLIENT_SECRET=\nYT_REFRESH_TOKEN=\nANTHROPIC_API_KEY=\nGEMINI_API_KEY=\nSTREAM_EXTRA_OUTPUTS=\nAI=yes\nAPP_DOMAIN=\nWATCHER_IP=\nWATCH_DOMAIN=\nWATCH_IP=\nCF_API_TOKEN=\nBACKUP_HOST=storm-central-pi.vercel.app\nNTFY_TOPIC=\n' | sudo tee /etc/stormcentral/setup.env > /dev/null
+      - name: Install the stream and the local AI with vps/setup.sh
+        run: sudo STORMCENTRAL_BRANCH="$BRANCH" bash vps/setup.sh < /dev/null
+      - name: Everything the stream needs is in place, and it starts
+        run: |
+          systemctl is-enabled stormcentral-stream stormcentral-stream-restart.timer ollama
+          ollama list | tee /dev/stderr | grep -q gemma3
+          sudo stat -c '%a %U:%G %n' /etc/stormcentral/stream.env | tee /dev/stderr | grep -q '^640 root:'
+          sudo grep -E '^(OLLAMA_MODEL|STREAM_PLACES|STREAM_TITLE_DAILY_MAX|STREAM_CLIPS_DAILY_MAX)=' /etc/stormcentral/stream.env
+          places=$(sudo grep -oP '^STREAM_PLACES=\K.*' /etc/stormcentral/stream.env)
+          test "$(wc -l < "$places")" -gt 5000
+          sleep 60
+          sudo journalctl -u stormcentral-stream -n 40 --no-pager
+          sudo journalctl -u stormcentral-stream --no-pager | grep -q "AI writers: local gemma3"
+      - name: Running the installer again keeps a setting changed by hand
+        run: |
+          echo 'GEMINI_MODEL=gemini-flash-lite-latest' | sudo tee -a /etc/stormcentral/stream.env > /dev/null
+          sudo STORMCENTRAL_BRANCH="$BRANCH" bash vps/setup.sh < /dev/null > /dev/null
+          sudo grep -q '^GEMINI_MODEL=gemini-flash-lite-latest' /etc/stormcentral/stream.env

@@ -66,11 +66,11 @@ if [ -n "$YT_STREAM_KEY" ]; then
 fi
 if [ -n "$YT_STREAM_KEY" ]; then
   echo "Optional: the AI that words the stream's commentary, best first. Each is fact-checked before it's read."
-  ask ANTHROPIC_API_KEY "Anthropic API key (Claude Haiku; about $1-3 a month for the stream)" secret
-  ask GEMINI_API_KEY "Google AI Studio API key (Gemini; has a free tier)" secret
+  ask ANTHROPIC_API_KEY "Anthropic API key (Claude Haiku, a few dollars a month; empty to skip)" secret
+  ask GEMINI_API_KEY "Google AI Studio API key (Gemini, free tier; empty to skip)" secret
   ask STREAM_EXTRA_OUTPUTS "Other platforms, RTMP URLs with keys, space-separated (Twitch, Kick…)"
 fi
-ask AI "Local AI as a free fallback? (yes/no; needs 8 GB RAM for the better model)"
+ask AI "Local AI on this server (free; the stream server)? yes/no"
 case "${AI,,}" in y | yes) AI=yes ;; *) AI=no ;; esac
 ask APP_DOMAIN "Web app on this server? Its domain (e.g. app.stormcentralwx.com, on Cloudflare)"
 if [ -n "$APP_DOMAIN" ]; then
