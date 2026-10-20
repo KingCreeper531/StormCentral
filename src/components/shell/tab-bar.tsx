@@ -17,6 +17,7 @@ export function TabBar() {
 
   return (
     <nav
+      data-chrome
       aria-label={t("Operating mode")}
       className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-canvas pb-[env(safe-area-inset-bottom)] md:hidden"
     >
