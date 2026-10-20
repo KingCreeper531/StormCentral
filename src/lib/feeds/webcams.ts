@@ -18,6 +18,8 @@ import { upstreamJson } from "./upstream";
 const CALTRANS_DISTRICTS = Array.from({ length: 12 }, (_, i) => i + 1);
 const HOUR = 3_600_000;
 const round4 = (v: number) => Math.round(v * 1e4) / 1e4;
+/** Some agencies name cameras in capitals ("SWAN CREEK AT SWAN CREEK"); those read better in title case. */
+const unshout = (s: string) => (s === s.toUpperCase() && /[A-Z]{3}/.test(s) ? s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase()) : s);
 
 function point(lat: unknown, lon: unknown): [number, number] | null {
   const y = typeof lat === "string" ? Number(lat) : lat;
@@ -118,7 +120,7 @@ export function parseUsgsRiver(raw: unknown, nowMs = Date.now()): WebcamRow[] {
     if (!Number.isFinite(newest) || nowMs - newest > 6 * HOUR) continue;
     const at = point(c.lat, c.lng);
     if (!at) continue;
-    const name = c.camName?.trim() || id.replace(/_/g, " ");
+    const name = unshout(c.camName?.trim() || id.replace(/_/g, " "));
     out.push(["usgs-river", id, at[0], at[1], c.stateAbrv && !name.endsWith(c.stateAbrv) ? `${name}, ${c.stateAbrv}` : name]);
   }
   return out;
@@ -149,7 +151,9 @@ export function parseUsgsVolcano(raw: unknown, nowMs = Date.now()): WebcamRow[] 
     const at = point(w.latitude, w.longitude);
     if (!at) continue;
     const name = w.webcamName?.trim() || code;
-    out.push(["usgs-volcano", code, at[0], at[1], w.vName && !name.includes(w.vName) ? `${name} (${w.vName})` : name]);
+    // "CVO St. Helens (…)" already says which volcano; "Mount St. Helens" needn't be added.
+    const volcano = w.vName?.replace(/^(mount|mt\.?)\s+/i, "");
+    out.push(["usgs-volcano", code, at[0], at[1], volcano && !name.includes(volcano) ? `${name} (${w.vName})` : name]);
   }
   return out;
 }

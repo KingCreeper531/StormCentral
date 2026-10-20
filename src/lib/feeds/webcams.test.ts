@@ -71,6 +71,10 @@ describe("parseUsgsRiver", () => {
     expect(webcamImage(toWebcam(rows[0]!))).toBe("https://usgs-nims-images.s3.amazonaws.com/720/IL_Lick_Creek_near_Woodside/IL_Lick_Creek_near_Woodside_newest.jpg");
   });
 
+  it("title-cases names written in capitals", () => {
+    expect(parseUsgsRiver([cam({ camName: "SWAN CREEK AT SWAN CREEK", stateAbrv: "MD" })], NOW)[0]![4]).toBe("Swan Creek At Swan Creek, MD");
+  });
+
   it("skips hidden, stale and differently stored cameras", () => {
     expect(parseUsgsRiver([cam({ hideCam: true })], NOW)).toEqual([]);
     expect(parseUsgsRiver([cam({ newestImageDT: "2026-10-19T12:00:00Z" })], NOW)).toEqual([]);
@@ -95,6 +99,7 @@ describe("parseUsgsVolcano", () => {
   it("keeps USGS cameras with a recent picture", () => {
     expect(parseUsgsVolcano({ webcams: [cam()] }, NOW)).toEqual([["usgs-volcano", "augustine-N", 59.36, -153.43, "Augustine - N"]]);
     expect(parseUsgsVolcano({ webcams: [cam({ webcamName: "North rim", vName: "Kilauea" })] }, NOW)[0]![4]).toBe("North rim (Kilauea)");
+    expect(parseUsgsVolcano({ webcams: [cam({ webcamName: "CVO St. Helens (JRO)", vName: "Mount St. Helens" })] }, NOW)[0]![4]).toBe("CVO St. Helens (JRO)");
   });
 
   it("leaves out FAA cameras, cameras with no picture, stale ones and 0,0 positions", () => {
