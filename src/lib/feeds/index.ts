@@ -12,6 +12,7 @@ import { stormCellsFeed } from "./storm-cells";
 import { stormReportsFeed } from "./storm-reports";
 import { tropicalFeed } from "./tropical";
 import type { Feed } from "./types";
+import { webcamsFeed } from "./webcams";
 import { wildfiresFeed } from "./wildfires";
 
 /** Every weather feed by route path. Route handlers import their own feed directly. */
@@ -34,5 +35,6 @@ export const FEEDS: ReadonlyMap<string, Feed> = new Map(
     forecasterNotesFeed,
     climateFeed,
     wildfiresFeed,
+    webcamsFeed,
   ].map((f) => [f.path, f as Feed]),
 );
