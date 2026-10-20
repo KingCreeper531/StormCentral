@@ -11,26 +11,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          O="-H Origin:https://app.stormcentralwx.com"
-          hdr() { curl -s -D - -o /tmp/body --max-time 30 $O "$1" | grep -iE "^HTTP|access-control-allow-origin|content-type|content-length" | tr -d '\r' | tr '\n' ' '; echo; }
-          echo "== IEM composite list 2013-05-20"; curl -s $O "https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=USCOMP&product=N0Q&start=2013-05-20T19:00Z&end=2013-05-20T19:30Z" | head -c 500; echo
-          echo "== IEM composite list 2005-05-10 (N0Q? N0R?)"; curl -s "https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=USCOMP&product=N0Q&start=2005-05-10T00:00Z&end=2005-05-10T00:30Z" | head -c 300; echo; curl -s "https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=USCOMP&product=N0R&start=2005-05-10T00:00Z&end=2005-05-10T00:30Z" | head -c 300; echo
-          echo "== IEM composite tiles"; hdr "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::USCOMP-N0Q-201305201955/6/14/25.png"; hdr "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::USCOMP-N0R-200505100000/6/14/25.png"
-          echo "== IEM site list + tile 2013"; curl -s "https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=TLX&product=N0Q&start=2013-05-20T19:30Z&end=2013-05-20T20:00Z" | head -c 400; echo; hdr "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::TLX-N0Q-201305201956/8/58/102.png"
-          echo "== IEM site list 2019 N0U/N0Q"; curl -s "https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=TLX&product=N0U&start=2019-05-20T19:30Z&end=2019-05-20T20:00Z" | head -c 300; echo
-          echo "== IEM radar.py CORS"; hdr "https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=USCOMP&product=N0Q&start=2013-05-20T19:00Z&end=2013-05-20T19:30Z"
-          echo "== IEM SBW warnings at a time"; hdr "https://mesonet.agron.iastate.edu/geojson/sbw.geojson?ts=2013-05-20T20:00Z"; head -c 700 /tmp/body; echo
-          echo "== IEM LSRs for a window"; hdr "https://mesonet.agron.iastate.edu/geojson/lsr.geojson?sts=2013-05-20T19:00Z&ets=2013-05-20T21:00Z"; head -c 500 /tmp/body; echo
-          echo "== L2 archive 2013 + 1995 listings"; curl -s "https://unidata-nexrad-level2.s3.amazonaws.com/?list-type=2&max-keys=5&prefix=2013/05/20/KTLX/KTLX20130520_19" | grep -oE "<Key>[^<]+</Key>" | head -5; curl -s "https://unidata-nexrad-level2.s3.amazonaws.com/?list-type=2&max-keys=3&prefix=1995/05/20/KTLX/" | grep -oE "<Key>[^<]+</Key>" | head -3
-          f=$(curl -s "https://unidata-nexrad-level2.s3.amazonaws.com/?list-type=2&max-keys=5&prefix=2013/05/20/KTLX/KTLX20130520_195" | grep -oE "<Key>[^<]+</Key>" | head -1 | sed 's/<[^>]*>//g'); echo "first: $f"; curl -s "https://unidata-nexrad-level2.s3.amazonaws.com/$f" | head -c 40 | xxd | head -3
-          f=$(curl -s "https://unidata-nexrad-level2.s3.amazonaws.com/?list-type=2&max-keys=5&prefix=2008/05/10/KOUN/" | grep -oE "<Key>[^<]+</Key>" | head -1 | sed 's/<[^>]*>//g'); echo "2008: $f"; curl -s "https://unidata-nexrad-level2.s3.amazonaws.com/$f" | head -c 40 | xxd | head -3
-          echo "== L3 archive bucket 2013?"; curl -s "https://unidata-nexrad-level3.s3.amazonaws.com/?list-type=2&max-keys=3&prefix=TLX_N0Q_2013_05_20" | grep -oE "<Key>[^<]+</Key>" | head -3; curl -s "https://unidata-nexrad-level3.s3.amazonaws.com/?list-type=2&max-keys=3&prefix=TLX_N0Q_2021" | grep -oE "<Key>[^<]+</Key>" | head -3
-          echo "== chunks bucket"; hdr "https://unidata-nexrad-level2-chunks.s3.amazonaws.com/?list-type=2&max-keys=5&prefix=KTLX/"
-          curl -s "https://unidata-nexrad-level2-chunks.s3.amazonaws.com/?list-type=2&delimiter=/&prefix=KTLX/" | grep -oE "<Prefix>[^<]+</Prefix>" | head -4
-          curl -s "https://unidata-nexrad-level2-chunks.s3.amazonaws.com/?list-type=2&delimiter=/&prefix=KTLX/" | grep -oE "<Prefix>[^<]+</Prefix>" | wc -l
-          v=$(curl -s "https://unidata-nexrad-level2-chunks.s3.amazonaws.com/?list-type=2&delimiter=/&prefix=KTLX/" | grep -oE "<Prefix>KTLX/[0-9]+/</Prefix>" | sed 's/<[^>]*>//g' | tail -3)
-          echo "volumes: $v"
-          for p in $v; do echo "-- $p"; curl -s "https://unidata-nexrad-level2-chunks.s3.amazonaws.com/?list-type=2&prefix=$p" | grep -oE "<Key>[^<]+</Key>|<LastModified>[^<]+</LastModified>" | paste - - | tail -4; done
-          last=$(echo "$v" | tail -1); k=$(curl -s "https://unidata-nexrad-level2-chunks.s3.amazonaws.com/?list-type=2&prefix=$last" | grep -oE "<Key>[^<]+</Key>" | sed 's/<[^>]*>//g' | head -1); echo "S chunk: $k"; hdr "https://unidata-nexrad-level2-chunks.s3.amazonaws.com/$k"; head -c 64 /tmp/body | xxd | head -4
-          k2=$(curl -s "https://unidata-nexrad-level2-chunks.s3.amazonaws.com/?list-type=2&prefix=$last" | grep -oE "<Key>[^<]+</Key>" | sed 's/<[^>]*>//g' | sed -n 2p); echo "I chunk: $k2"; curl -s "https://unidata-nexrad-level2-chunks.s3.amazonaws.com/$k2" | head -c 16 | xxd
-          echo "== preflight-free GET CORS on archive bucket"; hdr "https://unidata-nexrad-level2.s3.amazonaws.com/?list-type=2&max-keys=1&prefix=2013/05/20/KTLX/"
+          curl -s "https://mesonet.agron.iastate.edu/geojson/sbw.geojson?ts=2013-05-20T20:00Z" | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin); fs=d['features']; print(len(fs), 'features')
+          import collections; print(collections.Counter(f['properties']['phenomena']+'.'+f['properties']['significance'] for f in fs))
+          for f in fs:
+            p=f['properties']
+            if p['phenomena'] in ('TO','SV'): print(json.dumps(p)[:1500]); print(f['geometry']['type'], str(f['geometry']['coordinates'])[:120]); break
+          "
+          echo; curl -s "https://mesonet.agron.iastate.edu/geojson/sbw.geojson?ts=2021-12-11T03:30Z" | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin); fs=d['features']
+          for f in fs:
+            p=f['properties']
+            if p['phenomena']=='TO': print(json.dumps(p)[:1500]); break
+          "
+          echo; curl -s -D - -o /dev/null "https://mesonet.agron.iastate.edu/geojson/sbw.geojson?ts=2013-05-20T20:00Z" | grep -iE "cache-control|content-length"
