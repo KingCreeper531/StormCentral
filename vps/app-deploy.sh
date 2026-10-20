@@ -48,7 +48,10 @@ if [ ! -f "$rel/.built" ]; then
   touch "$rel/.built"
 fi
 
-prev=$(readlink -f "$APP/current" 2>/dev/null || true)
+# The version to go back to if this one doesn't come up (none on the very first install).
+prev=""
+[ -L "$APP/current" ] && prev=$(readlink -f "$APP/current")
+[ "$prev" = "$rel" ] && prev=""
 ln -sfn "$rel" "$APP/current.new" && mv -Tf "$APP/current.new" "$APP/current"
 systemctl restart stormcentral-app
 healthy() {
@@ -62,7 +65,7 @@ if ! healthy; then
   echo "$sha didn't come up; rolling back. The app's last words:"
   journalctl -u stormcentral-app -n 40 --no-pager 2>/dev/null || true
   echo "$sha" >"$APP/failed"
-  if [ -n "$prev" ] && [ -d "$prev" ]; then
+  if [ -n "$prev" ] && [ -f "$prev/.built" ]; then
     ln -sfn "$prev" "$APP/current.new" && mv -Tf "$APP/current.new" "$APP/current"
     systemctl restart stormcentral-app
   fi

@@ -280,6 +280,8 @@ if [ -n "$APP_DOMAIN" ]; then
   # enough: Cloudflare encrypts to it ("Full" SSL mode) and visitors only ever see Cloudflare's.
   cat >/etc/caddy/Caddyfile <<EOF
 {
+	# Caddy's own certificate is only for Cloudflare, so it isn't added to this server's trust store.
+	skip_install_trust
 	servers {
 		trusted_proxies static $(echo $CF_RANGES)
 		client_ip_headers CF-Connecting-IP
@@ -313,7 +315,7 @@ WorkingDirectory=$BASE/app/current
 EnvironmentFile=$APP_ENV
 EnvironmentFile=-$BASE/app/current/.deploy.env
 Environment=NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
-ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000
+ExecStart=$(command -v node) node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000
 Restart=always
 RestartSec=3
 

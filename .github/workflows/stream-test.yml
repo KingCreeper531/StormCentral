@@ -76,4 +76,4 @@ jobs:
           sudo journalctl -u stormcentral-app -n 80 --no-pager || true
           sudo journalctl -u caddy -n 30 --no-pager || true
           ls -la /opt/stormcentral/app /opt/stormcentral/app/current/ 2>&1 | head -30
-          which -a node; node -v; /usr/bin/node -v
+          which -a node; node -v
