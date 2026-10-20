@@ -78,8 +78,11 @@ jobs:
       SHORTS_AI_MODEL: ${{ vars.SHORTS_AI_MODEL || 'gemma3:12b' }}
       SHORTS_KIND: ${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || ((github.event.schedule == '30 20 * * *' || github.event.schedule == '10 21 * * *') && 'fire') || 'outlook' }}
     steps:
+      # The Short's day, in Eastern time and running 4 hours behind (the day ends at 4 AM), so a
+      # run GitHub starts hours late still counts for the day it was meant for: the fire backup
+      # once started at 8:16 PM EDT, after midnight UTC, and posted that day's fire a second time.
       - id: today
-        run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+        run: echo "date=$(TZ=America/New_York date -d '-4 hours' +%F)" >> "$GITHUB_OUTPUT"
       # Scheduled kinds can be switched off one by one with SHORTS_KINDS ("outlook,recap").
       - id: on
         env:
@@ -91,13 +94,14 @@ jobs:
           else
             echo "$SHORTS_KIND isn't in SHORTS_KINDS ($KINDS); skipping."
           fi
-      # Each kind posts once a day: a marker in the Actions cache once it's up.
+      # Each kind posts once a day: a marker in the Actions cache once it's up. ("-et": markers keyed
+      # by the old UTC day, like the duplicate fire's, would otherwise block the next day's Short.)
       - id: posted
         if: steps.on.outputs.run == 'true'
         uses: actions/cache/restore@v4
         with:
           path: shorts/.posted
-          key: shorts-posted-${{ env.SHORTS_KIND }}-${{ steps.today.outputs.date }}
+          key: shorts-posted-et-${{ env.SHORTS_KIND }}-${{ steps.today.outputs.date }}
           lookup-only: true
       - id: go
         if: steps.on.outputs.run == 'true' && ((github.event_name == 'workflow_dispatch' && !inputs.scheduled) || steps.posted.outputs.cache-hit != 'true')
@@ -171,4 +175,4 @@ jobs:
         if: steps.make.outputs.uploaded == 'true'
         with:
           path: shorts/.posted
-          key: shorts-posted-${{ env.SHORTS_KIND }}-${{ steps.today.outputs.date }}
+          key: shorts-posted-et-${{ env.SHORTS_KIND }}-${{ steps.today.outputs.date }}

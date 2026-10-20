@@ -75,6 +75,8 @@ export interface RadarSettings {
   showSpotterWarnings: boolean;
   /** Storm chasers sharing their live position (signed-in members only). Off unless turned on. */
   showChasers: boolean;
+  /** Live traffic, wildfire, river and volcano cameras (lib/webcams). Off unless turned on. */
+  showCams: boolean;
 }
 
 export type RadarHistory = "latest" | "2h" | "4h";
@@ -186,6 +188,7 @@ export const DEFAULT_RADAR: RadarSettings = {
   intlRadar: true,
   showSpotterWarnings: true,
   showChasers: false,
+  showCams: false,
 };
 
 /** Saved radar settings made whole: defaults for anything a previous version didn't store. */
@@ -198,6 +201,7 @@ export function normalizeRadar(r: RadarSettings): RadarSettings {
     intlRadar: r.intlRadar !== false,
     showSpotterWarnings: r.showSpotterWarnings !== false,
     showChasers: r.showChasers === true,
+    showCams: r.showCams === true,
     nowcast: r.nowcast !== false,
   };
 }

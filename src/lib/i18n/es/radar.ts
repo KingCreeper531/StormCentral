@@ -280,4 +280,26 @@ export const RADAR: Record<string, string> = {
     "Las transmisiones son de los cazadores. Los que comparten su posición en Storm Central (Ajustes → Cuenta) aparecen en el mapa con EN VIVO cuando transmiten. Nunca manejes hacia una tormenta para encontrarte con alguien.",
   "Spotters sharing their live position, seen by signed-in members. Share yours in Settings → Account.":
     "Observadores que comparten su ubicación en vivo, visibles para miembros con sesión iniciada. Comparte la tuya en Configuración → Cuenta.",
+
+  // ─── radar-controls.tsx / webcam-detail.tsx: live cameras ─────────────────
+  "Live cameras": "Cámaras en vivo",
+  "Traffic and wildfire cameras across California and the West, river cameras nationwide and volcano cameras, from Caltrans, ALERTCalifornia and USGS. Tap one for its latest picture.":
+    "Cámaras de tráfico y de incendios en California y el oeste, cámaras de ríos en todo el país y cámaras de volcanes, de Caltrans, ALERTCalifornia y el USGS. Toca una para ver su imagen más reciente.",
+  "Live cameras nearby": "Cámaras en vivo cercanas",
+  "the live cameras": "las cámaras en vivo",
+  "Live camera": "Cámara en vivo",
+  "Traffic camera": "Cámara de tráfico",
+  "Wildfire camera": "Cámara de incendios",
+  "River camera": "Cámara de río",
+  "Volcano camera": "Cámara de volcán",
+  "{distance} {direction} of you": "a {distance} al {direction} de ti",
+  "Close camera": "Cerrar cámara",
+  "Latest picture from {name}": "Imagen más reciente de {name}",
+  "Loading the latest picture": "Cargando la imagen más reciente",
+  "This camera isn't sending pictures right now.": "Esta cámara no está enviando imágenes ahora.",
+  "Image: {credit}": "Imagen: {credit}",
+  "New picture about every {n} min": "Nueva imagen cada {n} min aprox.",
+  "Full size": "Tamaño completo",
+  "Camera network": "Red de cámaras",
+  "No live cameras within {distance}.": "No hay cámaras en vivo a menos de {distance}.",
 };

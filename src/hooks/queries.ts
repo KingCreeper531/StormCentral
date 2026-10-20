@@ -42,6 +42,7 @@ import type { WeatherAlert } from "@/lib/api/types";
 import type { SpotterWarningsResponse } from "@/lib/warngen/schema";
 import type { ChasersResponse } from "@/lib/chasers";
 import type { ChaserStreamsResponse } from "@/lib/chaser-streams";
+import { toWebcam, type WebcamsResponse } from "@/lib/webcams";
 
 // Request URLs use the same rounding as their query keys, so nearby users share the CDN's cached response.
 const r2 = (v: number) => Math.round(v * 100) / 100;
@@ -551,5 +552,23 @@ export function useChasers(enabled: boolean) {
     enabled: COMMUNITY_ENABLED && enabled && !!session.data,
     refetchInterval: 60_000,
     staleTime: 30_000,
+  });
+}
+
+// Module-level, so TanStack only re-maps the list when new data arrives.
+const selectWebcams = (r: WebcamsResponse) => r.cams.map(toWebcam);
+
+/**
+ * Live cameras for the radar map (lib/webcams), while the layer is on. The
+ * list changes slowly; each camera's picture refreshes itself in its card.
+ */
+export function useWebcams(enabled: boolean) {
+  return useQuery({
+    queryKey: ["webcams"],
+    queryFn: ({ signal }) => getJson<WebcamsResponse>("/api/webcams", { signal, timeoutMs: 30_000 }),
+    enabled,
+    staleTime: 10 * 60_000,
+    refetchInterval: 15 * 60_000,
+    select: selectWebcams,
   });
 }

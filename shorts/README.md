@@ -90,7 +90,9 @@ In this repository on GitHub: **Settings → Secrets and variables → Actions
 
 **Settings → Secrets and variables → Actions → Variables → New repository
 variable**: `SHORTS_ENABLED` = `true`. From then on each kind runs on its
-schedule (the table at the top) and posts at most once a day.
+schedule (the table at the top) and posts at most once a day. The day is
+Eastern time, ending at 4 AM, so a run GitHub starts hours late (even past
+midnight UTC) still counts for the day it was meant for.
 
 ## Private until Google's audit
 
