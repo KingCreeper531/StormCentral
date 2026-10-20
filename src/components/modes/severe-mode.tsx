@@ -35,6 +35,7 @@ import { LightningLayer } from "../map/layers/lightning-layer";
 import { RadarLayer } from "../map/layers/radar-layer";
 import { SatelliteLayer, type SatelliteImage } from "../map/layers/satellite-layer";
 import { SatelliteMapLayer } from "../map/layers/satellite-map-layer";
+import { GisLayers } from "../map/layers/gis-layers";
 import { StormCellsLayer } from "../map/layers/storm-cells-layer";
 import { StormReportsLayer } from "../map/layers/storm-reports-layer";
 import { TropicalLayer } from "../map/layers/tropical-layer";
@@ -811,6 +812,7 @@ export function SevereMode() {
         {layers.showOutlook && <OutlookLayer features={outlook.data?.features ?? []} kind={outlook.data?.kind ?? radar.outlookKind} />}
         {layers.showTropical && <TropicalLayer storms={storms} selectedId={selectedId("storm")} onSelect={(id) => select("storm", id)} />}
         {layers.showLightning && <LightningLayer />}
+        <GisLayers />
         {layers.intlRadar && <IntlRadarLayers view={intlView} loopTimes={loopTimes} index={loop.index} opacity={radar.opacity} crossfadeMs={loop.crossfadeMs} />}
         <RadarLayer frames={loop.frames} index={loop.index} opacity={radar.opacity} crisp={(FAMILIES[family].crisp && isSite) || !radar.smooth} crossfadeMs={loop.crossfadeMs} onStatus={loop.onStatus} />
         {radar.showWarnings && (

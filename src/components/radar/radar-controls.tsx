@@ -10,6 +10,7 @@ import type { RadarSettings } from "@/store/app-store";
 import { Toggle } from "../ui/misc";
 import { AlertKindsPicker } from "./alert-kinds";
 import { Segmented } from "../ui/segmented";
+import { GisManager } from "../map/gis-manager";
 import { sentenceCase } from "./radar-legend";
 
 const INPUT =
@@ -222,6 +223,10 @@ export function RadarControls({
           <Toggle label={t("Satellite map (no clouds)")} checked={settings.satelliteMap} onChange={(satelliteMap) => onChange({ satelliteMap })} />
           <p className="label">{t("Cloud-free pictures of the ground in place of the plain map, under the radar. Borders, roads and place names stay on top.")}</p>
         </div>
+      </Group>
+
+      <Group title={t("Your layers")}>
+        <GisManager />
       </Group>
 
       <Group title={t("Overlays")}>

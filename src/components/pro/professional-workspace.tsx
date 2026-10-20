@@ -28,6 +28,7 @@ import { Button, IconButton } from "../ui/button";
 import { PanelBoundary } from "../ui/panel-boundary";
 import { CrossSectionPanel } from "./cross-section-panel";
 import { GuidePanel } from "./guide-panel";
+import { GisManager } from "../map/gis-manager";
 import { IbwInspector } from "./ibw-inspector";
 import { Pane } from "./pane";
 import type { ToolShapes } from "./pane-layers";
@@ -382,6 +383,17 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
           <p className="text-[11px] font-semibold text-ink-2">{t("Storm-based warnings always show. Also draw:")}</p>
           <AlertKindsPicker settings={radar} onChange={setRadar} compact />
         </div>
+        <details className="group border-t border-line pt-2.5">
+          <summary className="cursor-pointer list-none text-[12px] font-semibold text-ink-2 [&::-webkit-details-marker]:hidden">
+            <span className="mr-1 inline-block text-ink-3 transition-transform group-open:rotate-90" aria-hidden>
+              ›
+            </span>
+            {t("Your layers")}
+          </summary>
+          <div className="pt-2">
+            <GisManager />
+          </div>
+        </details>
       </div>
     );
   })();

@@ -15,6 +15,7 @@ import type { PaneConfig, ProTool } from "@/store/pro-store";
 import { cn } from "@/lib/utils";
 import { MapView } from "../map/map-view";
 import { SatelliteMapLayer } from "../map/layers/satellite-map-layer";
+import { GisLayers } from "../map/layers/gis-layers";
 import { StormCellsLayer } from "../map/layers/storm-cells-layer";
 import { UserMarker } from "../map/layers/user-marker";
 import { WarningsLayer } from "../map/layers/warnings-layer";
@@ -109,6 +110,7 @@ export const Pane = memo(function Pane({ config, n, site, frameCount, basis, too
         <ProFrames frames={feed.frames} opacity={config.opacity} crisp={crisp} onStatus={basis ? onBasisStatus : undefined} />
         {config.warnings && <WarningsLayer alerts={alerts} selectedId={selectedAlert} onSelect={selectAlert} />}
         {config.cells && <StormCellsLayer cells={cells} selectedId={null} onSelect={() => {}} />}
+        <GisLayers />
         <ToolOverlay shapes={shapes} />
         {tool === "warngen" && <WarnGenOverlay />}
         <ToolClicks tool={tool} />

@@ -43,6 +43,41 @@ export const RADAR: Record<string, string> = {
   "Visible imagery is dark at night; infrared works around the clock.":
     "Las imágenes visibles se ven oscuras de noche; el infrarrojo funciona a toda hora.",
   "Satellite map (no clouds)": "Mapa satelital (sin nubes)",
+  // ─── your layers (placefiles, KML, GeoJSON) ───────────────────────────────
+  "Your layers": "Tus capas",
+  "GRLevelX placefiles, KML and GeoJSON: chaser positions, threat areas, roads, your own notes. Add them by link or from a file.":
+    "Placefiles de GRLevelX, KML y GeoJSON: posiciones de cazadores, zonas de amenaza, carreteras, tus propias notas. Agrégalas con un enlace o desde un archivo.",
+  "Link to a placefile, KML or GeoJSON": "Enlace a un placefile, KML o GeoJSON",
+  "Open a file": "Abrir un archivo",
+  "Checking the layer…": "Revisando la capa…",
+  Suggested: "Sugeridas",
+  Placefile: "Placefile",
+  KML: "KML",
+  GeoJSON: "GeoJSON",
+  "Couldn't load: {reason}": "No se pudo cargar: {reason}",
+  "{n} items · updated {ago}": "{n} elementos · actualizado {ago}",
+  "{n} items · from a file": "{n} elementos · desde un archivo",
+  "The file is no longer on this device": "El archivo ya no está en este dispositivo",
+  "That isn't a placefile, KML or GeoJSON layer.": "Eso no es una capa placefile, KML ni GeoJSON.",
+  "That layer couldn't be read; it may be damaged.": "No se pudo leer esa capa; puede estar dañada.",
+  "There's no room left on this device for that file.": "No queda espacio en este dispositivo para ese archivo.",
+  "You can have up to {n} layers.": "Puedes tener hasta {n} capas.",
+  "Paste a link starting with http:// or https://.": "Pega un enlace que empiece con http:// o https://.",
+  "That layer is already on your list.": "Esa capa ya está en tu lista.",
+  "Files can be up to 2 MB.": "Los archivos pueden pesar hasta 2 MB.",
+  "Spotter Network positions": "Posiciones de Spotter Network",
+  "Storm spotters and chasers sharing their location, updated every minute. Phone numbers and emails are hidden.":
+    "Observadores y cazadores de tormentas que comparten su ubicación, actualizada cada minuto. Los teléfonos y correos se ocultan.",
+  "Spotter or chaser, reported in the last 15 min": "Observador o cazador, reportó en los últimos 15 min",
+  "Reported in the last hour": "Reportó en la última hora",
+  "Last report over an hour ago": "Último reporte hace más de una hora",
+  "On the move: the arrow points where they're heading": "En movimiento: la flecha apunta hacia donde va",
+  "NEXRAD storm attributes": "Atributos de tormentas NEXRAD",
+  "Every radar's storm cells with their track, hail and rotation (Iowa Environmental Mesonet). Tracks show when zoomed in.":
+    "Las celdas de tormenta de cada radar con su trayectoria, granizo y rotación (Iowa Environmental Mesonet). Las trayectorias aparecen al acercar el mapa.",
+  "Warning time, motion and location": "Hora, movimiento y ubicación de los avisos",
+  "Where each tornado and severe thunderstorm warning's storm is and where it's heading (Iowa Environmental Mesonet).":
+    "Dónde está la tormenta de cada aviso de tornado y de tormenta eléctrica severa y hacia dónde va (Iowa Environmental Mesonet).",
   "Cloud-free pictures of the ground in place of the plain map, under the radar. Borders, roads and place names stay on top.":
     "Imágenes del terreno sin nubes en lugar del mapa simple, debajo del radar. Las fronteras, las carreteras y los nombres de lugares quedan encima.",
   Overlays: "Capas",
