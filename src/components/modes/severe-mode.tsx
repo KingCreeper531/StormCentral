@@ -1,7 +1,7 @@
 "use client";
 
 import type { Map as MlMap } from "maplibre-gl";
-import { ChevronLeft, CircleAlert, Layers, PanelLeftClose, Pause, Play, X } from "lucide-react";
+import { ChevronLeft, CircleAlert, History, Layers, PanelLeftClose, Pause, Play, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { WeatherAlert } from "@/lib/api/types";
@@ -46,6 +46,7 @@ import { UserMarker } from "../map/layers/user-marker";
 import { WarningsLayer } from "../map/layers/warnings-layer";
 import { IntlRadarLayers } from "../map/layers/intl-radar-layer";
 import { AlertDetail } from "../radar/alert-detail";
+import { ArchivePicker, ArchiveStrip } from "../radar/archive-picker";
 import { AlertList, alertUntil, HazardSwatch, type RankedAlert } from "../radar/alert-list";
 import { WarningSquares } from "../radar/warning-squares";
 import { reportsInAlert, type AlertReports } from "@/lib/alert-reports";
@@ -147,7 +148,15 @@ export function SevereMode() {
   const setRadar = useAppStore((s) => s.setRadar);
   const radiusKm = useAppStore((s) => s.radiusKm);
   const placeName = loc.name === "My location" ? t(loc.name) : loc.name;
-  const now = useNow(30_000);
+  // Looking back at the archive: that moment stands in for now everywhere on this screen.
+  const archiveAt = useAppStore((s) => s.archiveAt);
+  const archived = archiveAt != null;
+  const liveNow = useNow(30_000);
+  const now = archiveAt ?? liveNow;
+  /** Only what has an archive: the national mosaic, warnings and storm reports. */
+  const layers = archived
+    ? { ...radar, satellite: "off" as const, showOutlook: false, showReports: false, showCells: false, showTropical: false, showChasers: false, showCams: false, showLightning: false, showSites: false, intlRadar: false }
+    : radar;
   const fmt = useFormat();
   // Times (warning expiry, radar frames) read in the selected location's zone, like the rest of the app.
   const timeZone = useForecast().data?.timezone;
@@ -172,10 +181,12 @@ export function SevereMode() {
   const [fitRequest, setFitRequest] = useState<{ bounds: Bounds; n: number } | null>(null);
   const fitDone = useRef(0);
   const [dockRef, dockH] = useHeight<HTMLDivElement>();
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const panelW = short ? 280 : wide ? 340 : 300;
 
   // ── Radar product resolution (driven by what IEM actually has) ────────────
-  const isSite = radar.source === "site";
+  // The archive has no single-site tiles (Professional mode has the radars' own volumes).
+  const isSite = radar.source === "site" && !archived;
   const site = isSite ? (getSite(radar.site) ?? nearestSites(loc, 1)[0]!) : null;
   // What the site (or, on the mosaic, the nearest one a product button switches to) actually has.
   const productSite = site ?? nearestSites(loc, 1)[0]!;
@@ -197,6 +208,7 @@ export function SevereMode() {
     historyMinutes: radar.history === "4h" ? 240 : radar.history === "2h" ? 120 : 0,
     // Extrapolating velocity or dual-pol means nothing: reflectivity only.
     nowcast: { map, enabled: radar.nowcast && (!isSite || radarFamily === "reflectivity") },
+    archiveEnd: archiveAt,
   });
   const showingForecast = !!loop.frames[loop.index]?.forecast;
   const showingNowcast = !!loop.frames[loop.index]?.nowcast;
@@ -207,21 +219,23 @@ export function SevereMode() {
   // Storm-based warnings plus the watches, advisories, discussions… picked in the layer settings.
   const { national, hazards, spotter, all: mapAlerts } = useMapAlerts();
   const local = useLocalAlerts();
-  const outlook = useOutlook(radar.showOutlook, radar.outlookKind);
-  const reports = useReportsInView(bbox, radar.showReports);
+  // The location's own zone alerts are today's.
+  const localAlerts = useMemo(() => (archived ? [] : (local.data?.alerts ?? [])), [archived, local.data]);
+  const outlook = useOutlook(layers.showOutlook, radar.outlookKind);
+  const reports = useReportsInView(bbox, layers.showReports);
   // Also feeds the spotter reports shown on each warning.
-  const lsr = useStormReports(true, LSR_HOURS);
-  const cells = useStormCells(radar.showCells);
-  const tropical = useTropical(radar.showTropical);
-  const chasers = useChasers(radar.showChasers);
+  const lsr = useStormReports(true, LSR_HOURS, archiveAt);
+  const cells = useStormCells(layers.showCells);
+  const tropical = useTropical(layers.showTropical);
+  const chasers = useChasers(layers.showChasers);
   const lsrList = useMemo(() => lsr.data?.reports ?? [], [lsr.data]);
   const cellList = useMemo(() => cells.data?.cells ?? [], [cells.data]);
   const storms = useMemo(() => tropical.data?.storms ?? [], [tropical.data]);
   const chaserList = useMemo(() => chasers.data?.chasers ?? [], [chasers.data]);
-  const webcams = useWebcams(radar.showCams);
+  const webcams = useWebcams(layers.showCams);
   const camList = useMemo(() => webcams.data ?? [], [webcams.data]);
   // Live storm chaser streams: the Chasers tab, and LIVE on the chasers layer.
-  const streams = useChaserStreams(tab === "chasers" || radar.showChasers);
+  const streams = useChaserStreams(tab === "chasers" || layers.showChasers);
   const liveByKey = useMemo(() => liveIndex(streams.data?.live ?? []), [streams.data]);
   const liveOf = (c: { stream: Parameters<typeof liveFor>[0] }) => liveFor(c.stream, liveByKey);
   const chaserForStream = (s: LiveChaserStream) => chaserList.find((c) => liveOf(c)?.videoId === s.videoId) ?? null;
@@ -234,19 +248,19 @@ export function SevereMode() {
       const d = inside ? 0 : distanceToGeometryKm(a.geometry, loc);
       if (d <= radiusKm) out.set(a.id, { alert: a, distanceKm: d, inside });
     }
-    for (const a of local.data?.alerts ?? []) if (!out.has(a.id)) out.set(a.id, { alert: a, distanceKm: 0, inside: true });
+    for (const a of localAlerts) if (!out.has(a.id)) out.set(a.id, { alert: a, distanceKm: 0, inside: true });
     return [...out.values()].sort((x, y) => Number(y.inside) - Number(x.inside) || y.alert.rank - x.alert.rank || x.distanceKm - y.distanceKm);
-  }, [national.data, local.data, loc, radiusKm]);
+  }, [national.data, localAlerts, loc, radiusKm]);
 
-  const allAlerts = useMemo(() => [...(national.data?.alerts ?? []), ...(local.data?.alerts ?? []), ...hazards, ...spotter], [national.data, local.data, hazards, spotter]);
+  const allAlerts = useMemo(() => [...(national.data?.alerts ?? []), ...localAlerts, ...hazards, ...spotter], [national.data, localAlerts, hazards, spotter]);
   const alertById = (id: string | null) => (id ? allAlerts.find((a) => a.id === id) : undefined);
   const activeAlert = alertById(selectedAlert);
   const activeReport = (reports.data ?? []).find((p) => p.id === selectedId("post"));
   const activeLsr = lsrList.find((r) => r.id === selectedId("lsr"));
   const activeCell = cellList.find((c) => c.id === selectedId("cell"));
   const activeStorm = storms.find((s) => s.id === selectedId("storm"));
-  const activeChaser = radar.showChasers ? chaserList.find((c) => c.username === selectedId("chaser")) : undefined;
-  const activeCam = radar.showCams ? camList.find((c) => c.id === selectedId("cam")) : undefined;
+  const activeChaser = layers.showChasers ? chaserList.find((c) => c.username === selectedId("chaser")) : undefined;
+  const activeCam = layers.showCams ? camList.find((c) => c.id === selectedId("cam")) : undefined;
 
   // ── Selection ─────────────────────────────────────────────────────────────
   /** Without the floating column, details show in the panel/sheet: switch to warnings and reveal it. */
@@ -271,6 +285,13 @@ export function SevereMode() {
     select(kind, id);
     const d = 0.6;
     setFitRequest((r) => ({ bounds: [[lon - d, lat - d], [lon + d, lat + d]], n: (r?.n ?? 0) + 1 }));
+  };
+
+  /** An archived storm: frame where it was. */
+  const showEvent = (e: { lat: number; lon: number }) => {
+    const d = 1.2;
+    setFitRequest((r) => ({ bounds: [[e.lon - d, e.lat - d], [e.lon + d, e.lat + d]], n: (r?.n ?? 0) + 1 }));
+    setArchiveOpen(false);
   };
 
   /** Select a warning and frame its polygon (the camera effect below applies it once the layout settles). */
@@ -318,7 +339,7 @@ export function SevereMode() {
       </>
     ) : (
       <>
-        <span className="shrink-0 font-mono">{showingNowcast ? t("Future") : showingForecast ? "HRRR" : (noaaTag ?? "N0Q")}</span>
+        <span className="shrink-0 font-mono">{showingNowcast ? t("Future") : showingForecast ? "HRRR" : (noaaTag ?? loop.product)}</span>
         <span className="min-w-0 truncate">
           {t(
             showingNowcast
@@ -335,7 +356,7 @@ export function SevereMode() {
       </>
     );
 
-  const satCaption = radar.satellite !== "off" && satImage ? satelliteLabel(satImage.band, satImage.slotMs, timeZone, satImage.sat, t) : null;
+  const satCaption = layers.satellite !== "off" && satImage ? satelliteLabel(satImage.band, satImage.slotMs, timeZone, satImage.sat, t) : null;
 
   // ── Sheet header ──────────────────────────────────────────────────────────
   const where = (r: RankedAlert) =>
@@ -466,7 +487,7 @@ export function SevereMode() {
     </IconButton>
   );
 
-  const stormsTab = radar.showStormReports || radar.showCells || radar.showTropical || radar.showCams;
+  const stormsTab = radar.showStormReports || layers.showCells || layers.showTropical || layers.showCams;
   const tabsHeader = (
     <div className="flex items-center justify-between gap-2 pr-1.5 pl-4">
       <Tabs<PanelTab>
@@ -550,7 +571,13 @@ export function SevereMode() {
             onSelect={focusAlert}
             now={now}
             timeZone={timeZone}
-            emptyTitle={everyWarning ? t("No active warnings in the US") : t("No active warnings within {distance}", { distance: fmt.distanceKm(radiusKm) })}
+            emptyTitle={
+              archived
+                ? t("No warnings in effect then")
+                : everyWarning
+                  ? t("No active warnings in the US")
+                  : t("No active warnings within {distance}", { distance: fmt.distanceKm(radiusKm) })
+            }
           />
         ) : (
           <AlertList items={ranked} selectedId={selectedAlert} onSelect={focusAlert} timeZone={timeZone} />
@@ -605,7 +632,7 @@ export function SevereMode() {
   );
   const stormsBody = (
     <>
-      {radar.showCams &&
+      {layers.showCams &&
         section(
           "Live cameras nearby",
           webcams.isLoading,
@@ -613,7 +640,7 @@ export function SevereMode() {
           "the live cameras",
           <WebcamList cams={camList} location={loc} selectedId={selectedId("cam")} onSelect={(c) => focusPoint("cam", c.id, c.lon, c.lat)} />,
         )}
-      {radar.showTropical &&
+      {layers.showTropical &&
         section(
           "Tropical cyclones",
           tropical.isLoading,
@@ -624,7 +651,7 @@ export function SevereMode() {
             if (storm) focusPoint("storm", id, storm.lon, storm.lat);
           }} />,
         )}
-      {radar.showCells &&
+      {layers.showCells &&
         section(
           "Radar storm cells",
           cells.isLoading,
@@ -646,7 +673,14 @@ export function SevereMode() {
   const sheetBody =
     tab === "radar" ? (
       <div className="p-4">
+        {archived && radar.source === "site" && (
+          <p className="mb-4 text-xs text-ink-3">{t("Looking back shows the national mosaic. Professional mode has each radar's own scans.")}</p>
+        )}
         <RadarControls settings={radar} onChange={setRadar} site={site} available={available} location={loc} />
+        <section className="mt-5 space-y-4 border-t border-line pt-4">
+          <h3 className="text-[13px] font-semibold text-ink">{t("Radar archive")}</h3>
+          <ArchivePicker timeZone={timeZone} onEvent={showEvent} />
+        </section>
       </div>
     ) : inlineSelection ? (
       selectionBody
@@ -676,15 +710,27 @@ export function SevereMode() {
     ? t("Extrapolated")
     : showingForecast && !isSite
       ? t("HRRR forecast")
-      : (noaaTag ?? (isSite && site ? `${site.icao} ${productCode}` : "N0Q"));
+      : (noaaTag ?? (isSite && site ? `${site.icao} ${productCode}` : loop.product));
   const sentenceCaseFamily = t(FAMILIES[family].label).toLowerCase();
   const dock = (
     <div ref={dockRef} className="pointer-events-none flex flex-col items-start gap-2 [&>*]:pointer-events-auto">
-      {desktop && !short && radar.showOutlook && (outlook.data?.features.length ?? 0) > 0 && (
+      {desktop && !short && layers.showOutlook && (outlook.data?.features.length ?? 0) > 0 && (
         <OutlookLegend kind={radar.outlookKind} features={outlook.data?.features ?? []} />
       )}
       {desktop && !short && <RadarLegend family={family} caption={caption} />}
       {satCaption && <p className="overlay px-2.5 py-1 text-[11px] text-ink-3 tabular">{satCaption}</p>}
+      {archiveOpen && (
+        <div className="overlay w-full max-w-sm p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h3 className="text-[13px] font-semibold text-ink">{t("Radar archive")}</h3>
+            <IconButton size="sm" label={t("Close")} onClick={() => setArchiveOpen(false)}>
+              <X className="size-4" aria-hidden />
+            </IconButton>
+          </div>
+          <ArchivePicker timeZone={timeZone} onEvent={showEvent} />
+        </div>
+      )}
+      <ArchiveStrip timeZone={timeZone} onPick={() => setArchiveOpen(true)} className="w-full max-w-sm" />
       {loop.error ? (
         <p role="status" className="overlay flex items-start gap-2 px-3 py-2 text-xs text-ink-2">
           <CircleAlert className="mt-px size-3.5 shrink-0 text-nogo" aria-hidden />
@@ -723,15 +769,20 @@ export function SevereMode() {
           legend={!desktop ? <RadarLegend variant="strip" family={family} code={legendCode} /> : short ? <RadarLegend variant="inline" family={family} code={legendCode} /> : undefined}
           legendPosition={desktop ? "end" : "top"}
           actions={
-            <ExportLoopButton
-              size="sm"
-              map={map}
-              loop={loop}
-              speed={radar.speed}
-              title={isSite && site ? `${site.icao} ${sentenceCaseFamily}` : t("NEXRAD mosaic, {product}", { product: sentenceCaseFamily })}
-              subtitle={placeName}
-              timeZone={timeZone}
-            />
+            <>
+              <IconButton size="sm" label={t("Radar archive")} onClick={() => setArchiveOpen((o) => !o)} aria-pressed={archiveOpen}>
+                <History className="size-4" aria-hidden />
+              </IconButton>
+              <ExportLoopButton
+                size="sm"
+                map={map}
+                loop={loop}
+                speed={radar.speed}
+                title={isSite && site ? `${site.icao} ${sentenceCaseFamily}` : t("NEXRAD mosaic, {product}", { product: sentenceCaseFamily })}
+                subtitle={placeName}
+                timeZone={timeZone}
+              />
+            </>
           }
         />
       </div>
@@ -752,13 +803,13 @@ export function SevereMode() {
       )}
     >
       <MapView center={loc} zoom={isSite ? 7.5 : 6} onViewChange={(b) => setBbox(b)} onReady={setMap}>
-        {radar.satellite !== "off" && (
-          <SatelliteLayer band={radar.satellite} times={loop.frames.map((f) => f.time)} current={loop.frames[loop.index]?.time ?? now} onImage={setSatImage} />
+        {layers.satellite !== "off" && (
+          <SatelliteLayer band={layers.satellite} times={loop.frames.map((f) => f.time)} current={loop.frames[loop.index]?.time ?? now} onImage={setSatImage} />
         )}
-        {radar.showOutlook && <OutlookLayer features={outlook.data?.features ?? []} kind={outlook.data?.kind ?? radar.outlookKind} />}
-        {radar.showTropical && <TropicalLayer storms={storms} selectedId={selectedId("storm")} onSelect={(id) => select("storm", id)} />}
-        {radar.showLightning && <LightningLayer />}
-        {radar.intlRadar && <IntlRadarLayers view={intlView} loopTimes={loopTimes} index={loop.index} opacity={radar.opacity} crossfadeMs={loop.crossfadeMs} />}
+        {layers.showOutlook && <OutlookLayer features={outlook.data?.features ?? []} kind={outlook.data?.kind ?? radar.outlookKind} />}
+        {layers.showTropical && <TropicalLayer storms={storms} selectedId={selectedId("storm")} onSelect={(id) => select("storm", id)} />}
+        {layers.showLightning && <LightningLayer />}
+        {layers.intlRadar && <IntlRadarLayers view={intlView} loopTimes={loopTimes} index={loop.index} opacity={radar.opacity} crossfadeMs={loop.crossfadeMs} />}
         <RadarLayer frames={loop.frames} index={loop.index} opacity={radar.opacity} crisp={(FAMILIES[family].crisp && isSite) || !radar.smooth} crossfadeMs={loop.crossfadeMs} onStatus={loop.onStatus} />
         {radar.showWarnings && (
           <WarningsLayer
@@ -771,12 +822,12 @@ export function SevereMode() {
           />
         )}
         {radar.showWarnings && radar.showTracks && <TracksLayer alerts={national.data?.alerts ?? []} now={now} />}
-        {radar.showSites && <SitesLayer selected={site?.icao ?? null} onSelect={(icao) => setRadar({ source: "site", site: icao })} />}
-        {radar.showCells && <StormCellsLayer cells={cellList} selectedId={selectedId("cell")} onSelect={(id) => select("cell", id)} />}
+        {layers.showSites && <SitesLayer selected={site?.icao ?? null} onSelect={(icao) => setRadar({ source: "site", site: icao })} />}
+        {layers.showCells && <StormCellsLayer cells={cellList} selectedId={selectedId("cell")} onSelect={(id) => select("cell", id)} />}
         {radar.showStormReports && <StormReportsLayer reports={lsrList} now={now} hours={LSR_HOURS} selectedId={selectedId("lsr")} onSelect={(id) => select("lsr", id)} />}
-        {COMMUNITY_ENABLED && radar.showReports && <ReportsLayer posts={(reports.data ?? []) as PostDto[]} now={now} onSelect={(id) => select("post", id)} />}
-        {radar.showCams && <WebcamsLayer cams={camList} selectedId={selectedId("cam")} onSelect={(id) => select("cam", id)} />}
-        {COMMUNITY_ENABLED && radar.showChasers && (
+        {COMMUNITY_ENABLED && layers.showReports && <ReportsLayer posts={(reports.data ?? []) as PostDto[]} now={now} onSelect={(id) => select("post", id)} />}
+        {layers.showCams && <WebcamsLayer cams={camList} selectedId={selectedId("cam")} onSelect={(id) => select("cam", id)} />}
+        {COMMUNITY_ENABLED && layers.showChasers && (
           <ChasersLayer chasers={chaserList} isLive={(c) => !!liveOf(c)} fetchedAt={chasers.dataUpdatedAt} now={now} onSelect={(u) => select("chaser", u)} />
         )}
         <UserMarker lat={loc.lat} lon={loc.lon} />

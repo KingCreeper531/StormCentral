@@ -5,6 +5,7 @@
  * so the cursor readout can read exact gate values.
  */
 import { DECODED_SCALES, scaleColor } from "../scales";
+import { gunzipIfNeeded } from "./gzip";
 import { parseLevel2 } from "./level2";
 import { parseLevel3 } from "./level3";
 import type { DecodeRequest, DecodeResponse } from "./protocol";
@@ -12,7 +13,7 @@ import { levelColors, renderSweep, type Sweep } from "./sweep";
 
 declare const self: DedicatedWorkerGlobalScope;
 
-/** Recent Level II volumes, so changing tilt doesn't download the volume again. */
+/** Recent Level II volumes (gunzipped), so changing tilt doesn't download the volume again. */
 const volumes = new Map<string, Promise<Uint8Array>>();
 const MAX_VOLUMES = 4;
 
@@ -29,7 +30,7 @@ function volume(url: string): Promise<Uint8Array> {
     volumes.set(url, p);
     return p;
   }
-  p = fetchBytes(url);
+  p = fetchBytes(url).then(gunzipIfNeeded);
   p.catch(() => volumes.delete(url));
   volumes.set(url, p);
   while (volumes.size > MAX_VOLUMES) volumes.delete(volumes.keys().next().value!);
@@ -61,7 +62,7 @@ self.onmessage = async (e: MessageEvent<DecodeRequest>) => {
     if (req.kind === "l3") {
       sweep = parseLevel3(await fetchBytes(req.url));
     } else {
-      const r = parseLevel2(await volume(req.url), req.moment, req.angle);
+      const r = parseLevel2(await volume(req.url), req.moment, req.angle, { site: req.site });
       sweep = r.sweep;
       cuts = r.cuts.map((c) => c.angle);
       if (!sweep) {

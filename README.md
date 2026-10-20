@@ -91,7 +91,8 @@ Every colour slot and layer option, plus ready-made examples to copy (Nord, Drac
 | Tropical cyclones (positions, cone, track) | [National Hurricane Center](https://www.nhc.noaa.gov) + NOAA map services |
 | Lightning strike density | [NOAA nowCOAST](https://nowcoast.noaa.gov) |
 | HRRR forecast reflectivity (future radar) | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/GIS/model.phtml) |
-| NEXRAD Level II and III files (Pro mode) | [NOAA Open Data on AWS](https://registry.opendata.aws/noaa-nexrad/) |
+| NEXRAD Level II and III files (Pro mode, and its archive back to 1995) | [NOAA Open Data on AWS](https://registry.opendata.aws/noaa-nexrad/) |
+| Radar archive: national mosaic, warnings and storm reports at a past time | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) |
 | GOES ABI channels and MRMS grids (Pro data server) | [NOAA Open Data on AWS](https://registry.opendata.aws/noaa-goes/) |
 | GOES water vapor (Pro mode) | [NOAA nowCOAST](https://nowcoast.noaa.gov) |
 | Model soundings and cross-sections (Pro mode) | [Open-Meteo](https://open-meteo.com) pressure-level forecasts |

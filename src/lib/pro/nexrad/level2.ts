@@ -3,7 +3,10 @@
  * after the RDA/RPG ICD (2620002) and Unidata's archive format: a 24-byte
  * volume header, then LDM records (a 4-byte length and a bzip2 stream each)
  * holding Message 31 radials, or (older archive files, once gunzipped) the
- * same messages uncompressed. MetPy's Level2File was the reference.
+ * same messages uncompressed. Volumes from before the 2008 upgrade hold
+ * Message 1 radials instead (reflectivity on 1 km gates, velocity and
+ * spectrum width on 250 m, no site location). MetPy's Level2File was the
+ * reference.
  *
  * Decoding stops as soon as the requested cut is complete, so low tilts cost
  * a fraction of the volume. The cut list comes from the VCP (Message 5) in
@@ -31,9 +34,37 @@ export interface Level2Result {
   /** The volume's cuts, in scan order (repeats included, e.g. SAILS 0.5° cuts). */
   cuts: Level2Cut[];
   sweep: Sweep | null;
+  /** The cut ran to its end (a volume still arriving in chunks may hold only part of it). */
+  complete: boolean;
 }
 
+export interface Level2Options {
+  /** Where the radar is, for volumes that don't say (Message 1, before 2008). */
+  site?: { lat: number; lon: number; heightM?: number };
+}
+
+/** Message 1 moments: which gate set they're on, and raw level → value (value = (level − offset) / scale). */
+const MSG1 = {
+  REF: { doppler: false, scale: 2, offset: 66 },
+  VEL: { doppler: true, scale: 2, offset: 129 },
+  SW: { doppler: true, scale: 2, offset: 129 },
+} as const;
+const BAM = 180 / 32768;
+
 const ascii = (b: Uint8Array, o: number, n: number) => String.fromCharCode(...b.subarray(o, o + n));
+
+/** The cuts of an uncompressed Message 1 volume, in scan order, from its radials' elevation numbers. */
+function legacyCuts(file: Uint8Array): Level2Cut[] {
+  const dv = new DataView(file.buffer, file.byteOffset, file.byteLength);
+  const cuts: Level2Cut[] = [];
+  for (let p = 24; p + CTM + 16 + 18 <= file.length; p += FRAME) {
+    if (!dv.getUint16(p + CTM) || dv.getUint8(p + CTM + 3) !== 1) continue;
+    const o = p + CTM + 16;
+    const n = dv.getUint16(o + 16);
+    if (n >= 1 && n <= 40 && !cuts[n - 1]) cuts[n - 1] = { angle: Math.round(dv.getUint16(o + 14) * BAM * 100) / 100 };
+  }
+  return Array.from(cuts, (c) => c ?? { angle: NaN }).filter((c) => !Number.isNaN(c.angle));
+}
 
 interface Radial {
   az: number;
@@ -51,9 +82,10 @@ interface Radial {
  * Decode the first cut at `angle` (±0.25°) that carries `moment`. With
  * `angle` null only the cut list is read.
  */
-export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | null): Level2Result {
+export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | null, opts: Level2Options = {}): Level2Result {
   const head = new DataView(file.buffer, file.byteOffset, 24);
-  if (ascii(file, 0, 4) !== "AR2V") throw new Error("Not an Archive II file");
+  // "ARCHIVE2." before about 2000.
+  if (ascii(file, 0, 4) !== "AR2V" && ascii(file, 0, 8) !== "ARCHIVE2") throw new Error("Not an Archive II file");
   const time = (head.getUint32(12) - 1) * 86_400_000 + head.getUint32(16);
   const site = ascii(file, 20, 4);
   const dvFile = new DataView(file.buffer, file.byteOffset, file.byteLength);
@@ -66,6 +98,7 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
   let targetEl = -1;
   let cutAngle = 0;
   let done = false;
+  let complete = false;
   const radials: Radial[] = [];
 
   const handleMsg31 = (m: Uint8Array, dv: DataView, o: number) => {
@@ -120,11 +153,51 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
     }
     radials.push(found);
     // 2 = end of elevation, 4 = end of volume.
-    if (status === 2 || status === 4) done = true;
+    if (status === 2 || status === 4) done = complete = true;
+  };
+
+  const handleMsg1 = (m: Uint8Array, dv: DataView, o: number) => {
+    // o = start of the Message 1 body; offsets to the moments' data count from there.
+    const status = dv.getUint16(o + 12);
+    const elNum = dv.getUint16(o + 16);
+    if (targetEl >= 0 && elNum !== targetEl) {
+      if (elNum > targetEl) done = true;
+      return;
+    }
+    if (angle == null) return;
+    const def = MSG1[moment as keyof typeof MSG1];
+    if (!def) return;
+    const elAngle = dv.getUint16(o + 14) * BAM;
+    const nominal = cuts[elNum - 1]?.angle ?? elAngle;
+    if (Math.abs(nominal - angle) > 0.25) return;
+    const gates = dv.getUint16(o + (def.doppler ? 28 : 26));
+    if (!gates) return;
+    const ptr = dv.getUint16(o + (moment === "REF" ? 36 : moment === "VEL" ? 38 : 40));
+    // Velocity resolution: 2 = 0.5 m/s steps, 4 = 1 m/s.
+    const fine = moment !== "VEL" || dv.getUint16(o + 42) !== 4;
+    vcp ||= dv.getUint16(o + 44) || null;
+    if (targetEl < 0) {
+      targetEl = elNum;
+      cutAngle = cuts[elNum - 1]?.angle ?? elAngle;
+    }
+    radials.push({
+      az: dv.getUint16(o + 8) * BAM,
+      spacing: 1,
+      gates,
+      first: dv.getInt16(o + (def.doppler ? 20 : 18)) / 1000,
+      width: dv.getUint16(o + (def.doppler ? 24 : 22)) / 1000,
+      wordBits: 8,
+      scale: fine ? def.scale : 1,
+      offset: def.offset,
+      data: m.slice(o + ptr, o + ptr + gates),
+    });
+    if (status === 2 || status === 4) done = complete = true;
   };
 
   const handleMsg5 = (dv: DataView, o: number) => {
     const n = dv.getUint16(o + 6);
+    // Older archives carry an empty one.
+    if (!n) return;
     vcp = dv.getUint16(o + 4);
     for (let i = 0; i < n && i < 40; i++) {
       const raw = dv.getUint16(o + 22 + i * 46);
@@ -144,6 +217,7 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
         if (sizeHw === 65535) bytes = ((dv.getUint16(p + CTM + 12) << 16) | dv.getUint16(p + CTM + 14)) + CTM;
         else if (type === 31 || type === 29) bytes = CTM + 2 * sizeHw;
         if (type === 31) handleMsg31(rec, dv, p + CTM + 16);
+        else if (type === 1) handleMsg1(rec, dv, p + CTM + 16);
         else if (type === 5 && !cuts.length) handleMsg5(dv, p + CTM + 16);
       }
       p += bytes;
@@ -165,7 +239,11 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
     if (angle == null && cuts.length) break;
   }
 
-  if (!radials.length) return { site, time, vcp, cuts, sweep: null };
+  // Older archives' scan pattern message is empty: the cut list comes from the radials themselves.
+  if (!cuts.length && !compressed) cuts.push(...legacyCuts(file));
+  if (!radials.length) return { site, time, vcp, cuts, sweep: null, complete };
+  // Message 1 doesn't say where the radar is.
+  if (!lat && opts.site) [lat, lon, heightM] = [opts.site.lat, opts.site.lon, opts.site.heightM ?? 0];
 
   const nRadials = radials.length;
   const nGates = Math.max(...radials.map((r) => r.gates));
@@ -192,6 +270,7 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
     time,
     vcp,
     cuts,
+    complete,
     sweep: {
       lat,
       lon,

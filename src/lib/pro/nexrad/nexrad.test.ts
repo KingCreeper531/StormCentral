@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { l2Time, l3Time, newest, parseKeys } from "./aws";
 import { bunzip2 } from "./bzip2";
+import { gunzipIfNeeded } from "./gzip";
 import { parseLevel2 } from "./level2";
 import { float16, parseLevel3 } from "./level3";
 import { azimuthIndex, levelAt, polarOf, renderSweep, slantRange } from "./sweep";
@@ -122,6 +123,45 @@ describe("Level II", () => {
   });
 });
 
+describe("Level II before 2008 (Message 1)", () => {
+  // KTLX, 10 May 2005: its first two cuts (0.5° reflectivity, then the 0.5° Doppler cut), gzipped as the archive stores it.
+  const e = expected.KTLX20050510_000351_cut12 as Record<"REF" | "VEL", { radials: number; gates: number; first: number; width: number; samples: [number, number, number | null][] }>;
+  const site = { lat: 35.3331, lon: -97.2778 };
+  const KT = 1.943844;
+
+  it("gunzips archive files and decodes both cuts like MetPy", async () => {
+    const file = await gunzipIfNeeded(read("KTLX20050510_000351_cut12.gz"));
+    for (const moment of ["REF", "VEL"] as const) {
+      const r = parseLevel2(file, moment, 0.5, { site });
+      const s = r.sweep!;
+      const x = e[moment];
+      expect(r.complete).toBe(true);
+      expect(r.vcp).toBe(32);
+      expect(r.cuts.map((c) => c.angle)).toEqual([0.48, 0.48]);
+      expect([s.nRadials, s.nGates, s.firstGateKm, s.gateKm]).toEqual([x.radials, x.gates, x.first, x.width]);
+      // No location in Message 1: it's the site's.
+      expect([s.lat, s.lon]).toEqual([site.lat, site.lon]);
+      for (const [r2, g, val] of x.samples) {
+        const v = s.table[s.data[r2 * s.nGates + g]!]!;
+        if (val == null) expect(Number.isNaN(v)).toBe(true);
+        else expect(v).toBeCloseTo(moment === "VEL" ? val * KT : val, 4);
+      }
+    }
+  });
+
+  it("reads the oldest archive files (ARCHIVE2 header), even partial ones", async () => {
+    const r = parseLevel2(await gunzipIfNeeded(read("KTLX19990503_230052.gz")), "REF", 0.5, { site });
+    expect(r.time).toBe(Date.UTC(1999, 4, 3, 23, 0, 52));
+    expect(r.sweep!.nRadials).toBe(68);
+    expect(r.complete).toBe(false);
+  });
+
+  it("leaves files that aren't gzipped as they are", async () => {
+    const b = new Uint8Array([65, 82, 50, 86]);
+    expect(await gunzipIfNeeded(b)).toBe(b);
+  });
+});
+
 describe("sweep geometry", () => {
   const s = parseLevel3(read("TLX_N0C_2026_10_19_15_52_10"));
 
@@ -162,6 +202,8 @@ describe("AWS keys", () => {
     expect(l3Time("TLX_N0C_2026_10_19_15_52_10")).toBe(Date.UTC(2026, 9, 19, 15, 52, 10));
     expect(l2Time("2026/10/19/KTLX/KTLX20261019_155210_V06")).toBe(Date.UTC(2026, 9, 19, 15, 52, 10));
     expect(Number.isNaN(l2Time("2026/10/18/KTLX/KTLX20261018_235710_V06_MDM"))).toBe(true);
+    expect(l2Time("2013/05/20/KTLX/KTLX20130520_195111_V06.gz")).toBe(Date.UTC(2013, 4, 20, 19, 51, 11));
+    expect(l2Time("1995/05/20/KTLX/KTLX19950520_000147.gz")).toBe(Date.UTC(1995, 4, 20, 0, 1, 47));
     const files = [1, 2, 3].map((t) => ({ key: String(t), url: "", time: t }));
     expect(newest(files, 2).map((f) => f.time)).toEqual([2, 3]);
   });
