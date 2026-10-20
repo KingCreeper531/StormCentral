@@ -1,0 +1,46 @@
+# Temporary: runs the live stream for 2.5 minutes into a file instead of YouTube, and commits frames to look at.
+name: Stream test (temporary)
+on:
+  push:
+    branches: [claude/trusting-pasteur-qzc0fq]
+    paths: [.github/workflows/stream-test.yml]
+permissions:
+  contents: write
+jobs:
+  stream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with: { ref: claude/trusting-pasteur-qzc0fq }
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
+      - name: Install what vps/setup.sh installs for the stream
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb ffmpeg pulseaudio pulseaudio-utils fonts-inter fonts-noto-color-emoji > /dev/null
+          npm install --prefix "$RUNNER_TEMP/stream" --no-audit --no-fund --silent playwright-core@1.56.1
+          "$RUNNER_TEMP/stream/node_modules/.bin/playwright-core" install --with-deps chromium > /dev/null
+          npx --yes esbuild@0.28.2 stream/director.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNNER_TEMP/stream/director.mjs" --log-level=warning
+          pipx install edge-tts==7.3.1
+      - name: Stream 150 s into a file
+        env:
+          STREAM_OUTPUT: ${{ runner.temp }}/test.mp4
+          STREAM_SECONDS: "150"
+          STREAM_RUNTIME: ${{ runner.temp }}/stream
+          STREAM_DEMO_ALERT: "1"
+          STREAM_BRIEFING_MINUTES: "1"
+        run: |
+          timeout 260 bash stream/run.sh || echo "run.sh exited with $?"
+          ls -la "$RUNNER_TEMP"/test.mp4
+      - name: Frames and sound
+        run: |
+          mkdir -p .stream-test
+          for t in 5 20 35 50 65 80 95 110 125 140; do
+            ffmpeg -v error -ss $t -i "$RUNNER_TEMP/test.mp4" -frames:v 1 -q:v 3 .stream-test/f$t.jpg || true
+          done
+          ffprobe -v error -show_entries format=duration:stream=codec_name,width,height,r_frame_rate,sample_rate -of compact "$RUNNER_TEMP/test.mp4" | tee .stream-test/info.txt
+          ffmpeg -v info -i "$RUNNER_TEMP/test.mp4" -af volumedetect -vn -f null - 2>&1 | grep -E "mean_volume|max_volume" | tee -a .stream-test/info.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .stream-test && git commit -m "Temporary: stream test frames" && git push origin HEAD:claude/trusting-pasteur-qzc0fq
