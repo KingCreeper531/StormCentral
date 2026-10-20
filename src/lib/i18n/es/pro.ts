@@ -237,4 +237,15 @@ export const PRO: Record<string, string> = {
   "Not in the archive: live only": "No está en el archivo: solo en directo",
   "Model data is today's, not the archive's.": "Los datos del modelo son de hoy, no del archivo.",
   "WarnGen works on live radar only.": "WarnGen solo funciona con el radar en directo.",
+
+  // ─── pop-out windows ───────────────────────────────────────────────────────
+  "Open panel {n} in a new window": "Abrir el panel {n} en una ventana nueva",
+  "Panel {n} is open in another window.": "El panel {n} está abierto en otra ventana.",
+  "Bring it back": "Traerlo de vuelta",
+  "Open the panel in a new window": "Abrir el panel en una ventana nueva",
+  "Bring the panel back from its window": "Traer el panel de vuelta de su ventana",
+  "This panel isn't in the workspace any more.": "Este panel ya no está en el espacio de trabajo.",
+  "Analysis panel": "Panel de análisis",
+  "Panel {n}": "Panel {n}",
+  "Open panels from Professional mode.": "Abre los paneles desde el modo profesional.",
 };
