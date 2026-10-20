@@ -13,7 +13,7 @@ jobs:
         with: { node-version: 22 }
       - name: Run the feed
         run: |
-          cat > probe.ts <<'TS'
+          cat > probe.mts <<'TS'
           import { gzipSync } from "node:zlib";
           import { webcamsFeed } from "./src/lib/feeds/webcams";
           import { toWebcam, webcamImage, WEBCAM_SOURCE_IDS } from "./src/lib/webcams";
@@ -35,4 +35,4 @@ jobs:
           const names = new Map<string, number>(); for (const c of r.cams) names.set(c[0] + c[1], (names.get(c[0] + c[1]) ?? 0) + 1);
           console.log("\nduplicate ids", [...names.values()].filter((n) => n > 1).length);
           TS
-          npx --yes tsx probe.ts
+          npx --yes tsx probe.mts
