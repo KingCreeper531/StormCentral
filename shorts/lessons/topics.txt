@@ -1,0 +1,14 @@
+# Radar School topic queue: the weekly draft takes the first topic here with no lesson yet.
+# id | what the lesson teaches | optional extra NOAA/NWS pages to read (comma-separated)
+velocity | Doppler radar velocity: inbound and outbound winds, couplets, convergence and divergence
+supercells | supercell thunderstorms on radar: hook echoes, inflow notches, mesocyclones
+tornado-signatures | tornado signatures on radar: tornado vortex signature, debris signature and correlation coefficient
+hail | hail on radar: high reflectivity cores, three-body scatter spike and dual-polarization
+bow-echoes | bow echoes and derechos on radar: rear inflow jet, damaging straight-line winds
+squall-lines | squall lines and QLCS tornadoes on radar
+radar-limits | weather radar limitations: beam height, the cone of silence, beam blockage and velocity aliasing
+dual-pol | dual-polarization radar: differential reflectivity, correlation coefficient and specific differential phase
+winter-radar | winter weather on radar: snow, sleet, freezing rain and the bright band
+flash-floods | flash flooding and heavy rain on radar: rainfall rates, training storms and radar rainfall estimates
+tropical-radar | hurricanes and tropical storms on radar: eyewalls, rain bands and tornadoes in tropical systems
+lightning | lightning and thunderstorm life cycles on radar

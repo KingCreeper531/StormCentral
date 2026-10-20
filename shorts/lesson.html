@@ -1,0 +1,683 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="short.css" />
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script src="radar-sim.js"></script>
+<script>
+/*
+ * A Radar School lesson (16:9, several minutes): chapters of beats, each
+ * beat a visual (simulated radar, a diagram or a text card) with an on-screen
+ * caption while its line is read (kinds/lesson.ts builds DATA and the times).
+ * render(t, true) draws the thumbnail instead. DATA:
+ *   { logo, lesson: { n, title, short }, chapters: [{ title, start, end }],
+ *     beats: [{ start, dur, chapter, caption, bullet?, visual }], end, thumb: { lines, visual } }
+ * Everything radar-like comes from radar-sim.js and is labelled as simulated.
+ */
+const W = 1920, H = 1080;
+const ctx = document.getElementById("c").getContext("2d");
+const D = window.DATA;
+const RS = window.RadarSim;
+const logo = new Image();
+logo.src = D.logo;
+const FONT = "SC Inter";
+const C = {
+  bg: "#03060d", panel: "#0b1120", panel2: "#0e1628", line: "rgba(255,255,255,0.10)", ink: "#f2f4f8", ink2: "#a9b1bf", ink3: "#7d8594",
+  accent: "#5b9cf6", warn: "#ffd60a", ground: "#2b3a52",
+};
+const VIEW = { x: 60, y: 130, w: 1180, h: 800 };
+const SIDE = { x: 1290, y: 130, w: 570, h: 800 };
+
+// ── helpers ──────────────────────────────────────────────────────────────
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const lerp = (a, b, x) => a + (b - a) * x;
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function text(s, x, y, { size = 32, weight = 600, color = C.ink, align = "left", alpha = 1, spacing = 0, base = "alphabetic" } = {}) {
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.font = `${weight} ${size}px "${FONT}"`;
+  ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = base;
+  if (spacing) ctx.letterSpacing = `${spacing}px`;
+  ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function wrap(s, maxW, size, weight = 600) {
+  ctx.font = `${weight} ${size}px "${FONT}"`;
+  const words = s.split(/\s+/), lines = [];
+  let line = "";
+  for (const w of words) {
+    const next = line ? `${line} ${w}` : w;
+    if (ctx.measureText(next).width > maxW && line) { lines.push(line); line = w; } else line = next;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+/** Wrapped text at the largest size from `max` down to `min` that fits `maxH`; returns the height used. */
+function block(s, x, y, maxW, maxH, { max = 46, min = 28, weight = 700, color = C.ink, leading = 1.22, alpha = 1 } = {}) {
+  let size = max, lines = [];
+  for (; size >= min; size -= 2) {
+    lines = wrap(s, maxW, size, weight);
+    if (lines.length * size * leading <= maxH) break;
+  }
+  lines.forEach((l, i) => text(l, x, y + size + i * size * leading, { size, weight, color, alpha }));
+  return lines.length * size * leading;
+}
+function fitSize(s, maxW, size, weight = 700) {
+  for (; size > 16; size -= 2) {
+    ctx.font = `${weight} ${size}px "${FONT}"`;
+    if (ctx.measureText(s).width <= maxW) break;
+  }
+  return size;
+}
+function arrow(x0, y0, x1, y1, color, width = 5, head = 18) {
+  const a = Math.atan2(y1 - y0, x1 - x0);
+  ctx.save();
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = width; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1 - Math.cos(a) * head * 0.6, y1 - Math.sin(a) * head * 0.6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x1, y1);
+  ctx.lineTo(x1 - Math.cos(a - 0.45) * head, y1 - Math.sin(a - 0.45) * head);
+  ctx.lineTo(x1 - Math.cos(a + 0.45) * head, y1 - Math.sin(a + 0.45) * head);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+function pill(s, x, y, { size = 26, color = "#06101f", fill = C.warn, align = "left", alpha = 1 } = {}) {
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.font = `700 ${size}px "${FONT}"`;
+  const w = ctx.measureText(s).width + size * 0.9, h = size * 1.55;
+  const x0 = align === "center" ? x - w / 2 : align === "right" ? x - w : x;
+  rr(x0, y - h / 2, w, h, h / 2); ctx.fillStyle = fill; ctx.fill();
+  ctx.fillStyle = color; ctx.textBaseline = "middle"; ctx.textAlign = "left";
+  ctx.fillText(s, x0 + size * 0.45, y + 1);
+  ctx.restore();
+  return w;
+}
+
+// ── frame ────────────────────────────────────────────────────────────────
+function background() {
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  const g = ctx.createRadialGradient(W * 0.35, 380, 60, W * 0.35, 380, 1500);
+  g.addColorStop(0, "#0b1a36"); g.addColorStop(1, C.bg);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+
+function topBar(t, chapter) {
+  if (logo.complete) { ctx.save(); rr(60, 34, 64, 64, 14); ctx.clip(); ctx.drawImage(logo, 60, 34, 64, 64); ctx.restore(); }
+  text("RADAR SCHOOL", 142, 62, { size: 22, weight: 800, color: C.accent, spacing: 4 });
+  text(`Lesson ${D.lesson.n} · ${D.lesson.title}`, 142, 96, { size: fitSize(`Lesson ${D.lesson.n} · ${D.lesson.title}`, 1050, 30), weight: 700 });
+  if (chapter) text(chapter.title, W - 60, 82, { size: 26, weight: 600, color: C.ink2, align: "right" });
+}
+
+/** The chapters along the bottom: a segment each, filled as the lesson plays. */
+function chapterBar(t) {
+  const x0 = 60, x1 = W - 60, y = 978, total = D.end;
+  D.chapters.forEach((c, i) => {
+    const a = x0 + ((x1 - x0) * c.start) / total + (i ? 4 : 0), b = x0 + ((x1 - x0) * c.end) / total - 4;
+    rr(a, y, Math.max(4, b - a), 8, 4); ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.fill();
+    const f = clamp((t - c.start) / (c.end - c.start));
+    if (f > 0) { rr(a, y, Math.max(4, (b - a) * f), 8, 4); ctx.fillStyle = t < c.end ? C.accent : "rgba(91,156,246,0.55)"; ctx.fill(); }
+    if (t >= c.start && t < c.end) text(c.title, a, y + 44, { size: 22, weight: 600, color: C.ink2 });
+  });
+}
+
+// ── real radar (kinds/lesson.ts loads the cases from NOAA's archive) ─────
+const QUANT = { ref: (b) => b / 2 - 32, vel: (b) => (b - 128) / 1.6, cc: (b) => b / 250 };
+const cases = new Map();
+/** A historic storm as a storm object: samplers over its grids (km from the centre), its found features and its radar. */
+function caseStorm(id) {
+  if (cases.has(id)) return cases.get(id);
+  const c = D.cases[id];
+  const grids = {};
+  for (const [k, g] of Object.entries(c.grids)) {
+    const bin = atob(g.data), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    grids[k] = { ...g, bytes };
+  }
+  const sampler = (k) => {
+    const g = grids[k];
+    if (!g) return () => NaN;
+    return (x, y) => {
+      const i = Math.floor((x + c.widthKm / 2) / c.res), j = Math.floor((y + c.heightKm / 2) / c.res);
+      if (i < 0 || j < 0 || i >= g.w || j >= g.h) return NaN;
+      const b = g.bytes[j * g.w + i];
+      return b ? QUANT[k](b) : NaN;
+    };
+  };
+  const s = { kind: "case", ref: sampler("ref"), vel: sampler("vel"), cc: sampler("cc"), points: c.points, radar: c.radar, spanKm: c.widthKm, center: [0, 0], real: c };
+  cases.set(id, s);
+  return s;
+}
+
+// ── simulated radar ──────────────────────────────────────────────────────
+const storms = new Map();
+/** The storm for a beat's spec (cached unless a knob animates). */
+function stormFor(spec, u, dur) {
+  if (spec.kind === "case") return caseStorm(spec.case);
+  const p = { ...(spec.p || {}) };
+  if (spec.anim) {
+    const z = easeInOut(seg(u, spec.anim.start ?? 0.3, (spec.anim.start ?? 0.3) + (spec.anim.over ?? dur * 0.6)));
+    p[spec.anim.key] = lerp(spec.anim.from, spec.anim.to, z);
+    return wrapExtras(RS.storm(spec.kind, p, spec.seed), spec);
+  }
+  const key = JSON.stringify([spec.kind, spec.seed, p, spec.extra]);
+  if (!storms.has(key)) storms.set(key, wrapExtras(RS.storm(spec.kind, p, spec.seed), spec));
+  return storms.get(key);
+}
+
+/** Things that fool people: ground clutter, the bright band and bugs in clear air, added around the radar. */
+function wrapExtras(s, spec) {
+  if (!spec.extra) return s;
+  const R = s.radar, seed = spec.seed * 17 + 3;
+  const ref0 = s.ref;
+  let extra;
+  if (spec.extra === "clutter") extra = (x, y) => {
+    const d = Math.hypot(x - R.x, y - R.y);
+    if (d > 16) return NaN;
+    const n = RS.noise(x * 1.7, y * 1.7, seed);
+    return n > 0.68 ? 25 + (n - 0.68) * 140 * (1 - d / 18) : NaN;
+  };
+  else if (spec.extra === "brightband") extra = (x, y) => {
+    const d = Math.hypot(x - R.x, y - R.y), patch = RS.fbm(x / 15, y / 15, seed);
+    if (patch < 0.45 || d > 90) return NaN;
+    const ring = Math.exp(-(((d - 50 + 4 * (RS.noise(x / 5, y / 5, seed + 1) - 0.5)) / 6) ** 2));
+    return 12 + 10 * (patch - 0.42) + ring * 21 + 4 * (RS.noise(x * 1.5, y * 1.5, seed + 2) - 0.5);
+  };
+  else if (spec.extra === "bugs") extra = (x, y) => {
+    const d = Math.hypot(x - R.x, y - R.y), n = RS.noise(x * 1.6, y * 1.6, seed);
+    // Speckled and faint, thinning out with distance: never more than light-rain colors.
+    return d < 60 && n > 0.25 + (d / 60) * 0.55 ? 5 + 9 * (1 - d / 60) + 4 * n : NaN;
+  };
+  const ref = (x, y) => {
+    const a = ref0(x, y), b = extra(x, y);
+    return Number.isNaN(a) ? b : Number.isNaN(b) ? a : Math.max(a, b);
+  };
+  return { ...s, ref, base: s };
+}
+
+/** The camera for a beat: the whole storm, or zoomed on a named point, drifting slowly in. */
+function viewFor(spec, s, rect, u, dur) {
+  const k0 = (spec.zoom || 1) * (rect.w / (s.spanKm || 118));
+  const k = k0 * (1 + 0.05 * clamp(u / Math.max(dur, 1)));
+  let [cx, cy] = s.center || [59, 40];
+  if (spec.focus && s.points[spec.focus]) ({ x: cx, y: cy } = s.points[spec.focus]);
+  else if (spec.focus === "radar") ({ x: cx, y: cy } = s.radar);
+  if (spec.center) [cx, cy] = spec.center;
+  return { x: rect.x, y: rect.y, w: rect.w, h: rect.h, k, x0: cx - rect.w / 2 / k, y0: cy - rect.h / 2 / k };
+}
+
+/**
+ * A beat's radar image, painted once at the start of its camera move and cached:
+ * later frames only scale it (the slow zoom), which keeps a full lesson quick to render.
+ * `view0` is the camera at the beat's start; a still storm only.
+ */
+const painted = new Map();
+function paintedFor(key, rect, s, product, view0, highlight) {
+  if (!painted.has(key)) {
+    if (painted.size > 6) painted.delete(painted.keys().next().value);
+    const c = document.createElement("canvas");
+    c.width = rect.w; c.height = rect.h;
+    RS.paint(c.getContext("2d"), s, product, { ...view0, x: 0, y: 0 }, { cell: 4, highlight });
+    painted.set(key, c);
+  }
+  return painted.get(key);
+}
+
+function scopeFrame(rect, view, s, product, { label = true, legend = true, highlight = null, cacheKey = null, view0 = null } = {}) {
+  ctx.save();
+  rr(rect.x, rect.y, rect.w, rect.h, 24); ctx.fillStyle = C.panel; ctx.fill(); ctx.clip();
+  // Range rings and a faint grid, centred on the radar.
+  const [rx, ry] = RS.toScreen(view, s.radar);
+  ctx.strokeStyle = "rgba(200,215,240,0.08)"; ctx.lineWidth = 2;
+  for (let km = 25; km <= 250; km += 25) { ctx.beginPath(); ctx.arc(rx, ry, km * view.k, 0, Math.PI * 2); ctx.stroke(); }
+  for (let a = 0; a < 8; a++) { ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx + Math.cos((a * Math.PI) / 4) * 4000, ry + Math.sin((a * Math.PI) / 4) * 4000); ctx.stroke(); }
+  if (cacheKey && view0) {
+    const img = paintedFor(cacheKey, rect, s, product, view0, highlight), k = view.k / view0.k;
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, rect.x + (view0.x0 - view.x0) * view.k, rect.y + (view0.y0 - view.y0) * view.k, rect.w * k, rect.h * k);
+  } else RS.paint(ctx, s, product, view, { cell: 5, highlight });
+  // The radar site, when it's in view.
+  if (rx > rect.x - 20 && rx < rect.x + rect.w + 20 && ry > rect.y - 20 && ry < rect.y + rect.h + 20) {
+    ctx.beginPath(); ctx.arc(rx, ry, 11, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
+    ctx.lineWidth = 4; ctx.strokeStyle = "#03060d"; ctx.stroke();
+    text("Radar", rx + 18, ry + 9, { size: 24, weight: 700 });
+  }
+  ctx.restore();
+  rr(rect.x, rect.y, rect.w, rect.h, 24); ctx.lineWidth = 2; ctx.strokeStyle = C.line; ctx.stroke();
+  if (label) {
+    const P = RS.PRODUCTS[product];
+    pill(`${P.name}${P.unit === "CC" ? "" : ` (${P.unit})`}`, rect.x + 20, rect.y + 36, { size: 24, fill: "rgba(3,6,13,0.78)", color: C.ink });
+    if (s.real) {
+      pill(`REAL RADAR · ${s.real.site}`, rect.x + rect.w - 20, rect.y + 36, { size: 20, fill: "rgba(48,209,88,0.95)", align: "right" });
+      pill(`${s.real.place} · ${s.real.label}`, rect.x + 20, rect.y + 84, { size: 22, fill: "rgba(3,6,13,0.78)", color: C.ink2 });
+    } else pill("SIMULATED EXAMPLE", rect.x + rect.w - 20, rect.y + 36, { size: 20, fill: "rgba(255,214,10,0.92)", align: "right" });
+  }
+  if (legend) legendBar(rect, product, highlight);
+}
+
+/** The colour scale along the bottom of a radar view, with the highlighted range bracketed. */
+function legendBar(rect, product, highlight) {
+  const P = RS.PRODUCTS[product], [lo, hi] = P.range;
+  const x = rect.x + 24, w = rect.w - 48, y = rect.y + rect.h - 64, h = 18;
+  ctx.save();
+  rr(x - 12, y - 14, w + 24, 68, 14); ctx.fillStyle = "rgba(3,6,13,0.78)"; ctx.fill();
+  const steps = 120;
+  for (let i = 0; i < steps; i++) {
+    const v = lo + ((hi - lo) * (i + 0.5)) / steps, c = P.color(v);
+    if (!c) continue;
+    const dim = highlight && !(v >= highlight[0] && v < highlight[1]);
+    ctx.globalAlpha = dim ? 0.25 : 1;
+    ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+    ctx.fillRect(x + (w * i) / steps, y, w / steps + 1, h);
+  }
+  ctx.globalAlpha = 1;
+  for (const [v, label] of P.ticks) {
+    const tx = x + (w * (v - lo)) / (hi - lo);
+    text(label, clamp(tx, x + 30, x + w - 30), y + h + 28, { size: 20, weight: 600, color: C.ink2, align: "center" });
+  }
+  if (highlight) {
+    const a = x + (w * (Math.max(lo, highlight[0]) - lo)) / (hi - lo), b = x + (w * (Math.min(hi, highlight[1]) - lo)) / (hi - lo);
+    ctx.lineWidth = 4; ctx.strokeStyle = "#fff"; rr(a - 3, y - 5, b - a + 6, h + 10, 6); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Rings and arrows on the radar, each drawn on at its time, labelled. */
+function notes(spec, s, view, u) {
+  for (const n of spec.notes || []) {
+    const a = easeOut(seg(u, n.at ?? 0.6, (n.at ?? 0.6) + 0.6));
+    if (a <= 0) continue;
+    const pt = n.target === "radar" ? s.radar : s.points[n.target];
+    if (!pt) continue;
+    const [x, y] = RS.toScreen(view, pt);
+    const r = (n.r || 5) * view.k;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.lineWidth = 6; ctx.strokeStyle = n.color || "#ffffff"; ctx.setLineDash([]);
+    ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * a); ctx.stroke();
+    ctx.shadowBlur = 0;
+    if (n.text) {
+      const dir = n.side || (x > view.x + view.w * 0.6 ? "left" : "right");
+      const lx = dir === "left" ? x - r - 36 : x + r + 36, ly = y - r * 0.6;
+      pill(n.text, lx, ly, { size: 26, align: dir === "left" ? "right" : "left", fill: n.color || "#ffffff" });
+    }
+    ctx.restore();
+  }
+}
+
+function radarVisual(v, u, dur, rect = VIEW) {
+  const s = stormFor(v.storm, u, dur);
+  const view = viewFor(v.storm, s, rect, u, dur);
+  const still = !v.storm.anim;
+  const product = v.storm.product || "ref";
+  scopeFrame(rect, view, s, product, {
+    highlight: v.highlight || null,
+    cacheKey: still ? JSON.stringify([v.storm, product, v.highlight, rect.w, rect.h, dur]) : null,
+    view0: still ? viewFor(v.storm, s, rect, 0, dur) : null,
+  });
+  ctx.save(); rr(rect.x, rect.y, rect.w, rect.h, 24); ctx.clip();
+  notes(v.storm, s, view, u);
+  ctx.restore();
+}
+
+function splitVisual(v, u, dur) {
+  const gap = 20, w = (VIEW.w - gap) / 2;
+  radarVisual({ storm: { ...v.storm, product: v.left || "ref" } }, u, dur, { x: VIEW.x, y: VIEW.y, w, h: VIEW.h });
+  radarVisual({ storm: { ...v.storm, product: v.right || "vel", notes: v.storm.notesRight || v.storm.notes } }, u, dur, { x: VIEW.x + w + gap, y: VIEW.y, w, h: VIEW.h });
+}
+
+// ── diagrams ─────────────────────────────────────────────────────────────
+function diagramFrame() {
+  rr(VIEW.x, VIEW.y, VIEW.w, VIEW.h, 24); ctx.fillStyle = C.panel; ctx.fill();
+  rr(VIEW.x, VIEW.y, VIEW.w, VIEW.h, 24); ctx.lineWidth = 2; ctx.strokeStyle = C.line; ctx.stroke();
+}
+/** A radar dome on a tower, its dish at (x, y). */
+function dome(x, y, s = 1) {
+  ctx.save();
+  ctx.fillStyle = "#3a4a63"; ctx.fillRect(x - 10 * s, y + 40 * s, 20 * s, 150 * s);
+  ctx.beginPath(); ctx.moveTo(x - 60 * s, y + 190 * s); ctx.lineTo(x + 60 * s, y + 190 * s); ctx.lineTo(x + 26 * s, y + 40 * s); ctx.lineTo(x - 26 * s, y + 40 * s); ctx.closePath();
+  ctx.strokeStyle = "#566886"; ctx.lineWidth = 4 * s; ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y + 6 * s, 52 * s, Math.PI, 0); ctx.lineTo(x + 52 * s, y + 44 * s); ctx.lineTo(x - 52 * s, y + 44 * s); ctx.closePath();
+  const g = ctx.createLinearGradient(x - 52 * s, y - 46 * s, x + 52 * s, y + 44 * s); g.addColorStop(0, "#f4f7fb"); g.addColorStop(1, "#b9c4d6");
+  ctx.fillStyle = g; ctx.fill();
+  ctx.restore();
+}
+function ground(y) {
+  ctx.fillStyle = C.ground; ctx.fillRect(VIEW.x, y, VIEW.w, VIEW.y + VIEW.h - y);
+  ctx.fillStyle = "rgba(255,255,255,0.08)"; ctx.fillRect(VIEW.x, y, VIEW.w, 3);
+}
+function cloud(cx, cy, s, alpha = 1) {
+  ctx.save(); ctx.globalAlpha *= alpha; ctx.fillStyle = "#c9d3e3";
+  for (const [dx, dy, r] of [[-90, 10, 60], [-30, -25, 75], [45, -10, 68], [100, 15, 52], [0, 25, 70]]) { ctx.beginPath(); ctx.arc(cx + dx * s, cy + dy * s, r * s, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+function drops(cx, cy, n, u, seed, size = 7) {
+  const r = RS.rng(seed);
+  ctx.save(); ctx.fillStyle = "#6cc4ff";
+  for (let i = 0; i < n; i++) {
+    const x = cx + (r() - 0.5) * 300, y0 = cy + r() * 260, y = cy + ((y0 - cy + u * 140) % 260);
+    ctx.beginPath(); ctx.ellipse(x, y, size * 0.55, size, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** How radar works: phase 0 the site, 1 a pulse goes out, 2 it scatters off the rain, 3 the echo comes back and is timed. */
+function worksVisual(v, u) {
+  diagramFrame();
+  ctx.save(); rr(VIEW.x, VIEW.y, VIEW.w, VIEW.h, 24); ctx.clip();
+  const gy = VIEW.y + VIEW.h - 150;
+  ground(gy);
+  const dx = VIEW.x + 170, dy = gy - 190;
+  dome(dx, dy);
+  const rainX = VIEW.x + 860;
+  cloud(rainX, VIEW.y + 190, 1.25);
+  drops(rainX, VIEW.y + 250, 60, u, 7);
+  const phase = v.phase ?? 0;
+  const span = rainX - 150 - dx;
+  if (phase >= 1) {
+    // Pulses leaving the dish: short arcs travelling toward the rain, one every 1.6 s.
+    for (let k = 0; k < 4; k++) {
+      const f = ((u * 0.55 + k * 0.25) % 1);
+      const x = dx + 60 + span * f;
+      ctx.strokeStyle = `rgba(255,214,10,${0.9 * (1 - f * 0.4)})`; ctx.lineWidth = 7;
+      ctx.beginPath(); ctx.arc(x - 60, dy - 40 - f * 130, 60, -0.5, 0.5); ctx.stroke();
+    }
+    text("Pulse out", dx + 180, dy - 210, { size: 28, weight: 700, color: C.warn });
+  }
+  if (phase >= 2) {
+    // Scattered energy spreading from the drops in every direction.
+    for (let k = 0; k < 3; k++) {
+      const f = ((u * 0.7 + k * 0.33) % 1);
+      ctx.strokeStyle = `rgba(108,196,255,${0.8 * (1 - f)})`; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(rainX - 40, VIEW.y + 330, 30 + f * 180, 0, Math.PI * 2); ctx.stroke();
+    }
+    text("A little energy scatters back", rainX, VIEW.y + 620, { size: 28, weight: 700, color: "#6cc4ff", align: "center" });
+  }
+  if (phase >= 3) {
+    for (let k = 0; k < 3; k++) {
+      const f = ((u * 0.55 + k * 0.33) % 1);
+      const x = rainX - 150 - span * f;
+      ctx.strokeStyle = `rgba(108,196,255,${0.85 * (1 - f * 0.3)})`; ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.arc(x + 40, VIEW.y + 330 + f * 90, 40, Math.PI - 0.5, Math.PI + 0.5); ctx.stroke();
+    }
+    pill("Echo time → distance", dx + 330, gy + 70, { size: 28 });
+    pill("Dish direction → where", dx + 330, gy + 122, { size: 28, fill: "#6cc4ff" });
+  }
+  ctx.restore();
+}
+
+/** Drop size: a drop twice as wide returns about 64 times the energy. */
+function dropsVisual(v, u) {
+  diagramFrame();
+  const cy = VIEW.y + 160, a = easeOut(seg(u, 0.6, 1.6));
+  const small = { x: VIEW.x + 330, r: 34 }, big = { x: VIEW.x + 850, r: 68 };
+  const by = VIEW.y + VIEW.h - 50, full = 320;
+  text("Drop width", VIEW.x + 60, VIEW.y + 60, { size: 26, weight: 700, color: C.ink3 });
+  ctx.fillStyle = C.line; ctx.fillRect(VIEW.x + 40, by - full - 80, VIEW.w - 80, 2);
+  text("Echo strength", VIEW.x + 60, by - full - 40, { size: 26, weight: 700, color: C.ink3 });
+  for (const [d, label, energy, h] of [[small, "1 × wide", "1 × energy", full / 64], [big, "2 × wide", "64 × energy", full]]) {
+    ctx.beginPath(); ctx.ellipse(d.x, cy, d.r, d.r * 1.15, 0, 0, Math.PI * 2);
+    const g = ctx.createRadialGradient(d.x - d.r * 0.4, cy - d.r * 0.5, 4, d.x, cy, d.r * 1.2); g.addColorStop(0, "#d7f0ff"); g.addColorStop(1, "#3b8fd9");
+    ctx.fillStyle = g; ctx.fill();
+    text(label, d.x, cy + 125, { size: 34, weight: 700, align: "center" });
+    const bh = Math.max(6, h * a);
+    rr(d.x - 60, by - bh, 120, bh, 10); ctx.fillStyle = C.warn; ctx.fill();
+    text(energy, d.x + 80, by - bh + 30, { size: 34, weight: 800, color: C.warn, alpha: a });
+  }
+}
+
+/** A sweep seen from above: the beam turns and paints the storm as it goes. */
+function sweepVisual(v, u, dur) {
+  const spec = v.storm;
+  const s = stormFor(spec, u, dur);
+  const view = viewFor({ ...spec, center: [s.radar.x + 38, s.radar.y - 48], zoom: 0.62 }, s, VIEW, 0, dur);
+  const [rx, ry] = RS.toScreen(view, s.radar);
+  const ang = -Math.PI / 2 + u * 1.25; // radians
+  ctx.save();
+  rr(VIEW.x, VIEW.y, VIEW.w, VIEW.h, 24); ctx.fillStyle = C.panel; ctx.fill(); ctx.clip();
+  // Painted only where the beam has already passed this turn.
+  ctx.save();
+  ctx.beginPath(); ctx.moveTo(rx, ry); ctx.arc(rx, ry, 3000, -Math.PI / 2, ang); ctx.closePath(); ctx.clip();
+  ctx.drawImage(paintedFor(JSON.stringify(["sweep", spec]), VIEW, s, "ref", view), VIEW.x, VIEW.y);
+  ctx.restore();
+  ctx.strokeStyle = "rgba(200,215,240,0.10)"; ctx.lineWidth = 2;
+  for (let km = 25; km <= 250; km += 25) { ctx.beginPath(); ctx.arc(rx, ry, km * view.k, 0, Math.PI * 2); ctx.stroke(); }
+  const g = ctx.createConicGradient(ang - 0.6, rx, ry);
+  g.addColorStop(0, "rgba(91,156,246,0)"); g.addColorStop(0.6 / (2 * Math.PI), "rgba(91,156,246,0.28)"); g.addColorStop(0.6 / (2 * Math.PI) + 0.001, "rgba(91,156,246,0)"); g.addColorStop(1, "rgba(91,156,246,0)");
+  ctx.beginPath(); ctx.arc(rx, ry, 3000, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx + Math.cos(ang) * 3000, ry + Math.sin(ang) * 3000); ctx.strokeStyle = "rgba(160,205,255,0.9)"; ctx.lineWidth = 4; ctx.stroke();
+  ctx.beginPath(); ctx.arc(rx, ry, 12, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
+  ctx.restore();
+  rr(VIEW.x, VIEW.y, VIEW.w, VIEW.h, 24); ctx.lineWidth = 2; ctx.strokeStyle = C.line; ctx.stroke();
+  pill("SIMULATED EXAMPLE", VIEW.x + VIEW.w - 20, VIEW.y + 36, { size: 20, fill: "rgba(255,214,10,0.92)", align: "right" });
+  pill("One full turn of the dish", VIEW.x + 20, VIEW.y + 36, { size: 24, fill: "rgba(3,6,13,0.78)", color: C.ink });
+}
+
+/** The volume scan from the side: tilts stacked from 0.5° up, heights exaggerated. */
+function tiltsVisual(v, u) {
+  diagramFrame();
+  ctx.save(); rr(VIEW.x, VIEW.y, VIEW.w, VIEW.h, 24); ctx.clip();
+  const gy = VIEW.y + VIEW.h - 110, x0 = VIEW.x + 110;
+  ground(gy);
+  dome(x0, gy - 120, 0.62);
+  const tilts = [0.5, 0.9, 1.3, 1.8, 2.4, 3.1, 4.0, 5.1, 6.4, 8.0, 10.0, 12.5, 15.6, 19.5];
+  const shown = Math.floor(clamp(u / 0.45, 1, tilts.length));
+  const ex = 9; // vertical exaggeration so the low tilts are visible
+  tilts.slice(0, shown).forEach((deg, i) => {
+    const a = Math.atan(Math.tan((deg * Math.PI) / 180) * ex);
+    const len = 1000;
+    const lowest = i === 0;
+    ctx.strokeStyle = lowest ? C.warn : `rgba(108,196,255,${0.75 - i * 0.03})`;
+    ctx.lineWidth = lowest ? 7 : 4;
+    ctx.beginPath(); ctx.moveTo(x0, gy - 120); ctx.lineTo(x0 + Math.cos(a) * len, gy - 120 - Math.sin(a) * len); ctx.stroke();
+    if (lowest || i === tilts.length - 1 || i === 4) text(`${deg}°`, x0 + Math.cos(a) * (lowest ? 900 : 520) + 10, gy - 120 - Math.sin(a) * (lowest ? 900 : 520) - 12, { size: 26, weight: 700, color: lowest ? C.warn : C.ink2 });
+  });
+  pill("Lowest scan: what most apps show", VIEW.x + 40, VIEW.y + 50, { size: 28 });
+  text("Heights exaggerated", VIEW.x + VIEW.w - 30, VIEW.y + VIEW.h - 30, { size: 22, weight: 500, color: C.ink3, align: "right" });
+  ctx.restore();
+}
+
+/**
+ * The beam's height with distance at 0.5°, standard refraction (4/3 earth radius):
+ * h = sqrt(r² + R'² + 2 r R' sin θ) − R'.
+ */
+const beamKm = (rKm, deg = 0.5) => {
+  const Re = 6371 * (4 / 3), th = (deg * Math.PI) / 180;
+  return Math.sqrt(rKm * rKm + Re * Re + 2 * rKm * Re * Math.sin(th)) - Re;
+};
+function beamVisual(v, u) {
+  diagramFrame();
+  ctx.save(); rr(VIEW.x, VIEW.y, VIEW.w, VIEW.h, 24); ctx.clip();
+  const x0 = VIEW.x + 110, gy = VIEW.y + VIEW.h - 120, maxMi = 150, maxFt = 20000;
+  const X = (mi) => x0 + ((VIEW.w - 190) * mi) / maxMi, Y = (ft) => gy - ((VIEW.h - 260) * ft) / maxFt;
+  ground(gy);
+  ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 2;
+  for (let ft = 5000; ft <= maxFt; ft += 5000) { ctx.beginPath(); ctx.moveTo(x0, Y(ft)); ctx.lineTo(X(maxMi), Y(ft)); ctx.stroke(); text(`${ft.toLocaleString("en-US")} ft`, x0 - 12, Y(ft) + 8, { size: 20, weight: 500, color: C.ink3, align: "right" }); }
+  for (let mi = 30; mi <= maxMi; mi += 30) text(`${mi} mi`, X(mi), gy + 40, { size: 22, weight: 600, color: C.ink2, align: "center" });
+  const grow = clamp(u / 2.5);
+  const ft = (mi, deg) => beamKm(mi * 1.609344, deg) * 3280.84;
+  ctx.beginPath();
+  for (let mi = 0; mi <= maxMi * grow; mi += 2) ctx.lineTo(X(mi), Y(ft(mi, 0.95)));
+  for (let mi = maxMi * grow; mi >= 0; mi -= 2) ctx.lineTo(X(mi), Y(Math.max(0, ft(mi, 0.05))));
+  ctx.closePath(); ctx.fillStyle = "rgba(255,214,10,0.18)"; ctx.fill();
+  ctx.beginPath();
+  for (let mi = 0; mi <= maxMi * grow; mi += 2) ctx.lineTo(X(mi), Y(ft(mi, 0.5)));
+  ctx.strokeStyle = C.warn; ctx.lineWidth = 5; ctx.stroke();
+  dome(x0, gy - 112, 0.55);
+  for (const mi of v.marks || []) {
+    const a = easeOut(seg(u, 1.2, 1.8));
+    const h = ft(mi, 0.5);
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.setLineDash([10, 8]); ctx.strokeStyle = "#fff"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(X(mi), gy); ctx.lineTo(X(mi), Y(h)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(X(mi), Y(h), 9, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
+    pill(`${mi} mi: about ${(Math.round(h / 100) * 100).toLocaleString("en-US")} ft up`, X(mi) - 16, Y(h) - 44, { size: 26, align: "right" });
+    ctx.restore();
+  }
+  if (v.storm) {
+    // A storm far out, its low-level rotation under the beam.
+    const sx = X(125), a = easeOut(seg(u, 0.8, 1.6));
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.fillStyle = "rgba(201,211,227,0.85)";
+    ctx.beginPath(); ctx.moveTo(sx - 140, gy); ctx.lineTo(sx - 90, Y(30000 * 0.6)); ctx.lineTo(sx + 120, Y(30000 * 0.62)); ctx.lineTo(sx + 160, gy); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "#ff453a"; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.ellipse(sx, Y(1500), 55, 22, 0, 0, Math.PI * 2); ctx.stroke();
+    pill("Rotation near the ground", sx, Y(1500) + 60, { size: 24, fill: "#ff453a", color: "#fff", align: "center" });
+    ctx.restore();
+  }
+  text("0.5° scan, standard refraction", VIEW.x + VIEW.w - 30, VIEW.y + 44, { size: 22, weight: 500, color: C.ink3, align: "right" });
+  ctx.restore();
+}
+
+/** A card of points, revealed one by one (agendas and recaps). */
+function bulletsVisual(v, u, dur) {
+  diagramFrame();
+  const items = v.items || [];
+  text(v.heading || "", VIEW.x + 70, VIEW.y + 120, { size: 52, weight: 800 });
+  items.forEach((it, i) => {
+    const at = (v.stagger ?? Math.min(1.6, (dur * 0.7) / Math.max(1, items.length))) * i + 0.4;
+    const a = easeOut(seg(u, at, at + 0.5));
+    const y = VIEW.y + 200 + i * 112;
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.beginPath(); ctx.arc(VIEW.x + 92, y + 34, 18, 0, Math.PI * 2); ctx.fillStyle = it.color || C.accent; ctx.fill();
+    block(it.text || it, VIEW.x + 136, y, VIEW.w - 210, 100, { max: 38, min: 26, weight: 600 });
+    ctx.restore();
+  });
+}
+
+function titleVisual(v, u) {
+  // A sweep behind the lesson's title.
+  const cx = W / 2, cy = 470, R = 430;
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  for (const r of [140, 280, 420]) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.strokeStyle = "rgba(56,189,248,0.16)"; ctx.lineWidth = 3; ctx.stroke(); }
+  const ang = u * 1.6 - Math.PI / 2;
+  const g = ctx.createConicGradient(ang - 0.7, cx, cy);
+  g.addColorStop(0, "rgba(56,189,248,0)"); g.addColorStop(0.7 / (2 * Math.PI), "rgba(56,189,248,0.3)"); g.addColorStop(0.7 / (2 * Math.PI) + 0.001, "rgba(56,189,248,0)"); g.addColorStop(1, "rgba(56,189,248,0)");
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+  ctx.restore();
+  const a = easeOut(seg(u, 0.2, 0.9));
+  if (logo.complete) { ctx.save(); ctx.globalAlpha = a; rr(cx - 70, 250, 140, 140, 30); ctx.clip(); ctx.drawImage(logo, cx - 70, 250, 140, 140); ctx.restore(); }
+  text("RADAR SCHOOL", cx, 470, { size: 40, weight: 800, color: C.accent, align: "center", spacing: 10, alpha: a });
+  text(D.lesson.title, cx, 590, { size: fitSize(D.lesson.title, 1600, 92, 800), weight: 800, align: "center", alpha: easeOut(seg(u, 0.5, 1.2)) });
+  text(`Lesson ${D.lesson.n}`, cx, 670, { size: 40, weight: 500, color: C.ink2, align: "center", alpha: easeOut(seg(u, 0.8, 1.5)) });
+}
+
+/** The end screen: room for YouTube's end-screen video and subscribe elements, silent. */
+function outroVisual(v, u) {
+  const a = easeOut(seg(u, 0, 0.8));
+  ctx.save(); ctx.globalAlpha = a;
+  text("Thanks for learning with Radar School", W / 2, 150, { size: 54, weight: 800, align: "center" });
+  text(v.next ? `Next: ${v.next}` : "New lessons every week", W / 2, 215, { size: 36, weight: 600, color: C.accent, align: "center" });
+  // YouTube end-screen elements go in these spots.
+  rr(160, 300, 760, 428, 24); ctx.strokeStyle = "rgba(255,255,255,0.18)"; ctx.lineWidth = 3; ctx.setLineDash([14, 10]); ctx.stroke();
+  rr(1000, 300, 760, 428, 24); ctx.stroke(); ctx.setLineDash([]);
+  text("Watch next", 540, 530, { size: 34, weight: 600, color: C.ink3, align: "center" });
+  text("Radar School playlist", 1380, 530, { size: 34, weight: 600, color: C.ink3, align: "center" });
+  if (logo.complete) { ctx.save(); rr(W / 2 - 70, 780, 140, 140, 30); ctx.clip(); ctx.drawImage(logo, W / 2 - 70, 780, 140, 140); ctx.restore(); }
+  text("Live radar and alerts, free: stormcentralwx.com", W / 2, 990, { size: 36, weight: 700, align: "center" });
+  text(D.anyReal ? "Real radar: NOAA NEXRAD Level II archive. Examples marked simulated are drawn for the lesson." : "Radar images in this video are simulated examples.", W / 2, 1040, { size: 24, weight: 500, color: C.ink3, align: "center" });
+  ctx.restore();
+}
+
+const VISUALS = { radar: radarVisual, split: splitVisual, works: worksVisual, drops: dropsVisual, sweep: sweepVisual, tilts: tiltsVisual, beam: beamVisual, bullets: bulletsVisual };
+
+// ── side panel ───────────────────────────────────────────────────────────
+function sidePanel(t, b) {
+  const ch = D.chapters[b.chapter];
+  const inCh = D.beats.filter((x) => x.chapter === b.chapter && x.start <= t && x.bullet);
+  text(`CHAPTER ${b.chapter + 1}`, SIDE.x, SIDE.y + 30, { size: 22, weight: 800, color: C.accent, spacing: 4 });
+  const used = block(ch.title, SIDE.x, SIDE.y + 42, SIDE.w, 120, { max: 44, min: 32, weight: 800 });
+  const ca = easeOut(seg(t, b.start, b.start + 0.5));
+  const capY = SIDE.y + 70 + used;
+  ctx.save(); ctx.globalAlpha = ca;
+  const capH = b.caption ? block(b.caption, SIDE.x, capY, SIDE.w, 230, { max: 38, min: 28, weight: 600, color: C.ink2 }) : 0;
+  ctx.restore();
+  let y = capY + capH + 40;
+  ctx.fillStyle = C.line; ctx.fillRect(SIDE.x, y - 18, SIDE.w, 2);
+  for (const x of inCh) {
+    const a = easeOut(seg(t, x.start, x.start + 0.5));
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.beginPath(); ctx.arc(SIDE.x + 12, y + 20, 8, 0, Math.PI * 2); ctx.fillStyle = C.accent; ctx.fill();
+    const h = block(x.bullet, SIDE.x + 36, y - 4, SIDE.w - 36, 120, { max: 30, min: 24, weight: 600 });
+    ctx.restore();
+    y += h + 22;
+    if (y > SIDE.y + SIDE.h - 40) break;
+  }
+}
+
+/** The chapter's title card over its first two seconds. */
+function chapterCard(t, b) {
+  const ch = D.chapters[b.chapter];
+  if (b.chapter === 0 || t - ch.start > 2.6) return;
+  const a = easeOut(seg(t, ch.start, ch.start + 0.4)) * (1 - easeOut(seg(t, ch.start + 2.0, ch.start + 2.6)));
+  ctx.save(); ctx.globalAlpha = a;
+  rr(VIEW.x, VIEW.y, VIEW.w, VIEW.h, 24); ctx.fillStyle = "rgba(3,6,13,0.86)"; ctx.fill();
+  text(`CHAPTER ${b.chapter + 1}`, VIEW.x + VIEW.w / 2, VIEW.y + VIEW.h / 2 - 40, { size: 30, weight: 800, color: C.accent, align: "center", spacing: 8 });
+  text(ch.title, VIEW.x + VIEW.w / 2, VIEW.y + VIEW.h / 2 + 50, { size: fitSize(ch.title, VIEW.w - 120, 72, 800), weight: 800, align: "center" });
+  ctx.restore();
+}
+
+// ── thumbnail ────────────────────────────────────────────────────────────
+function thumbnail() {
+  background();
+  const th = D.thumb;
+  const rect = { x: 760, y: 60, w: 1100, h: 960 };
+  const s = stormFor(th.visual.storm, 0, 1);
+  const view = viewFor(th.visual.storm, s, rect, 0, 1);
+  scopeFrame(rect, view, s, th.visual.storm.product || "ref", { label: false, legend: false });
+  ctx.save(); rr(rect.x, rect.y, rect.w, rect.h, 24); ctx.clip();
+  notes({ notes: (th.visual.storm.notes || []).map((n) => ({ ...n, at: -1 })) }, s, view, 10);
+  ctx.restore();
+  if (logo.complete) { ctx.save(); rr(70, 80, 110, 110, 24); ctx.clip(); ctx.drawImage(logo, 70, 80, 110, 110); ctx.restore(); }
+  text("RADAR SCHOOL", 200, 152, { size: 44, weight: 900, color: C.accent, spacing: 6 });
+  th.lines.forEach((l, i) => {
+    const size = fitSize(l, 700, 150, 900);
+    ctx.save();
+    ctx.font = `900 ${size}px "${FONT}"`;
+    ctx.lineWidth = 16; ctx.strokeStyle = "#03060d"; ctx.lineJoin = "round";
+    ctx.strokeText(l, 70, 400 + i * (size + 20));
+    ctx.fillStyle = i === th.lines.length - 1 ? C.warn : "#ffffff";
+    ctx.fillText(l, 70, 400 + i * (size + 20));
+    ctx.restore();
+  });
+  pill(`LESSON ${D.lesson.n}`, 74, 930, { size: 44 });
+}
+
+// ── render ───────────────────────────────────────────────────────────────
+const beatAt = (t) => {
+  let b = D.beats[0];
+  for (const x of D.beats) if (x.start <= t) b = x;
+  return b;
+};
+
+window.render = function (t, still) {
+  if (still) return thumbnail();
+  background();
+  if (t >= D.end) { outroVisual(D.outro || {}, t - D.end); return; }
+  const b = beatAt(t), u = t - b.start, v = b.visual;
+  if (v.type === "title") { titleVisual(v, u); return; }
+  const ch = D.chapters[b.chapter];
+  topBar(t, ch);
+  ctx.save();
+  ctx.globalAlpha = easeOut(seg(u, 0, 0.35));
+  (VISUALS[v.type] || (() => diagramFrame()))(v, u, b.dur);
+  ctx.restore();
+  chapterCard(t, b);
+  sidePanel(t, b);
+  chapterBar(t);
+};
+window.DUR = Math.ceil(D.end + (D.outroSeconds || 20));
+</script>
+</body>
+</html>

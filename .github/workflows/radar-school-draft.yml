@@ -1,0 +1,100 @@
+# Drafts the next Radar School lesson (shorts/lesson-draft.ts) every Sunday,
+# or one on a topic you name: the local model writes it from Wikipedia and
+# NOAA/NWS pages, every factual line must quote a source word for word, and
+# a second, different model reviews every line; lines that fail are dropped.
+#
+# A draft that passes every gate approves itself and goes straight onto main,
+# scheduled for the next free Wednesday. One that fails a gate goes up as a
+# pull request instead and doesn't post unless someone approves it.
+name: Draft a Radar School lesson
+
+on:
+  schedule:
+    # Sundays 15:00 UTC: ready for Wednesday's lesson.
+    - cron: "0 15 * * 0"
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: 'What the lesson teaches (empty: the next topic in shorts/lessons/topics.txt)'
+        default: ""
+      id:
+        description: "Short name for the file, e.g. velocity (with a topic)"
+        default: ""
+      urls:
+        description: "Extra NOAA/NWS pages to read, comma-separated (optional)"
+        default: ""
+      auto:
+        description: "Approve it automatically when every check passes"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: radar-school-draft
+  cancel-in-progress: false
+
+jobs:
+  draft:
+    if: github.event_name == 'workflow_dispatch' || vars.SHORTS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      SHORTS_AI_MODEL: ${{ vars.SHORTS_AI_MODEL || 'gemma3:12b' }}
+      REVIEW_MODEL: ${{ vars.REVIEW_MODEL || 'qwen3:8b' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Start the writer and the reviewer (Ollama)
+        timeout-minutes: 20
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama pull "$SHORTS_AI_MODEL"
+          ollama pull "$REVIEW_MODEL"
+      - name: Research, draft and check
+        id: draft
+        env:
+          TOPIC: ${{ inputs.topic }}
+          ID: ${{ inputs.id }}
+          URLS: ${{ inputs.urls }}
+          AUTO: ${{ github.event_name == 'schedule' || inputs.auto }}
+        run: |
+          args=()
+          if [ -n "$TOPIC" ]; then args+=(--topic "$TOPIC" --id "${ID:-$TOPIC}" --urls "$URLS"); else args+=(--next); fi
+          [ "$AUTO" = true ] && args+=(--auto)
+          npx --yes tsx shorts/lesson-draft.ts "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: radar-school-draft
+          path: shorts/lessons/
+          retention-days: 14
+      - name: Schedule it (approved) or open a pull request (not approved)
+        if: steps.draft.outputs.id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ID: ${{ steps.draft.outputs.id }}
+          APPROVED: ${{ steps.draft.outputs.approved }}
+          TOPIC: ${{ steps.draft.outputs.topic }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "shorts/lessons/$ID.json" "shorts/lessons/$ID.review.md"
+          if [ "$APPROVED" = true ]; then
+            git commit -m "Radar School: $TOPIC (drafted and checked automatically)"
+            if git push origin HEAD:main; then
+              echo "Approved and scheduled on main."
+              exit 0
+            fi
+            echo "::warning::Couldn't push to main (branch protection?); opening a pull request instead."
+          else
+            git commit -m "Radar School draft: $TOPIC (didn't pass every check)"
+          fi
+          branch="radar-school/$ID"
+          git push -f origin "HEAD:refs/heads/$branch"
+          gh pr create --title "Radar School: $TOPIC" --body "$(head -c 60000 "shorts/lessons/$ID.review.md")" --base main --head "$branch" \
+            || echo "::warning::Couldn't open the pull request (Settings → Actions → General → Allow GitHub Actions to create pull requests). The draft is on the $branch branch and in this run's artifact."

@@ -11,8 +11,10 @@ describe("cron-job.org setup", () => {
       "Storm Central: fire",
       "Storm Central: weekly",
       "Storm Central: recap",
+      "Storm Central: lesson",
       "Storm Central: breaking",
     ]);
+    expect(jobs.find((j) => j.title.endsWith("lesson"))!.schedule).toMatchObject({ hours: [13], minutes: [20], wdays: [3] });
     const recap = jobs.find((j) => j.title.endsWith("recap"))!;
     expect(recap.url).toBe("https://api.github.com/repos/KingCreeper531/StormCentral/actions/workflows/youtube-shorts.yml/dispatches");
     expect(recap.requestMethod).toBe(1);
@@ -37,10 +39,10 @@ describe("cron-job.org setup", () => {
       return new Response("{}");
     });
     const r = await syncJobs("key", jobs, { fetchImpl: fetchImpl as typeof fetch, pauseMs: 0, log: () => {} });
-    expect(r).toEqual({ created: 5, updated: 1 });
+    expect(r).toEqual({ created: 6, updated: 1 });
     expect(calls[0]).toBe("GET /jobs");
     expect(calls).toContain("PATCH /jobs/7");
-    expect(calls.filter((c) => c === "PUT /jobs")).toHaveLength(5);
+    expect(calls.filter((c) => c === "PUT /jobs")).toHaveLength(6);
     expect(calls.some((c) => c.includes("/jobs/9"))).toBe(false);
   });
 

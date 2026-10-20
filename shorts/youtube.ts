@@ -84,12 +84,27 @@ export async function uploadVideo(file: string, meta: VideoMeta, token: string):
     method: "PUT",
     headers: { "Content-Type": "video/mp4" },
     body: readFileSync(file),
-    signal: AbortSignal.timeout(300_000),
+    // Full-length lessons run to a few hundred megabytes.
+    signal: AbortSignal.timeout(1_800_000),
   });
   if (!put.ok) throw await failure(put, "Uploading the video");
   const video = (await put.json()) as { id?: string; status?: { privacyStatus?: string } };
   if (!video.id) throw new YouTubeError("The upload gave no video id", 500);
   return video.id;
+}
+
+/**
+ * Sets a video's custom thumbnail (a JPEG under 2 MB). YouTube allows custom
+ * thumbnails only on verified channels: otherwise this throws a 403 YouTubeError.
+ */
+export async function setThumbnail(videoId: string, file: string, token: string): Promise<void> {
+  const res = await fetch(`https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${encodeURIComponent(videoId)}&uploadType=media`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "image/jpeg" },
+    body: readFileSync(file),
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!res.ok) throw await failure(res, "Setting the thumbnail");
 }
 
 async function api<T>(token: string, path: string, what: string, init: { method?: string; body?: unknown } = {}): Promise<T> {

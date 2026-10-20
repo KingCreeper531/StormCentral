@@ -11,6 +11,7 @@
  *   weekly    the next eight days of outlooks (Sundays)
  *   tropical  an update for each named storm (while there are any)
  *   fire      the most significant active wildfire (when one is big, growing or far from contained)
+ *   lesson    Radar School: a full-length (16:9) lesson on reading radar (Wednesdays)
  *   breaking  a Tornado or Flash Flood Emergency, Extreme Wind Warning, PDS tornado warning or watch, or SPC High Risk
  *             (checked every 10 minutes by .github/workflows/youtube-breaking.yml)
  *
@@ -34,34 +35,37 @@
  *   SHORTS_BREAKING_MAX    breaking: at most this many events per run (default 1)
  *   SHORTS_BREAKING_DAILY_MAX  breaking: at most this many a day (default 2; YouTube's quota allows about 6 uploads)
  *   SHORTS_BREAKING_EVENT  breaking: the event key to make first (from breaking-check.ts)
+ *   SHORTS_LESSON          lesson: which lesson (number or id) instead of this week's
  *   SHORTS_STATE_DIR       fire, breaking: where yesterday's fire sizes and the posted events are kept (default shorts/.state)
  *   SHORTS_OUT_DIR         where the MP4s and their metadata go (default shorts/out)
  *   SHORTS_FIXTURES        a folder of saved source files to use instead of fetching (testing)
  *   SHORTS_SAVE            a folder to save the fetched source files into (to make fixtures)
  */
-import { appendFileSync, copyFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { breakingKind } from "./kinds/breaking";
 import { fireKind } from "./kinds/fire";
+import { lessonKind } from "./kinds/lesson";
 import { outlookKind } from "./kinds/outlook";
 import { recapKind } from "./kinds/recap";
 import { tropicalKind } from "./kinds/tropical";
 import { weeklyKind } from "./kinds/weekly";
 import { narration, type Cue } from "./narration";
-import { renderShort } from "./render";
+import { renderShort, renderStill } from "./render";
 import { livelyNarration } from "./script";
 import type { Kind, Video } from "./video";
 import { addVoice, DEFAULT_VOICE, seconds } from "./voice";
-import { accessToken, addToPlaylist, credentialsFromEnv, uploadVideo, YouTubeError, type VideoMeta } from "./youtube";
+import { accessToken, addToPlaylist, credentialsFromEnv, setThumbnail, uploadVideo, YouTubeError, type VideoMeta } from "./youtube";
 
 const env = process.env;
-const KINDS: Record<string, Kind> = { outlook: outlookKind, recap: recapKind, weekly: weeklyKind, tropical: tropicalKind, fire: fireKind, breaking: breakingKind };
+const KINDS: Record<string, Kind> = { outlook: outlookKind, recap: recapKind, weekly: weeklyKind, tropical: tropicalKind, fire: fireKind, breaking: breakingKind, lesson: lessonKind };
 const PLAYLIST_ABOUT: Record<string, string> = {
   "Daily Severe Weather Outlook": "Every morning: the day's severe weather outlook from NOAA's Storm Prediction Center, on a map.",
   "Storm Reports": "On active severe weather days: the day's tornado, wind and hail reports from the National Weather Service.",
   "Severe Weather: Week Ahead": "Every Sunday: the severe weather outlook for the next eight days.",
   "Tropical Updates": "Hurricane and tropical storm updates from the National Hurricane Center, while storms are active.",
   "Wildfire Updates": "Updates on significant US wildfires from the National Interagency Fire Center: size, growth and containment.",
+  "Radar School": "A free weekly series on reading weather radar: how it works, the colors, velocity, hook echoes, debris signatures and more, with simulated radar examples.",
   "Breaking Severe Weather":
     "Tornado and flash flood emergencies, PDS tornado warnings and watches, and High Risk days, as they're issued. Not an official warning source; follow the National Weather Service.",
 };
@@ -104,14 +108,18 @@ async function main() {
     saveMeta();
     console.log(`\n── ${v.key} ──\nTitle: ${v.title}\nTítulo: ${v.es.title}\n\n${v.description}\n`);
     const started = Date.now();
-    await renderShort(v.template, v.data, out);
+    await renderShort(v.template, v.data, out, v.size ?? {});
     console.log(`Rendered ${out} in ${Math.round((Date.now() - started) / 1000)} s.`);
+    // Full-length videos get their own thumbnail (kept with the video, so a test run shows it too).
+    const thumb = v.thumbnailAt != null ? join(outDir, `${v.key}-thumbnail.jpg`) : null;
+    if (thumb) await renderStill(v.template, v.data, v.thumbnailAt!, thumb, v.size ?? {}).catch((err: unknown) => console.warn(`::warning::No thumbnail: ${err instanceof Error ? err.message : err}`));
     if (env.SHORTS_VOICE !== "false") {
       const voice = env.SHORTS_VOICE_NAME || DEFAULT_VOICE;
       const plain = narration(v);
       let cues = plain;
-      // Breaking news reads the warning's facts as written: no AI rewording of life-threatening warnings.
-      if (env.SHORTS_AI === "true" && plain.length && v.template !== "breaking.html") {
+      // Breaking news reads the warning's facts as written (no AI rewording of life-threatening warnings),
+      // and Radar School its hand-checked lesson script.
+      if (env.SHORTS_AI === "true" && plain.length && v.template !== "breaking.html" && v.template !== "lesson.html") {
         cues = await livelyNarration(v, plain, await seconds(out), { host: env.OLLAMA_HOST, model: env.SHORTS_AI_MODEL || undefined }).catch((err: unknown) => {
           console.warn(`::warning::The AI narrator failed; using the plain script: ${err instanceof Error ? err.message : err}`);
           return plain;
@@ -137,7 +145,17 @@ async function main() {
     try {
       const id = await uploadVideo(out, meta, token);
       uploaded++;
-      console.log(`Uploaded → https://youtube.com/shorts/${id}`);
+      console.log(v.size ? `Uploaded → https://youtu.be/${id}` : `Uploaded → https://youtube.com/shorts/${id}`);
+      if (thumb && existsSync(thumb)) {
+        await setThumbnail(id, thumb, token).then(
+            () => console.log("Set the thumbnail."),
+            (err: unknown) =>
+              console.warn(
+                `::warning::Couldn't set the thumbnail: ${err instanceof Error ? err.message : err}` +
+                  (err instanceof YouTubeError && err.status === 403 ? " (custom thumbnails need a verified channel: youtube.com/verify)" : ""),
+              ),
+          );
+      }
       if (env.SHORTS_PLAYLISTS !== "false") {
         await addToPlaylist(id, v.playlist, PLAYLIST_ABOUT[v.playlist] ?? "", token).then(
           () => console.log(`Added to the playlist "${v.playlist}".`),

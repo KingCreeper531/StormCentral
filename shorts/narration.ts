@@ -35,6 +35,7 @@ export function spoken(s: string): string {
   return s
     .replace(/\b(\d+(?:\.\d+)?)(?:"| in\b(?=[,.;]|$))/g, (_, n: string) => `${n} ${Number(n) === 1 ? "inch" : "inches"}`)
     .replace(/\bmph\b/g, "miles per hour")
+    .replace(/\bdBZ\b/g, "D B Z")
     .replace(/(\d)%/g, "$1 percent")
     .replace(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b\.?/g, (d: string) => DAYS[d.replace(".", "")]!)
     .replace(/\b([NSEW]{1,3})(?= at \d)/g, (dir: string) => compassWords(dir))
@@ -164,8 +165,18 @@ function breaking(d: BreakingData): Cue[] {
   ];
 }
 
+interface LessonData {
+  beats: { start: number; say: string }[];
+}
+
+/** Radar School: each beat's line as it comes on screen (kinds/lesson.ts times the beats to them). */
+function lesson(d: LessonData): Cue[] {
+  return d.beats.map((b) => ({ at: b.start + 0.3, text: b.say }));
+}
+
 const BY_TEMPLATE: Record<string, (d: never) => Cue[]> = {
   "breaking.html": breaking,
+  "lesson.html": lesson,
   "fire.html": fire,
   "outlook.html": outlook,
   "recap.html": recap,

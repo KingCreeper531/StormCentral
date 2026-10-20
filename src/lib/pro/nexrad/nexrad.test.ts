@@ -102,6 +102,24 @@ describe("Level II", () => {
   it("returns no sweep for a tilt the volume doesn't have", () => {
     expect(parseLevel2(file, "REF", 19.5).sweep).toBeNull();
   });
+
+  it("reads older archive files whose messages aren't bzip2-compressed", () => {
+    // The same volume as the archive stored it before about 2016: header, then the messages as they are.
+    const parts: Uint8Array[] = [file.subarray(0, 24)];
+    const dv = new DataView(file.buffer, file.byteOffset, file.byteLength);
+    for (let pos = 24; pos + 4 <= file.length; ) {
+      const size = Math.abs(dv.getInt32(pos));
+      if (!size || pos + 4 + size > file.length) break;
+      parts.push(bunzip2(file.subarray(pos + 4, pos + 4 + size), size * 8));
+      pos += 4 + size;
+    }
+    const plain = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+    parts.reduce((o, p) => (plain.set(p, o), o + p.length), 0);
+    const a = parseLevel2(file, "REF", 0.5).sweep!, b = parseLevel2(plain, "REF", 0.5).sweep!;
+    expect(parseLevel2(plain, "REF", null).cuts).toEqual(parseLevel2(file, "REF", null).cuts);
+    expect(b.nRadials).toBe(a.nRadials);
+    expect(Array.from(b.data)).toEqual(Array.from(a.data));
+  });
 });
 
 describe("sweep geometry", () => {
