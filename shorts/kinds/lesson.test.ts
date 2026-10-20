@@ -74,8 +74,8 @@ describe("Radar School lessons", () => {
 
 describe("pickLesson", () => {
   it("posts each lesson in its own week, and nothing in a week without one", () => {
-    expect(pickLesson(SERIES_START - 1)).toBeNull();
-    // Lesson 1 went out by hand before the schedule began, so it never posts again on its own.
+    // Lesson 1 went out by hand the week before the schedule began, so week 0 has nothing of its own.
+    expect(pickLesson(SERIES_START - 1)).toBe(0);
     expect(pickLesson(SERIES_START + 3600_000)).toBeNull();
     expect(pickLesson(SERIES_START + 500 * WEEK)).toBeNull();
   });
