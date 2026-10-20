@@ -755,7 +755,7 @@ function thumbnail() {
   if (logo.complete) { ctx.save(); rr(70, 80, 110, 110, 24); ctx.clip(); ctx.drawImage(logo, 70, 80, 110, 110); ctx.restore(); }
   text("RADAR SCHOOL", 200, 152, { size: 44, weight: 900, color: C.accent, spacing: 6 });
   th.lines.forEach((l, i) => {
-    const size = fitSize(l, 700, 150, 900);
+    const size = fitSize(l, th.visual.shot && SCR.shots[th.visual.shot] ? 650 : 700, 150, 900);
     ctx.save();
     ctx.font = `900 ${size}px "${FONT}"`;
     ctx.lineWidth = 16; ctx.strokeStyle = "#03060d"; ctx.lineJoin = "round";

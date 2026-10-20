@@ -1,4 +1,5 @@
-# Temporary: runs the live stream for 2.5 minutes into a file instead of YouTube, and commits frames to look at.
+# Temporary: (1) runs the live stream for 200 s into a file instead of YouTube and commits frames to look at;
+# (2) installs the web app with vps/setup.sh on a fresh runner and checks it answers through Caddy.
 name: Stream test (temporary)
 on:
   push:
@@ -43,8 +44,29 @@ jobs:
           done
           ffprobe -v error -show_entries format=duration:stream=codec_name,width,height,r_frame_rate,sample_rate -of compact "$RUNNER_TEMP/test.mp4" | tee .stream-test/info.txt
           ffmpeg -v info -i "$RUNNER_TEMP/test.mp4" -af volumedetect -vn -f null - 2>&1 | grep -E "mean_volume|max_volume" | tee -a .stream-test/info.txt
-          ffmpeg -v error -i "$RUNNER_TEMP/test.mp4" -vn -ac 1 -ar 22050 -c:a libmp3lame -b:a 48k .stream-test/audio.mp3
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -rq --cached .stream-test 2>/dev/null || true
-          git add .stream-test && git commit -m "Temporary: stream test frames" && git push origin HEAD:claude/trusting-pasteur-qzc0fq
+          git add -f .stream-test && git commit -qm "Temporary: stream test frames"
+          for i in 1 2 3 4; do git pull -q --rebase origin claude/trusting-pasteur-qzc0fq && git push -q origin HEAD:claude/trusting-pasteur-qzc0fq && break; sleep 5; done
+  app:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with: { ref: claude/trusting-pasteur-qzc0fq }
+      - name: Answers for setup.sh (there's no terminal in CI)
+        run: |
+          sudo mkdir -p /etc/stormcentral
+          printf 'DOMAIN=\nYT_STREAM_KEY=\nAI=no\nAPP_DOMAIN=app.test\nWATCHER_IP=\nWATCH_DOMAIN=\nWATCH_IP=\nCF_API_TOKEN=\nBACKUP_HOST=storm-central-pi.vercel.app\nNTFY_TOPIC=\n' | sudo tee /etc/stormcentral/setup.env > /dev/null
+          echo 'DATABASE_URL=file:/opt/stormcentral/test.db' | sudo tee /etc/stormcentral/app.env > /dev/null
+      - name: Install the web app with vps/setup.sh
+        run: sudo STORMCENTRAL_BRANCH=claude/trusting-pasteur-qzc0fq bash vps/setup.sh < /dev/null
+      - name: It answers through Caddy, and updates are a no-op when main hasn't moved
+        run: |
+          curl -skf --resolve app.test:443:127.0.0.1 https://app.test/api/health | tee /dev/stderr | grep -q '"ok":true'
+          curl -skf --resolve app.test:443:127.0.0.1 -o /dev/null -w "page: %{http_code} %{size_download} bytes\n" "https://app.test/?mode=severe"
+          curl -skf --resolve app.test:443:127.0.0.1 -o /dev/null -w "feed: %{http_code}\n" https://app.test/api/outlook || true
+          sudo STORMCENTRAL_BRANCH=claude/trusting-pasteur-qzc0fq /usr/local/bin/stormcentral-app-deploy && echo "deploy again: nothing to do"
+          systemctl status stormcentral-app --no-pager | head -5
+          systemctl list-timers stormcentral-app-deploy.timer --no-pager | head -3
+          sudo ufw status | head -8

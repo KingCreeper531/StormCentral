@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Storm Central on your own server (Ubuntu 24.04, 4 cores / 12 GB or more):
+# Storm Central on your own servers (Ubuntu 24.04). Each server gets the parts
+# you answer for; leave a question empty to skip that part:
 #   • the Pro data server (MESH, rotation tracks, VIL, GOES RGBs for Professional mode), behind HTTPS
 #   • the 24/7 live stream to YouTube (radar, warnings read aloud, briefings)
-#   • optionally the local AI (Ollama, gemma3:4b) that rewords the briefings
+#   • the local AI (Ollama, gemma3:4b) that rewords the stream's briefings
+#   • the web app itself, behind Cloudflare, updating itself from main (Vercel stays as the backup)
+#   • the failover watcher: on another server, switches the app's address to Vercel if the app server stops answering
 #
 # Install, or update later (your answers are kept; press Enter to keep each one):
 #   curl -fsSL https://raw.githubusercontent.com/KingCreeper531/StormCentral/main/vps/setup.sh | sudo bash
@@ -32,14 +35,15 @@ warn() { printf '\033[1;33m!!  %s\033[0m\n' "$*"; }
 # ── Your settings ───────────────────────────────────────────────────────────
 mkdir -p "$CONF"
 chmod 755 "$CONF"
-DOMAIN="" YT_STREAM_KEY="" AI="yes"
+DOMAIN="" YT_STREAM_KEY="" AI="no" APP_DOMAIN="" WATCHER_IP="" WATCH_DOMAIN="" WATCH_IP="" CF_API_TOKEN="" NTFY_TOPIC="" BACKUP_HOST="storm-central-pi.vercel.app"
 # shellcheck disable=SC1090
 [ -f "$SETTINGS" ] && . "$SETTINGS"
 
 ask() { # ask VAR "Question" [secret]
   local var=$1 q=$2 secret=${3:-} cur ans=""
   cur=${!var}
-  [ -r /dev/tty ] || return 0
+  # No terminal (piped without one, or automation): keep the saved answers.
+  { : </dev/tty; } 2>/dev/null || return 0
   if [ -n "$secret" ]; then
     read -r -s -p "$q${cur:+ [Enter keeps the current one]}: " ans </dev/tty
     echo >/dev/tty
@@ -51,21 +55,65 @@ ask() { # ask VAR "Question" [secret]
 }
 
 echo "Storm Central server setup. Leave an answer empty to skip that part."
-ask DOMAIN "Domain for the Pro data server (e.g. pro.stormcentralwx.com; its DNS A record must point here)"
-ask YT_STREAM_KEY "YouTube stream key (YouTube Studio → Go live → Stream)" secret
+ask DOMAIN "Pro data server on this server? Its domain (e.g. pro.stormcentralwx.com; DNS A record pointing here, not proxied)"
+ask YT_STREAM_KEY "Live stream on this server? YouTube stream key (YouTube Studio → Go live → Stream)" secret
 ask AI "Local AI for the stream's briefings? (yes/no)"
 case "${AI,,}" in y | yes) AI=yes ;; *) AI=no ;; esac
+ask APP_DOMAIN "Web app on this server? Its domain (e.g. app.stormcentralwx.com, on Cloudflare)"
+if [ -n "$APP_DOMAIN" ]; then
+  ask WATCHER_IP "IP of the server that will watch this one for failover (it's let through the firewall)"
+fi
+ask WATCH_DOMAIN "Failover watcher on this server? The web app's domain it watches (on another server)"
+if [ -n "$WATCH_DOMAIN" ]; then
+  ask WATCH_IP "That app server's public IP"
+  ask CF_API_TOKEN "Cloudflare API token (Zone: DNS Edit, Cache Rules Edit, Zone Settings Edit)" secret
+  ask BACKUP_HOST "Backup address (Vercel)"
+  ask NTFY_TOPIC "ntfy topic for alerts on your phone (optional; pick something hard to guess)"
+fi
+if [ -n "$APP_DOMAIN" ] && [ -n "$DOMAIN" ]; then
+  echo "The web app and the Pro data server both need ports 80 and 443: put them on different servers." >&2
+  exit 1
+fi
+if [ -n "$APP_DOMAIN" ] && [ -n "$WATCH_DOMAIN" ]; then
+  echo "The watcher has to run on a different server from the app it watches." >&2
+  exit 1
+fi
 umask 077
-printf 'DOMAIN=%q\nYT_STREAM_KEY=%q\nAI=%q\n' "$DOMAIN" "$YT_STREAM_KEY" "$AI" >"$SETTINGS"
+for v in DOMAIN YT_STREAM_KEY AI APP_DOMAIN WATCHER_IP WATCH_DOMAIN WATCH_IP CF_API_TOKEN BACKUP_HOST NTFY_TOPIC; do printf '%s=%q\n' "$v" "${!v}"; done >"$SETTINGS"
 umask 022
+
+# The web app's settings: the same environment variables as on Vercel (Settings → Environment Variables).
+APP_ENV=$CONF/app.env
+if [ -n "$APP_DOMAIN" ]; then
+  if [ ! -s "$APP_ENV" ] || ! grep -q '^DATABASE_URL=' "$APP_ENV"; then
+    { : </dev/tty; } 2>/dev/null || { echo "The web app needs its settings ($APP_ENV); run this from a terminal." >&2; exit 1; }
+    echo
+    echo "Paste the web app's environment variables from Vercel (Settings → Environment Variables), one KEY=value per line."
+    echo "At least DATABASE_URL and DATABASE_AUTH_TOKEN (the same Turso database, so Vercel and this server share everything)."
+    echo "Finish with an empty line:"
+    : >"$APP_ENV.new"
+    while IFS= read -r line </dev/tty; do
+      [ -z "$line" ] && break
+      [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && printf '%s\n' "$line" >>"$APP_ENV.new"
+    done
+    grep -q '^DATABASE_URL=' "$APP_ENV.new" || { rm -f "$APP_ENV.new"; echo "No DATABASE_URL; nothing changed." >&2; exit 1; }
+    grep -q '^NWS_USER_AGENT=' "$APP_ENV.new" || echo 'NWS_USER_AGENT="StormCentral (github.com/KingCreeper531/StormCentral)"' >>"$APP_ENV.new"
+    mv "$APP_ENV.new" "$APP_ENV"
+  fi
+  grep -qE '^DATABASE_URL="?(libsql|https)://' "$APP_ENV" || warn "DATABASE_URL isn't a Turso (libsql://) address: Vercel and this server would keep separate data."
+fi
 
 # ── Packages ────────────────────────────────────────────────────────────────
 say "Installing packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq ca-certificates curl git ufw docker.io docker-compose-v2 xvfb ffmpeg pulseaudio pulseaudio-utils pipx \
-  fonts-inter fonts-dejavu-core fonts-noto-color-emoji >/dev/null
-if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 22 ]; then
+apt-get install -y -qq ca-certificates curl git jq ufw gnupg >/dev/null
+# Only what this server's parts need (Docker isn't installed over one that's already there).
+if [ -n "$DOMAIN" ] && ! command -v docker >/dev/null; then apt-get install -y -qq docker.io docker-compose-v2 >/dev/null; fi
+if [ -n "$YT_STREAM_KEY" ]; then
+  apt-get install -y -qq xvfb ffmpeg pulseaudio pulseaudio-utils pipx fonts-inter fonts-dejavu-core fonts-noto-color-emoji >/dev/null
+fi
+if { [ -n "$YT_STREAM_KEY" ] || [ -n "$APP_DOMAIN" ]; } && { ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 22 ]; }; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
   apt-get install -y -qq nodejs >/dev/null
 fi
@@ -79,9 +127,20 @@ fi
 
 say "Firewall: SSH, HTTP and HTTPS only"
 ufw allow OpenSSH >/dev/null
-ufw allow 80/tcp >/dev/null
-ufw allow 443/tcp >/dev/null
-ufw allow 443/udp >/dev/null
+if [ -n "$APP_DOMAIN" ]; then
+  # The web app only answers Cloudflare (and the watcher), so nobody can get around Cloudflare's cache and protection.
+  ufw delete allow 80/tcp >/dev/null 2>&1 || true
+  ufw delete allow 443/tcp >/dev/null 2>&1 || true
+  CF_RANGES=$( (curl -fsS https://www.cloudflare.com/ips-v4; echo; curl -fsS https://www.cloudflare.com/ips-v6) | grep -E '^[0-9a-f:.]+/[0-9]+$')
+  [ -n "$CF_RANGES" ] || { echo "Couldn't read Cloudflare's IP ranges." >&2; exit 1; }
+  for r in $CF_RANGES ${WATCHER_IP:+$WATCHER_IP}; do
+    ufw allow proto tcp from "$r" to any port 80,443 >/dev/null
+  done
+else
+  ufw allow 80/tcp >/dev/null
+  ufw allow 443/tcp >/dev/null
+  ufw allow 443/udp >/dev/null
+fi
 ufw --force enable >/dev/null
 
 # ── The code ────────────────────────────────────────────────────────────────
@@ -206,6 +265,151 @@ else
   warn "No stream key: skipping the live stream."
 fi
 
+# ── Web app ─────────────────────────────────────────────────────────────────
+if [ -n "$APP_DOMAIN" ]; then
+  say "Web app for https://$APP_DOMAIN"
+  if ! command -v caddy >/dev/null || ! caddy version | grep -qE '^v2\.([7-9]|[1-9][0-9])'; then
+    curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+    curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt >/etc/apt/sources.list.d/caddy-stable.list
+    apt-get update -qq && apt-get install -y -qq caddy >/dev/null
+  fi
+  chown root:"$SVC_USER" "$APP_ENV"
+  chmod 640 "$APP_ENV"
+  # Behind Cloudflare: the visitor's IP comes from CF-Connecting-IP, trusted only from Cloudflare's own ranges, and
+  # replaces whatever X-Forwarded-For a visitor sent (the app's rate limits read it). Caddy's own certificate is
+  # enough: Cloudflare encrypts to it ("Full" SSL mode) and visitors only ever see Cloudflare's.
+  cat >/etc/caddy/Caddyfile <<EOF
+{
+	servers {
+		trusted_proxies static $(echo $CF_RANGES)
+		client_ip_headers CF-Connecting-IP
+	}
+}
+
+https://$APP_DOMAIN {
+	tls internal
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3000 {
+		header_up X-Forwarded-For {client_ip}
+		header_up X-Real-IP {client_ip}
+	}
+}
+EOF
+  systemctl enable caddy >/dev/null
+  systemctl reload caddy 2>/dev/null || systemctl restart caddy
+
+  mkdir -p "$BASE/app"
+  chown "$SVC_USER:" "$BASE/app"
+  install -m 755 "$SRC/vps/app-deploy.sh" /usr/local/bin/stormcentral-app-deploy
+  cat >/etc/systemd/system/stormcentral-app.service <<EOF
+[Unit]
+Description=Storm Central web app
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=$SVC_USER
+WorkingDirectory=$BASE/app/current
+EnvironmentFile=$APP_ENV
+EnvironmentFile=-$BASE/app/current/.deploy.env
+Environment=NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  cat >/etc/systemd/system/stormcentral-app-deploy.service <<'EOF'
+[Unit]
+Description=Update the Storm Central web app from main
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/stormcentral-app-deploy
+EOF
+  cat >/etc/systemd/system/stormcentral-app-deploy.timer <<'EOF'
+[Unit]
+Description=Check for a new Storm Central version every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
+EOF
+  systemctl daemon-reload
+  systemctl enable stormcentral-app >/dev/null
+  say "Building the web app (a few minutes the first time)"
+  /usr/local/bin/stormcentral-app-deploy --force
+  systemctl enable --now stormcentral-app-deploy.timer >/dev/null
+fi
+
+# ── Failover watcher ────────────────────────────────────────────────────────
+if [ -n "$WATCH_DOMAIN" ]; then
+  say "Failover watcher for $WATCH_DOMAIN"
+  CF=https://api.cloudflare.com/client/v4
+  cfapi() { curl -sS -m 20 -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" "$@"; }
+  # The zone is the longest suffix of the domain that Cloudflare knows.
+  ZONE_ID="" ZONE_NAME="" d=$WATCH_DOMAIN
+  while [[ "$d" == *.* ]]; do
+    d=${d#*.}
+    z=$(cfapi "$CF/zones?name=$d" | jq -r '.result[0].id // empty')
+    [ -n "$z" ] && { ZONE_ID=$z ZONE_NAME=$d; break; }
+  done
+  [ -n "$ZONE_ID" ] || { echo "Cloudflare doesn't list a zone for $WATCH_DOMAIN with that token." >&2; exit 1; }
+  echo "Cloudflare zone: $ZONE_NAME"
+  # "Full" SSL: Cloudflare encrypts to both the app server (Caddy's own certificate) and Vercel.
+  cfapi -X PATCH "$CF/zones/$ZONE_ID/settings/ssl" --data '{"value":"full"}' | jq -e .success >/dev/null ||
+    warn "Couldn't set SSL to Full (token without Zone Settings Edit?). Set it yourself: Cloudflare → SSL/TLS → Overview → Full."
+  # Cache the app's feeds at Cloudflare as the app's Cache-Control headers say (private and no-store responses aren't).
+  desc="Storm Central: cache the app's feeds"
+  rules=$(cfapi "$CF/zones/$ZONE_ID/rulesets/phases/http_request_cache_settings/entrypoint" | jq -c '[.result.rules[]? | {expression, action, action_parameters, description, enabled}]' 2>/dev/null)
+  [ -n "$rules" ] || rules='[]'
+  rule=$(jq -nc --arg d "$desc" --arg h "$WATCH_DOMAIN" '{description: $d, enabled: true, action: "set_cache_settings",
+    expression: ("(http.host eq \"" + $h + "\" and starts_with(http.request.uri.path, \"/api/\"))"),
+    action_parameters: {cache: true, edge_ttl: {mode: "bypass_by_default"}, browser_ttl: {mode: "respect_origin"}}}')
+  body=$(jq -nc --argjson r "$rules" --argjson n "$rule" --arg d "$desc" '{rules: ([$r[] | select(.description != $d)] + [$n])}')
+  cfapi -X PUT "$CF/zones/$ZONE_ID/rulesets/phases/http_request_cache_settings/entrypoint" --data "$body" | jq -e .success >/dev/null ||
+    warn "Couldn't add the cache rule (token without Cache Rules Edit?). The app works without it, just with more load on the server."
+
+  umask 077
+  cat >"$CONF/failover.env" <<EOF
+CF_API_TOKEN=$CF_API_TOKEN
+CF_ZONE_ID=$ZONE_ID
+APP_DOMAIN=$WATCH_DOMAIN
+APP_IP=$WATCH_IP
+BACKUP_HOST=$BACKUP_HOST
+NTFY_TOPIC=$NTFY_TOPIC
+EOF
+  umask 022
+  install -m 755 "$SRC/vps/failover.sh" /usr/local/bin/stormcentral-failover
+  cat >/etc/systemd/system/stormcentral-failover.service <<'EOF'
+[Unit]
+Description=Storm Central failover check
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/stormcentral-failover
+EOF
+  cat >/etc/systemd/system/stormcentral-failover.timer <<'EOF'
+[Unit]
+Description=Check the Storm Central app server every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
+EOF
+  systemctl daemon-reload
+  systemctl enable --now stormcentral-failover.timer >/dev/null
+  /usr/local/bin/stormcentral-failover || true
+fi
+
 # ── Done ────────────────────────────────────────────────────────────────────
 say "Done"
 if [ -n "$DOMAIN" ]; then
@@ -222,6 +426,20 @@ if [ -n "$YT_STREAM_KEY" ]; then
 Live stream:  on its way to YouTube (YouTube Studio → Go live shows it within a minute)
   Logs:     journalctl -u stormcentral-stream -f
   Stop:     sudo systemctl stop stormcentral-stream      Start: sudo systemctl start stormcentral-stream
+EOF
+fi
+if [ -n "$APP_DOMAIN" ]; then
+  cat <<EOF
+Web app:  running $(cat "$BASE/app/deployed" 2>/dev/null | cut -c1-7) behind Caddy; it updates itself from main every 5 minutes.
+  Logs:     journalctl -u stormcentral-app -f        Updates: journalctl -u stormcentral-app-deploy -f
+  Next: run this setup on the server that will watch this one (the failover watcher), with this server's IP.
+EOF
+fi
+if [ -n "$WATCH_DOMAIN" ]; then
+  cat <<EOF
+Failover watcher:  checks $WATCH_DOMAIN on $WATCH_IP every minute; after 3 failures it points the address at $BACKUP_HOST.
+  For the backup to answer on $WATCH_DOMAIN, add the domain in Vercel (Settings → Domains) and the TXT record it asks for.
+  Logs:  journalctl -t stormcentral-failover -f
 EOF
 fi
 echo "Update everything later: run the same command again."
