@@ -15,6 +15,8 @@ export interface DecodedFrame {
   bounds: [number, number, number, number];
   sweep: Sweep;
   cuts: number[];
+  /** The sweep ran to its end (a volume still arriving can hold part of one). */
+  complete: boolean;
   /** Lazily built azimuth lookup for sampling. */
   azLut?: Int32Array;
 }
@@ -22,9 +24,23 @@ export interface DecodedFrame {
 export type DecodeJob =
   | { kind: "l3"; url: string; scale: DecodedScaleId; maxPx: number }
   /** `site`: the radar's location, for volumes from before 2008 that don't carry it. */
-  | { kind: "l2"; url: string; moment: Moment; angle: number; scale: DecodedScaleId; maxPx: number; site?: { lat: number; lon: number } };
+  | { kind: "l2"; url: string; moment: Moment; angle: number; scale: DecodedScaleId; maxPx: number; site?: { lat: number; lon: number } }
+  /** A volume still being scanned, from its real-time chunks so far. */
+  | { kind: "l2chunks"; urls: string[]; moment: Moment; angle: number; scale: DecodedScaleId; maxPx: number };
 
-export const jobKey = (j: DecodeJob) => (j.kind === "l3" ? `l3|${j.url}|${j.maxPx}` : `l2|${j.url}|${j.moment}|${j.angle}|${j.maxPx}`);
+type ChunkJob = Extract<DecodeJob, { kind: "l2chunks" }>;
+
+/** The same sweep of a live volume, however many chunks have arrived. */
+const chunkGroup = (j: ChunkJob) => `l2c|${j.urls[0]}|${j.moment}|${j.angle}|${j.maxPx}`;
+
+/** The first complete decode of each live sweep: later chunks don't change it, so it isn't decoded again. */
+const settled = new Map<string, ChunkJob>();
+
+/** A live sweep's job: the one that completed it, once one has. */
+export const liveJob = (job: ChunkJob): DecodeJob => settled.get(chunkGroup(job)) ?? job;
+
+export const jobKey = (j: DecodeJob) =>
+  j.kind === "l3" ? `l3|${j.url}|${j.maxPx}` : j.kind === "l2" ? `l2|${j.url}|${j.moment}|${j.angle}|${j.maxPx}` : `${chunkGroup(j)}|${j.urls.length}`;
 
 type Entry = { state: "pending" } | { state: "done"; frame: DecodedFrame } | { state: "error"; error: string; cuts?: number[]; at: number };
 
@@ -112,10 +128,37 @@ export function requestDecode(job: DecodeJob): void {
   evict();
   void run(job).then((r) => {
     if (!entries.has(key)) return;
-    if (r.ok) entries.set(key, { state: "done", frame: { key, url: URL.createObjectURL(r.image), bounds: r.bounds, sweep: r.sweep, cuts: r.cuts } });
+    if (r.ok) entries.set(key, { state: "done", frame: { key, url: URL.createObjectURL(r.image), bounds: r.bounds, sweep: r.sweep, cuts: r.cuts, complete: r.complete } });
     else entries.set(key, { state: "error", error: r.error, cuts: r.cuts, at: Date.now() });
+    if (job.kind === "l2chunks") {
+      const group = chunkGroup(job);
+      if (r.ok && r.complete && !settled.has(group)) {
+        settled.set(group, job);
+        while (settled.size > 60) settled.delete(settled.keys().next().value!);
+      }
+      retire(job);
+    }
     notify();
   });
+}
+
+/**
+ * A live sweep is decoded again as chunks arrive; the earlier, partial
+ * decodes are dropped once the map has had time to swap in the new one.
+ */
+function retire(job: ChunkJob) {
+  const group = `${chunkGroup(job)}|`;
+  const keep = settled.get(chunkGroup(job));
+  const kept = keep ? jobKey(keep) : null;
+  const stale = [...entries.keys()].filter((k) => k !== kept && k.startsWith(group) && Number(k.slice(group.length)) < job.urls.length);
+  if (!stale.length) return;
+  setTimeout(() => {
+    for (const k of stale) {
+      const e = entries.get(k);
+      if (e?.state === "done") URL.revokeObjectURL(e.frame.url);
+      entries.delete(k);
+    }
+  }, 20_000);
 }
 
 /** Exact raw value under a point for a decoded frame, or null outside it / no data. */
