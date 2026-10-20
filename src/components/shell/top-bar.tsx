@@ -29,7 +29,7 @@ export function TopBar() {
   const onCommunity = pathname.startsWith("/community");
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 h-[var(--topbar-h)] border-b border-line bg-canvas pt-[env(safe-area-inset-top)]">
+    <header data-chrome className="fixed inset-x-0 top-0 z-40 h-[var(--topbar-h)] border-b border-line bg-canvas pt-[env(safe-area-inset-top)]">
       <div className={cn("mx-auto flex h-full max-w-[1600px] items-center gap-2 md:gap-3 lg:gap-4", GUTTER)}>
         <Link
           href="/"

@@ -53,6 +53,7 @@ import { AlertList, alertUntil, HazardSwatch, type RankedAlert } from "../radar/
 import { WarningSquares } from "../radar/warning-squares";
 import { reportsInAlert, type AlertReports } from "@/lib/alert-reports";
 import { Segmented } from "../ui/segmented";
+import { BroadcastButton, BroadcastStage } from "../broadcast/broadcast-stage";
 import { ExportLoopButton } from "../radar/export-loop-dialog";
 import { OutlookLegend } from "../radar/outlook-legend";
 import { RadarControls } from "../radar/radar-controls";
@@ -184,6 +185,8 @@ export function SevereMode() {
   const fitDone = useRef(0);
   const [dockRef, dockH] = useHeight<HTMLDivElement>();
   const [archiveOpen, setArchiveOpen] = useState(false);
+  // Broadcast mode: the map full screen with on-air graphics (components/broadcast).
+  const [broadcasting, setBroadcasting] = useState(false);
   const panelW = short ? 280 : wide ? 340 : 300;
 
   // ── Radar product resolution (driven by what IEM actually has) ────────────
@@ -374,6 +377,8 @@ export function SevereMode() {
   // Centring (initial view, location changes) and framing then use the part
   // of the map the panel, sheet, details and transport leave visible.
   const padding = useMemo<Padding>(() => {
+    // On air nothing covers the map.
+    if (broadcasting) return { top: 0, left: 0, right: 0, bottom: 0 };
     if (desktop) {
       return {
         top: 0,
@@ -385,7 +390,7 @@ export function SevereMode() {
     // At the full detent the map is covered anyway; keep the half layout.
     const sheet = sheetHeights?.[detent === "full" ? "half" : detent] ?? PEEK;
     return { top: 8, left: 0, right: 0, bottom: sheet + (dockH ? 8 + dockH : 0) };
-  }, [desktop, panelOpen, panelW, floatDetail, hasSelection, dockH, sheetHeights, detent]);
+  }, [broadcasting, desktop, panelOpen, panelW, floatDetail, hasSelection, dockH, sheetHeights, detent]);
 
   useEffect(() => {
     if (!map) return;
@@ -714,6 +719,7 @@ export function SevereMode() {
       ? t("HRRR forecast")
       : (noaaTag ?? (isSite && site ? `${site.icao} ${productCode}` : loop.product));
   const sentenceCaseFamily = t(FAMILIES[family].label).toLowerCase();
+  const loopTitle = isSite && site ? `${site.icao} ${sentenceCaseFamily}` : t("NEXRAD mosaic, {product}", { product: sentenceCaseFamily });
   const dock = (
     <div ref={dockRef} className="pointer-events-none flex flex-col items-start gap-2 [&>*]:pointer-events-auto">
       {desktop && !short && layers.showOutlook && (outlook.data?.features.length ?? 0) > 0 && (
@@ -775,15 +781,8 @@ export function SevereMode() {
               <IconButton size="sm" label={t("Radar archive")} onClick={() => setArchiveOpen((o) => !o)} aria-pressed={archiveOpen}>
                 <History className="size-4" aria-hidden />
               </IconButton>
-              <ExportLoopButton
-                size="sm"
-                map={map}
-                loop={loop}
-                speed={radar.speed}
-                title={isSite && site ? `${site.icao} ${sentenceCaseFamily}` : t("NEXRAD mosaic, {product}", { product: sentenceCaseFamily })}
-                subtitle={placeName}
-                timeZone={timeZone}
-              />
+              <BroadcastButton size="sm" map={map} onStart={() => setBroadcasting(true)} />
+              <ExportLoopButton size="sm" map={map} loop={loop} speed={radar.speed} title={loopTitle} subtitle={placeName} timeZone={timeZone} />
             </>
           }
         />
@@ -837,8 +836,22 @@ export function SevereMode() {
         <UserMarker lat={loc.lat} lon={loc.lon} />
       </MapView>
 
-      {/* Warnings + layers: side panel on desktop, bottom sheet on phones. */}
-      {(!desktop || panelOpen) && (
+      {broadcasting && (
+        <BroadcastStage
+          map={map}
+          loop={loop}
+          speed={radar.speed}
+          alerts={allAlerts}
+          activeAlert={activeAlert}
+          title={loopTitle}
+          placeName={placeName}
+          timeZone={timeZone}
+          onExit={() => setBroadcasting(false)}
+        />
+      )}
+
+      {/* Warnings + layers: side panel on desktop, bottom sheet on phones. Hidden on air. */}
+      {!broadcasting && (!desktop || panelOpen) && (
         <Sheet
           detent={detent}
           onDetentChange={setDetent}
@@ -852,7 +865,7 @@ export function SevereMode() {
           {sheetBody}
         </Sheet>
       )}
-      {desktop && !panelOpen && (
+      {!broadcasting && desktop && !panelOpen && (
         <Button size="sm" className="absolute top-3 left-[var(--sl)] z-20" onClick={() => setPanelOpen(true)}>
           <Layers className="size-4" aria-hidden />
           {t("Warnings & layers")}
@@ -861,7 +874,7 @@ export function SevereMode() {
       )}
 
       {/* Desktop selection details, clear of the dock (elsewhere they show in the panel or sheet). */}
-      {floatDetail && (
+      {!broadcasting && floatDetail && (
         <div className="pointer-events-none absolute top-3 right-[var(--sr)] z-30 w-[380px]" style={{ bottom: 16 + dockH + GAP }}>
           <AnimatePresence mode="wait">
             {activeAlert && (
@@ -896,7 +909,7 @@ export function SevereMode() {
       )}
 
       {/* Desktop dock, between the side panel and the zoom buttons (touch devices have none, only the attribution button). */}
-      {desktop && (
+      {!broadcasting && desktop && (
         <div
           className={cn(
             "pointer-events-none absolute bottom-4 z-20 right-[calc(var(--sr)+52px)] pointer-coarse:right-[calc(var(--sr)+36px)]",
