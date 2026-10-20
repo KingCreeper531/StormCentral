@@ -1,0 +1,29 @@
+# Temporary: checks lightning data sources (not reachable from the dev sandbox).
+name: Probe (temporary)
+on:
+  push:
+    branches: [claude/trusting-pasteur-qzc0fq]
+    paths: [.github/workflows/probe.yml]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          set +e
+          B="https://nowcoast.noaa.gov/geoserver/observations/lightning_detection/ows"
+          echo "== WCS caps"; curl -s -m 30 "$B?service=WCS&version=1.0.0&request=GetCapabilities" | head -c 1500; echo
+          echo "== WCS describe"; curl -s -m 30 "$B?service=WCS&version=1.0.0&request=DescribeCoverage&coverage=ldn_lightning_strike_density" | grep -o '<gml:[a-zA-Z]*>[^<]*\|<formats>[^<]*\|<[a-z]*:*interpolationMethod>[^<]*\|<supportedFormats[^>]*>\|<formats[^>]*>[^<]*' | head -30
+          echo "== WCS ArcGrid"; curl -s -m 60 "$B?service=WCS&version=1.0.0&request=GetCoverage&coverage=ldn_lightning_strike_density&crs=EPSG:4326&bbox=-105,30,-90,42&width=120&height=96&format=ArcGrid" | head -c 1200; echo
+          echo "== WCS 2.0 ArcGrid"; curl -s -m 60 "$B?service=WCS&version=2.0.1&request=GetCoverage&coverageId=lightning_detection__ldn_lightning_strike_density&format=application/arcgrid" | head -c 800; echo
+          echo "== WMS CORS"; curl -s -m 30 -D - -o /tmp/l.png -H "Origin: https://stormcentralwx.com" "$B?service=WMS&version=1.3.0&request=GetMap&layers=ldn_lightning_strike_density&styles=&format=image/png&transparent=true&crs=EPSG:3857&width=256&height=256&bbox=-13000000,2500000,-7000000,6500000" | grep -iE "access-control|content-type|content-length"
+          echo "== WMS GetFeatureInfo"; curl -s -m 30 "$B?service=WMS&version=1.3.0&request=GetFeatureInfo&layers=ldn_lightning_strike_density&query_layers=ldn_lightning_strike_density&styles=&format=image/png&info_format=application/json&crs=EPSG:4326&width=101&height=101&bbox=25,-125,50,-65&i=50&j=50&feature_count=5" | head -c 800; echo
+          echo "== WMS caps lightning layers"; curl -s -m 30 "$B?service=WMS&request=GetCapabilities" | grep -o '<Name>[^<]*</Name>' | head -20
+          echo "== WMS legend"; curl -s -m 30 -o /tmp/leg.png -w '%{http_code} %{content_type} %{size_download}\n' "$B?service=WMS&request=GetLegendGraphic&format=image/png&layer=ldn_lightning_strike_density"
+          echo "== GLM east"; P=$(date -u +%Y/%j/%H); curl -s -m 30 "https://noaa-goes19.s3.amazonaws.com/?list-type=2&max-keys=5&prefix=GLM-L2-LCFA/$P/" | grep -o '<Key>[^<]*\|<Size>[^<]*' | head -6
+          K=$(curl -s -m 30 "https://noaa-goes19.s3.amazonaws.com/?list-type=2&max-keys=200&prefix=GLM-L2-LCFA/$P/" | grep -o '<Key>[^<]*' | tail -1 | sed 's/<Key>//'); echo "latest $K"
+          curl -s -m 30 -D - -o /tmp/glm.nc -H "Origin: https://stormcentralwx.com" "https://noaa-goes19.s3.amazonaws.com/$K" | grep -iE "access-control|content-length"
+          pip install -q netCDF4 >/dev/null 2>&1; python3 -c "
+          import netCDF4 as nc; d=nc.Dataset('/tmp/glm.nc'); print(list(d.variables)[:40]); f=d.variables['flash_lat'][:]; print('flashes', len(f)); print(d.variables['flash_lat'][:5], d.variables['flash_lon'][:5]); print(d.time_coverage_start, d.time_coverage_end)"
+          echo "== GLM west"; curl -s -m 30 "https://noaa-goes18.s3.amazonaws.com/?list-type=2&max-keys=3&prefix=GLM-L2-LCFA/$P/" | grep -o '<Key>[^<]*' | head -3
