@@ -1,3 +1,5 @@
+import type { SweepImageData } from "../pro/nexrad/sweep-layer";
+
 /**
  * Radar frame descriptors. A frame is one immutable raster tile pyramid for a
  * single volume-scan time. Timestamped IEM RIDGE tile URLs never change once
@@ -29,8 +31,10 @@ export interface RadarFrame {
   bounds?: [number, number, number, number];
   /** Below this zoom the source has no tiles. */
   minzoom?: number;
-  /** A single georeferenced image instead of tiles (decoded radar): top-left, top-right, bottom-right, bottom-left. */
+  /** A single georeferenced image instead of tiles: top-left, top-right, bottom-right, bottom-left. */
   image?: { url: string; coordinates: [[number, number], [number, number], [number, number], [number, number]] };
+  /** Decoded radar, drawn from its gates on the GPU (lib/pro/nexrad/sweep-layer). */
+  sweep?: SweepImageData;
 }
 
 export const MOSAIC_SITE = "USCOMP";

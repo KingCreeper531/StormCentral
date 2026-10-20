@@ -1,8 +1,9 @@
 "use client";
 /**
  * Main-thread side of NEXRAD decoding: a small pool of decode workers, a
- * cache of decoded frames (image blob URL + sweep for exact sampling), and a
- * subscription so frame sources re-render as frames arrive.
+ * cache of decoded frames (the sweep and its colours, drawn on the GPU and
+ * sampled exactly), and a subscription so frame sources re-render as frames
+ * arrive.
  */
 import type { DecodedScaleId } from "../scales";
 import type { Moment } from "./level2";
@@ -11,9 +12,9 @@ import { azimuthIndex, levelAt, type Sweep } from "./sweep";
 
 export interface DecodedFrame {
   key: string;
-  url: string;
-  bounds: [number, number, number, number];
   sweep: Sweep;
+  /** RGBA per raw level. */
+  colors: Uint8Array;
   cuts: number[];
   /** The sweep ran to its end (a volume still arriving can hold part of one). */
   complete: boolean;
@@ -22,16 +23,16 @@ export interface DecodedFrame {
 }
 
 export type DecodeJob =
-  | { kind: "l3"; url: string; scale: DecodedScaleId; maxPx: number }
+  | { kind: "l3"; url: string; scale: DecodedScaleId }
   /** `site`: the radar's location, for volumes from before 2008 that don't carry it. */
-  | { kind: "l2"; url: string; moment: Moment; angle: number; scale: DecodedScaleId; maxPx: number; site?: { lat: number; lon: number } }
+  | { kind: "l2"; url: string; moment: Moment; angle: number; scale: DecodedScaleId; site?: { lat: number; lon: number } }
   /** A volume still being scanned, from its real-time chunks so far. */
-  | { kind: "l2chunks"; urls: string[]; moment: Moment; angle: number; scale: DecodedScaleId; maxPx: number };
+  | { kind: "l2chunks"; urls: string[]; moment: Moment; angle: number; scale: DecodedScaleId };
 
 type ChunkJob = Extract<DecodeJob, { kind: "l2chunks" }>;
 
 /** The same sweep of a live volume, however many chunks have arrived. */
-const chunkGroup = (j: ChunkJob) => `l2c|${j.urls[0]}|${j.moment}|${j.angle}|${j.maxPx}`;
+const chunkGroup = (j: ChunkJob) => `l2c|${j.urls[0]}|${j.moment}|${j.angle}|${j.scale}`;
 
 /** The first complete decode of each live sweep: later chunks don't change it, so it isn't decoded again. */
 const settled = new Map<string, ChunkJob>();
@@ -40,7 +41,7 @@ const settled = new Map<string, ChunkJob>();
 export const liveJob = (job: ChunkJob): DecodeJob => settled.get(chunkGroup(job)) ?? job;
 
 export const jobKey = (j: DecodeJob) =>
-  j.kind === "l3" ? `l3|${j.url}|${j.maxPx}` : j.kind === "l2" ? `l2|${j.url}|${j.moment}|${j.angle}|${j.maxPx}` : `${chunkGroup(j)}|${j.urls.length}`;
+  j.kind === "l3" ? `l3|${j.url}|${j.scale}` : j.kind === "l2" ? `l2|${j.url}|${j.moment}|${j.angle}|${j.scale}` : `${chunkGroup(j)}|${j.urls.length}`;
 
 type Entry = { state: "pending" } | { state: "done"; frame: DecodedFrame } | { state: "error"; error: string; cuts?: number[]; at: number };
 
@@ -106,11 +107,7 @@ function run(job: DecodeJob): Promise<DecodeResponse> {
 }
 
 function evict() {
-  while (entries.size > MAX_ENTRIES) {
-    const [key, e] = entries.entries().next().value!;
-    if (e.state === "done") URL.revokeObjectURL(e.frame.url);
-    entries.delete(key);
-  }
+  while (entries.size > MAX_ENTRIES) entries.delete(entries.keys().next().value!);
 }
 
 /** Decode (once) and cache; listeners are notified when it lands. */
@@ -128,7 +125,7 @@ export function requestDecode(job: DecodeJob): void {
   evict();
   void run(job).then((r) => {
     if (!entries.has(key)) return;
-    if (r.ok) entries.set(key, { state: "done", frame: { key, url: URL.createObjectURL(r.image), bounds: r.bounds, sweep: r.sweep, cuts: r.cuts, complete: r.complete } });
+    if (r.ok) entries.set(key, { state: "done", frame: { key, sweep: r.sweep, colors: r.colors, cuts: r.cuts, complete: r.complete } });
     else entries.set(key, { state: "error", error: r.error, cuts: r.cuts, at: Date.now() });
     if (job.kind === "l2chunks") {
       const group = chunkGroup(job);
@@ -153,11 +150,7 @@ function retire(job: ChunkJob) {
   const stale = [...entries.keys()].filter((k) => k !== kept && k.startsWith(group) && Number(k.slice(group.length)) < job.urls.length);
   if (!stale.length) return;
   setTimeout(() => {
-    for (const k of stale) {
-      const e = entries.get(k);
-      if (e?.state === "done") URL.revokeObjectURL(e.frame.url);
-      entries.delete(k);
-    }
+    for (const k of stale) entries.delete(k);
   }, 20_000);
 }
 

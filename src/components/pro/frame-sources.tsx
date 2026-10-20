@@ -8,7 +8,7 @@ import { listLevel2, listLevel3, liveVolumes, newest } from "@/lib/pro/nexrad/aw
 import { decodedVersion, jobKey, liveJob, peekDecoded, requestDecode, subscribeDecoded, type DecodeJob } from "@/lib/pro/nexrad/client";
 import { archiveNote, l3CodeFor, mrmsLayer, PRO_PRODUCTS, satelliteFrames, type ProProductId } from "@/lib/pro/products";
 import { DECODED_SCALES, type ValueScale } from "@/lib/pro/scales";
-import { corners, fetchServerIndex, PRO_SERVER, serverFrames } from "@/lib/pro/server";
+import { fetchServerIndex, PRO_SERVER, serverFrames } from "@/lib/pro/server";
 import { useProSync } from "@/lib/pro/sync";
 import { iemSiteId, type RadarFrame } from "@/lib/radar/frames";
 import { INTL_RADARS, intlFrame } from "@/lib/radar/intl";
@@ -115,7 +115,7 @@ function useDecodedFrames(jobs: readonly { job: DecodeJob; time: number }[]) {
     return jobs.flatMap(({ job, time }) => {
       const e = done.has(jobKey(job)) ? peekDecoded(jobKey(job)) : undefined;
       if (e?.state !== "done") return [];
-      return [{ id: e.frame.key, time, tileUrl: "", maxzoom: 0, image: { url: e.frame.url, coordinates: corners(e.frame.bounds) } }];
+      return [{ id: e.frame.key, time, tileUrl: "", maxzoom: 0, sweep: { sweep: e.frame.sweep, colors: e.frame.colors } }];
     });
   }, [jobs, readyKey]);
   let failed = 0;
@@ -137,7 +137,7 @@ function useDecodedFrames(jobs: readonly { job: DecodeJob; time: number }[]) {
 /** The older Level III code for the same moment: reflectivity and velocity before the super-res products. */
 const OLDER_CODE: Record<string, string> = { B: "Q", G: "U" };
 
-function L3Source({ product, site, tilt, frameCount, caps, onFeed, until = null }: SourceProps) {
+function L3Source({ product, site, tilt, frameCount, onFeed, until = null }: SourceProps) {
   const def = PRO_PRODUCTS[product];
   const code = l3CodeFor(product, tilt, until != null)!;
   const site3 = iemSiteId(site);
@@ -160,8 +160,8 @@ function L3Source({ product, site, tilt, frameCount, caps, onFeed, until = null 
     retry: 1,
   });
   const jobs = useMemo(
-    () => newest(list.data?.files ?? [], frameCount).map((f) => ({ time: f.time, job: { kind: "l3", url: f.url, scale: scaleId, maxPx: caps.l3Px } as DecodeJob })),
-    [list.data, frameCount, scaleId, caps.l3Px],
+    () => newest(list.data?.files ?? [], frameCount).map((f) => ({ time: f.time, job: { kind: "l3", url: f.url, scale: scaleId } as DecodeJob })),
+    [list.data, frameCount, scaleId],
   );
   const { frames, failed, elevation } = useDecodedFrames(jobs);
   // Nominal angles, except the shown tilt's actual one (it varies with the scan pattern).
@@ -181,7 +181,7 @@ function L3Source({ product, site, tilt, frameCount, caps, onFeed, until = null 
   return null;
 }
 
-function VolumeSource({ product, site, elev, frameCount, caps, onFeed, until = null }: SourceProps) {
+function VolumeSource({ product, site, elev, frameCount, onFeed, until = null }: SourceProps) {
   const def = PRO_PRODUCTS[product];
   const moment = def.kind === "l2" ? def.moment : "REF";
   const scaleId = def.kind === "l2" ? def.scale : "ref";
@@ -210,12 +210,12 @@ function VolumeSource({ product, site, elev, frameCount, caps, onFeed, until = n
   const jobs = useMemo(() => {
     const files = list.data ?? [];
     const lastFile = files.at(-1)?.time ?? 0;
-    const archived = files.map((f) => ({ time: f.time, job: { kind: "l2", url: f.url, moment, angle: elev, scale: scaleId, maxPx: caps.l2Px, site: at } as DecodeJob }));
+    const archived = files.map((f) => ({ time: f.time, job: { kind: "l2", url: f.url, moment, angle: elev, scale: scaleId, site: at } as DecodeJob }));
     const live = (until == null ? (chunked.data ?? []) : [])
       .filter((v) => v.time > lastFile + 30_000)
-      .map((v) => ({ time: v.time, job: liveJob({ kind: "l2chunks", urls: v.urls, moment, angle: elev, scale: scaleId, maxPx: caps.l2Px }) }));
+      .map((v) => ({ time: v.time, job: liveJob({ kind: "l2chunks", urls: v.urls, moment, angle: elev, scale: scaleId }) }));
     return [...archived, ...live].slice(-count);
-  }, [list.data, chunked.data, until, count, moment, elev, scaleId, caps.l2Px, at]);
+  }, [list.data, chunked.data, until, count, moment, elev, scaleId, at]);
   const realTime = jobs.some((j) => j.job.kind === "l2chunks");
   const { frames, failed, cuts, elevation } = useDecodedFrames(jobs);
   const elevations = useMemo(() => [...new Set(cuts.map((c) => Math.round(c * 10) / 10))].sort((a, b) => a - b), [cuts]);

@@ -4,6 +4,7 @@ import { RadarLayerManager, type RadarMap } from "./layer-manager";
 import { crossfadeFor, frameDelayMs, nextPlayableIndex, stepIndex } from "./playback";
 import { familiesAvailable, resolveTilts, siteProducts } from "./products";
 import { getSite, nearestSites } from "./site-utils";
+import type { Sweep } from "../pro/nexrad/sweep";
 
 describe("frames", () => {
   it("formats compact UTC stamps and IEM ids", () => {
@@ -90,7 +91,7 @@ function mockMap() {
     addSource: (id, s) => sources.set(id, s),
     removeSource: (id) => sources.delete(id),
     getSource: (id) => sources.get(id),
-    addLayer: (l) => layers.push({ id: l.id, paint: { ...l.paint } }),
+    addLayer: (l) => layers.push({ id: l.id, paint: "paint" in l ? { ...l.paint } : {} }),
     removeLayer: (id) => layers.splice(layers.findIndex((l) => l.id === id), 1),
     getLayer: (id) => layers.find((l) => l.id === id),
     setPaintProperty: (id, k, v) => {
@@ -145,6 +146,24 @@ describe("RadarLayerManager", () => {
 
     mgr.destroy();
     expect(map.layers).toHaveLength(0);
+  });
+
+  it("sends decoded frames to one GPU layer, always ready, and the rest to raster sources", () => {
+    const map = mockMap();
+    const statuses: boolean[][] = [];
+    const mgr = new RadarLayerManager(map, { schedule: (fn) => fn(), onStatus: (s) => statuses.push(s.ready) });
+    const sweep = { sweep: { lat: 35.33, lon: -97.28 } as Sweep, colors: new Uint8Array(4) };
+    const decoded = (m: number) => ({ ...frame(m), tileUrl: "", sweep });
+    mgr.sync([decoded(0), decoded(5), frame(10)]);
+    // One custom layer for both sweeps, one raster layer for the tile frame.
+    expect(map.layers.map((l) => l.id)).toEqual([expect.stringMatching(/^radar-sweeps-/), expect.stringMatching(/10$/)]);
+    expect(statuses.at(-1)).toEqual([true, true, false]);
+    expect(mgr.isReady(1)).toBe(true);
+    mgr.show(2);
+    mgr.show(0);
+    expect(map.layers[1]!.paint["raster-opacity"]).toBe(0);
+    mgr.destroy();
+    expect(map.layers).toEqual([]);
   });
 
   it("loads only the visible frame while the map moves, then resumes", () => {

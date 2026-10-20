@@ -1,15 +1,15 @@
 /// <reference lib="webworker" />
 /**
- * Decodes NEXRAD files off the main thread: fetch → bzip2 → sweep → a Web
- * Mercator RGBA image (PNG blob) for MapLibre, plus the compact sweep itself
- * so the cursor readout can read exact gate values.
+ * Decodes NEXRAD files off the main thread: fetch → bzip2 → the compact
+ * sweep, plus a colour per raw level. The map draws it on the GPU
+ * (sweep-layer.ts) and the cursor readout reads exact gate values from it.
  */
 import { DECODED_SCALES, scaleColor } from "../scales";
 import { gunzipIfNeeded } from "./gzip";
 import { parseLevel2 } from "./level2";
 import { parseLevel3 } from "./level3";
 import type { DecodeRequest, DecodeResponse } from "./protocol";
-import { levelColors, renderSweep, type Sweep } from "./sweep";
+import { levelColors, type Sweep } from "./sweep";
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -63,7 +63,7 @@ async function chunkedVolume(urls: readonly string[]): Promise<Uint8Array> {
   return out;
 }
 
-async function toImage(sweep: Sweep, scaleId: DecodeRequest["scale"], maxPx: number) {
+function colorsFor(sweep: Sweep, scaleId: DecodeRequest["scale"]) {
   const scale = DECODED_SCALES[scaleId];
   const colors = levelColors(sweep.table, (v) => scaleColor(scale, v));
   // Range-folded gates in the scale's flag colour.
@@ -74,10 +74,7 @@ async function toImage(sweep: Sweep, scaleId: DecodeRequest["scale"], maxPx: num
       colors.set([(n >> 16) & 255, (n >> 8) & 255, n & 255, 255], sp.level * 4);
     }
   }
-  const img = renderSweep(sweep, colors, maxPx);
-  const canvas = new OffscreenCanvas(img.width, img.height);
-  canvas.getContext("2d")!.putImageData(new ImageData(img.rgba as ImageDataArray, img.width, img.height), 0, 0);
-  return { image: await canvas.convertToBlob({ type: "image/png" }), bounds: img.bounds };
+  return colors;
 }
 
 self.onmessage = async (e: MessageEvent<DecodeRequest>) => {
@@ -99,9 +96,9 @@ self.onmessage = async (e: MessageEvent<DecodeRequest>) => {
         return;
       }
     }
-    const { image, bounds } = await toImage(sweep, req.scale, req.maxPx);
-    const msg: DecodeResponse = { id: req.id, ok: true, image, bounds, sweep, cuts, complete };
-    self.postMessage(msg, [sweep.data.buffer, sweep.azStart.buffer, sweep.azWidth.buffer, sweep.table.buffer] as Transferable[]);
+    const colors = colorsFor(sweep, req.scale);
+    const msg: DecodeResponse = { id: req.id, ok: true, sweep, colors, cuts, complete };
+    self.postMessage(msg, [sweep.data.buffer, sweep.azStart.buffer, sweep.azWidth.buffer, sweep.table.buffer, colors.buffer] as Transferable[]);
   } catch (err) {
     self.postMessage({ id: req.id, ok: false, error: String((err as Error)?.message ?? err) } satisfies DecodeResponse);
   }
