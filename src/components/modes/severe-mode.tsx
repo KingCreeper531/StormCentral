@@ -14,7 +14,7 @@ import { FAMILIES, familiesAvailable, resolveTilts, siteProducts } from "@/lib/r
 import { iemSiteId } from "@/lib/radar/frames";
 import { satelliteLabel } from "@/lib/radar/satellite";
 import { getSite, nearestSites } from "@/lib/radar/site-utils";
-import { useChasers, useChaserStreams, useForecast, useLocalAlerts, useOutlook, useRadarProducts, useReportsInView, useStormCells, useStormReports, useTropical } from "@/hooks/queries";
+import { useChasers, useChaserStreams, useForecast, useWebcams, useLocalAlerts, useOutlook, useRadarProducts, useReportsInView, useStormCells, useStormReports, useTropical } from "@/hooks/queries";
 import { useFormat } from "@/hooks/use-format";
 import { useMapAlerts } from "@/hooks/use-map-alerts";
 import { useHotkeys } from "@/hooks/use-hotkeys";
@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
 import { ChaserDetail } from "../community/chaser-detail";
 import { ChaserStreams } from "../radar/chaser-streams";
+import { WebcamDetail, WebcamList } from "../radar/webcam-detail";
 import { PostCard } from "../community/post-card";
 import { MapView } from "../map/map-view";
 import { OutlookLayer } from "../map/layers/outlook-layer";
@@ -38,6 +39,7 @@ import { StormReportsLayer } from "../map/layers/storm-reports-layer";
 import { TropicalLayer } from "../map/layers/tropical-layer";
 import { ReportsLayer } from "../map/layers/reports-layer";
 import { ChasersLayer } from "../map/layers/chasers-layer";
+import { WebcamsLayer } from "../map/layers/webcams-layer";
 import { SitesLayer } from "../map/layers/sites-layer";
 import { TracksLayer } from "../map/layers/tracks-layer";
 import { UserMarker } from "../map/layers/user-marker";
@@ -63,7 +65,7 @@ import { Tabs } from "../ui/tabs";
 
 type PanelTab = "alerts" | "storms" | "radar" | "chasers";
 /** What's selected on the map: a warning, a spotter post, an NWS storm report, a radar cell, a tropical cyclone or a storm chaser (by username). */
-type Selection = { kind: "alert" | "post" | "lsr" | "cell" | "storm" | "chaser"; id: string };
+type Selection = { kind: "alert" | "post" | "lsr" | "cell" | "storm" | "chaser" | "cam"; id: string };
 /** Hours of NWS storm reports on the map. */
 const LSR_HOURS = 6;
 type Padding = { top: number; right: number; bottom: number; left: number };
@@ -216,6 +218,8 @@ export function SevereMode() {
   const cellList = useMemo(() => cells.data?.cells ?? [], [cells.data]);
   const storms = useMemo(() => tropical.data?.storms ?? [], [tropical.data]);
   const chaserList = useMemo(() => chasers.data?.chasers ?? [], [chasers.data]);
+  const webcams = useWebcams(radar.showCams);
+  const camList = useMemo(() => webcams.data ?? [], [webcams.data]);
   // Live storm chaser streams: the Chasers tab, and LIVE on the chasers layer.
   const streams = useChaserStreams(tab === "chasers" || radar.showChasers);
   const liveByKey = useMemo(() => liveIndex(streams.data?.live ?? []), [streams.data]);
@@ -242,6 +246,7 @@ export function SevereMode() {
   const activeCell = cellList.find((c) => c.id === selectedId("cell"));
   const activeStorm = storms.find((s) => s.id === selectedId("storm"));
   const activeChaser = radar.showChasers ? chaserList.find((c) => c.username === selectedId("chaser")) : undefined;
+  const activeCam = radar.showCams ? camList.find((c) => c.id === selectedId("cam")) : undefined;
 
   // ── Selection ─────────────────────────────────────────────────────────────
   /** Without the floating column, details show in the panel/sheet: switch to warnings and reveal it. */
@@ -338,7 +343,7 @@ export function SevereMode() {
       ? t("Over your location, until {time}", { time: alertUntil(r.alert, timeZone, t.locale) })
       : t("{distance} away, until {time}", { distance: fmt.distanceKm(r.distanceKm), time: alertUntil(r.alert, timeZone, t.locale) });
   const top = ranked[0];
-  const hasSelection = !!(activeAlert || activeReport || activeLsr || activeCell || activeStorm || activeChaser);
+  const hasSelection = !!(activeAlert || activeReport || activeLsr || activeCell || activeStorm || activeChaser || activeCam);
   /** The selection replaces the list (and the tabs) in the panel/sheet. */
   const inlineSelection = !floatDetail && hasSelection && tab !== "radar";
 
@@ -394,7 +399,9 @@ export function SevereMode() {
           ? stormTitle(activeStorm.classification, activeStorm.name, t)
           : activeChaser
             ? t("Storm chaser")
-            : t("Spotter report");
+            : activeCam
+              ? activeCam.name
+              : t("Spotter report");
 
   // Phone peek: one useful line — the selection, else the highest-ranked warning nearby.
   let peek: { color: string | null; title: string; sub: string };
@@ -406,6 +413,8 @@ export function SevereMode() {
     peek = { color: null, title: t("Spotter report"), sub: activeReport.place ? `${t(cat.label)}, ${activeReport.place}` : t(cat.label) };
   } else if (activeChaser) {
     peek = { color: null, title: selectionTitle, sub: activeChaser.displayName };
+  } else if (activeCam) {
+    peek = { color: null, title: activeCam.name, sub: t("Live camera") };
   } else if (activeLsr || activeCell || activeStorm) {
     peek = { color: null, title: selectionTitle, sub: t("Tap for details") };
   } else if (top) {
@@ -457,7 +466,7 @@ export function SevereMode() {
     </IconButton>
   );
 
-  const stormsTab = radar.showStormReports || radar.showCells || radar.showTropical;
+  const stormsTab = radar.showStormReports || radar.showCells || radar.showTropical || radar.showCams;
   const tabsHeader = (
     <div className="flex items-center justify-between gap-2 pr-1.5 pl-4">
       <Tabs<PanelTab>
@@ -576,6 +585,8 @@ export function SevereMode() {
     <TropicalDetail storm={activeStorm} timeZone={timeZone} className="p-4" />
   ) : activeChaser ? (
     <ChaserDetail chaser={activeChaser} live={liveOf(activeChaser)} fetchedAt={chasers.dataUpdatedAt} now={now} className="p-4" />
+  ) : activeCam ? (
+    <WebcamDetail cam={activeCam} location={loc} now={now} hideTitle className="p-4" />
   ) : null;
 
   const section = (title: string, pending: boolean, error: unknown, what: string, children: React.ReactNode) => (
@@ -594,6 +605,14 @@ export function SevereMode() {
   );
   const stormsBody = (
     <>
+      {radar.showCams &&
+        section(
+          "Live cameras nearby",
+          webcams.isLoading,
+          webcams.error,
+          "the live cameras",
+          <WebcamList cams={camList} location={loc} selectedId={selectedId("cam")} onSelect={(c) => focusPoint("cam", c.id, c.lon, c.lat)} />,
+        )}
       {radar.showTropical &&
         section(
           "Tropical cyclones",
@@ -756,6 +775,7 @@ export function SevereMode() {
         {radar.showCells && <StormCellsLayer cells={cellList} selectedId={selectedId("cell")} onSelect={(id) => select("cell", id)} />}
         {radar.showStormReports && <StormReportsLayer reports={lsrList} now={now} hours={LSR_HOURS} selectedId={selectedId("lsr")} onSelect={(id) => select("lsr", id)} />}
         {COMMUNITY_ENABLED && radar.showReports && <ReportsLayer posts={(reports.data ?? []) as PostDto[]} now={now} onSelect={(id) => select("post", id)} />}
+        {radar.showCams && <WebcamsLayer cams={camList} selectedId={selectedId("cam")} onSelect={(id) => select("cam", id)} />}
         {COMMUNITY_ENABLED && radar.showChasers && (
           <ChasersLayer chasers={chaserList} isLive={(c) => !!liveOf(c)} fetchedAt={chasers.dataUpdatedAt} now={now} onSelect={(u) => select("chaser", u)} />
         )}
@@ -807,12 +827,13 @@ export function SevereMode() {
                 </div>
               </motion.div>
             )}
-            {(activeLsr || activeCell || activeStorm || activeChaser) && (
+            {(activeLsr || activeCell || activeStorm || activeChaser || activeCam) && (
               <motion.div key={sel?.id} {...appear} className="overlay pointer-events-auto max-h-full overflow-y-auto overscroll-contain p-4">
                 {activeLsr && <StormReportDetail report={activeLsr} now={now} timeZone={timeZone} onClose={clearSelection} />}
                 {activeCell && <StormCellDetail cell={activeCell} now={now} timeZone={timeZone} location={loc} onClose={clearSelection} />}
                 {activeStorm && <TropicalDetail storm={activeStorm} timeZone={timeZone} onClose={clearSelection} />}
                 {activeChaser && <ChaserDetail chaser={activeChaser} live={liveOf(activeChaser)} fetchedAt={chasers.dataUpdatedAt} now={now} onClose={clearSelection} />}
+                {activeCam && <WebcamDetail cam={activeCam} location={loc} now={now} onClose={clearSelection} />}
               </motion.div>
             )}
           </AnimatePresence>
