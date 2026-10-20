@@ -42,13 +42,15 @@ interface Props {
   caps: ProCaps;
   onBasisFeed: (frames: RadarFrame[]) => void;
   onBasisStatus: (s: BufferStatus) => void;
+  /** Move this panel to a window of its own. */
+  onPopOut?: () => void;
 }
 
 /**
  * One panel of the workspace: its own MapLibre map, kept in lock-step with
  * the others through the sync bus (camera, loop clock, cursor).
  */
-export const Pane = memo(function Pane({ config, n, site, frameCount, basis, tool, alerts, selectedAlert, cells, shapes, home, compact, caps, onBasisFeed, onBasisStatus }: Props) {
+export const Pane = memo(function Pane({ config, n, site, frameCount, basis, tool, alerts, selectedAlert, cells, shapes, home, compact, caps, onBasisFeed, onBasisStatus, onPopOut }: Props) {
   const t = useT();
   const { probes, tools, sync } = usePro();
   const [feed, setFeed] = useState<PaneFeed>(EMPTY_FEED);
@@ -115,7 +117,7 @@ export const Pane = memo(function Pane({ config, n, site, frameCount, basis, too
         <div className="absolute -top-3 left-[-0.5px] h-6 w-px bg-white mix-blend-difference" />
         <div className="absolute -left-3 top-[-0.5px] h-px w-6 bg-white mix-blend-difference" />
       </div>
-      <PaneHeader config={config} n={n} feed={feed} basis={basis} compact={compact} volume={caps.volume} />
+      <PaneHeader config={config} n={n} feed={feed} basis={basis} compact={compact} volume={caps.volume} onPopOut={onPopOut} />
       {scale && scale.stops.length > 1 && (
         <div className="pointer-events-none absolute bottom-1.5 left-1.5 z-[5] w-36 rounded-[4px] bg-canvas/80 px-1.5 py-1 font-mono text-[9px] text-ink-2 backdrop-blur-sm">
           <div className="h-1.5 rounded-[2px]" style={{ background: legendGradient(scale.stops) }} />

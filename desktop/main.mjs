@@ -12,7 +12,7 @@
  * to the tray instead of quitting, so the page keeps watching for warnings,
  * and the app can start hidden at sign-in (settings.mjs, tray.mjs).
  */
-import { app, autoUpdater as nativeUpdater, BrowserWindow, dialog, ipcMain, Menu, Notification, session, shell } from "electron";
+import { app, autoUpdater as nativeUpdater, BrowserWindow, dialog, ipcMain, Menu, Notification, screen, session, shell } from "electron";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -61,6 +61,8 @@ let appOrigin = "";
 let appUrl = "";
 /** The first window exists; later launches just show it. */
 let started = false;
+/** Professional-mode panels popped out of the workspace onto other monitors. */
+const popouts = new Set();
 
 /** @param {unknown} value */
 function httpsUrl(value) {
@@ -156,6 +158,10 @@ function createWindow({ hidden }) {
     win.hide();
     showTrayHintOnce();
   });
+  // Pop-out panels follow the workspace that drives them: hidden with it, back with it, gone with it.
+  win.on("hide", () => popouts.forEach((w) => !w.isDestroyed() && w.hide()));
+  win.on("show", () => popouts.forEach((w) => !w.isDestroyed() && w.showInactive()));
+  win.on("closed", () => popouts.forEach((w) => !w.isDestroyed() && w.close()));
   // Windows sign-out or shutdown: let the window close, or it would hold up the session ending.
   win.on("query-session-end", () => (isQuitting = true));
   win.on("session-end", () => (isQuitting = true));
@@ -307,12 +313,73 @@ function hardenSessions() {
   session.defaultSession.setPermissionCheckHandler((_wc, permission, origin) => ALLOWED_PERMISSIONS.has(permission) && isAppUrl(origin));
 }
 
+// ─── Pop-out panels (Professional mode on several monitors) ─────────────────
+
+/** `/pro-window?view=p2` → "p2" (a pane, or "panel"), or null for any other address. @param {string} url */
+function popoutKey(url) {
+  if (!isAppUrl(url)) return null;
+  try {
+    const u = new URL(url);
+    const view = u.searchParams.get("view") ?? "";
+    return u.pathname === "/pro-window" && /^(p[1-9]|panel)$/.test(view) ? view : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Where a pop-out opens: where it was last time; the first time, filling a
+ * monitor other than the workspace's (the point of popping it out), or beside
+ * it when there's only one.
+ * @param {string} key
+ */
+function popoutPlacement(key) {
+  const file = path.join(app.getPath("userData"), `popout-${key}.json`);
+  const saved = loadWindowState(file);
+  if (saved.bounds.x !== undefined) return { file, ...saved };
+  const home = mainWindow && !mainWindow.isDestroyed() ? screen.getDisplayMatching(mainWindow.getBounds()) : screen.getPrimaryDisplay();
+  const other = screen.getAllDisplays().find((d) => d.id !== home.id);
+  const area = (other ?? home).workArea;
+  const width = Math.min(1100, area.width);
+  const height = Math.min(820, area.height);
+  const bounds = { x: area.x + Math.round((area.width - width) / 2), y: area.y + Math.round((area.height - height) / 2), width, height };
+  return { file, bounds, maximized: Boolean(other) };
+}
+
 app.on("web-contents-created", (_e, contents) => {
   // Links to other sites open in the default browser; the window only ever shows the app.
   contents.setWindowOpenHandler(({ url }) => {
+    const key = popoutKey(url);
+    if (key) {
+      const { bounds } = popoutPlacement(key);
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: {
+          ...bounds,
+          minWidth: 320,
+          minHeight: 240,
+          backgroundColor: "#000000",
+          title: "Storm Central",
+          autoHideMenuBar: true,
+          icon: appIcon(),
+          // Like the main window, without the desktop bridge (a pop-out has no use for it).
+          webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false, backgroundThrottling: false },
+        },
+      };
+    }
     if (isAppUrl(url)) void contents.loadURL(url);
     else openExternal(url);
     return { action: "deny" };
+  });
+  contents.on("did-create-window", (win, { url }) => {
+    const key = popoutKey(url);
+    if (!key) return;
+    const { file, maximized } = popoutPlacement(key);
+    if (maximized) win.maximize();
+    trackWindowState(win, file);
+    popouts.add(win);
+    win.on("closed", () => popouts.delete(win));
+    log(`pop-out opened: ${key}`);
   });
   contents.on("will-navigate", (event, url) => {
     if (isAppUrl(url)) return;
