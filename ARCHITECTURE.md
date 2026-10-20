@@ -199,6 +199,7 @@ ProfessionalWorkspace          sync bus (zustand/vanilla) + pane registry + tool
 **Decoded NEXRAD** (`lib/pro/nexrad/`). Products the tile services don't carry are read straight from NOAA's Open Data buckets on AWS, which are public and CORS-open:
 - **Level III** (`unidata-nexrad-level3`, a few KB per file, about 5 minutes behind the scan): CC, ZDR, HC and KDP at all six published tilts, reflectivity and velocity above 0.5°, digital VIL and enhanced echo tops. On every device.
 - **Level II** (`unidata-nexrad-level2`, 2–20 MB per volume, about 11 minutes behind): any cut of the volume up to 19.5° for Z, V, ZDR and ρHV. Desktop only.
+- **Real-time Level II** (`unidata-nexrad-level2-chunks`): the volumes the archive bucket doesn't have yet, published as they're scanned in chunks of about 120 radials (`KTLX/893/20261020-181800-001-S`: volume number 1–999 in a cycle, scan start, chunk number, Start/Intermediate/End). Concatenated in order, the chunks so far are an ordinary Archive II file, so the same decoder reads them and reports whether the requested cut is complete. `liveVolumes` finds the volume being scanned once (the gaps in the cycle of volume numbers narrow it down, the scan times decide), then polls with two small listings; finished volumes are cached. Each poll decodes the newest volume's chunks again until the cut is complete (`liveJob` keeps that decode from then on, and earlier partial decodes are dropped). The lowest tilt is complete about a minute after its scan starts, instead of eleven.
 
 The decoders are our own TypeScript, with no dependencies: `bzip2.ts`, `level3.ts` (packet 16 digital radials, per-product scaling from the threshold halfwords) and `level2.ts` (Message 31, with the cut list from the VCP in Message 5, and the legacy Message 1 of volumes from before 2008; it stops decompressing once the requested cut is complete). The available npm decoders don't cover the dual-pol Level III products and need Node's `Buffer`. Tests check them against MetPy, value for value, on real KTLX files in `__fixtures__/`.
 
@@ -225,7 +226,6 @@ A small Python service renders them on a schedule (satpy for the RGB recipes, GR
 
 | Gap | Why | Path |
 |---|---|---|
-| Live Level II (seconds behind) | The archive bucket publishes whole volumes about 11 minutes after the scan starts | Assemble the real-time chunks from `unidata-nexrad-level2-chunks` (S/I/E chunks per volume, concatenated) |
 | Raw GRIB2 in the browser (HRRR native levels, RAP) | No practical browser decoder for JPEG2000/CCSDS-packed fields | Add them to the Pro data server ([ecCodes](https://confluence.ecmwf.int/display/ECC) / `cfgrib`), or keep using Open-Meteo |
 
 ## 10. Radar archive

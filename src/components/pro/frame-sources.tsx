@@ -4,8 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useIntlTimes, useNoaaTimes, useRadarProducts } from "@/hooks/queries";
 import { useRadarLoop } from "@/hooks/use-radar-loop";
-import { listLevel2, listLevel3, newest } from "@/lib/pro/nexrad/aws";
-import { decodedVersion, jobKey, peekDecoded, requestDecode, subscribeDecoded, type DecodeJob } from "@/lib/pro/nexrad/client";
+import { listLevel2, listLevel3, liveVolumes, newest } from "@/lib/pro/nexrad/aws";
+import { decodedVersion, jobKey, liveJob, peekDecoded, requestDecode, subscribeDecoded, type DecodeJob } from "@/lib/pro/nexrad/client";
 import { archiveNote, l3CodeFor, mrmsLayer, PRO_PRODUCTS, satelliteFrames, type ProProductId } from "@/lib/pro/products";
 import { DECODED_SCALES, type ValueScale } from "@/lib/pro/scales";
 import { corners, fetchServerIndex, PRO_SERVER, serverFrames } from "@/lib/pro/server";
@@ -194,14 +194,29 @@ function VolumeSource({ product, site, elev, frameCount, caps, onFeed, until = n
     staleTime: until != null ? Infinity : 45_000,
     retry: 1,
   });
+  // Live, the volumes the archive bucket doesn't have yet (it publishes each about 11 minutes after
+  // the scan starts) come from the real-time chunks, the newest one as it's being scanned.
+  const chunked = useQuery({
+    queryKey: ["pro-l2-live", site],
+    queryFn: ({ signal }) => liveVolumes(site, 3, signal),
+    enabled: until == null,
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+    retry: 1,
+  });
   // Volumes from before 2008 don't say where the radar is.
   const where = getSite(site);
   const at = useMemo(() => (where ? { lat: where.lat, lon: where.lon } : undefined), [where]);
-  const jobs = useMemo(
-    () =>
-      newest(list.data ?? [], count).map((f) => ({ time: f.time, job: { kind: "l2", url: f.url, moment, angle: elev, scale: scaleId, maxPx: caps.l2Px, site: at } as DecodeJob })),
-    [list.data, count, moment, elev, scaleId, caps.l2Px, at],
-  );
+  const jobs = useMemo(() => {
+    const files = list.data ?? [];
+    const lastFile = files.at(-1)?.time ?? 0;
+    const archived = files.map((f) => ({ time: f.time, job: { kind: "l2", url: f.url, moment, angle: elev, scale: scaleId, maxPx: caps.l2Px, site: at } as DecodeJob }));
+    const live = (until == null ? (chunked.data ?? []) : [])
+      .filter((v) => v.time > lastFile + 30_000)
+      .map((v) => ({ time: v.time, job: liveJob({ kind: "l2chunks", urls: v.urls, moment, angle: elev, scale: scaleId, maxPx: caps.l2Px }) }));
+    return [...archived, ...live].slice(-count);
+  }, [list.data, chunked.data, until, count, moment, elev, scaleId, caps.l2Px, at]);
+  const realTime = jobs.some((j) => j.job.kind === "l2chunks");
   const { frames, failed, cuts, elevation } = useDecodedFrames(jobs);
   const elevations = useMemo(() => [...new Set(cuts.map((c) => Math.round(c * 10) / 10))].sort((a, b) => a - b), [cuts]);
   const allFailed = jobs.length > 0 && failed === jobs.length;
@@ -211,7 +226,7 @@ function VolumeSource({ product, site, elev, frameCount, caps, onFeed, until = n
     tilts: noTilts,
     tilt: elevation != null ? { prefix: "N0", angle: elevation, code: moment } : null,
     elevations,
-    source: `NOAA Level II ${site}`,
+    source: realTime ? `NOAA Level II ${site}, real time` : `NOAA Level II ${site}`,
     loading: list.isLoading || (jobs.length > 0 && !frames.length && !allFailed),
     empty: list.isError || (list.isSuccess && !jobs.length) || allFailed,
     note: allFailed && elevations.length ? "This tilt isn't in the radar's current scan pattern" : undefined,
