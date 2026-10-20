@@ -439,7 +439,7 @@ export async function captureProScreens(appUrl: string, { log = console.log, fet
 
 /** For trying it by hand: `npx tsx shorts/app-capture.ts http://localhost:3000 out.json` (also writes each screen as a JPEG). */
 async function main() {
-  const [url = "https://storm-central-pi.vercel.app", out = "shorts/out/pro-screens.json"] = process.argv.slice(2);
+  const [url = "https://app.stormcentralwx.com", out = "shorts/out/pro-screens.json"] = process.argv.slice(2);
   const s = await captureProScreens(url);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, JSON.stringify(s));
