@@ -100,6 +100,7 @@ Restart the service after a change.
 | `OLLAMA_MODEL` | set by the installer | the local model, tried last; empty leaves it out |
 | `STREAM_VOICE` | `en-US-AndrewNeural` | the voice |
 | `STREAM_EXTRA_OUTPUTS` | | more `rtmp://` addresses, space-separated (Twitch, Kick…) |
+| `STREAM_CHAT`, `STREAM_CHAT_REPLIES_DAILY_MAX` | on, 60 | chat commands (`off` turns them off), and how many chat replies a day (20 quota units each) |
 
 ## Taking control of the stream
 
@@ -113,6 +114,32 @@ curl -X POST localhost:8787/pin -d '{"key":"KOUN.TO.W.45.2026"}'            # ke
 curl -X POST localhost:8787/say -d '{"text":"We are watching the storm near Moore closely."}'
 curl -X POST localhost:8787/title -d '{"text":"Tracking the Moore tornado live"}'   # DELETE /title goes back to automatic
 ```
+
+## Chat commands
+
+With the YouTube API credentials set (the installer's optional YouTube questions), viewers can type in the live chat:
+
+| Command | What happens |
+|---|---|
+| `!forecast Moore, OK` (or `!weather`, `!wx`) | Now, today and tomorrow for that place: a card on screen and a reply in chat |
+| `!alerts Moore, OK` (or `!warnings`) | The watches, warnings and advisories in effect there |
+| `!radar Moore, OK` | That place on the stream for 45 seconds: right away when there are no warnings, next otherwise. Viewers get one every 5 minutes between them and none while a major tornado is on; the channel's moderators any time |
+| `!help` | The list |
+
+Each viewer can use one command a minute (moderators any time). Places are US towns from the town list, or anywhere
+Open-Meteo's geocoder knows (smaller towns, ZIP codes, abroad). What a viewer types is never shown or read on the
+stream: only a place that was found is named.
+
+**Moderation** (slurs, abuse, spam) is done by YouTube itself, before anyone sees the message. Set it once in
+YouTube Studio:
+
+1. **Settings → Community → Automated filters → Blocked words**: add the words and slurs you never want in chat
+   (variants too). Messages with them are held and never appear. Also tick **Block links**.
+2. **Settings → Community → Defaults**, under live chat: set **Hold potentially inappropriate messages for review**
+   to **Strict**.
+3. **Settings → Community → Moderators**: add people you trust. They can remove messages and time out or hide
+   users from the chat, and the stream treats them as moderators for `!radar`.
+4. During a stream, any message's **⋮** menu has **Remove**, **Put user in timeout** and **Hide user on this channel**.
 
 ## What the stream says
 

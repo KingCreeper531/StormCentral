@@ -31,9 +31,9 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb ffmpeg pulseaudio pulseaudio-utils fonts-inter fonts-noto-color-emoji > /dev/null
           fc-list | grep -i "inter" | head -3
-          npm install --prefix "$RUNNER_TEMP/stream" --no-audit --no-fund --silent playwright-core@1.56.1
+          npm install --prefix "$RUNNER_TEMP/stream" --no-audit --no-fund --silent playwright-core@1.56.1 @grpc/grpc-js@1.14.5 @grpc/proto-loader@0.8.1
           "$RUNNER_TEMP/stream/node_modules/.bin/playwright-core" install --with-deps chromium > /dev/null
-          npx --yes esbuild@0.28.2 stream/director.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNNER_TEMP/stream/director.mjs" --log-level=warning
+          npx --yes esbuild@0.28.2 stream/director.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --external:@grpc/grpc-js --external:@grpc/proto-loader --outfile="$RUNNER_TEMP/stream/director.mjs" --log-level=warning
           pipx install edge-tts==7.3.1
           curl -fsSL -o /tmp/c.zip https://download.geonames.org/export/dump/cities5000.zip && unzip -p /tmp/c.zip cities5000.txt | awk -F'\t' '$9 == "US" && $11 ~ /^[A-Z][A-Z]$/ {print $3 "\t" $11 "\t" $5 "\t" $6 "\t" $15}' > "$RUNNER_TEMP/places.tsv"; wc -l "$RUNNER_TEMP/places.tsv"
       - name: Stream 240 s into a file

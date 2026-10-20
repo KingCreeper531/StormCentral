@@ -151,14 +151,15 @@ export async function addToPlaylist(videoId: string, title: string, description:
   });
 }
 
-/** The id of the channel's live broadcast that's on air now, or null (needs the youtube scope). */
-export async function liveVideoId(token: string): Promise<string | null> {
-  const res = await fetch(`${API}/liveBroadcasts?part=id&broadcastStatus=active&broadcastType=all&maxResults=5`, {
+/** The channel's live broadcast on air now (its video id and live chat id), or null (needs the youtube scope; 1 quota unit). */
+export async function liveBroadcast(token: string): Promise<{ id: string; chatId: string | null } | null> {
+  const res = await fetch(`${API}/liveBroadcasts?part=snippet&broadcastStatus=active&broadcastType=all&maxResults=5`, {
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) throw await failure(res, "Finding the live broadcast");
-  return ((await res.json()) as { items?: { id: string }[] }).items?.[0]?.id ?? null;
+  const b = ((await res.json()) as { items?: { id: string; snippet?: { liveChatId?: string } }[] }).items?.[0];
+  return b ? { id: b.id, chatId: b.snippet?.liveChatId ?? null } : null;
 }
 
 /** Changes a video's (or live broadcast's) title, keeping its description and category. Costs 51 quota units. */
