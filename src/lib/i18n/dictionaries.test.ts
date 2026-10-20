@@ -3,6 +3,7 @@ import { ALERTS } from "./es/alerts";
 import { COMMON } from "./es/common";
 import { COMMUNITY } from "./es/community";
 import { DAILY } from "./es/daily";
+import { GUIDE } from "./es/guide";
 import { LIB } from "./es/lib";
 import { MAP } from "./es/map";
 import { MODES } from "./es/modes";
@@ -12,7 +13,7 @@ import { RADAR } from "./es/radar";
 import { SETTINGS } from "./es/settings";
 import { SHELL } from "./es/shell";
 
-const AREAS = { ALERTS, COMMON, COMMUNITY, DAILY, LIB, MAP, MODES, NOTIFY, PRO, RADAR, SETTINGS, SHELL };
+const AREAS = { ALERTS, COMMON, COMMUNITY, DAILY, GUIDE, LIB, MAP, MODES, NOTIFY, PRO, RADAR, SETTINGS, SHELL };
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
 describe("Spanish dictionaries", () => {

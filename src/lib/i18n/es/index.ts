@@ -35,6 +35,7 @@ import { ALERTS } from "./alerts";
 import { COMMON } from "./common";
 import { COMMUNITY } from "./community";
 import { DAILY } from "./daily";
+import { GUIDE } from "./guide";
 import { LIB } from "./lib";
 import { MAP } from "./map";
 import { MODES } from "./modes";
@@ -57,4 +58,5 @@ export const ES: Readonly<Record<string, string>> = {
   ...ALERTS,
   ...NOTIFY,
   ...PRO,
+  ...GUIDE,
 };

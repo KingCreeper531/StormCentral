@@ -88,6 +88,8 @@ export interface ProState {
   /** Points of interest for the time-of-arrival fan (besides your location and saved places). */
   toaPoints: (LatLon & { name: string })[];
   warnDraft: WarnDraft;
+  /** The toolbar's Guide button (the optional tour and reference); people who don't want it can hide it. */
+  guideButton: boolean;
   setLayout: (l: Layout) => void;
   setPane: (id: string, patch: Partial<Omit<PaneConfig, "id">>) => void;
   setSite: (icao: string | null) => void;
@@ -99,6 +101,7 @@ export interface ProState {
   clearToaPoints: () => void;
   setWarnDraft: (patch: Partial<WarnDraft> | ((d: WarnDraft) => Partial<WarnDraft>)) => void;
   resetWarnDraft: (kind?: WarnKind) => void;
+  setGuideButton: (on: boolean) => void;
 }
 
 /** 2×2 opens on products every site has (super-res REF/VEL from NOAA, SRV, MRMS); dual-pol fills out the 3×3. */
@@ -142,6 +145,7 @@ export const useProStore = create<ProState>()(
       vector: null,
       toaPoints: [],
       warnDraft: newDraft(),
+      guideButton: true,
       setLayout: (layout) => set({ layout }),
       setPane: (id, patch) => set((s) => ({ panes: s.panes.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
       setSite: (site) => set({ site }),
@@ -153,12 +157,13 @@ export const useProStore = create<ProState>()(
       clearToaPoints: () => set({ toaPoints: [] }),
       setWarnDraft: (patch) => set((s) => ({ warnDraft: { ...s.warnDraft, ...(typeof patch === "function" ? patch(s.warnDraft) : patch) } })),
       resetWarnDraft: (kind) => set((s) => ({ warnDraft: newDraft(kind ?? s.warnDraft.kind) })),
+      setGuideButton: (guideButton) => set({ guideButton }),
     }),
     {
       name: "stormcentral:pro",
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ layout: s.layout, panes: s.panes, site: s.site, frames: s.frames, speed: s.speed }),
+      partialize: (s) => ({ layout: s.layout, panes: s.panes, site: s.site, frames: s.frames, speed: s.speed, guideButton: s.guideButton }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ProState>;
         return {
@@ -168,6 +173,7 @@ export const useProStore = create<ProState>()(
           site: typeof p.site === "string" && /^[A-Z]{4}$/.test(p.site) ? p.site : null,
           frames: typeof p.frames === "number" ? Math.min(20, Math.max(4, Math.round(p.frames))) : current.frames,
           speed: p.speed === 0.5 || p.speed === 2 ? p.speed : 1,
+          guideButton: p.guideButton !== false,
         };
       },
     },

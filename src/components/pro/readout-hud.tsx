@@ -91,7 +91,7 @@ export function ReadoutHud({ site }: { site: RadarSite | null }) {
   const range = cursor && site ? { km: haversineKm(site, { lat: cursor.lat, lon: cursor.lng }), deg: bearingDeg(site, { lat: cursor.lat, lon: cursor.lng }) } : null;
 
   return (
-    <div className="flex min-h-9 flex-wrap items-center gap-x-4 gap-y-1 border-t border-line bg-canvas/95 px-3 py-1.5 font-mono text-[11px] text-ink-2 tabular-nums">
+    <div data-tour="readout" className="flex min-h-9 flex-wrap items-center gap-x-4 gap-y-1 border-t border-line bg-canvas/95 px-3 py-1.5 font-mono text-[11px] text-ink-2 tabular-nums">
       {!cursor ? (
         <span className="font-sans text-ink-3">{t("Move the pointer over a panel (or tap) to sample every panel at that spot.")}</span>
       ) : (

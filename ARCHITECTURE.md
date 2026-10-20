@@ -202,6 +202,8 @@ ProfessionalWorkspace          sync bus (zustand/vanilla) + pane registry + tool
 
 In the desktop app, a pop-out opens on a monitor other than the workspace's, filling it the first time and where it was left after that. Pop-outs hide, show and close with the main window. In a browser it's an ordinary window to drag across.
 
+**The guide (optional).** The toolbar's Guide button opens a reference in the side panel (`guide-panel.tsx`): the basics, every product and tool (what it shows, how to read it, what to look for), how-tos and a glossary, all searchable. From there an optional tour (`pro-tour.tsx`) walks through the workspace, highlighting each part by its `data-tour` attribute and skipping any that aren't on screen. Nothing opens by itself, and Settings → Professional mode can hide the button. The content lives in `lib/pro/guide.ts` as translation keys; its tests check that every product and tool has an entry, that every string has Spanish, and that each tour stop names an element the workspace marks.
+
 **Spatial sync.** A move event that carries user input (`originalEvent`) is published with the pane's id; the other panes `jumpTo` it. Programmatic jumps carry no input event, so they're never re-published, and there's no echo loop or "who leads" logic.
 
 **Temporal sync.** AWIPS-style time matching: the first radar pane is the **time basis** (marked `TB`) and the loop steps through its scan times, waiting on frames that pane hasn't buffered. Every pane shows its newest frame at or before the clock (`frameAt`), so products that scan at different times (super-res reflectivity, IEM dual-pol, 2-minute MRMS, 10-minute GOES) stay on the same moment. Satellite frames are stamped with the loop time they pair with (scan time + GIBS latency).

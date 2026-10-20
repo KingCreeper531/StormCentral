@@ -125,6 +125,18 @@ body {
   background: color-mix(in oklab, var(--color-accent) 40%, transparent);
 }
 
+/* Open dropdown lists. Chrome and Edge on Windows (and the desktop app) paint
+   them from the select's own colours, and a transparent select falls back to
+   a white list under the theme's light text. */
+select optgroup {
+  background-color: var(--color-surface-1);
+  color: var(--color-ink-3);
+}
+select option {
+  background-color: var(--color-surface-1);
+  color: var(--color-ink);
+}
+
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;

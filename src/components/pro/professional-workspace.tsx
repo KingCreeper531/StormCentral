@@ -1,6 +1,6 @@
 "use client";
 
-import { History, PanelRightClose, PanelRightOpen, PictureInPicture2 } from "lucide-react";
+import { BookOpen, History, PanelRightClose, PanelRightOpen, PictureInPicture2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForecast, useStormCells } from "@/hooks/queries";
 import { useHotkeys } from "@/hooks/use-hotkeys";
@@ -8,6 +8,7 @@ import { useMapAlerts } from "@/hooks/use-map-alerts";
 import { useNow } from "@/hooks/use-now";
 import { useT } from "@/lib/i18n/use-t";
 import type { LatLon } from "@/lib/geo";
+import { TOUR, type TourStep } from "@/lib/pro/guide";
 import { isSatellite, shownProduct } from "@/lib/pro/products";
 import { stormMotion } from "@/lib/pro/storm-tools";
 import { connectProLink, openPopout, PANEL_KEY, type PopoutKey, type ProLink, type ToolPoints } from "@/lib/pro/link";
@@ -26,10 +27,12 @@ import { AlertKindsPicker } from "../radar/alert-kinds";
 import { Button, IconButton } from "../ui/button";
 import { PanelBoundary } from "../ui/panel-boundary";
 import { CrossSectionPanel } from "./cross-section-panel";
+import { GuidePanel } from "./guide-panel";
 import { IbwInspector } from "./ibw-inspector";
 import { Pane } from "./pane";
 import type { ToolShapes } from "./pane-layers";
 import { ProProvider, type PaneProbe, type ProContext, type ToolActions } from "./pro-context";
+import { ProTour, visibleSteps } from "./pro-tour";
 import { ReadoutHud } from "./readout-hud";
 import { SoundingPanel } from "./sounding-panel";
 import { StormToolsPanel } from "./storm-tools-panel";
@@ -158,6 +161,9 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
   const [xsect, setXsect] = useState<{ a: LatLon; b: LatLon | null } | null>(null);
   const [selectedAlert, setSelectedAlert] = useState<string | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  // The optional guide: its reference in the side panel, and the tour's stops while it runs.
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [tourSteps, setTourSteps] = useState<TourStep[] | null>(null);
 
   // ── Other windows (panels popped out onto other monitors) ─────────────────
   const link = useRef<ProLink | null>(null);
@@ -232,6 +238,7 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
       useProStore.subscribe((s, prev) => {
         if (s.tool === prev.tool) return;
         setArchiveOpen(false);
+        setGuideOpen(false);
         if (s.tool !== "inspect") setPanelOpen(true);
       }),
     [],
@@ -266,6 +273,7 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
         if (toolRef.current !== "inspect") return;
         setSelectedAlert(id);
         setArchiveOpen(false);
+        setGuideOpen(false);
         setPanelOpen(true);
       },
     }),
@@ -301,9 +309,25 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
   const toolDef = TOOLS.find((x) => x.id === tool)!;
   const openArchive = useCallback(() => {
     setArchiveOpen(true);
+    setGuideOpen(false);
+    setPanelOpen(true);
+  }, []);
+  const openGuide = useCallback(() => {
+    setGuideOpen(true);
+    setArchiveOpen(false);
     setPanelOpen(true);
   }, []);
   const panel = (() => {
+    if (guideOpen)
+      return (
+        <GuidePanel
+          onTour={() => setTourSteps(visibleSteps(TOUR))}
+          onHide={() => {
+            useProStore.getState().setGuideButton(false);
+            setGuideOpen(false);
+          }}
+        />
+      );
     if (archiveOpen)
       return (
         <ArchivePicker
@@ -362,11 +386,11 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
     );
   })();
   const vectorSameTime = vector?.b && !motion;
-  const panelTitle = t(archiveOpen ? "Radar archive" : activeAlert && tool === "inspect" ? "Warning inspector" : toolDef.label);
+  const panelTitle = t(guideOpen ? "Guide" : archiveOpen ? "Radar archive" : activeAlert && tool === "inspect" ? "Warning inspector" : toolDef.label);
   const panelBody = (
     <div className="min-h-0 flex-1 overflow-y-auto">
       {vectorSameTime && <p className="m-3 mb-0 rounded-[4px] bg-caution/15 p-2 text-[12px] text-ink">{t("Both clicks were on the same frame. Step the loop, then click the storm again.")}</p>}
-      <PanelBoundary name="pro-tool-panel" resetKey={archiveOpen ? "archive" : tool}>
+      <PanelBoundary name="pro-tool-panel" resetKey={guideOpen ? "guide" : archiveOpen ? "archive" : tool}>
         {panel}
       </PanelBoundary>
     </div>
@@ -410,7 +434,7 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
   return (
     <ProProvider value={ctx}>
       <div className="absolute inset-0 flex flex-col bg-canvas">
-        <ProToolbar site={site} onStep={step} onToggle={toggle} narrow={narrow} timeZone={timeZone} onArchive={openArchive} />
+        <ProToolbar site={site} onStep={step} onToggle={toggle} narrow={narrow} timeZone={timeZone} onArchive={openArchive} onGuide={openGuide} />
         <div className="relative flex min-h-0 flex-1">
           <div
             className="grid min-h-0 min-w-0 flex-1 gap-px bg-line"
@@ -450,15 +474,22 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
             </div>
           ) : panelOpen ? (
             <aside
+              data-tour="panel"
               className={cn(
                 "flex min-h-0 flex-col border-line bg-surface-1",
                 narrow ? "absolute inset-x-0 bottom-0 z-20 max-h-[60%] border-t shadow-2xl" : "w-[340px] shrink-0 border-l xl:w-[380px]",
               )}
             >
               <div className="flex items-center gap-2 border-b border-line px-3 py-1.5">
-                {archiveOpen ? <History className="size-4 text-ink-3" aria-hidden /> : <toolDef.Icon className="size-4 text-ink-3" aria-hidden />}
+                {guideOpen ? (
+                  <BookOpen className="size-4 text-ink-3" aria-hidden />
+                ) : archiveOpen ? (
+                  <History className="size-4 text-ink-3" aria-hidden />
+                ) : (
+                  <toolDef.Icon className="size-4 text-ink-3" aria-hidden />
+                )}
                 <h2 className="flex-1 text-[13px] font-semibold text-ink">{panelTitle}</h2>
-                {!narrow && !archiveOpen && (
+                {!narrow && !archiveOpen && !guideOpen && (
                   <IconButton size="sm" label={t("Open the panel in a new window")} onClick={() => popOut(PANEL_KEY)}>
                     <PictureInPicture2 className="size-4" aria-hidden />
                   </IconButton>
@@ -469,6 +500,7 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
                   onClick={() => {
                     setPanelOpen(false);
                     setArchiveOpen(false);
+                    setGuideOpen(false);
                   }}
                 >
                   <PanelRightClose className="size-4" aria-hidden />
@@ -485,6 +517,7 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
           )}
         </div>
         <ReadoutHud site={site} />
+        {tourSteps && <ProTour steps={tourSteps} onClose={() => setTourSteps(null)} />}
       </div>
     </ProProvider>
   );
