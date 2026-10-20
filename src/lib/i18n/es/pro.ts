@@ -231,5 +231,10 @@ export const PRO: Record<string, string> = {
   "That damage threat isn't available for this product": "Esa amenaza de daños no está disponible para este producto",
   "A severe thunderstorm warning needs 1 inch hail or 58 mph wind": "Un aviso de tormenta severa necesita granizo de 1 pulgada o viento de 58 mph",
   "Severe hail or wind needs a severe thunderstorm warning": "El granizo o viento severo necesita un aviso de tormenta severa",
-};
 
+  // ─── radar archive ─────────────────────────────────────────────────────────
+  "The Level III archive starts in April 2020. Level II goes back to 1995.": "El archivo Level III empieza en abril de 2020. Level II llega hasta 1995.",
+  "Not in the archive: live only": "No está en el archivo: solo en directo",
+  "Model data is today's, not the archive's.": "Los datos del modelo son de hoy, no del archivo.",
+  "WarnGen works on live radar only.": "WarnGen solo funciona con el radar en directo.",
+};

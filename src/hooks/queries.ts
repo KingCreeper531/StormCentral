@@ -63,13 +63,13 @@ export const qk = {
   airGrid: (b: BBox, v: GridVariable) => ["airGrid", v, b.west.toFixed(1), b.south.toFixed(1), b.east.toFixed(1), b.north.toFixed(1)] as const,
   localAlerts: (p: LatLon) => ["alerts", "local", r2(p.lat), r2(p.lon)] as const,
   nationalAlerts: ["alerts", "national"] as const,
-  scans: (site: string, product: string, minutes: number) => ["scans", site, product, minutes] as const,
+  scans: (site: string, product: string, minutes: number, end: number | null = null) => ["scans", site, product, minutes, end] as const,
   products: (site: string) => ["products", site] as const,
   kp: ["kp"] as const,
   rivers: (p: LatLon) => ["rivers", r2(p.lat), r2(p.lon)] as const,
   gnss: (p: LatLon) => ["gnss", q4(p.lat), q4(p.lon)] as const,
   outlook: (day: number, kind: OutlookKind) => ["outlook", day, kind] as const,
-  stormReports: (hours: number) => ["stormReports", hours] as const,
+  stormReports: (hours: number, end: number | null = null) => ["stormReports", hours, end] as const,
   stormCells: ["stormCells"] as const,
   tropical: ["tropical"] as const,
   recentPrecip: (p: LatLon) => ["recentPrecip", r2(p.lat), r2(p.lon)] as const,
@@ -160,6 +160,17 @@ export function useLocalAlerts() {
   });
 }
 
+/** The storm-based warnings in effect at a past time (the archive). */
+export function useArchivedAlerts(at: number | null) {
+  return useQuery({
+    queryKey: ["alerts", "at", at] as const,
+    queryFn: ({ signal }) => getJson<AlertsResponse>(`/api/alerts?at=${new Date(at!).toISOString()}`, { signal, timeoutMs: 25_000 }),
+    enabled: at != null,
+    staleTime: Infinity,
+    retry: 1,
+  });
+}
+
 export function useNationalAlerts(force = false) {
   const hydrated = useAppStore((s) => s.hydrated);
   const { enabled, refetchInterval } = usePoll("nationalAlerts");
@@ -224,18 +235,20 @@ export function useNoaaTimes(layer: { workspace: string; layer: string } | null,
   });
 }
 
-export function useRadarScans(site: string | null, product: string, minutes: number) {
+/** `end`: the window ends at this past time (the archive) instead of now. */
+export function useRadarScans(site: string | null, product: string, minutes: number, end: number | null = null) {
   // Only mounted by radar views, so availability is gated by the component tree;
   // the mode only decides how hard to poll.
   const { refetchInterval } = usePoll("radar");
   const hydrated = useAppStore((s) => s.hydrated);
   return useQuery({
-    queryKey: qk.scans(site ?? "-", product, minutes),
+    queryKey: qk.scans(site ?? "-", product, minutes, end),
     queryFn: ({ signal }) =>
-      getJson<ScansResponse>(`/api/radar/scans?site=${site}&product=${product}&minutes=${minutes}`, { signal }),
+      getJson<ScansResponse>(`/api/radar/scans?site=${site}&product=${product}&minutes=${minutes}${end != null ? `&end=${new Date(end).toISOString()}` : ""}`, { signal }),
     enabled: hydrated && !!site,
-    refetchInterval: refetchInterval ?? 2 * 60_000,
-    staleTime: 30_000,
+    // The past doesn't change.
+    refetchInterval: end != null ? false : (refetchInterval ?? 2 * 60_000),
+    staleTime: end != null ? Infinity : 30_000,
     placeholderData: keepPreviousData,
     retry: 1,
   });
@@ -308,14 +321,15 @@ export function useOutlook(enabled: boolean, kind: OutlookKind = "categorical") 
 }
 
 /** Official NWS local storm reports over the last `hours`. */
-export function useStormReports(enabled: boolean, hours = 6) {
+/** `end`: the reports of the hours before this past time (the archive) instead of now. */
+export function useStormReports(enabled: boolean, hours = 6, end: number | null = null) {
   const { enabled: polling, refetchInterval } = usePoll("stormReports");
   return useQuery({
-    queryKey: qk.stormReports(hours),
-    queryFn: ({ signal }) => getJson<StormReportsResponse>(`/api/storm-reports?hours=${hours}`, { signal, timeoutMs: 25_000 }),
-    enabled: enabled && polling,
-    refetchInterval,
-    staleTime: 60_000,
+    queryKey: qk.stormReports(hours, end),
+    queryFn: ({ signal }) => getJson<StormReportsResponse>(`/api/storm-reports?hours=${hours}${end != null ? `&end=${new Date(end).toISOString()}` : ""}`, { signal, timeoutMs: 25_000 }),
+    enabled: enabled && (polling || end != null),
+    refetchInterval: end != null ? false : refetchInterval,
+    staleTime: end != null ? Infinity : 60_000,
     placeholderData: keepPreviousData,
   });
 }

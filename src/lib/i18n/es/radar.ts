@@ -302,4 +302,31 @@ export const RADAR: Record<string, string> = {
   "Full size": "Tamaño completo",
   "Camera network": "Red de cámaras",
   "No live cameras within {distance}.": "No hay cámaras en vivo a menos de {distance}.",
+
+  // ─── archive-picker.tsx ────────────────────────────────────────────────────
+  "Radar archive": "Archivo de radar",
+  "Date and time": "Fecha y hora",
+  "Pick a time from 1995 to now.": "Elige un momento entre 1995 y ahora.",
+  "Notable storms": "Tormentas notables",
+  "Choose a storm": "Elige una tormenta",
+  "The national mosaic and warnings go back to 1995, storm reports to the mid-2000s. Professional mode adds each radar's own scans: Level II from 1995, Level III from 2020.":
+    "El mosaico nacional y los avisos llegan hasta 1995, los reportes de tormentas hasta mediados de los 2000. El modo profesional añade los barridos de cada radar: Level II desde 1995 y Level III desde 2020.",
+  "Back to live": "Volver al directo",
+  "Pick another time": "Elegir otro momento",
+  "An hour earlier": "Una hora antes",
+  "An hour later": "Una hora después",
+  "No warnings in effect then": "No había avisos vigentes en ese momento",
+  "Looking back shows the national mosaic. Professional mode has each radar's own scans.":
+    "El archivo muestra el mosaico nacional. El modo profesional tiene los barridos de cada radar.",
+  "Bridge Creek–Moore tornado (1999)": "Tornado de Bridge Creek–Moore (1999)",
+  "Hurricane Katrina landfall (2005)": "Llegada a tierra del huracán Katrina (2005)",
+  "Tuscaloosa–Birmingham tornado (2011)": "Tornado de Tuscaloosa–Birmingham (2011)",
+  "Joplin tornado (2011)": "Tornado de Joplin (2011)",
+  "Moore tornado (2013)": "Tornado de Moore (2013)",
+  "El Reno tornado (2013)": "Tornado de El Reno (2013)",
+  "Hurricane Harvey landfall (2017)": "Llegada a tierra del huracán Harvey (2017)",
+  "Iowa derecho (2020)": "Derecho de Iowa (2020)",
+  "Mayfield, Kentucky tornado (2021)": "Tornado de Mayfield, Kentucky (2021)",
+  "Hurricane Ian landfall (2022)": "Llegada a tierra del huracán Ian (2022)",
+  "Rolling Fork tornado (2023)": "Tornado de Rolling Fork (2023)",
 };

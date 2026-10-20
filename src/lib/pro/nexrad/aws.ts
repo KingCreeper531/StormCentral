@@ -30,9 +30,13 @@ export function l3Time(key: string): number {
   return m ? Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!, +m[4]!, +m[5]!, +m[6]!) : NaN;
 }
 
-/** `…/KTLX20261019_155210_V06` → epoch ms (NaN for other files, e.g. _MDM). */
+/**
+ * `…/KTLX20261019_155210_V06` → epoch ms; also the archive's older names
+ * (`KTLX20130520_195111_V06.gz`, `KTLX19950520_000147.gz`). NaN for other
+ * files, e.g. _MDM.
+ */
 export function l2Time(key: string): number {
-  const m = key.match(/[A-Z]{4}(\d{4})(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)_V\d\d$/);
+  const m = key.match(/[A-Z]{4}(\d{4})(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)(?:_V\d\d)?(?:\.gz)?$/);
   return m ? Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!, +m[4]!, +m[5]!, +m[6]!) : NaN;
 }
 
@@ -45,21 +49,24 @@ async function list(bucket: string, prefix: string, signal?: AbortSignal): Promi
 /** Days (UTC) covering `since`…now, newest last. */
 const days = (since: number, now: number) => (ymd(since, "") === ymd(now, "") ? [now] : [since, now]);
 
-/** Level III files for a 3-letter site and product code since `since`, oldest first. */
-export async function listLevel3(site3: string, code: string, since: number, signal?: AbortSignal, now = Date.now()): Promise<RemoteFile[]> {
-  const keys = (await Promise.all(days(since, now).map((d) => list(L3_BUCKET, `${site3}_${code}_${ymd(d, "_")}`, signal)))).flat();
+/** Within `since`…`until` (no upper bound when live: the device's clock may run behind the radar's). */
+const within = (since: number, until: number | undefined) => (f: RemoteFile) => f.time >= since && (until == null || f.time <= until);
+
+/** Level III files for a 3-letter site and product code since `since` (up to `until`, looking back), oldest first. */
+export async function listLevel3(site3: string, code: string, since: number, signal?: AbortSignal, until?: number): Promise<RemoteFile[]> {
+  const keys = (await Promise.all(days(since, until ?? Date.now()).map((d) => list(L3_BUCKET, `${site3}_${code}_${ymd(d, "_")}`, signal)))).flat();
   return keys
     .map((key) => ({ key, url: `${L3_BUCKET}/${key}`, time: l3Time(key) }))
-    .filter((f) => f.time >= since)
+    .filter(within(since, until))
     .sort((a, b) => a.time - b.time);
 }
 
-/** Level II volumes for an ICAO since `since`, oldest first. */
-export async function listLevel2(icao: string, since: number, signal?: AbortSignal, now = Date.now()): Promise<RemoteFile[]> {
-  const keys = (await Promise.all(days(since, now).map((d) => list(L2_BUCKET, `${ymd(d, "/")}/${icao}/`, signal)))).flat();
+/** Level II volumes for an ICAO since `since` (up to `until`, looking back), oldest first. */
+export async function listLevel2(icao: string, since: number, signal?: AbortSignal, until?: number): Promise<RemoteFile[]> {
+  const keys = (await Promise.all(days(since, until ?? Date.now()).map((d) => list(L2_BUCKET, `${ymd(d, "/")}/${icao}/`, signal)))).flat();
   return keys
     .map((key) => ({ key, url: `${L2_BUCKET}/${key}`, time: l2Time(key) }))
-    .filter((f) => f.time >= since)
+    .filter(within(since, until))
     .sort((a, b) => a.time - b.time);
 }
 

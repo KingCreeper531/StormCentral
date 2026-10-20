@@ -141,6 +141,9 @@ export interface AppState {
   setLanguage: (l: LangPref) => void;
   setProfessional: (on: boolean) => void;
   setComposerOpen: (open: boolean) => void;
+  /** Radar history: the radar views show this past time (epoch ms) instead of now, null when live. Not saved. */
+  archiveAt: number | null;
+  setArchiveAt: (t: number | null) => void;
   setPaletteOpen: (open: boolean) => void;
 }
 
@@ -230,6 +233,8 @@ export const useAppStore = create<AppState>()(
       professional: false,
       composerOpen: false,
       paletteOpen: false,
+      archiveAt: null,
+      setArchiveAt: (archiveAt) => set({ archiveAt }),
       setMode: (mode) => {
         const cur = get().mode;
         if (cur !== mode) set({ mode, previousMode: cur });
