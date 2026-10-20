@@ -2,7 +2,8 @@
  * NEXRAD Level II (Archive II) decoder for one elevation cut of one moment,
  * after the RDA/RPG ICD (2620002) and Unidata's archive format: a 24-byte
  * volume header, then LDM records (a 4-byte length and a bzip2 stream each)
- * holding Message 31 radials. MetPy's Level2File was the reference.
+ * holding Message 31 radials, or (older archive files, once gunzipped) the
+ * same messages uncompressed. MetPy's Level2File was the reference.
  *
  * Decoding stops as soon as the requested cut is complete, so low tilts cost
  * a fraction of the volume. The cut list comes from the VCP (Message 5) in
@@ -131,13 +132,8 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
     }
   };
 
-  let pos = 24;
-  while (pos + 4 <= file.length && !done) {
-    const size = Math.abs(dvFile.getInt32(pos));
-    pos += 4;
-    if (!size || pos + size > file.length) break;
-    const rec = bunzip2(file.subarray(pos, pos + size), size * 8);
-    pos += size;
+  /** The messages in one record (or in a whole uncompressed file). */
+  const readMessages = (rec: Uint8Array) => {
     const dv = new DataView(rec.buffer, rec.byteOffset, rec.byteLength);
     let p = 0;
     while (p + CTM + 16 <= rec.length && !done) {
@@ -152,6 +148,19 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
       }
       p += bytes;
     }
+  };
+
+  // Files from the NCEI archive before about 2016 (gunzipped) hold the messages uncompressed
+  // after the volume header; newer ones hold LDM records, each a length and a bzip2 stream.
+  const compressed = ascii(file, 28, 3) === "BZh";
+  if (!compressed) readMessages(file.subarray(24));
+  let pos = 24;
+  while (compressed && pos + 4 <= file.length && !done) {
+    const size = Math.abs(dvFile.getInt32(pos));
+    pos += 4;
+    if (!size || pos + size > file.length) break;
+    readMessages(bunzip2(file.subarray(pos, pos + size), size * 8));
+    pos += size;
     // Only the cut list was wanted: it's in the first (metadata) record.
     if (angle == null && cuts.length) break;
   }

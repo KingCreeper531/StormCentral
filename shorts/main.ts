@@ -41,7 +41,7 @@
  *   SHORTS_FIXTURES        a folder of saved source files to use instead of fetching (testing)
  *   SHORTS_SAVE            a folder to save the fetched source files into (to make fixtures)
  */
-import { appendFileSync, copyFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { breakingKind } from "./kinds/breaking";
 import { fireKind } from "./kinds/fire";
@@ -110,6 +110,9 @@ async function main() {
     const started = Date.now();
     await renderShort(v.template, v.data, out, v.size ?? {});
     console.log(`Rendered ${out} in ${Math.round((Date.now() - started) / 1000)} s.`);
+    // Full-length videos get their own thumbnail (kept with the video, so a test run shows it too).
+    const thumb = v.thumbnailAt != null ? join(outDir, `${v.key}-thumbnail.jpg`) : null;
+    if (thumb) await renderStill(v.template, v.data, v.thumbnailAt!, thumb, v.size ?? {}).catch((err: unknown) => console.warn(`::warning::No thumbnail: ${err instanceof Error ? err.message : err}`));
     if (env.SHORTS_VOICE !== "false") {
       const voice = env.SHORTS_VOICE_NAME || DEFAULT_VOICE;
       const plain = narration(v);
@@ -143,11 +146,8 @@ async function main() {
       const id = await uploadVideo(out, meta, token);
       uploaded++;
       console.log(v.size ? `Uploaded → https://youtu.be/${id}` : `Uploaded → https://youtube.com/shorts/${id}`);
-      if (v.thumbnailAt != null) {
-        const thumb = join(outDir, `${v.key}-thumbnail.jpg`);
-        await renderStill(v.template, v.data, v.thumbnailAt, thumb, v.size ?? {})
-          .then(() => setThumbnail(id, thumb, token))
-          .then(
+      if (thumb && existsSync(thumb)) {
+        await setThumbnail(id, thumb, token).then(
             () => console.log("Set the thumbnail."),
             (err: unknown) =>
               console.warn(

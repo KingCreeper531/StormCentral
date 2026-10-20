@@ -130,10 +130,39 @@ function chapterBar(t) {
   });
 }
 
+// ── real radar (kinds/lesson.ts loads the cases from NOAA's archive) ─────
+const QUANT = { ref: (b) => b / 2 - 32, vel: (b) => (b - 128) / 1.6, cc: (b) => b / 250 };
+const cases = new Map();
+/** A historic storm as a storm object: samplers over its grids (km from the centre), its found features and its radar. */
+function caseStorm(id) {
+  if (cases.has(id)) return cases.get(id);
+  const c = D.cases[id];
+  const grids = {};
+  for (const [k, g] of Object.entries(c.grids)) {
+    const bin = atob(g.data), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    grids[k] = { ...g, bytes };
+  }
+  const sampler = (k) => {
+    const g = grids[k];
+    if (!g) return () => NaN;
+    return (x, y) => {
+      const i = Math.floor((x + c.widthKm / 2) / c.res), j = Math.floor((y + c.heightKm / 2) / c.res);
+      if (i < 0 || j < 0 || i >= g.w || j >= g.h) return NaN;
+      const b = g.bytes[j * g.w + i];
+      return b ? QUANT[k](b) : NaN;
+    };
+  };
+  const s = { kind: "case", ref: sampler("ref"), vel: sampler("vel"), cc: sampler("cc"), points: c.points, radar: c.radar, spanKm: c.widthKm, center: [0, 0], real: c };
+  cases.set(id, s);
+  return s;
+}
+
 // ── simulated radar ──────────────────────────────────────────────────────
 const storms = new Map();
 /** The storm for a beat's spec (cached unless a knob animates). */
 function stormFor(spec, u, dur) {
+  if (spec.kind === "case") return caseStorm(spec.case);
   const p = { ...(spec.p || {}) };
   if (spec.anim) {
     const z = easeInOut(seg(u, spec.anim.start ?? 0.3, (spec.anim.start ?? 0.3) + (spec.anim.over ?? dur * 0.6)));
@@ -177,9 +206,9 @@ function wrapExtras(s, spec) {
 
 /** The camera for a beat: the whole storm, or zoomed on a named point, drifting slowly in. */
 function viewFor(spec, s, rect, u, dur) {
-  const k0 = (spec.zoom || 1) * (rect.w / 118);
+  const k0 = (spec.zoom || 1) * (rect.w / (s.spanKm || 118));
   const k = k0 * (1 + 0.05 * clamp(u / Math.max(dur, 1)));
-  let cx = 59, cy = 40;
+  let [cx, cy] = s.center || [59, 40];
   if (spec.focus && s.points[spec.focus]) ({ x: cx, y: cy } = s.points[spec.focus]);
   else if (spec.focus === "radar") ({ x: cx, y: cy } = s.radar);
   if (spec.center) [cx, cy] = spec.center;
@@ -227,7 +256,10 @@ function scopeFrame(rect, view, s, product, { label = true, legend = true, highl
   if (label) {
     const P = RS.PRODUCTS[product];
     pill(`${P.name}${P.unit === "CC" ? "" : ` (${P.unit})`}`, rect.x + 20, rect.y + 36, { size: 24, fill: "rgba(3,6,13,0.78)", color: C.ink });
-    pill("SIMULATED EXAMPLE", rect.x + rect.w - 20, rect.y + 36, { size: 20, fill: "rgba(255,214,10,0.92)", align: "right" });
+    if (s.real) {
+      pill(`REAL RADAR · ${s.real.site}`, rect.x + rect.w - 20, rect.y + 36, { size: 20, fill: "rgba(48,209,88,0.95)", align: "right" });
+      pill(`${s.real.place} · ${s.real.label}`, rect.x + 20, rect.y + 84, { size: 22, fill: "rgba(3,6,13,0.78)", color: C.ink2 });
+    } else pill("SIMULATED EXAMPLE", rect.x + rect.w - 20, rect.y + 36, { size: 20, fill: "rgba(255,214,10,0.92)", align: "right" });
   }
   if (legend) legendBar(rect, product, highlight);
 }
@@ -554,7 +586,7 @@ function outroVisual(v, u) {
   text("Radar School playlist", 1380, 530, { size: 34, weight: 600, color: C.ink3, align: "center" });
   if (logo.complete) { ctx.save(); rr(W / 2 - 70, 780, 140, 140, 30); ctx.clip(); ctx.drawImage(logo, W / 2 - 70, 780, 140, 140); ctx.restore(); }
   text("Live radar and alerts, free: stormcentralwx.com", W / 2, 990, { size: 36, weight: 700, align: "center" });
-  text("Radar images in this video are simulated examples.", W / 2, 1040, { size: 24, weight: 500, color: C.ink3, align: "center" });
+  text(D.anyReal ? "Real radar: NOAA NEXRAD Level II archive. Examples marked simulated are drawn for the lesson." : "Radar images in this video are simulated examples.", W / 2, 1040, { size: 24, weight: 500, color: C.ink3, align: "center" });
   ctx.restore();
 }
 

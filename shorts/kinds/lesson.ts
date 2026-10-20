@@ -1,15 +1,17 @@
 /**
  * Radar School (Wednesdays): a full-length lesson on reading weather radar,
- * 16:9 and several minutes long, in chapters, with simulated radar examples
- * drawn for the lesson (radar-sim.js) and a new storm for each episode. The
- * scripts are written and checked by hand (lessons below); the narrator reads
- * them as written.
+ * 16:9 and several minutes long, in chapters. The examples are real storms
+ * from NOAA's NEXRAD archive (radar-archive.ts) where one shows the feature,
+ * and simulated ones (radar-sim.js, labelled, a new storm each episode) for
+ * the rest. The scripts are written and checked by hand (lessons below); the
+ * narrator reads them as written.
  *
  * Each week posts the next lesson in LESSONS, counted from SERIES_START;
  * once they're all out, no video until more are added. SHORTS_LESSON picks
  * one by number or id (manual runs).
  */
 import { DISCLAIMER, DISCLAIMER_ES, LINK_LINE, LINK_LINE_ES, SITE } from "../meta";
+import { loadCase, type CaseData, type CaseSpec } from "../radar-archive";
 import type { Kind, Video } from "../video";
 
 /** The first Wednesday of the series (lesson 1). */
@@ -21,8 +23,22 @@ const WORDS_PER_SECOND = 2.6;
 export const OUTRO_SECONDS = 20;
 
 type Product = "ref" | "vel" | "cc";
+/**
+ * Historic storms from the NEXRAD archive. Times are the scan to show (the
+ * last volume starting at or before it); the picture is centred on the place.
+ */
+export const CASES: Record<string, CaseSpec> = {
+  "moore-2013": { site: "KTLX", time: "2013-05-20T20:13:00Z", lat: 35.33, lon: -97.5, widthKm: 70, heightKm: 48, place: "Moore, Oklahoma", zone: "America/Chicago" },
+  "mayfield-2021": { site: "KPAH", time: "2021-12-11T03:27:00Z", lat: 36.74, lon: -88.66, widthKm: 80, heightKm: 54, place: "Mayfield, Kentucky", zone: "America/Chicago" },
+  "rolling-fork-2023": { site: "KDGX", time: "2023-03-25T01:05:00Z", lat: 32.9, lon: -90.88, widthKm: 80, heightKm: 54, place: "Rolling Fork, Mississippi", zone: "America/Chicago" },
+  "iowa-derecho-2020": { site: "KDMX", time: "2020-08-10T16:30:00Z", lat: 41.65, lon: -93.5, widthKm: 230, heightKm: 156, res: 1, place: "The Iowa derecho", zone: "America/Chicago" },
+};
+
 export interface StormSpec {
-  kind: "supercell" | "multicell" | "bow" | "hail";
+  /** A simulated storm, or "case": a real one from CASES (with `fallback` drawn when the archive can't be reached). */
+  kind: "supercell" | "multicell" | "bow" | "hail" | "case";
+  case?: keyof typeof CASES;
+  fallback?: StormSpec;
   /** Set per episode by lessonVideo; a beat can add an offset to get a different storm. */
   seed?: number;
   p?: Record<string, number | number[]>;
@@ -88,7 +104,19 @@ const reflectivity: Lesson = {
       "Cómo ve el radar la lluvia y el granizo, qué son la reflectividad y los dBZ, qué significa cada color, cómo leer la estructura de una tormenta y lo que confunde a la gente: ecos de tierra, la banda brillante, insectos y la altura del haz.",
   },
   next: "Radar velocity: seeing the wind",
-  thumb: { lines: ["HOW TO READ", "RADAR"], visual: { storm: { kind: "supercell", p: { hook: 1, notch: 1 }, zoom: 1.2, focus: "core", notes: [{ target: "hook", r: 5, color: "#ffd60a" }] } } },
+  thumb: {
+    lines: ["HOW TO READ", "RADAR"],
+    visual: {
+      storm: {
+        kind: "case",
+        case: "moore-2013",
+        zoom: 1.6,
+        focus: "couplet",
+        notes: [{ target: "couplet", r: 4, color: "#ffd60a" }],
+        fallback: { kind: "supercell", p: { hook: 1, notch: 1 }, zoom: 1.2, focus: "core", notes: [{ target: "hook", r: 5, color: "#ffd60a" }] },
+      },
+    },
+  },
   tags: ["how to read weather radar", "weather radar", "reflectivity", "dBZ", "NEXRAD", "radar colors", "storm spotting", "meteorology", "severe weather", "Radar School", "Storm Central"],
   chapters: [
     {
@@ -96,9 +124,9 @@ const reflectivity: Lesson = {
       beats: [
         { visual: { type: "title" }, say: "Radar is the most useful tool there is for watching storms. In this lesson, you'll learn how weather radar works, and how to read what it shows you.", min: 7 },
         {
-          visual: { type: "radar", storm: { kind: "multicell" } },
-          caption: "Every radar image here is a simulated example",
-          say: "Every radar image in this video is a simulated example, made just for this lesson so each feature is easy to see. Real radar works exactly the same way.",
+          visual: { type: "radar", storm: { kind: "case", case: "mayfield-2021", fallback: { kind: "multicell" } } },
+          caption: "Real storms from NOAA's radar archive",
+          say: "Most of the radar in this video is real, straight from NOAA's archive of past storms. A few examples are simulated to show one feature clearly, and they're labelled.",
         },
         {
           visual: { type: "bullets", heading: "In this lesson", items: ["How radar sees rain and hail", "What reflectivity and dBZ mean", "What every color means", "How to read a storm", "Things that fool people"] },
@@ -183,30 +211,30 @@ const reflectivity: Lesson = {
           say: "dBZ is a logarithmic scale, a bit like the one for earthquakes. Every 10 dBZ means about 10 times more energy coming back.",
         },
         {
-          visual: { type: "radar", storm: { kind: "multicell" }, highlight: [REF[0], 20] },
+          visual: { type: "radar", storm: { kind: "case", case: "iowa-derecho-2020", fallback: { kind: "multicell" } }, highlight: [REF[0], 20] },
           caption: "Below 20 dBZ: drizzle, very light rain, or bugs",
           say: "Below about 20 dBZ, in blues and the faintest greens, you're looking at drizzle, very light rain, or even insects in clear air.",
         },
         {
-          visual: { type: "radar", storm: { kind: "multicell" }, highlight: [20, 35] },
+          visual: { type: "radar", storm: { kind: "case", case: "iowa-derecho-2020", fallback: { kind: "multicell" } }, highlight: [20, 35] },
           caption: "20 to 35 dBZ: light to moderate rain",
           bullet: "Green: light to moderate rain",
           say: "Greens, from about 20 to 35 dBZ, are light to moderate rain. Steady, but not intense.",
         },
         {
-          visual: { type: "radar", storm: { kind: "multicell" }, highlight: [35, 50] },
+          visual: { type: "radar", storm: { kind: "case", case: "iowa-derecho-2020", fallback: { kind: "multicell" } }, highlight: [35, 50] },
           caption: "35 to 50 dBZ: moderate to heavy rain",
           bullet: "Yellow and orange: heavy rain",
           say: "Yellows and oranges, roughly 35 to 50 dBZ, are moderate to heavy rain. Thunderstorms usually show up here.",
         },
         {
-          visual: { type: "radar", storm: { kind: "multicell" }, highlight: [50, 65] },
+          visual: { type: "radar", storm: { kind: "case", case: "iowa-derecho-2020", fallback: { kind: "multicell" } }, highlight: [50, 65] },
           caption: "50 to 65 dBZ: very heavy rain, hail possible",
           bullet: "Red: very heavy rain, hail possible",
           say: "Reds, from about 50 to 65 dBZ, mean very heavy rain. At this level, hail becomes possible, and flash flooding can develop quickly.",
         },
         {
-          visual: { type: "radar", storm: { kind: "multicell" }, highlight: [65, REF[1]] },
+          visual: { type: "radar", storm: { kind: "case", case: "mayfield-2021", fallback: { kind: "multicell" } }, highlight: [65, REF[1]] },
           caption: "65 dBZ and up: hail likely",
           bullet: "Pink, purple, white: hail likely",
           say: "Pinks, purples and whites, around 65 dBZ and higher, almost always mean hail is in the storm.",
@@ -222,10 +250,10 @@ const reflectivity: Lesson = {
       title: "Reading a storm",
       beats: [
         {
-          visual: { type: "radar", storm: { kind: "multicell", zoom: 1.3, focus: "core", notes: [{ target: "core", r: 6, text: "Core" }] } },
+          visual: { type: "radar", storm: { kind: "case", case: "rolling-fork-2023", zoom: 1.4, focus: "core", notes: [{ target: "core", r: 4, text: "Core" }], fallback: { kind: "multicell", zoom: 1.3, focus: "core", notes: [{ target: "core", r: 6, text: "Core" }] } } },
           caption: "The core: the heaviest rain and any hail",
           bullet: "The brightest colors mark the core",
-          say: "Now let's read a whole storm. The brightest colors mark the core, where the heaviest rain and any hail are falling.",
+          say: "Now let's read a real storm: the one that hit Rolling Fork, Mississippi, in 2023. The brightest colors mark the core, where the heaviest rain and any hail are falling.",
         },
         {
           visual: { type: "radar", storm: { kind: "multicell", zoom: 1.3, focus: "core", notes: [{ target: "edge", r: 4, text: "Tight color change", color: "#ffd60a" }] } },
@@ -234,7 +262,7 @@ const reflectivity: Lesson = {
           say: "Look at how quickly the colors change. A sharp jump from green to red over a short distance points to a strong, concentrated updraft.",
         },
         {
-          visual: { type: "radar", storm: { kind: "multicell", notes: [{ target: "light", r: 10, text: "Steady, lighter rain", color: "#6cc4ff" }] } },
+          visual: { type: "radar", storm: { kind: "case", case: "iowa-derecho-2020", fallback: { kind: "multicell", notes: [{ target: "light", r: 10, text: "Steady, lighter rain", color: "#6cc4ff" }] } } },
           caption: "Soft, spread-out greens: steady, lighter rain",
           bullet: "Broad greens: steady, lighter rain",
           say: "Softer, spread-out greens are steadier, lighter rain, called stratiform rain, often trailing behind the strongest storms.",
@@ -245,15 +273,25 @@ const reflectivity: Lesson = {
           say: "Shape matters too. An isolated storm with a sharp, compact core is often stronger than a broad, ragged area of rain.",
         },
         {
-          visual: { type: "radar", storm: { kind: "supercell", p: { hook: 1, notch: 1 }, zoom: 1.2, focus: "core", notes: [{ target: "hook", r: 4.5, text: "Hook echo", color: "#ff453a" }] } },
+          visual: {
+            type: "radar",
+            storm: {
+              kind: "case",
+              case: "moore-2013",
+              zoom: 1.3,
+              focus: "couplet",
+              notes: [{ target: "couplet", r: 4, text: "Hook echo", color: "#ff453a" }],
+              fallback: { kind: "supercell", p: { hook: 1, notch: 1 }, zoom: 1.2, focus: "core", notes: [{ target: "hook", r: 4.5, text: "Hook echo", color: "#ff453a" }] },
+            },
+          },
           caption: "Some shapes have special meanings, like a hook",
           bullet: "Shapes matter: hooks, bows, lines",
-          say: "Some shapes have special meanings, like this hook on the back side of a rotating storm. We'll spend a whole lesson on hooks.",
+          say: "Some shapes have special meanings, like this hook from the storm that struck Moore, Oklahoma, in 2013. We'll spend a whole lesson on hooks.",
         },
         {
-          visual: { type: "radar", storm: { kind: "bow", p: { bow: 1, notch: 1 }, notes: [{ target: "apex", r: 5, text: "Bow echo", color: "#ff9f0a" }] } },
+          visual: { type: "radar", storm: { kind: "case", case: "iowa-derecho-2020", fallback: { kind: "bow", p: { bow: 1, notch: 1 }, notes: [{ target: "apex", r: 5, text: "Bow echo", color: "#ff9f0a" }] } } },
           caption: "A line bowing forward: damaging winds",
-          say: "A line of storms that bulges forward into a bow often brings damaging straight-line winds. That's another lesson coming up.",
+          say: "A line of storms that bulges forward into a bow, like the 2020 Iowa derecho seen here, can bring damaging straight-line winds. That's another lesson coming up.",
         },
         {
           visual: { type: "radar", storm: { kind: "supercell", p: { hook: 0.6, notch: 0.8 } } },
@@ -350,6 +388,24 @@ export function timeline(lesson: Lesson) {
   return { chapters, beats, end: t };
 }
 
+/** The case ids a lesson shows (thumbnail included). */
+export function casesIn(lesson: Lesson): string[] {
+  const out = new Set<string>();
+  JSON.stringify(lesson, (k, v) => (k === "case" && typeof v === "string" ? (out.add(v), v) : v));
+  return [...out];
+}
+
+/** Real storms the archive gave us stay; the rest become their simulated fallback. */
+function resolveCases<T>(x: T, have: Record<string, unknown>): T {
+  if (Array.isArray(x)) return x.map((y) => resolveCases(y, have)) as T;
+  if (x && typeof x === "object") {
+    const o = x as Record<string, unknown>;
+    if (o.kind === "case" && !(typeof o.case === "string" && have[o.case])) return resolveCases(o.fallback, have) as T;
+    return Object.fromEntries(Object.entries(o).map(([k, v]) => [k, resolveCases(v, have)])) as T;
+  }
+  return x;
+}
+
 /** Seeds every storm in the lesson from the episode's seed, so each episode's examples are new. */
 function seeded<T>(x: T, seed: number): T {
   if (Array.isArray(x)) return x.map((y) => seeded(y, seed)) as T;
@@ -361,8 +417,16 @@ function seeded<T>(x: T, seed: number): T {
   return x;
 }
 
-export function lessonVideo(lesson: Lesson, n: number, seed: number): Video {
-  const tl = timeline(seeded(lesson, seed));
+export function lessonVideo(lesson: Lesson, n: number, seed: number, cases: Record<string, CaseData> = {}): Video {
+  const shown = seeded(resolveCases(lesson, cases), seed);
+  const tl = timeline(shown);
+  const used = Object.fromEntries(casesIn(shown).map((id) => [id, cases[id]!]));
+  const anyReal = Object.keys(used).length > 0;
+  const realLine = anyReal
+    ? `Real radar in this video, from NOAA's NEXRAD Level II archive: ${Object.values(used)
+        .map((c) => `${c.place} (${c.site}, ${c.label})`)
+        .join("; ")}. Examples marked "simulated example" are drawn for the lesson.`
+    : "The radar images in this video are simulated examples, drawn for the lesson so each feature is easy to see; real radar works the same way.";
   const chapterLines = tl.chapters.map((c) => `${stamp(c.start)} ${c.title}`).concat(`${stamp(tl.end)} End`);
   const chapterLinesEs = chapterLines; // the chapter names stay as on screen
   return {
@@ -371,7 +435,7 @@ export function lessonVideo(lesson: Lesson, n: number, seed: number): Video {
     title: lesson.youtube,
     description: [
       `${lesson.summary}`,
-      `Radar School is a free weekly series on reading weather radar. The radar images in this video are simulated examples, drawn for the lesson so each feature is easy to see; real radar works the same way.`,
+      `Radar School is a free weekly series on reading weather radar. ${realLine}`,
       `Chapters:\n${chapterLines.join("\n")}`,
       `Watch live radar, warnings and storm reports, free: ${SITE}`,
       LINK_LINE,
@@ -383,7 +447,9 @@ export function lessonVideo(lesson: Lesson, n: number, seed: number): Video {
       title: lesson.es.title,
       description: [
         lesson.es.summary,
-        "La Escuela de Radar es una serie semanal y gratuita sobre cómo leer el radar meteorológico. Las imágenes de radar de este video son ejemplos simulados, dibujados para la lección; el radar real funciona igual.",
+        anyReal
+          ? "La Escuela de Radar es una serie semanal y gratuita sobre cómo leer el radar meteorológico. El radar real viene del archivo NEXRAD Nivel II de la NOAA; los ejemplos marcados como simulados se dibujaron para la lección."
+          : "La Escuela de Radar es una serie semanal y gratuita sobre cómo leer el radar meteorológico. Las imágenes de radar de este video son ejemplos simulados, dibujados para la lección; el radar real funciona igual.",
         `Capítulos:\n${chapterLinesEs.join("\n")}`,
         LINK_LINE_ES,
         DISCLAIMER_ES,
@@ -400,7 +466,9 @@ export function lessonVideo(lesson: Lesson, n: number, seed: number): Video {
       end: tl.end,
       outro: { next: lesson.next },
       outroSeconds: OUTRO_SECONDS,
-      thumb: seeded(lesson.thumb, seed),
+      thumb: shown.thumb,
+      cases: used,
+      anyReal,
     },
   };
 }
@@ -427,6 +495,18 @@ export const lessonKind: Kind = async (ctx) => {
   }
   // A new storm for every week, the same one for every run of that week.
   const seed = 1000 + Math.floor(now / WEEK);
-  console.log(`Radar School lesson ${i + 1}: ${LESSONS[i]!.title} (seed ${seed}).`);
-  return [lessonVideo(LESSONS[i]!, i + 1, seed)];
+  const lesson = LESSONS[i]!;
+  console.log(`Radar School lesson ${i + 1}: ${lesson.title} (seed ${seed}).`);
+  // Real storms from the archive; one that can't be loaded is swapped for its simulated stand-in.
+  const cases: Record<string, CaseData> = {};
+  for (const id of casesIn(lesson)) {
+    const spec = CASES[id];
+    if (!spec) continue;
+    try {
+      cases[id] = await loadCase(spec);
+    } catch (err) {
+      console.warn(`::warning::Couldn't load the ${id} radar; using a simulated example instead: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+  return [lessonVideo(lesson, i + 1, seed, cases)];
 };
