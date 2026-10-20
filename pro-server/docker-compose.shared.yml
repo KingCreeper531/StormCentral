@@ -1,0 +1,10 @@
+# For a server that also runs the live stream (vps/setup.sh): the processor
+# gets at most one CPU and 2 GB, so its GOES bursts every 5 minutes can't
+# stall the stream's video. Use with:
+#   docker compose -f docker-compose.yml -f docker-compose.shared.yml up -d --build
+services:
+  processor:
+    cpus: "1.0"
+    mem_limit: 2g
+    environment:
+      DASK_WORKERS: ${DASK_WORKERS:-1}

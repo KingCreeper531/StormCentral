@@ -30,7 +30,7 @@ export async function GET(req: Request) {
   } else if (sort === "bbox") {
     const [west, south, east, north] = (sp.get("bbox") ?? "").split(",").map(Number);
     if (![west, south, east, north].every(Number.isFinite)) return badRequest("bbox=w,s,e,n required");
-    q = { sort, bbox: { west: west!, south: south!, east: east!, north: north! }, hours: Math.min(24, Number(sp.get("hours")) || 6) };
+    q = { sort, bbox: { west: west!, south: south!, east: east!, north: north! }, hours: Math.min(24, Math.max(1, Number(sp.get("hours")) || 6)) };
   } else if (sp.get("user")) {
     q = { sort: "user", username: sp.get("user")!, cursor: sp.get("cursor") };
   } else {
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
   }
   // Match recent reports to the NWS's storm reports now and then, after answering.
   after(maybeSyncNwsConfirmations);
-  return Response.json(await listPosts(q, viewer?.id ?? null), { headers: noStore });
+  return Response.json(await listPosts(q, viewer?.id ?? null, !!viewer?.moderator), { headers: noStore });
 }
 
 /** POST /api/posts (multipart/form-data) */

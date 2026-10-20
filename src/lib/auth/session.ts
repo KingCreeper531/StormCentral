@@ -59,6 +59,12 @@ export function isTrustedSpotter(username: string) {
   return usernames(`${GRANTED_TRUSTED_SPOTTERS},${process.env.TRUSTED_SPOTTERS ?? ""}`).includes(username.toLowerCase());
 }
 
+/**
+ * Roles come with these usernames, so nobody can sign up as one: not on a fresh
+ * database, and not after the account that had it is deleted.
+ */
+export const isReservedUsername = (username: string) => isModerator(username) || isDeveloper(username) || isTrustedSpotter(username);
+
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
 async function setCookie(token: string, expiresAt: number) {

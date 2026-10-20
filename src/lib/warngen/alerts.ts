@@ -48,6 +48,3 @@ export function spotterAlert(w: SpotterWarningDto, timeZone?: string): WeatherAl
     category: "warning",
   };
 }
-
-/** The spotter warning behind an alert id from `spotterAlert`, if it is one. */
-export const spotterIdOf = (alertId: string) => (alertId.startsWith("spotter-") ? alertId.slice("spotter-".length) : null);

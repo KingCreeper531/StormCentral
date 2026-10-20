@@ -153,7 +153,7 @@ export function useLocalAlerts() {
   const { enabled, refetchInterval } = usePoll("localAlerts");
   return useQuery({
     queryKey: qk.localAlerts(loc),
-    queryFn: ({ signal }) => getJson<AlertsResponse>(`/api/alerts?lat=${loc.lat}&lon=${loc.lon}`, { signal }),
+    queryFn: ({ signal }) => getJson<AlertsResponse>(`/api/alerts?lat=${r2(loc.lat)}&lon=${r2(loc.lon)}`, { signal }),
     enabled,
     refetchInterval,
     staleTime: 60_000,
@@ -262,13 +262,21 @@ export function useSpaceWeather() {
   });
 }
 
+/** One key and request for the gauges, shared by the hook and the angler mode's prefetch. */
+function riversQuery(loc: LatLon, radius: number) {
+  const radiusKm = Math.round(Math.min(MAX_GAUGE_RADIUS_KM, radius));
+  return {
+    queryKey: [...qk.rivers(loc), radiusKm],
+    queryFn: ({ signal }: { signal: AbortSignal }) => getJson<RiversResponse>(`/api/rivers?lat=${r2(loc.lat)}&lon=${r2(loc.lon)}&radiusKm=${radiusKm}`, { signal, timeoutMs: 25_000 }),
+  };
+}
+
 export function useRivers() {
   const loc = useAppStore((s) => s.location);
-  const radiusKm = Math.round(Math.min(MAX_GAUGE_RADIUS_KM, useAppStore((s) => s.radiusKm)));
+  const radius = useAppStore((s) => s.radiusKm);
   const { enabled, refetchInterval } = usePoll("rivers");
   return useQuery({
-    queryKey: [...qk.rivers(loc), radiusKm],
-    queryFn: ({ signal }) => getJson<RiversResponse>(`/api/rivers?lat=${r2(loc.lat)}&lon=${r2(loc.lon)}&radiusKm=${radiusKm}`, { signal, timeoutMs: 25_000 }),
+    ...riversQuery(loc, radius),
     enabled,
     refetchInterval,
     staleTime: 5 * 60_000,
@@ -482,8 +490,7 @@ export function prefetchMode(qc: QueryClient, mode: ModeId, loc: LatLon) {
     void qc.prefetchQuery({ queryKey: qk.kp, queryFn: ({ signal }) => getJson<SpaceWeatherResponse>("/api/space-weather", { signal }), ...opts });
     void qc.prefetchQuery({ queryKey: qk.gnss(loc), queryFn: ({ signal }) => getJson<GnssResponse>(`/api/gnss?lat=${q4(loc.lat)}&lon=${q4(loc.lon)}`, { signal }), ...opts });
   }
-  if (mode === "angler")
-    void qc.prefetchQuery({ queryKey: qk.rivers(loc), queryFn: ({ signal }) => getJson<RiversResponse>(`/api/rivers?lat=${r2(loc.lat)}&lon=${r2(loc.lon)}`, { signal }), ...opts });
+  if (mode === "angler") void qc.prefetchQuery({ ...riversQuery(loc, useAppStore.getState().radiusKm), ...opts });
 }
 
 /** Strong radar storms heading for the selected location within the hour (every 2 minutes while the page shows). */

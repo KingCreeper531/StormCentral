@@ -5,8 +5,7 @@
  *
  * Rings are closed `[lon, lat]` arrays (first vertex repeated at the end).
  */
-import type { LatLon } from "../geo";
-import { destination } from "../pro/storm-tools";
+import { destination, type LatLon } from "../geo";
 
 export type Ring = [number, number][];
 

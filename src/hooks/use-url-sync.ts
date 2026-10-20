@@ -18,9 +18,10 @@ export function useUrlSync() {
     const { setMode, setLocation } = useAppStore.getState();
     const mode = sp.get("mode");
     if (isModeId(mode)) setMode(mode);
-    const lat = Number(sp.get("lat"));
-    const lon = Number(sp.get("lon"));
-    if (sp.has("lat") && sp.has("lon") && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+    // An empty value would read as 0 (the Gulf of Guinea).
+    const lat = sp.get("lat") ? Number(sp.get("lat")) : NaN;
+    const lon = sp.get("lon") ? Number(sp.get("lon")) : NaN;
+    if (Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
       setLocation({ lat, lon, name: sp.get("name")?.slice(0, 80) || `${lat.toFixed(2)}, ${lon.toFixed(2)}`, source: "url" });
     }
   }, [hydrated]);

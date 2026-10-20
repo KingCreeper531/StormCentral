@@ -1,0 +1,132 @@
+# The servers' parts, tested on fresh runners before they reach a real server:
+# (1) the live stream runs 4 minutes into a file instead of YouTube, with a demo tornado emergency
+#     (takeover, read-out, a clip rendered but not posted); frames, the sound and the clip are kept
+#     as the run's artifact;
+# (2) vps/setup.sh installs the web app and it answers through Caddy.
+name: Server test
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ["stream/**", "vps/**", "pro-server/docker-compose*.yml", ".github/workflows/server-test.yml"]
+concurrency:
+  group: server-test-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+env:
+  # setup.sh downloads the code it installs: the branch under test.
+  BRANCH: ${{ github.head_ref || github.ref_name }}
+jobs:
+  stream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
+      - name: Install what vps/setup.sh installs for the stream
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb ffmpeg pulseaudio pulseaudio-utils fonts-inter fonts-noto-color-emoji > /dev/null
+          fc-list | grep -i "inter" | head -3
+          npm install --prefix "$RUNNER_TEMP/stream" --no-audit --no-fund --silent playwright-core@1.56.1
+          "$RUNNER_TEMP/stream/node_modules/.bin/playwright-core" install --with-deps chromium > /dev/null
+          npx --yes esbuild@0.28.2 stream/director.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNNER_TEMP/stream/director.mjs" --log-level=warning
+          pipx install edge-tts==7.3.1
+          curl -fsSL -o /tmp/c.zip https://download.geonames.org/export/dump/cities5000.zip && unzip -p /tmp/c.zip cities5000.txt | awk -F'\t' '$9 == "US" && $11 ~ /^[A-Z][A-Z]$/ {print $3 "\t" $11 "\t" $5 "\t" $6 "\t" $15}' > "$RUNNER_TEMP/places.tsv"; wc -l "$RUNNER_TEMP/places.tsv"
+      - name: Stream 240 s into a file
+        env:
+          STREAM_OUTPUT: ${{ runner.temp }}/test.mp4
+          STREAM_SECONDS: "240"
+          STREAM_RUNTIME: ${{ runner.temp }}/stream
+          STREAM_DEMO_ALERT: "1"
+          STREAM_BRIEFING_MINUTES: "3"
+          STREAM_DEMO_FIXTURE: shorts/fixtures/breaking/tornado-emergency/nws-active.json
+          STREAM_DEMO_NOW: "2026-05-21T00:55:00Z"
+          STREAM_CLIPS_DRY: ${{ runner.temp }}/clip.mp4
+          STREAM_PLACES: ${{ runner.temp }}/places.tsv
+          STREAM_STATE: ${{ runner.temp }}/state.json
+        run: |
+          timeout 380 bash stream/run.sh || echo "run.sh exited with $?"
+          ls -la "$RUNNER_TEMP"/test.mp4
+      - name: Frames, sound and the clip
+        run: |
+          out="$RUNNER_TEMP/result" && mkdir -p "$out" && cd "$out"
+          for t in 10 30 50 60 70 90 110 130 150 170 190 210 230; do
+            ffmpeg -v error -ss $t -i "$RUNNER_TEMP/test.mp4" -frames:v 1 -q:v 3 f$t.jpg || true
+          done
+          ffprobe -v error -show_entries format=duration:stream=codec_name,width,height,r_frame_rate,sample_rate -of compact "$RUNNER_TEMP/test.mp4" | tee info.txt
+          if [ -f "$RUNNER_TEMP/clip.mp4" ]; then
+            ffprobe -v error -show_entries format=duration:stream=codec_name,width,height -of compact "$RUNNER_TEMP/clip.mp4" | tee -a info.txt
+            for t in 2 15 35; do ffmpeg -v error -ss $t -i "$RUNNER_TEMP/clip.mp4" -frames:v 1 -vf scale=540:-1 -q:v 3 clip$t.jpg || true; done
+          else echo "no clip" | tee -a info.txt; fi
+          ffmpeg -v error -i "$RUNNER_TEMP/test.mp4" -vn -ac 1 -ar 22050 -c:a libmp3lame -b:a 48k audio.mp3 || true
+          ffmpeg -v info -i "$RUNNER_TEMP/test.mp4" -af volumedetect -vn -f null - 2>&1 | grep -E "mean_volume|max_volume" | tee -a info.txt
+          cp "$RUNNER_TEMP/clip.mp4" . 2>/dev/null || true
+          # It talked (the read-out and its alert sound), and the warning was cut into a vertical clip.
+          max=$(grep -oP 'max_volume: \K-?[0-9.]+' info.txt)
+          awk -v m="$max" 'BEGIN { exit !(m > -30) }' || { echo "::error::The stream is silent (max volume $max dB)"; exit 1; }
+          grep -q "width=1080|height=1920" info.txt || { echo "::error::No clip was rendered"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stream-test
+          path: ${{ runner.temp }}/result
+          retention-days: 7
+  app:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Answers for setup.sh (there's no terminal in CI)
+        run: |
+          sudo mkdir -p /etc/stormcentral
+          printf 'DOMAIN=\nYT_STREAM_KEY=\nAI=no\nAPP_DOMAIN=app.test\nWATCHER_IP=203.0.113.9\nWATCH_DOMAIN=\nWATCH_IP=\nCF_API_TOKEN=\nBACKUP_HOST=storm-central-pi.vercel.app\nNTFY_TOPIC=\n' | sudo tee /etc/stormcentral/setup.env > /dev/null
+          echo 'DATABASE_URL=file:/opt/stormcentral/test.db' | sudo tee /etc/stormcentral/app.env > /dev/null
+      - name: Install the web app with vps/setup.sh
+        run: sudo STORMCENTRAL_BRANCH="$BRANCH" bash vps/setup.sh < /dev/null
+      - name: It answers through Caddy, and an update with nothing new is a no-op
+        run: |
+          curl -skf --resolve app.test:443:127.0.0.1 https://app.test/api/health | tee /dev/stderr | grep -q '"ok":true'
+          curl -skf --resolve app.test:443:127.0.0.1 -o /dev/null -w "page: %{http_code} %{size_download} bytes\n" "https://app.test/?mode=severe"
+          curl -skf --resolve app.test:443:127.0.0.1 -o /dev/null -w "feed: %{http_code}\n" https://app.test/api/outlook || true
+          sudo STORMCENTRAL_BRANCH="$BRANCH" /usr/local/bin/stormcentral-app-deploy && echo "deploy again: nothing to do"
+          systemctl status stormcentral-app --no-pager | head -5
+          systemctl list-timers stormcentral-app-deploy.timer --no-pager | head -3
+          sudo ufw status | head -8
+      - name: Logs if it failed
+        if: failure()
+        run: |
+          sudo journalctl -u stormcentral-app -n 80 --no-pager || true
+          sudo journalctl -u caddy -n 30 --no-pager || true
+          ls -la /opt/stormcentral/app /opt/stormcentral/app/current/ 2>&1 | head -30
+          which -a node; node -v
+  stream-install:
+    # The stream and local AI roles, installed the way the stream server runs them (a dummy stream key: YouTube
+    # turns the connection away, which is fine; the install and the service are what's checked).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - name: Answers for setup.sh
+        run: |
+          sudo mkdir -p /etc/stormcentral
+          printf 'DOMAIN=\nYT_STREAM_KEY=ci-dummy-key\nYT_CLIENT_ID=\nYT_CLIENT_SECRET=\nYT_REFRESH_TOKEN=\nANTHROPIC_API_KEY=\nGEMINI_API_KEY=\nSTREAM_EXTRA_OUTPUTS=\nAI=yes\nAPP_DOMAIN=\nWATCHER_IP=\nWATCH_DOMAIN=\nWATCH_IP=\nCF_API_TOKEN=\nBACKUP_HOST=storm-central-pi.vercel.app\nNTFY_TOPIC=\n' | sudo tee /etc/stormcentral/setup.env > /dev/null
+      - name: Install the stream and the local AI with vps/setup.sh
+        run: sudo STORMCENTRAL_BRANCH="$BRANCH" bash vps/setup.sh < /dev/null
+      - name: Everything the stream needs is in place, and it starts
+        run: |
+          systemctl is-enabled stormcentral-stream stormcentral-stream-restart.timer ollama
+          ollama list | tee /dev/stderr | grep -q gemma3
+          sudo stat -c '%a %U:%G %n' /etc/stormcentral/stream.env | tee /dev/stderr | grep -q '^640 root:'
+          sudo grep -E '^(OLLAMA_MODEL|STREAM_PLACES|STREAM_TITLE_DAILY_MAX|STREAM_CLIPS_DAILY_MAX)=' /etc/stormcentral/stream.env
+          places=$(sudo grep -oP '^STREAM_PLACES=\K.*' /etc/stormcentral/stream.env)
+          test "$(wc -l < "$places")" -gt 5000
+          sleep 60
+          sudo journalctl -u stormcentral-stream -n 40 --no-pager
+          sudo journalctl -u stormcentral-stream --no-pager | grep -q "AI writers: local gemma3"
+      - name: Running the installer again keeps a setting changed by hand
+        run: |
+          echo 'GEMINI_MODEL=gemini-flash-lite-latest' | sudo tee -a /etc/stormcentral/stream.env > /dev/null
+          sudo STORMCENTRAL_BRANCH="$BRANCH" bash vps/setup.sh < /dev/null > /dev/null
+          sudo grep -q '^GEMINI_MODEL=gemini-flash-lite-latest' /etc/stormcentral/stream.env

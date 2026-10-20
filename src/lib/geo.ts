@@ -26,6 +26,17 @@ export function bearingDeg(a: LatLon, b: LatLon): number {
   return (toDeg(Math.atan2(y, x)) + 360) % 360;
 }
 
+/** Point `km` from `p` along initial bearing `deg` (great circle). */
+export function destination(p: LatLon, deg: number, km: number): LatLon {
+  const δ = km / R_EARTH_KM;
+  const θ = toRad(deg);
+  const φ1 = toRad(p.lat);
+  const λ1 = toRad(p.lon);
+  const φ2 = Math.asin(Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(θ));
+  const λ2 = λ1 + Math.atan2(Math.sin(θ) * Math.sin(δ) * Math.cos(φ1), Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2));
+  return { lat: toDeg(φ2), lon: ((toDeg(λ2) + 540) % 360) - 180 };
+}
+
 const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"] as const;
 
 export function compassPoint(deg: number): (typeof COMPASS)[number] {
@@ -76,18 +87,6 @@ export function distanceToGeometryKm(geometry: PolygonalGeometry, p: LatLon): nu
   return best;
 }
 
-export function geometryCentroid(geometry: PolygonalGeometry): LatLon {
-  const ring = geometry.type === "Polygon" ? geometry.coordinates[0] : geometry.coordinates[0]?.[0];
-  if (!ring?.length) return { lat: 0, lon: 0 };
-  let lat = 0;
-  let lon = 0;
-  for (const [x, y] of ring as [number, number][]) {
-    lon += x;
-    lat += y;
-  }
-  return { lat: lat / ring.length, lon: lon / ring.length };
-}
-
 /** Web-Mercator Y (unitless, radians) for a latitude, and its inverse. */
 export const mercatorY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + toRad(lat) / 2));
 export const latFromMercatorY = (y: number) => toDeg(2 * Math.atan(Math.exp(y)) - Math.PI / 2);
@@ -97,8 +96,4 @@ export interface BBox {
   south: number;
   east: number;
   north: number;
-}
-
-export function bboxAround(p: LatLon, dLat: number, dLon: number): BBox {
-  return { west: p.lon - dLon, south: p.lat - dLat, east: p.lon + dLon, north: p.lat + dLat };
 }

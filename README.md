@@ -10,7 +10,7 @@ For downloads, features and how to use the app, see **[stormcentralwx.com](https
 
 ## Development
 
-Node.js 20.9+.
+Node.js 22.12+.
 
 ```bash
 npm install
@@ -20,7 +20,7 @@ npm run dev                  # http://localhost:3000
 
 | Command | What it does |
 |---|---|
-| `npm run check` | Typecheck, lint and tests (what CI runs) |
+| `npm run check` | Typecheck, lint and tests (CI runs it on every pull request) |
 | `npm run build` / `npm start` | Production build of the web app |
 | `npm run desktop:build`, `desktop:dist` | Windows app (Electron) |
 | `npm run android:build` | Android app (static export + Capacitor) |
@@ -28,8 +28,9 @@ npm run dev                  # http://localhost:3000
 Without a database setting, accounts and spotter reports use a local SQLite file in `data/`. On Vercel, connect a Turso database.
 
 - How it fits together: [ARCHITECTURE.md](ARCHITECTURE.md). Design system: [docs/DESIGN.md](docs/DESIGN.md).
-- YouTube Shorts and the live stream: [shorts/README.md](shorts/README.md).
+- YouTube Shorts and Radar School: [shorts/README.md](shorts/README.md).
 - Pro data server: [pro-server/README.md](pro-server/README.md).
+- Your own server (Pro data server, 24/7 YouTube live stream, local AI) in one command: [vps/README.md](vps/README.md).
 
 ## Themes and plugins
 

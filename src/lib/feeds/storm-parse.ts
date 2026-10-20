@@ -11,8 +11,8 @@
  * negative sentinels read as missing, and junk rows are skipped rather than
  * failing the whole feed.
  */
-import type { LatLon } from "../geo";
-import { destination, stormEta } from "../science/storm-motion";
+import { destination, type LatLon } from "../geo";
+import { stormEta } from "../science/storm-motion";
 import type { StormCell } from "./storm-cells";
 import type { StormReport, StormReportKind } from "./storm-reports";
 
