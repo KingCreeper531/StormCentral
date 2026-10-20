@@ -21,6 +21,11 @@ CORS and cache headers the app needs.
 | `mrms-rotation` | Rotation Track, 60 min, 0–2 km AGL | MRMS `CONUS/RotationTrack60min_00.50` | value | GRIB unit is 0.001 s⁻¹. Shown in **s⁻¹** (0.004 … 0.025). `RotationTrackML*` is the 3–6 km mid-level track and is not used. |
 | `mrms-vil` | Vertically Integrated Liquid | MRMS `CONUS/VIL_00.50` | value | kg/m². |
 
+It also keeps **`lightning.json`**: every flash the GOES Geostationary Lightning
+Mapper saw in the last 15 minutes, from GOES-East and -West (`GLM-L2-LCFA`, a new
+file every 20 seconds), polled every 30 seconds on its own thread. The radar
+map draws a bolt per flash, coloured by age.
+
 The labels in `index.json` say whether a product is a day or night product. All
 three GOES RGBs are made around the clock. A day product at night (or the night
 product by day) is technically valid but not meteorologically useful. The app can
@@ -77,6 +82,22 @@ Every response carries `Access-Control-Allow-Origin: *`, including 404s.
 * Image sizes: GOES 3000 × 1867 px, MRMS 3500 × 2286 px. Both stay below 4096 px,
   the WebGL texture limit on many phones.
 
+```
+GET /lightning.json                  Cache-Control: no-cache
+```
+
+```json
+{ "generated": "2026-10-20T18:48:53Z", "minutes": 15, "source": "GOES GLM (NOAA)",
+  "flashes": [[-97.512, 35.334, 412, 26], "…"] }
+```
+
+* Each flash is `[lon, lat, seconds before "generated", energy in fJ]`, oldest first,
+  good-quality flashes only (`flash_quality_flag` 0).
+* GOES-West's flashes are used west of `LIGHTNING_SPLIT_LON` (−106°) and
+  GOES-East's east of it, so a flash both satellites see counts once. Only
+  flashes inside `LIGHTNING_BOUNDS` (−170, 5, −50, 72) are kept.
+* A busy afternoon is a few thousand flashes, about 100 KB (20–30 KB compressed).
+
 ### How the images are made
 
 **GOES.** For each 5-minute CONUS scan, the server downloads the needed
@@ -117,6 +138,18 @@ products:
 
 * **RAM:** plan for 1.5 GB or more for the processor container, plus about 50 MB
   for Caddy. The processor idles at about 150 MB.
+* **Long runs:** after every frame the processor collects garbage and hands the
+  freed heap back to the OS (`malloc_trim`; glibc otherwise keeps it, and the
+  resident size ratchets up frame by frame without anything leaking). MRMS grids are
+  decoded straight to float32. If resident memory still passes
+  `MEMORY_LIMIT_MB` (default: 85 % of the container's limit, if it has one), the
+  processor exits after the cycle and Docker restarts it a second later. The
+  index, frames and lightning file are on disk, so nothing is lost. The
+  lightning window, the frame history (`KEEP_FRAMES`) and the record of files
+  already processed are all pruned as they go, so none of them grows with
+  uptime.
+* **Lightning:** about 6 GLM files a minute at ~300 KB, so ~110 MB/h inbound. It
+  takes well under a second of CPU per poll and a few MB of RAM.
 * **CPU:** about 10 min of CPU per hour in total. Two A1 OCPUs are plenty.
 * **Disk:** the Docker image is about 0.7 GB. Output with 12 frames is about
   200 MB, almost all GOES. Temporary GOES downloads (~100 MB) are deleted after
@@ -165,6 +198,12 @@ Settings (environment variables):
 | `MRMS_MIN_SPACING_MINUTES` | 0 | e.g. 4 = skip MRMS files closer than 4 min to the previous one, so a 12-frame loop spans ~48 min |
 | `DASK_WORKERS` | min(4, CPUs); compose uses 2 | threads for the GOES step (more = faster, more RAM) |
 | `PNG_COMPRESS_LEVEL` | 6 | zlib level |
+| `MEMORY_LIMIT_MB` | 0 (85 % of the container limit) | restart cleanly above this resident size |
+| `LIGHTNING` | 1 | 0 turns off `lightning.json` |
+| `LIGHTNING_MINUTES` | 15 | how long flashes stay |
+| `LIGHTNING_POLL_SECONDS` | 30 | GLM poll interval |
+| `LIGHTNING_WEST_BUCKET` | `noaa-goes18` | GOES-West bucket (East is `GOES_BUCKET`) |
+| `LIGHTNING_SPLIT_LON` / `LIGHTNING_BOUNDS` | −106 / `-170,5,-50,72` | where each satellite's view is used / flashes kept |
 | `LOG_LEVEL` | INFO | |
 
 ## Deploy on Oracle Cloud Free Tier
@@ -296,6 +335,8 @@ pro_server/
   regrid.py        max-pooling lat/lon grid → Web Mercator
   mercator.py      EPSG:3857 maths, pyresample AreaDefinition
   colormap.py      value → colour (+ reference colour → value)
+  glm.py           GOES GLM flashes → lightning.json (its own thread)
+  memory.py        heap release after each frame, restart over the memory limit
   output.py        atomic PNG/index writes, frame bookkeeping, pruning
   s3.py            anonymous S3 listing/downloads (plain HTTPS)
   serve.py         optional built-in static server

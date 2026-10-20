@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import gc
 import gzip
 import logging
 import re
@@ -11,7 +10,7 @@ import time
 
 import numpy as np
 
-from . import s3
+from . import memory, s3
 from .config import Settings
 from .mercator import height_for_width
 from .output import Manifest, save_png
@@ -77,13 +76,14 @@ def select_new(settings: Settings, manifest: Manifest, product: Product, once: b
 
 
 def decode(raw_gz: bytes):
-    """Return (values float64 (rows, cols), lats 1-D, lons 1-D) for one MRMS GRIB2 message."""
+    """Return (values float32 (rows, cols), lats 1-D, lons 1-D) for one MRMS GRIB2 message."""
     import pygrib  # bundles ecCodes in its wheels (x86_64 and aarch64)
 
     msg = pygrib.fromstring(gzip.decompress(raw_gz))
-    vals = msg.values
-    if np.ma.isMaskedArray(vals):
-        vals = vals.filled(np.nan)
+    # float32 straight away: the 0.005° grids are ~100 M values, and float64 plus a masked copy doubles that twice.
+    raw = msg.values
+    vals = np.ma.filled(raw.astype(np.float32), np.nan) if np.ma.isMaskedArray(raw) else raw.astype(np.float32)
+    del raw
     nj, ni = int(msg["Nj"]), int(msg["Ni"])
     lat1 = float(msg["latitudeOfFirstGridPointInDegrees"])
     lon1 = float(msg["longitudeOfFirstGridPointInDegrees"])
@@ -95,6 +95,7 @@ def decode(raw_gz: bytes):
         dlon = -dlon
     if lon1 > 180.0:
         lon1 -= 360.0
+    del msg
     lats = lat1 + dlat * np.arange(nj)
     lons = lon1 + dlon * np.arange(ni)
     if vals.shape != (nj, ni):
@@ -109,7 +110,7 @@ def render(settings: Settings, product: Product, raw_gz: bytes) -> np.ndarray:
     height = height_for_width(MRMS_BOUNDS, width)
     pooled = pool_max(vals, lats, lons, MRMS_BOUNDS, width, height)
     del vals
-    gc.collect()
+    memory.release()
     # MRMS uses negative sentinels (-1 missing, -3 no coverage, -999/-99 in some
     # products); anything <= 0 means "nothing here".
     pooled[~(pooled > 0)] = np.nan
@@ -138,7 +139,8 @@ def process(settings: Settings, manifest: Manifest, product: Product, once: bool
             log.exception("%s: failed on %s", product.id, key)
             continue
         finally:
-            gc.collect()
+            raw = rgba = None
+            memory.release()
         manifest.add(product.id, t, url)
         added += 1
         log.info("%s: %s -> %s (%.1fs, %d KB)", product.id, key.rsplit("/", 1)[-1], url,
