@@ -1,4 +1,4 @@
-# Temporary: checks the archive and real-time radar sources (not reachable from the dev sandbox).
+# Temporary: checks the archive's coverage (not reachable from the dev sandbox).
 name: Probe (temporary)
 on:
   push:
@@ -11,19 +11,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          curl -s "https://mesonet.agron.iastate.edu/geojson/sbw.geojson?ts=2013-05-20T20:00Z" | python3 -c "
-          import json,sys
-          d=json.load(sys.stdin); fs=d['features']; print(len(fs), 'features')
-          import collections; print(collections.Counter(f['properties']['phenomena']+'.'+f['properties']['significance'] for f in fs))
-          for f in fs:
-            p=f['properties']
-            if p['phenomena'] in ('TO','SV'): print(json.dumps(p)[:1500]); print(f['geometry']['type'], str(f['geometry']['coordinates'])[:120]); break
-          "
-          echo; curl -s "https://mesonet.agron.iastate.edu/geojson/sbw.geojson?ts=2021-12-11T03:30Z" | python3 -c "
-          import json,sys
-          d=json.load(sys.stdin); fs=d['features']
-          for f in fs:
-            p=f['properties']
-            if p['phenomena']=='TO': print(json.dumps(p)[:1500]); break
-          "
-          echo; curl -s -D - -o /dev/null "https://mesonet.agron.iastate.edu/geojson/sbw.geojson?ts=2013-05-20T20:00Z" | grep -iE "cache-control|content-length"
+          set +e
+          IEM=https://mesonet.agron.iastate.edu
+          for prod in N0Q N0R; do
+            for w in "1999-05-03T23:00Z&end=1999-05-04T00:00Z" "2005-08-29T10:30Z&end=2005-08-29T11:10Z" "2011-04-27T21:30Z&end=2011-04-27T22:10Z"; do
+              echo "scans USCOMP $prod $w: $(curl -s "$IEM/json/radar.py?operation=list&radar=USCOMP&product=$prod&start=$w" | head -c 300)"
+            done
+          done
+          for t in N0R-199905040000 N0R-200508291110 N0Q-201105272210 N0Q-201305202000; do
+            echo "tile $t: $(curl -s -o /tmp/t.png -w '%{http_code} %{content_type} %{size_download}' "$IEM/cache/tile.py/1.0.0/ridge::USCOMP-$t/6/14/25.png")"
+          done
+          for w in "1999-05-03T21:00Z&ets=1999-05-04T03:00Z" "2005-08-29T05:00Z&ets=2005-08-29T11:10Z" "2013-05-20T14:00Z&ets=2013-05-20T20:00Z"; do
+            echo "lsr $w: $(curl -s "$IEM/geojson/lsr.geojson?sts=$w" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["features"]))')"
+          done
+          for ts in 1999-05-04T00:00Z 2005-08-29T11:10Z 2008-02-05T23:00Z; do
+            echo "sbw $ts: $(curl -s "$IEM/geojson/sbw.geojson?ts=$ts" | python3 -c 'import json,sys,collections; f=json.load(sys.stdin)["features"]; print(len(f), collections.Counter(x["properties"]["ps"] for x in f).most_common(4))')"
+          done
+          for k in PAH_N0B_2021_12_11_03 PAH_N0Q_2021_12_11_03 TLX_N0B_2021_01_15 TLX_N0Q_2021_01_15 TLX_N0B_2022_06_01 TBW_N0G_2022_09_28_19; do
+            echo "l3 $k: $(curl -s "https://unidata-nexrad-level3.s3.amazonaws.com/?list-type=2&max-keys=1000&prefix=$k" | grep -o '<Key>' | wc -l)"
+          done
+          echo "l3 earliest TLX N0Q: $(curl -s "https://unidata-nexrad-level3.s3.amazonaws.com/?list-type=2&max-keys=3&prefix=TLX_N0Q_" | grep -o '<Key>[^<]*' | head -3)"
+          echo "l3 earliest TLX N0B: $(curl -s "https://unidata-nexrad-level3.s3.amazonaws.com/?list-type=2&max-keys=3&prefix=TLX_N0B_" | grep -o '<Key>[^<]*' | head -3)"
+          echo "l2 1995: $(curl -s "https://unidata-nexrad-level2.s3.amazonaws.com/?list-type=2&max-keys=3&prefix=1995/05/20/KTLX/" | grep -o '<Key>[^<]*' | head -3)"
+          echo "gibs 2019: $(curl -s -o /dev/null -w '%{http_code} %{size_download}' "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GOES-East_ABI_Band2_Red_Visible_1km/default/2019-05-20T20:00:00Z/GoogleMapsCompatible_Level7/4/6/3.png")"
+          echo "gibs 2025: $(curl -s -o /dev/null -w '%{http_code} %{size_download}' "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GOES-East_ABI_Band2_Red_Visible_1km/default/2025-05-20T20:00:00Z/GoogleMapsCompatible_Level7/4/6/3.png")"
