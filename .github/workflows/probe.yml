@@ -12,12 +12,9 @@ jobs:
     steps:
       - run: |
           set +e
-          echo "main is at $(git ls-remote https://github.com/KingCreeper531/StormCentral.git refs/heads/main | cut -c1-7)"
-          for u in https://app.stormcentralwx.com/api/health https://storm-central-pi.vercel.app/api/health; do echo "== $u"; curl -s -m 20 "$u"; echo; done
-          curl -s -m 20 https://tiles.mapterhorn.com/tilejson.json; echo
           pip install -q mapbox-vector-tile >/dev/null 2>&1
           python3 - <<'PY'
-          import json, math, urllib.request, collections, mapbox_vector_tile
+          import gzip, json, math, urllib.request, collections, mapbox_vector_tile
           tj = json.load(urllib.request.urlopen("https://tiles.basemaps.cartocdn.com/vector/carto.streets/v1/tiles.json", timeout=30))
           print("carto tilejson", tj.get("minzoom"), tj.get("maxzoom"), tj["tiles"][:1], [v["id"] for v in tj.get("vector_layers", [])])
           def tile(lat, lon, z):
@@ -27,6 +24,7 @@ jobs:
               x, y = tile(35.2, -97.4, z)
               url = tj["tiles"][0].replace("{z}", str(z)).replace("{x}", str(x)).replace("{y}", str(y))
               raw = urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=30).read()
+              raw = gzip.decompress(raw) if raw[:2] == b'\x1f\x8b' else raw
               t = mapbox_vector_tile.decode(raw)
               b = collections.Counter((f["properties"].get("admin_level"), f["properties"].get("maritime")) for f in t.get("boundary", {}).get("features", []))
               tr = collections.Counter(f["properties"].get("class") for f in t.get("transportation", {}).get("features", []))
