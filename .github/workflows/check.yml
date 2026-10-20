@@ -10,11 +10,27 @@ concurrency:
   cancel-in-progress: true
 permissions:
   contents: read
+  pull-requests: read
 jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      # GitHub lists every commit author and Co-authored-by trailer as a repository
+      # contributor (a squash merge from the web copies them onto main), and the
+      # Anthropic noreply address belongs to an account: keep it out of the history.
+      - name: Commits credit only people
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bad=$(gh api --paginate "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/commits" \
+            --jq '.[] | select((.commit.author.email + " " + .commit.committer.email + " " + .commit.message) | test("noreply@anthropic\\.com"; "i")) | .sha[0:7] + " " + (.commit.message | split("\n")[0])')
+          if [ -n "$bad" ]; then
+            echo "::error::These commits credit noreply@anthropic.com (author, committer or Co-authored-by), which would list an AI account as a contributor. Re-author them and drop the trailer:"
+            echo "$bad"
+            exit 1
+          fi
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:

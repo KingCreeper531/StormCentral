@@ -64,6 +64,8 @@ export interface RasterLayer {
   attribution: string | null;
   /** Shown when the plugin is installed; people can turn each layer on or off. */
   visible: boolean;
+  /** "below-radar" for imagery of the ground (it would hide the radar); overlays go above it. */
+  position: "above-radar" | "below-radar";
 }
 
 export interface GeoJsonLayer {
@@ -147,6 +149,7 @@ function parseLayer(raw: unknown, i: number): PluginLayer {
       opacity,
       attribution,
       visible,
+      position: l.position === "below-radar" ? "below-radar" : "above-radar",
     };
   }
   if (l.type === "geojson") {

@@ -2,7 +2,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { addonSearchUrl, resolveManifest } from "./github";
 import { FEATURED_PLUGINS, FEATURED_THEMES } from "./featured";
-import { AddonError, expandTileUrl, parseAddon, themeVars } from "./manifest";
+import { AddonError, expandTileUrl, parseAddon, themeVars, type PluginAddon, type RasterLayer } from "./manifest";
+import { newerVersion, withBundled } from "@/store/addons-store";
 
 const src = { id: "x", homepage: null };
 
@@ -82,5 +83,39 @@ describe("parseAddon", () => {
     expect(p.type === "plugin" && p.layers[0]?.visible).toBe(false);
     const now = Date.parse("2026-10-12T05:00:00Z");
     expect(expandTileUrl("https://g.example/{date}/{date-2}/{z}", now)).toBe("https://g.example/2026-10-11/2026-10-10/{z}");
+  });
+});
+
+describe("raster plugin placement", () => {
+  const raster = (extra: Record<string, unknown>) =>
+    parseAddon({ type: "plugin", name: "P", layers: [{ type: "raster", tiles: ["https://t.example/{z}/{x}/{y}.png"], ...extra }] }, src) as PluginAddon;
+
+  it("puts layers over the radar unless they ask to go under it", () => {
+    expect((raster({}).layers[0] as RasterLayer).position).toBe("above-radar");
+    expect((raster({ position: "below-radar" }).layers[0] as RasterLayer).position).toBe("below-radar");
+    expect((raster({ position: "on-top-of-everything" }).layers[0] as RasterLayer).position).toBe("above-radar");
+  });
+
+  it("keeps the Earth-from-space imagery under the radar", () => {
+    const earth = FEATURED_PLUGINS.find((p) => p.id.includes("/earth-views/"))!;
+    expect(earth.layers.map((l) => l.kind === "raster" && l.position)).toEqual(["below-radar", "below-radar", "below-radar"]);
+  });
+
+  it("compares versions numerically", () => {
+    expect(newerVersion("1.10.0", "1.9.2")).toBe(true);
+    expect(newerVersion("1.1.0", "1.1")).toBe(false);
+    expect(newerVersion("1.0.0", null)).toBe(true);
+    expect(newerVersion(null, "1.0.0")).toBe(false);
+  });
+
+  it("updates a bundled plugin installed from an older app", () => {
+    const earth = FEATURED_PLUGINS.find((p) => p.id.includes("/earth-views/"))!;
+    const old: PluginAddon = { ...earth, version: "1.0.0", layers: earth.layers.map((l) => (l.kind === "raster" ? { ...l, position: "above-radar" as const } : l)) };
+    expect(withBundled(old).layers.every((l) => l.kind === "raster" && l.position === "below-radar")).toBe(true);
+    // Same or newer than the bundled copy (installed by link from GitHub): left alone.
+    const newer = { ...old, version: "9.0.0" };
+    expect(withBundled(newer)).toBe(newer);
+    const other = { ...old, id: "https://raw.githubusercontent.com/someone/else/main/stormcentral.json" };
+    expect(withBundled(other)).toBe(other);
   });
 });

@@ -17,6 +17,8 @@ import { PluginLayers } from "./layers/plugin-layers";
  * interactive markers sit on top of everything.
  */
 export const SLOTS = {
+  /** Plugin imagery that stands in for the basemap, under the GOES clouds. */
+  base: "slot-base",
   satellite: "slot-satellite",
   outlook: "slot-outlook",
   heat: "slot-heat",
@@ -29,7 +31,7 @@ export const SLOTS = {
   stormReports: "slot-storm-reports",
   reports: "slot-reports",
 } as const;
-const BELOW_LABELS = [SLOTS.satellite, SLOTS.outlook, SLOTS.heat, SLOTS.radar, SLOTS.tropical, SLOTS.warnings] as const;
+const BELOW_LABELS = [SLOTS.base, SLOTS.satellite, SLOTS.outlook, SLOTS.heat, SLOTS.radar, SLOTS.tropical, SLOTS.warnings] as const;
 const ABOVE_LABELS = [SLOTS.tracks, SLOTS.sites, SLOTS.cells, SLOTS.stormReports, SLOTS.reports] as const;
 
 const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY;
@@ -42,9 +44,13 @@ interface MapCtx {
   map: MlMap | null;
   /** A text-font stack that exists on the basemap's glyph server. */
   font: string[];
+  /** The basemap style's own layers (everything that was there before ours). */
+  basemap: ReadonlySet<string>;
 }
 
-const Ctx = createContext<MapCtx>({ map: null, font: [] });
+const NO_LAYERS: ReadonlySet<string> = new Set();
+const EMPTY: MapCtx = { map: null, font: [], basemap: NO_LAYERS };
+const Ctx = createContext<MapCtx>(EMPTY);
 
 /**
  * True while the map still has a style. React may run the MapView's cleanup
@@ -90,7 +96,7 @@ interface Props {
 export function MapView({ center, zoom = 6.5, interactive = true, follow = true, className, children, onViewChange, onReady }: Props) {
   const t = useT();
   const container = useRef<HTMLDivElement>(null);
-  const [ctx, setCtx] = useState<MapCtx>({ map: null, font: [] });
+  const [ctx, setCtx] = useState<MapCtx>(EMPTY);
   const supported = useSyncExternalStore(noSubscribe, hasWebGL2, () => true);
   // A theme switch rebuilds the map on the matching basemap; layers re-add themselves.
   const theme = useResolvedTheme();
@@ -166,6 +172,7 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
 
     map.on("load", () => {
       const style = map.getStyle() as StyleSpecification;
+      const basemap = new Set(style.layers.map((l) => l.id));
       // OLED pass (dark theme): pull the basemap's background and water to near-black.
       for (const layer of theme === "dark" ? style.layers : []) {
         if (layer.type === "background") map.setPaintProperty(layer.id, "background-color", "#030406");
@@ -177,7 +184,7 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
       const marker = (id: string) => ({ id, type: "background" as const, layout: { visibility: "none" as const }, paint: { "background-opacity": 0 } });
       for (const id of BELOW_LABELS) map.addLayer(marker(id), firstSymbol?.id);
       for (const id of ABOVE_LABELS) map.addLayer(marker(id));
-      setCtx({ map, font });
+      setCtx({ map, font, basemap });
       readyCb.current?.(map);
       emitView();
     });
@@ -186,7 +193,7 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
 
     return () => {
       attribWatch?.disconnect();
-      setCtx({ map: null, font: [] });
+      setCtx(EMPTY);
       map.remove();
     };
     // The map is created once; centre/zoom changes are applied imperatively below.

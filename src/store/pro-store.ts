@@ -27,6 +27,8 @@ export interface PaneConfig {
   opacity: number;
   warnings: boolean;
   cells: boolean;
+  /** Cloud-free satellite pictures of the ground in place of the plain basemap. */
+  satelliteMap: boolean;
 }
 
 export type ProTool = "inspect" | "sounding" | "xsect" | "vector" | "toa" | "warngen";
@@ -103,7 +105,7 @@ export interface ProState {
 const DEFAULT_PRODUCTS: ProProductId[] = ["ref", "vel", "srv", "cref", "cc", "zdr", "hc", "sat-ir", "eet"];
 
 export function defaultPanes(): PaneConfig[] {
-  return DEFAULT_PRODUCTS.map((product, i) => ({ id: `p${i + 1}`, product, site: null, tilt: "N0", elev: 0.5, opacity: 0.85, warnings: true, cells: false }));
+  return DEFAULT_PRODUCTS.map((product, i) => ({ id: `p${i + 1}`, product, site: null, tilt: "N0", elev: 0.5, opacity: 0.85, warnings: true, cells: false, satelliteMap: false }));
 }
 
 const TILT_SET = new Set<string>(TILTS.map((t) => t.prefix));
@@ -123,6 +125,7 @@ function normalizePanes(raw: unknown): PaneConfig[] {
       opacity: typeof p.opacity === "number" ? Math.min(1, Math.max(0.1, p.opacity)) : d.opacity,
       warnings: typeof p.warnings === "boolean" ? p.warnings : d.warnings,
       cells: typeof p.cells === "boolean" ? p.cells : d.cells,
+      satelliteMap: typeof p.satelliteMap === "boolean" ? p.satelliteMap : d.satelliteMap,
     };
   });
 }
