@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { narration } from "../narration";
-import { draftedLessons, LESSONS, lessonVideo, pickLesson, SERIES_START, stamp, timeline, validLesson, type StormSpec } from "./lesson";
+import { draftedLessons, LESSONS, lessonVideo, nextFreeWeek, pickLesson, SERIES_START, seriesWeek, stamp, timeline, validLesson, type StormSpec } from "./lesson";
 
 const WEEK = 7 * 86_400_000;
 const numbers = (s: string) => (s.match(/\d+(?:[.,]\d+)*/g) ?? []).map((n) => n.replace(/,/g, ""));
@@ -73,10 +73,18 @@ describe("Radar School lessons", () => {
 });
 
 describe("pickLesson", () => {
-  it("posts lesson 1 in the series' first week, then one a week, then nothing once they're out", () => {
+  it("posts each lesson in its own week, and nothing in a week without one", () => {
     expect(pickLesson(SERIES_START - 1)).toBeNull();
     expect(pickLesson(SERIES_START + 3600_000)).toBe(0);
-    expect(pickLesson(SERIES_START + LESSONS.length * WEEK + 1)).toBeNull();
+    expect(pickLesson(SERIES_START + 500 * WEEK)).toBeNull();
+  });
+
+  it("gives a new draft the first week after now and after every lesson already scheduled", () => {
+    const at = (w: number) => SERIES_START + w * WEEK + 3600_000;
+    expect(nextFreeWeek(at(0), [{ week: 0 } as never])).toBe(1);
+    expect(nextFreeWeek(at(0), [{ week: 0 } as never, { week: 3 } as never])).toBe(4);
+    expect(nextFreeWeek(at(10), [{ week: 0 } as never])).toBe(11);
+    expect(seriesWeek(at(2))).toBe(2);
   });
 
   it("takes a lesson by number or id", () => {

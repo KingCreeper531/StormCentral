@@ -92,6 +92,10 @@ export interface Lesson {
   approved?: boolean;
   /** Where a drafted lesson's facts came from (listed in the description). */
   sources?: { title: string; url: string }[];
+  /** The series week it posts in (0 = the week of SERIES_START); drafts get the next free week when approved. */
+  week?: number;
+  /** How a drafted lesson was checked, for the description: "auto" = quotes verified and a second model agreed. */
+  checked?: "auto" | "person";
 }
 
 // ── The lessons ─────────────────────────────────────────────────────────────
@@ -100,6 +104,7 @@ const REF = [5, 80] as const;
 
 const reflectivity: Lesson = {
   id: "radar-basics",
+  week: 0,
   title: "How weather radar works",
   youtube: "How to Read Weather Radar: How It Works and What the Colors Mean | Radar School 1",
   summary:
@@ -453,6 +458,8 @@ export function validLesson(raw: unknown): Lesson {
     chapters,
     tags: (Array.isArray(o.tags) ? o.tags : []).map((t) => str(t, 40)).filter(Boolean).slice(0, 15),
     approved: o.approved === true,
+    ...(typeof o.week === "number" && Number.isInteger(o.week) && o.week >= 0 ? { week: o.week } : {}),
+    ...(o.checked === "auto" || o.checked === "person" ? { checked: o.checked } : {}),
     ...(Array.isArray(o.sources) ? { sources: o.sources.map((s) => (s && typeof s === "object" ? (s as Record<string, unknown>) : {})).map((s) => ({ title: str(s.title, 120), url: str(s.url, 300) })).filter((s) => /^https:\/\//.test(s.url)) } : {}),
   };
 }
@@ -467,8 +474,14 @@ export function draftedLessons(dir = "shorts/lessons", all = false): Lesson[] {
     .filter((l) => all || l.approved);
 }
 
-/** The series in order: the hand-written lessons, then approved drafts. */
-export const LESSONS: Lesson[] = [reflectivity, ...draftedLessons()];
+/** The series in order of the weeks they post: the hand-written lessons and approved drafts. */
+export const LESSONS: Lesson[] = [reflectivity, ...draftedLessons()].sort((a, b) => (a.week ?? 1e9) - (b.week ?? 1e9));
+
+/** The series week of `now` (0 = the week of SERIES_START, from Wednesday 00:00 UTC). */
+export const seriesWeek = (now: number) => Math.floor((now - SERIES_START) / WEEK);
+
+/** The week a newly approved draft gets: the first week after both now and every lesson already scheduled. */
+export const nextFreeWeek = (now: number, lessons: Lesson[] = LESSONS) => Math.max(seriesWeek(now) + 1, ...lessons.map((l) => (l.week ?? -1) + 1));
 
 // ── Building a lesson's video ───────────────────────────────────────────────
 
@@ -545,6 +558,9 @@ export function lessonVideo(lesson: Lesson, n: number, seed: number, cases: Reco
       `Radar School is a free weekly series on reading weather radar. ${realLine}`,
       `Chapters:\n${chapterLines.join("\n")}`,
       ...(lesson.sources?.length ? [`Sources:\n${lesson.sources.map((s) => `${s.title}: ${s.url}`).join("\n")}`] : []),
+      ...(lesson.checked === "auto"
+        ? ["How this lesson was made: the script was drafted by an AI model from the sources above, every factual line was checked against a quote from them, and a second AI model reviewed each line. Spot a mistake? Tell us in the comments."]
+        : []),
       `Watch live radar, warnings and storm reports, free: ${SITE}`,
       LINK_LINE,
       DISCLAIMER,
@@ -588,17 +604,18 @@ export function pickLesson(now: number, pick?: string): number | null {
     const i = /^\d+$/.test(p) ? Number(p) - 1 : LESSONS.findIndex((l) => l.id === p);
     return i >= 0 && i < LESSONS.length ? i : null;
   }
-  const week = Math.floor((now - SERIES_START) / WEEK);
-  return week >= 0 && week < LESSONS.length ? week : null;
+  const week = seriesWeek(now);
+  const i = LESSONS.findIndex((l) => l.week === week);
+  return i >= 0 ? i : null;
 }
 
 export const lessonKind: Kind = async (ctx) => {
   const now = Date.now();
   let i = pickLesson(now, ctx.env.SHORTS_LESSON);
   // A manual run with no lesson named makes the newest one that's out (or the first).
-  if (i == null && ctx.env.SHORTS_LATEST === "1" && !ctx.env.SHORTS_LESSON) i = Math.min(LESSONS.length - 1, Math.max(0, Math.floor((now - SERIES_START) / WEEK)));
+  if (i == null && ctx.env.SHORTS_LATEST === "1" && !ctx.env.SHORTS_LESSON) i = Math.max(0, LESSONS.findLastIndex((l) => (l.week ?? 0) <= seriesWeek(now)));
   if (i == null) {
-    console.log(ctx.env.SHORTS_LESSON ? `No lesson "${ctx.env.SHORTS_LESSON}".` : "No new Radar School lesson this week (add more to kinds/lesson.ts).");
+    console.log(ctx.env.SHORTS_LESSON ? `No lesson "${ctx.env.SHORTS_LESSON}".` : "No Radar School lesson scheduled this week (the weekly draft didn't pass its checks, or none was drafted).");
     return [];
   }
   // A new storm for every week, the same one for every run of that week.
