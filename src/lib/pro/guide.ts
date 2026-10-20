@@ -256,6 +256,20 @@ export const TOOL_GUIDE: Record<ProTool, ToolTopic> = {
     read: "Skew-T: the red line is temperature, green is dew point and the dashed line is the rising parcel, with its cloud base (LCL) and level of free convection (LFC) marked on the right. The gap between the parcel and the red line is CAPE. Hodograph: the wind at each height, coloured 0–1 km pink, 1–3 km red, 3–6 km green, 6–9 km yellow and 9–12 km cyan. RM and LM are the expected right- and left-moving supercell motions, MW the mean wind and OBS the motion from your storm vector. A long, curved hodograph means strong, turning wind shear, which favours supercells. The numbers under it are explained in the glossary.",
     look: ["It's a model forecast for this hour (Open-Meteo's HRRR/NAM/GFS blend), not a weather balloon."],
   },
+  meteogram: {
+    what: "Every model's forecast for one spot over the coming days, side by side, or one ensemble's spread as a plume.",
+    steps: [
+      "Pick Meteogram, then click a spot on any panel. Click again anywhere to move it (Sounding uses the same spot).",
+      "Choose what to plot: temperature, dew point, total rain and snow, gusts, CAPE or pressure, and how many days to show.",
+      "Models: tap a model's name to show or hide its line. Ensemble: pick an ensemble to see all of its runs.",
+    ],
+    read: "Models: one line per model. Where the lines agree the forecast is more certain; where they split, it isn't. AI marks the machine-learning models (ECMWF's AIFS and NOAA's AI GFS). Ensemble: each faint line is one run of the same model started from slightly different conditions, the band holds the middle 80% of runs and the bold line is their average. A narrow plume is a confident forecast; a wide one means anything inside it can happen.",
+    look: [
+      "Before a severe weather day, compare CAPE and dew points: models that bring the moisture back sooner mean an earlier, bigger threat.",
+      "For rain totals, the top of the plume is a realistic worst case, not the forecast.",
+      "Short-range models (HRRR, NAM 3 km) only run two or three days ahead.",
+    ],
+  },
   xsect: {
     what: "A vertical slice of the model atmosphere along a line you draw.",
     steps: ["Pick Cross-section and click the start (A) on any panel.", "Click the end (A′). Clicking again starts a new line."],
@@ -428,6 +442,7 @@ export const GLOSSARY: readonly Term[] = [
   { term: "Critical angle", meaning: "The angle between the low-level inflow and the low-level wind shear. Close to 90° favours tornadoes." },
   { term: "dBZ", meaning: "Decibels of reflectivity: how strongly targets return the radar's signal. Higher is heavier rain or hail." },
   { term: "Dual-pol", meaning: "Dual polarisation: the radar sends horizontal and vertical pulses, which gives CC, ZDR, KDP and the classification." },
+  { term: "Ensemble", meaning: "The same model run many times from slightly different starting conditions. How far the runs spread shows how certain the forecast is." },
   { term: "Echo tops", meaning: "The highest point where the radar still sees a set amount of echo (18 dBZ): the storm's height." },
   { term: "Hail growth zone", meaning: "The layer between 0 °C and −20 °C where hail grows fastest." },
   { term: "Hodograph", meaning: "A plot of the wind at each height, joined from the ground up. Its length is the wind shear, its curve the turning." },
@@ -439,6 +454,7 @@ export const GLOSSARY: readonly Term[] = [
   { term: "LCL", meaning: "Lifted condensation level: the height of the cloud base. Low bases (below about 1,000 m) favour tornadoes." },
   { term: "LFC", meaning: "Level of free convection: where a rising parcel starts rising on its own." },
   { term: "LI", meaning: "Lifted index: how much warmer a lifted surface parcel is than the air at 500 hPa. Negative is unstable; −6 or lower is very unstable." },
+  { term: "Meteogram", meaning: "A chart of one place's forecast over time, here for several models or an ensemble at once." },
   { term: "Mesocyclone", meaning: "The rotating updraft of a supercell, a few kilometres across." },
   { term: "MRMS", meaning: "Multi-Radar Multi-Sensor: NOAA's system that blends every radar into national products." },
   { term: "Outflow boundary", meaning: "The edge of rain-cooled air spreading out from storms. New storms often form along it." },

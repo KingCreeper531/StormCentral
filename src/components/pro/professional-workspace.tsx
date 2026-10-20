@@ -35,6 +35,7 @@ import type { ToolShapes } from "./pane-layers";
 import { ProProvider, type PaneProbe, type ProContext, type ToolActions } from "./pro-context";
 import { ProTour, visibleSteps } from "./pro-tour";
 import { ReadoutHud } from "./readout-hud";
+import { MeteogramPanel } from "./meteogram-panel";
 import { SoundingPanel } from "./sounding-panel";
 import { StormToolsPanel } from "./storm-tools-panel";
 import { WarnGenPanel } from "./warngen-panel";
@@ -285,7 +286,7 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
   const motion = useMemo(() => (vector?.b ? stormMotion(vector.a, vector.b) : null), [vector]);
   const shapes = useMemo<ToolShapes>(
     () => ({
-      sounding: tool === "sounding" ? soundingAt : null,
+      sounding: tool === "sounding" || tool === "meteogram" ? soundingAt : null,
       xsect: tool === "xsect" ? xsect : null,
       vector: vector ? { a: vector.a, b: vector.b } : null,
       motion,
@@ -348,6 +349,13 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
         <>
           {liveOnly}
           <SoundingPanel point={soundingAt} motion={motion} />
+        </>
+      );
+    if (tool === "meteogram")
+      return (
+        <>
+          {liveOnly}
+          <MeteogramPanel point={soundingAt} timeZone={timeZone} />
         </>
       );
     if (tool === "xsect")

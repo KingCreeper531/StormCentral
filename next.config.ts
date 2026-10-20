@@ -27,6 +27,7 @@ const CONNECT = [
   "http://127.0.0.1:*",
   "http://localhost:*",
   "https://api.open-meteo.com",
+  "https://ensemble-api.open-meteo.com",
   "https://air-quality-api.open-meteo.com",
   "https://geocoding-api.open-meteo.com",
   "https://mesonet.agron.iastate.edu",

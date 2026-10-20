@@ -8,6 +8,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { isProProductId, type ProProductId } from "@/lib/pro/products";
 import { TILTS, type TiltPrefix } from "@/lib/radar/products";
+import { COMPARE_MODELS, DEFAULT_COMPARE, ENSEMBLES } from "@/lib/weather/meteogram";
 import type { LatLon } from "@/lib/geo";
 import type { Ring } from "@/lib/warngen/geometry";
 import { WARN_PRODUCTS, type WarnBasis, type WarnKind, type WarnThreat } from "@/lib/warngen/products";
@@ -31,7 +32,7 @@ export interface PaneConfig {
   satelliteMap: boolean;
 }
 
-export type ProTool = "inspect" | "sounding" | "xsect" | "vector" | "toa" | "warngen";
+export type ProTool = "inspect" | "sounding" | "meteogram" | "xsect" | "vector" | "toa" | "warngen";
 
 /**
  * The WarnGen editor's draft (this session only). The storm is the storm
@@ -90,6 +91,9 @@ export interface ProState {
   warnDraft: WarnDraft;
   /** The toolbar's Guide button (the optional tour and reference); people who don't want it can hide it. */
   guideButton: boolean;
+  /** The meteogram's models (Open-Meteo ids) and ensemble. */
+  meteogramModels: string[];
+  meteogramEnsemble: string;
   setLayout: (l: Layout) => void;
   setPane: (id: string, patch: Partial<Omit<PaneConfig, "id">>) => void;
   setSite: (icao: string | null) => void;
@@ -102,6 +106,8 @@ export interface ProState {
   setWarnDraft: (patch: Partial<WarnDraft> | ((d: WarnDraft) => Partial<WarnDraft>)) => void;
   resetWarnDraft: (kind?: WarnKind) => void;
   setGuideButton: (on: boolean) => void;
+  setMeteogramModels: (ids: string[]) => void;
+  setMeteogramEnsemble: (id: string) => void;
 }
 
 /** 2×2 opens on products every site has (super-res REF/VEL from NOAA, SRV, MRMS); dual-pol fills out the 3×3. */
@@ -112,6 +118,8 @@ export function defaultPanes(): PaneConfig[] {
 }
 
 const TILT_SET = new Set<string>(TILTS.map((t) => t.prefix));
+const isCompareModel = (id: unknown): id is string => COMPARE_MODELS.some((m) => m.id === id);
+const isEnsemble = (id: unknown): id is string => ENSEMBLES.some((e) => e.id === id);
 
 function normalizePanes(raw: unknown): PaneConfig[] {
   const base = defaultPanes();
@@ -146,6 +154,8 @@ export const useProStore = create<ProState>()(
       toaPoints: [],
       warnDraft: newDraft(),
       guideButton: true,
+      meteogramModels: DEFAULT_COMPARE,
+      meteogramEnsemble: ENSEMBLES[0]!.id,
       setLayout: (layout) => set({ layout }),
       setPane: (id, patch) => set((s) => ({ panes: s.panes.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
       setSite: (site) => set({ site }),
@@ -158,12 +168,23 @@ export const useProStore = create<ProState>()(
       setWarnDraft: (patch) => set((s) => ({ warnDraft: { ...s.warnDraft, ...(typeof patch === "function" ? patch(s.warnDraft) : patch) } })),
       resetWarnDraft: (kind) => set((s) => ({ warnDraft: newDraft(kind ?? s.warnDraft.kind) })),
       setGuideButton: (guideButton) => set({ guideButton }),
+      setMeteogramModels: (ids) => set({ meteogramModels: ids.filter(isCompareModel) }),
+      setMeteogramEnsemble: (id) => set({ meteogramEnsemble: isEnsemble(id) ? id : ENSEMBLES[0]!.id }),
     }),
     {
       name: "stormcentral:pro",
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ layout: s.layout, panes: s.panes, site: s.site, frames: s.frames, speed: s.speed, guideButton: s.guideButton }),
+      partialize: (s) => ({
+        layout: s.layout,
+        panes: s.panes,
+        site: s.site,
+        frames: s.frames,
+        speed: s.speed,
+        guideButton: s.guideButton,
+        meteogramModels: s.meteogramModels,
+        meteogramEnsemble: s.meteogramEnsemble,
+      }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ProState>;
         return {
@@ -174,6 +195,8 @@ export const useProStore = create<ProState>()(
           frames: typeof p.frames === "number" ? Math.min(20, Math.max(4, Math.round(p.frames))) : current.frames,
           speed: p.speed === 0.5 || p.speed === 2 ? p.speed : 1,
           guideButton: p.guideButton !== false,
+          meteogramModels: Array.isArray(p.meteogramModels) ? p.meteogramModels.filter(isCompareModel) : current.meteogramModels,
+          meteogramEnsemble: isEnsemble(p.meteogramEnsemble) ? p.meteogramEnsemble : current.meteogramEnsemble,
         };
       },
     },
