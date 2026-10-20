@@ -1,6 +1,6 @@
 "use client";
 
-import { SlidersHorizontal } from "lucide-react";
+import { PictureInPicture2, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useT } from "@/lib/i18n/use-t";
 import { PRO_PRODUCT_IDS, PRO_PRODUCTS, productUsable, SAT_LATENCY_MS, type ProProduct, type ProProductId } from "@/lib/pro/products";
@@ -45,7 +45,25 @@ function FrameClock({ feed, satellite }: { feed: PaneFeed; satellite: boolean })
   return <span ref={ref} className="font-mono tabular-nums" />;
 }
 
-export function PaneHeader({ config, n, feed, basis, compact, volume }: { config: PaneConfig; n: number; feed: PaneFeed; basis: boolean; compact: boolean; /** Level II products allowed on this device. */ volume: boolean }) {
+export function PaneHeader({
+  config,
+  n,
+  feed,
+  basis,
+  compact,
+  volume,
+  onPopOut,
+}: {
+  config: PaneConfig;
+  n: number;
+  feed: PaneFeed;
+  basis: boolean;
+  compact: boolean;
+  /** Level II products allowed on this device. */
+  volume: boolean;
+  /** Move this panel to a window of its own (another monitor). */
+  onPopOut?: () => void;
+}) {
   const t = useT();
   const setPane = useProStore((s) => s.setPane);
   const def = PRO_PRODUCTS[config.product];
@@ -108,7 +126,18 @@ export function PaneHeader({ config, n, feed, basis, compact, volume }: { config
           </span>
         )}
       </div>
-      <details className="group pointer-events-auto relative ml-auto shrink-0">
+      {onPopOut && (
+        <button
+          type="button"
+          onClick={onPopOut}
+          aria-label={t("Open panel {n} in a new window", { n })}
+          title={t("Open panel {n} in a new window", { n })}
+          className="pointer-events-auto ml-auto grid size-7 shrink-0 place-items-center rounded-[var(--radius-control)] border border-line bg-canvas/85 text-ink-2 backdrop-blur-sm hover:text-ink"
+        >
+          <PictureInPicture2 className="size-3.5" aria-hidden />
+        </button>
+      )}
+      <details className={cn("group pointer-events-auto relative shrink-0", !onPopOut && "ml-auto")}>
         <summary
           aria-label={t("Panel {n} settings", { n })}
           title={t("Panel {n} settings", { n })}

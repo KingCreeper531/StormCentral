@@ -192,6 +192,14 @@ ProfessionalWorkspace          sync bus (zustand/vanilla) + pane registry + tool
 
 **State.** Settings that should survive a reload (layout, each pane's product/tilt/opacity/overlays, site, frame count, speed) are a persisted Zustand store, `src/store/pro-store.ts`. The fast-changing shared view is a separate **vanilla** store, `src/lib/pro/sync.ts`: camera `{lng, lat, zoom, source}`, the loop `timeline`/`index`/`playing`, the time-basis pane's buffer status, and the cursor. Panes subscribe to it outside React and apply changes straight to MapLibre, so panning a 3×3 layout or stepping the loop renders no React components. Only the small widgets that display these values read them through `useProSync`, and the frame clocks write their text node directly.
 
+**Several monitors.** Any panel, and the analysis panel (sounding, cross-section, storm tools, WarnGen, warning inspector), can be popped out into a window of its own (`/pro-window?view=p2` or `view=panel`), the way AWIPS spreads across three or four screens. The windows stay one workspace over a `BroadcastChannel` (`lib/pro/link.ts`, same origin only):
+- The camera and cursor go both ways, tagged with the pane that moved them, so nothing echoes. So do the loop index and play state.
+- The timeline comes from the workspace, whose time-basis panel (the first one it still shows) sets it.
+- The Pro store's shared settings and tool state go both ways, and so do the analysis tools' points.
+- A new pop-out says hello and the workspace sends it everything. Pop-outs then report every two seconds, so the workspace leaves their places empty with a "Bring it back" button, and takes a panel back when its window closes or goes quiet. Only the workspace runs the loop clock.
+
+In the desktop app, a pop-out opens on a monitor other than the workspace's, filling it the first time and where it was left after that. Pop-outs hide, show and close with the main window. In a browser it's an ordinary window to drag across.
+
 **Spatial sync.** A move event that carries user input (`originalEvent`) is published with the pane's id; the other panes `jumpTo` it. Programmatic jumps carry no input event, so they're never re-published, and there's no echo loop or "who leads" logic.
 
 **Temporal sync.** AWIPS-style time matching: the first radar pane is the **time basis** (marked `TB`) and the loop steps through its scan times, waiting on frames that pane hasn't buffered. Every pane shows its newest frame at or before the clock (`frameAt`), so products that scan at different times (super-res reflectivity, IEM dual-pol, 2-minute MRMS, 10-minute GOES) stay on the same moment. Satellite frames are stamped with the loop time they pair with (scan time + GIBS latency).

@@ -1,6 +1,6 @@
 "use client";
 
-import { History, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { History, PanelRightClose, PanelRightOpen, PictureInPicture2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForecast, useStormCells } from "@/hooks/queries";
 import { useHotkeys } from "@/hooks/use-hotkeys";
@@ -10,6 +10,7 @@ import { useT } from "@/lib/i18n/use-t";
 import type { LatLon } from "@/lib/geo";
 import { isSatellite, shownProduct } from "@/lib/pro/products";
 import { stormMotion } from "@/lib/pro/storm-tools";
+import { connectProLink, openPopout, PANEL_KEY, type PopoutKey, type ProLink, type ToolPoints } from "@/lib/pro/link";
 import { createProSync, syncTime } from "@/lib/pro/sync";
 import type { RadarFrame } from "@/lib/radar/frames";
 import type { BufferStatus } from "@/lib/radar/layer-manager";
@@ -18,11 +19,11 @@ import { getSite, nearestSites } from "@/lib/radar/site-utils";
 import { cn } from "@/lib/utils";
 import { useAlertsStore } from "@/store/alerts-store";
 import { useAppStore } from "@/store/app-store";
-import { PANE_COUNT, useProStore, type Layout } from "@/store/pro-store";
+import { PANE_COUNT, useProStore, type Layout, type ProState } from "@/store/pro-store";
 import { AlertDetail } from "../radar/alert-detail";
 import { ArchivePicker } from "../radar/archive-picker";
 import { AlertKindsPicker } from "../radar/alert-kinds";
-import { IconButton } from "../ui/button";
+import { Button, IconButton } from "../ui/button";
 import { PanelBoundary } from "../ui/panel-boundary";
 import { CrossSectionPanel } from "./cross-section-panel";
 import { IbwInspector } from "./ibw-inspector";
@@ -38,6 +39,10 @@ import { useProCaps } from "./use-pro-caps";
 
 const GRID: Record<Layout, { cols: number; rows: number }> = { "1x1": { cols: 1, rows: 1 }, "1x2": { cols: 2, rows: 1 }, "2x2": { cols: 2, rows: 2 }, "3x3": { cols: 3, rows: 3 } };
 
+/** The Pro store's fields every window shares (the layout stays the workspace's own). */
+const SHARED_FIELDS = ["panes", "site", "frames", "speed", "tool", "vector", "toaPoints", "warnDraft"] as const;
+const noop = () => {};
+
 /**
  * Professional mode: an AWIPS II / CAVE-style workspace. Up to nine map
  * panels share one camera, one loop clock and one cursor through a vanilla
@@ -48,7 +53,7 @@ const GRID: Record<Layout, { cols: number; rows: number }> = { "1x1": { cols: 1,
  * tools (sounding, cross-section, storm vector / time of arrival, warning
  * inspector).
  */
-export function ProfessionalWorkspace() {
+export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window: the panel it shows (a pane id, or the analysis panel). */ popout?: PopoutKey | null } = {}) {
   const t = useT();
   const home = useAppStore((s) => s.location);
   const caps = useProCaps();
@@ -86,8 +91,11 @@ export function ProfessionalWorkspace() {
   );
   // Big grids and phones loop fewer frames (each frame is a full set of textures per panel).
   const frameCount = Math.min(caps.maxFrames, layout === "3x3" ? Math.min(frames, 8) : frames);
-  // The time basis: the first radar panel (satellite panels follow it).
-  const basisId = (panes.find((p) => !isSatellite(p.product)) ?? panes[0])!.id;
+  // Panels shown in windows of their own (the workspace leaves their places empty).
+  const [popped, setPopped] = useState<ReadonlySet<PopoutKey>>(() => new Set());
+  // The time basis: the first radar panel shown here (satellite panels follow it).
+  const local = panes.filter((p) => !popped.has(p.id));
+  const basisId = (local.find((p) => !isSatellite(p.product)) ?? local[0] ?? panes[0])!.id;
 
   const site = getSite(pinned) ?? nearestSites(home, 1)[0]!;
 
@@ -118,6 +126,8 @@ export function ProfessionalWorkspace() {
   const onBasisStatus = useCallback((st: BufferStatus) => sync.setState({ ready: st.ready }), [sync]);
 
   useEffect(() => {
+    // Pop-outs follow the workspace's clock.
+    if (popout) return;
     let timer: ReturnType<typeof setTimeout>;
     const tick = () => {
       const s = sync.getState();
@@ -132,7 +142,7 @@ export function ProfessionalWorkspace() {
     };
     timer = setTimeout(tick, 400);
     return () => clearTimeout(timer);
-  }, [sync, speed]);
+  }, [sync, speed, popout]);
 
   const step = useCallback(
     (d: number) => {
@@ -148,6 +158,68 @@ export function ProfessionalWorkspace() {
   const [xsect, setXsect] = useState<{ a: LatLon; b: LatLon | null } | null>(null);
   const [selectedAlert, setSelectedAlert] = useState<string | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
+
+  // ── Other windows (panels popped out onto other monitors) ─────────────────
+  const link = useRef<ProLink | null>(null);
+  const toolPoints = useRef<ToolPoints>({ soundingAt, xsect, selectedAlert });
+  /** The last tool points another window sent: not sent back. */
+  const fromLink = useRef<Partial<ToolPoints>>({});
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const l = connectProLink({
+      role: popout ? "popout" : "workspace",
+      key: popout ?? undefined,
+      sync,
+      store: {
+        getState: () => useProStore.getState() as unknown as Record<string, unknown>,
+        setState: (patch) => useProStore.setState(patch as Partial<ProState>),
+        subscribe: (fn) => useProStore.subscribe((s, prev) => fn(s as unknown as Record<string, unknown>, prev as unknown as Record<string, unknown>)),
+        fields: SHARED_FIELDS,
+      },
+      tools: {
+        get: () => toolPoints.current,
+        set: (patch) => {
+          fromLink.current = { ...fromLink.current, ...patch };
+          if (patch.soundingAt) setSoundingAt(patch.soundingAt);
+          if ("xsect" in patch) setXsect(patch.xsect ?? null);
+          if ("selectedAlert" in patch) setSelectedAlert(patch.selectedAlert ?? null);
+        },
+      },
+      onPopouts: setPopped,
+      // The workspace took this panel back.
+      onRecall: () => window.close(),
+    });
+    link.current = l;
+    // Say goodbye as the window goes, so the workspace takes the panel back at once.
+    const bye = () => l.close();
+    window.addEventListener("pagehide", bye);
+    return () => {
+      window.removeEventListener("pagehide", bye);
+      l.close();
+      link.current = null;
+    };
+  }, [popout, sync]);
+  // Tell the other windows when a tool point changes here (not when it came from them).
+  const linkStarted = useRef(false);
+  useEffect(() => {
+    toolPoints.current = { soundingAt, xsect, selectedAlert };
+    if (!linkStarted.current) {
+      linkStarted.current = true;
+      return;
+    }
+    const r = fromLink.current;
+    const patch: Partial<ToolPoints> = {};
+    if (soundingAt !== r.soundingAt) patch.soundingAt = soundingAt;
+    if (xsect !== r.xsect) patch.xsect = xsect;
+    if (selectedAlert !== r.selectedAlert) patch.selectedAlert = selectedAlert;
+    if (Object.keys(patch).length) link.current?.sendTools(patch);
+  }, [soundingAt, xsect, selectedAlert]);
+  const popOut = useCallback((key: PopoutKey) => {
+    openPopout(key);
+    // Shown as moved right away; if the window never opens, the panel comes back after a few seconds.
+    link.current?.expect(key);
+  }, []);
+  const bringBack = useCallback((key: PopoutKey) => link.current?.recall(key), []);
   // Phones start with the maps uncovered; the panel opens when a tool needs it.
   const [panelOpen, setPanelOpen] = useState(!narrow);
   const toolRef = useRef(tool);
@@ -290,7 +362,51 @@ export function ProfessionalWorkspace() {
     );
   })();
   const vectorSameTime = vector?.b && !motion;
+  const panelTitle = t(archiveOpen ? "Radar archive" : activeAlert && tool === "inspect" ? "Warning inspector" : toolDef.label);
+  const panelBody = (
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      {vectorSameTime && <p className="m-3 mb-0 rounded-[4px] bg-caution/15 p-2 text-[12px] text-ink">{t("Both clicks were on the same frame. Step the loop, then click the storm again.")}</p>}
+      <PanelBoundary name="pro-tool-panel" resetKey={archiveOpen ? "archive" : tool}>
+        {panel}
+      </PanelBoundary>
+    </div>
+  );
+  const paneProps = { site: site.icao, frameCount, caps, tool, alerts, selectedAlert, cells, shapes, home };
 
+  // ── A pop-out window: one panel, kept in step with the workspace ──────────
+  if (popout) {
+    const index = allPanes.findIndex((p) => p.id === popout);
+    const config = index >= 0 ? allPanes[index]! : null;
+    const shown = config ? { ...config, product: shownProduct(config.product, { volume }) } : null;
+    return (
+      <ProProvider value={ctx}>
+        <div className="absolute inset-0 flex flex-col bg-canvas">
+          {popout === PANEL_KEY ? (
+            <>
+              <div className="flex items-center gap-2 border-b border-line px-3 py-1.5">
+                <toolDef.Icon className="size-4 text-ink-3" aria-hidden />
+                <h1 className="flex-1 text-[13px] font-semibold text-ink">{panelTitle}</h1>
+              </div>
+              {panelBody}
+            </>
+          ) : shown ? (
+            <>
+              <div className="relative grid min-h-0 flex-1">
+                <PanelBoundary name={`pro-pane-${shown.id}`}>
+                  <Pane config={shown} n={index + 1} {...paneProps} basis={false} compact={false} onBasisFeed={noop} onBasisStatus={noop} />
+                </PanelBoundary>
+              </div>
+              <ReadoutHud site={site} />
+            </>
+          ) : (
+            <p className="m-auto text-[13px] text-ink-3">{t("This panel isn't in the workspace any more.")}</p>
+          )}
+        </div>
+      </ProProvider>
+    );
+  }
+
+  const panelAway = popped.has(PANEL_KEY);
   return (
     <ProProvider value={ctx}>
       <div className="absolute inset-0 flex flex-col bg-canvas">
@@ -300,29 +416,39 @@ export function ProfessionalWorkspace() {
             className="grid min-h-0 min-w-0 flex-1 gap-px bg-line"
             style={{ gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${grid.rows}, minmax(0, 1fr))` }}
           >
-            {panes.map((p, i) => (
-              <PanelBoundary key={p.id} name={`pro-pane-${p.id}`}>
-                <Pane
-                  config={p}
-                  n={i + 1}
-                  site={site.icao}
-                  frameCount={frameCount}
-                  caps={caps}
-                  basis={p.id === basisId}
-                  tool={tool}
-                  alerts={alerts}
-                  selectedAlert={selectedAlert}
-                  cells={cells}
-                  shapes={shapes}
-                  home={home}
-                  compact={layout === "3x3"}
-                  onBasisFeed={onBasisFeed}
-                  onBasisStatus={onBasisStatus}
-                />
-              </PanelBoundary>
-            ))}
+            {panes.map((p, i) =>
+              popped.has(p.id) ? (
+                <div key={p.id} className="grid place-items-center bg-canvas p-4 text-center">
+                  <div className="space-y-2">
+                    <p className="text-[12px] text-ink-3">{t("Panel {n} is open in another window.", { n: i + 1 })}</p>
+                    <Button size="sm" onClick={() => bringBack(p.id)}>
+                      {t("Bring it back")}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <PanelBoundary key={p.id} name={`pro-pane-${p.id}`}>
+                  <Pane
+                    config={p}
+                    n={i + 1}
+                    {...paneProps}
+                    basis={p.id === basisId}
+                    compact={layout === "3x3"}
+                    onBasisFeed={onBasisFeed}
+                    onBasisStatus={onBasisStatus}
+                    onPopOut={narrow ? undefined : () => popOut(p.id)}
+                  />
+                </PanelBoundary>
+              ),
+            )}
           </div>
-          {panelOpen ? (
+          {panelAway ? (
+            <div className="absolute top-1/2 right-1.5 z-20 -translate-y-1/2">
+              <IconButton size="sm" variant="secondary" label={t("Bring the panel back from its window")} onClick={() => bringBack(PANEL_KEY)}>
+                <PanelRightOpen className="size-4" aria-hidden />
+              </IconButton>
+            </div>
+          ) : panelOpen ? (
             <aside
               className={cn(
                 "flex min-h-0 flex-col border-line bg-surface-1",
@@ -331,9 +457,12 @@ export function ProfessionalWorkspace() {
             >
               <div className="flex items-center gap-2 border-b border-line px-3 py-1.5">
                 {archiveOpen ? <History className="size-4 text-ink-3" aria-hidden /> : <toolDef.Icon className="size-4 text-ink-3" aria-hidden />}
-                <h2 className="flex-1 text-[13px] font-semibold text-ink">
-                  {t(archiveOpen ? "Radar archive" : activeAlert && tool === "inspect" ? "Warning inspector" : toolDef.label)}
-                </h2>
+                <h2 className="flex-1 text-[13px] font-semibold text-ink">{panelTitle}</h2>
+                {!narrow && !archiveOpen && (
+                  <IconButton size="sm" label={t("Open the panel in a new window")} onClick={() => popOut(PANEL_KEY)}>
+                    <PictureInPicture2 className="size-4" aria-hidden />
+                  </IconButton>
+                )}
                 <IconButton
                   size="sm"
                   label={t("Hide panel")}
@@ -345,12 +474,7 @@ export function ProfessionalWorkspace() {
                   <PanelRightClose className="size-4" aria-hidden />
                 </IconButton>
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                {vectorSameTime && <p className="m-3 mb-0 rounded-[4px] bg-caution/15 p-2 text-[12px] text-ink">{t("Both clicks were on the same frame. Step the loop, then click the storm again.")}</p>}
-                <PanelBoundary name="pro-tool-panel" resetKey={archiveOpen ? "archive" : tool}>
-                  {panel}
-                </PanelBoundary>
-              </div>
+              {panelBody}
             </aside>
           ) : (
             <div className="absolute top-1/2 right-1.5 z-20 -translate-y-1/2">
