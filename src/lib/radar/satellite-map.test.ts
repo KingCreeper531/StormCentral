@@ -33,6 +33,10 @@ describe("satelliteMapPlan", () => {
     expect(plan.hide).toEqual(["landcover", "park_national_park", "landuse", "water", "building", "building-top"]);
   });
 
+  it("restyles only the basemap's labels", () => {
+    expect(satelliteMapPlan(layers, basemap).labels).toEqual(["place_city_r6"]);
+  });
+
   it("never touches our layers (GOES, plugins, radar) or the basemap's lines and labels", () => {
     const { hide } = satelliteMapPlan(layers, basemap);
     for (const [id] of OURS) expect(hide).not.toContain(id);
@@ -40,7 +44,7 @@ describe("satelliteMapPlan", () => {
   });
 
   it("copes with a basemap that's only a background", () => {
-    expect(satelliteMapPlan([{ id: "bg", type: "background" }, { id: "slot-base", type: "background" }], new Set(["bg"]))).toEqual({ before: undefined, hide: [] });
+    expect(satelliteMapPlan([{ id: "bg", type: "background" }, { id: "slot-base", type: "background" }], new Set(["bg"]))).toEqual({ before: undefined, hide: [], labels: [] });
   });
 });
 

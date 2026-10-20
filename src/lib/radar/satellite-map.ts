@@ -34,17 +34,25 @@ interface StyleLayer {
 /** Basemap layer types the imagery stands in for. */
 const AREA_TYPES = new Set(["fill", "fill-extrusion", "hillshade", "color-relief", "raster"]);
 
+/** Place names over imagery, as on a hybrid map: white with a dark halo (the light basemap's grey ones get lost). */
+export const SATELLITE_MAP_LABELS = { "text-color": "#ffffff", "text-halo-color": "rgba(0, 0, 0, 0.75)", "text-halo-width": 1.2 } as const;
+
 /**
- * Where the imagery goes in the style and which layers to hide, given the
- * basemap's own layer ids. The imagery sits just above the basemap's
- * background, under every basemap line (borders, roads, rivers); the
- * basemap's area fills, which would cover it, are hidden. Our layers are
- * never touched. `before` is undefined when the basemap is only a background.
+ * Where the imagery goes in the style, which layers to hide and which labels
+ * to restyle, given the basemap's own layer ids. The imagery sits just above
+ * the basemap's background, under every basemap line (borders, roads,
+ * rivers); the basemap's area fills, which would cover it, are hidden. Our
+ * layers are never touched. `before` is undefined when the basemap is only a
+ * background.
  */
-export function satelliteMapPlan(layers: readonly StyleLayer[], basemap: ReadonlySet<string>): { before: string | undefined; hide: string[] } {
+export function satelliteMapPlan(
+  layers: readonly StyleLayer[],
+  basemap: ReadonlySet<string>,
+): { before: string | undefined; hide: string[]; labels: string[] } {
   const base = layers.filter((l) => basemap.has(l.id));
   return {
     before: base.find((l) => l.type !== "background")?.id,
     hide: base.filter((l) => AREA_TYPES.has(l.type)).map((l) => l.id),
+    labels: base.filter((l) => l.type === "symbol").map((l) => l.id),
   };
 }

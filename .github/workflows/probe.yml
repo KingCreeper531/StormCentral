@@ -1,0 +1,66 @@
+# Temporary: screenshots the radar with the satellite map on real tiles (not reachable from the dev sandbox).
+name: Probe (temporary)
+on:
+  push:
+    branches: [claude/trusting-pasteur-qzc0fq]
+    paths: [.github/workflows/probe.yml]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx next build > /tmp/build.log 2>&1 || (tail -50 /tmp/build.log; exit 1)
+      - run: |
+          nohup npx next start -p 3123 > /tmp/next.log 2>&1 &
+          for i in $(seq 60); do curl -sf -o /dev/null localhost:3123 && break; sleep 1; done
+      - run: |
+          cat > "$RUNNER_TEMP/shot.mjs" <<'JS'
+          import { chromium } from "playwright-core";
+          const browser = await chromium.launch({ executablePath: "/usr/bin/google-chrome", args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
+          const KEY = "stormcentral:v1";
+          async function shoot(scheme, name, edit, zoomSteps = 0) {
+            const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: scheme });
+            const page = await ctx.newPage();
+            const stats = { eox: 0, eoxOk: 0, failed: [] };
+            page.on("response", (r) => { if (r.url().includes("tiles.maps.eox.at")) { stats.eox++; if (r.ok()) stats.eoxOk++; } });
+            page.on("requestfailed", (r) => stats.failed.push(r.url().slice(0, 100)));
+            page.on("console", (m) => { if (m.type() === "error") console.log(`  [${name}] console:`, m.text().slice(0, 160)); });
+            await page.goto("http://localhost:3123/?mode=severe", { waitUntil: "load" });
+            await page.waitForTimeout(6000);
+            const raw = await page.evaluate((k) => localStorage.getItem(k), KEY);
+            if (!raw) throw new Error("no stored settings");
+            const s = JSON.parse(raw);
+            edit(s.state);
+            await page.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, JSON.stringify(s)]);
+            await page.reload({ waitUntil: "load" });
+            await page.waitForTimeout(12000);
+            for (let i = 0; i < zoomSteps; i++) {
+              await page.mouse.move(640, 400);
+              await page.mouse.wheel(0, -500);
+              await page.waitForTimeout(700);
+            }
+            if (zoomSteps) await page.waitForTimeout(8000);
+            const buf = await page.screenshot({ type: "jpeg", quality: 62 });
+            console.log(`== ${name}: eox tiles ${stats.eoxOk}/${stats.eox}, failed requests ${stats.failed.length}`, stats.failed.slice(0, 5));
+            console.log(`IMG_BEGIN ${name}`);
+            console.log(buf.toString("base64"));
+            console.log(`IMG_END ${name}`);
+            await ctx.close();
+          }
+          const sat = (on) => (st) => { st.radar.satelliteMap = on; st.mode = "severe"; };
+          await shoot("light", "sat-light", sat(true));
+          await shoot("dark", "sat-dark", sat(true));
+          await shoot("light", "plain-light-after", sat(false));
+          await browser.close();
+          JS
+          cp "$RUNNER_TEMP/shot.mjs" ./.shot.mjs && node ./.shot.mjs
+      - if: always()
+        run: tail -20 /tmp/next.log
