@@ -1,0 +1,29 @@
+name: Probe reference video (temporary)
+on:
+  push:
+    branches: [claude/trusting-pasteur-qzc0fq]
+    paths: [.github/workflows/probe-cams.yml]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Video details
+        run: |
+          cat > p.mjs <<'JS'
+          const id = "AeX2lMUfddQ";
+          const o = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`).then((r) => r.json()).catch((e) => ({ err: String(e) }));
+          console.log("oembed", JSON.stringify(o));
+          const html = await fetch(`https://www.youtube.com/watch?v=${id}&hl=en`, { headers: { "Accept-Language": "en-US", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36" } }).then((r) => r.text());
+          const m = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\});(?:var|<\/script>)/s);
+          if (m) {
+            const pr = JSON.parse(m[1]);
+            const v = pr.videoDetails || {};
+            console.log("title:", v.title, "\nauthor:", v.author, "\nlengthSeconds:", v.lengthSeconds, "\nkeywords:", (v.keywords || []).join(", "));
+            console.log("\ndescription:\n" + (v.shortDescription || "").slice(0, 3000));
+          } else console.log("no player response; html length", html.length);
+          const ch = [...html.matchAll(/"chapterRenderer":\{"title":\{"simpleText":"([^"]+)"\},"timeRangeStartMillis":(\d+)/g)].map((x) => `${Math.round(x[2] / 1000)}s ${x[1]}`);
+          console.log("\nchapters:", ch.join(" | "));
+          JS
+          node p.mjs
