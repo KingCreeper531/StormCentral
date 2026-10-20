@@ -18,6 +18,12 @@ const errText = (err: unknown) => (err instanceof Error ? err.message : String(e
 /** YouTube's quota day runs on Pacific time. */
 const quotaDay = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(Date.now());
 
+/** drawtext's font option for a fontconfig pattern: the file itself, so the style is exact. */
+async function fontFile(pattern: string) {
+  const { stdout } = await run("fc-match", ["-f", "%{file}", pattern]).catch(() => ({ stdout: "" }));
+  return stdout ? `fontfile='${stdout.replace(/[\\:']/g, (c) => `\\${c}`)}'` : "font=Inter";
+}
+
 /** A daily allowance, counted on YouTube's quota day. */
 export class Budget {
   private day = quotaDay();
@@ -98,7 +104,8 @@ export class YouTubeLive {
       const segs = readdirSync(this.o.segments)
         .filter((f) => f.endsWith(".ts"))
         .map((f) => ({ f: join(this.o.segments, f), t: statSync(join(this.o.segments, f)).mtimeMs }))
-        .filter((s) => s.t >= from - 4_000 && s.t <= to + 8_000)
+        // A piece's time is when it ended: the first one kept holds the cut-in.
+        .filter((s) => s.t >= from && s.t <= to + 8_000)
         .sort((a, b) => a.t - b.t);
       if (segs.length < 3) return this.o.log("clip: not enough of the recording yet");
       if (!this.clips.take()) return this.o.log("clip: today's clips are used up");
@@ -107,15 +114,19 @@ export class YouTubeLive {
       await run("ffmpeg", ["-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", raw], { timeout: 120_000 });
       const { title, subtitle } = sceneText(w);
       const text = (s: string) => s.replace(/[\\:'%]/g, (c) => `\\${c}`);
+      const fit = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
+      const [black, bold] = await Promise.all([fontFile("Inter:style=Black"), fontFile("Inter:style=Bold")]);
+      // The subtitle's parts ("Cleveland and McClain Counties, OK", "until 11:46 PM CDT") on lines of their own.
+      const lines = subtitle.split(" · ").slice(0, 3).map((l) => fit(l, 42));
       // 1080x1920: the stream, blurred, behind itself at full width; the warning above, the channel below.
       const vf = [
         "[0:v]split[a][b]",
         "[a]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=24:2,eq=brightness=-0.22[bg]",
         "[b]scale=1080:-2[fg]",
         "[bg][fg]overlay=(W-w)/2:(H-h)/2+40",
-        `drawtext=font='Inter\\:style=Black':text='${text(title)}':fontcolor=${w.color}:fontsize=74:x=(w-text_w)/2:y=330:borderw=4:bordercolor=black@0.6`,
-        `drawtext=font='Inter\\:style=Bold':text='${text(subtitle)}':fontcolor=white:fontsize=40:x=max(40\\,(w-text_w)/2):y=430:borderw=3:bordercolor=black@0.6`,
-        "drawtext=font='Inter\\:style=Bold':text='LIVE 24/7 · STORM CENTRAL':fontcolor=white@0.9:fontsize=44:x=(w-text_w)/2:y=1530",
+        `drawtext=${black}:text='${text(fit(title, 22))}':fontcolor=${w.color}:fontsize=80:x=(w-text_w)/2:y=300:borderw=4:bordercolor=black@0.6`,
+        ...lines.map((l, i) => `drawtext=${bold}:text='${text(l)}':fontcolor=white:fontsize=42:x=(w-text_w)/2:y=${410 + i * 58}:borderw=3:bordercolor=black@0.6`),
+        `drawtext=${bold}:text='LIVE 24/7 · STORM CENTRAL':fontcolor=white@0.9:fontsize=44:x=(w-text_w)/2:y=1530`,
       ].join(",");
       await run("ffmpeg", ["-v", "error", "-y", "-i", raw, "-filter_complex", vf, "-c:v", "libx264", "-preset", "medium", "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-t", "58", "-movflags", "+faststart", out], { timeout: 600_000 });
       if (dry) {

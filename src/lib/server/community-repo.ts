@@ -51,10 +51,12 @@ function decodeCursor(cursor: string | null | undefined) {
   return Number.isFinite(createdAt) && id ? { createdAt, id } : null;
 }
 
-export async function listPosts(q: FeedQuery, viewerId: string | null): Promise<FeedResponse> {
+export async function listPosts(q: FeedQuery, viewerId: string | null, moderator = false): Promise<FeedResponse> {
   const db = await getDb();
   const now = Date.now();
-  const where: (SQL | undefined)[] = [visible(viewerId, posts.hidden, posts.userId, now), notBlocked(viewerId, posts.userId)];
+  // Moderators reviewing a suspended account's profile see its reports (still not ones hidden for review).
+  const shown = moderator && q.sort === "user" ? eq(posts.hidden, 0) : visible(viewerId, posts.hidden, posts.userId, now);
+  const where: (SQL | undefined)[] = [shown, notBlocked(viewerId, posts.userId)];
   let limit = PAGE;
 
   if ("cursor" in q) {

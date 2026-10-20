@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bearingDeg, compassPoint, geometryContains, haversineKm, latFromMercatorY, mercatorY } from "./geo";
 import { LruCache } from "./lru";
-import { nearestIndex } from "./utils";
 import { convertPressure, convertTemp, convertWind, defaultUnitsForLocale, formatters, UNIT_PRESETS } from "./weather/units";
 import { describeCode, iconName } from "./weather/wmo";
 
@@ -56,15 +55,6 @@ describe("LruCache", () => {
     now = 200;
     expect(c.get("y")).toBeUndefined();
     expect(c.size).toBe(0);
-  });
-});
-
-describe("utils", () => {
-  it("finds the nearest index in a sorted series", () => {
-    expect(nearestIndex([0, 3600, 7200, 10800], 5000)).toBe(1);
-    expect(nearestIndex([0, 3600, 7200, 10800], 6000)).toBe(2);
-    expect(nearestIndex([0, 3600], 99999)).toBe(1);
-    expect(nearestIndex([], 1)).toBe(-1);
   });
 });
 

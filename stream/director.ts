@@ -198,6 +198,8 @@ class Director {
   private recent: Strengthening[] = [];
   private interrupt: (() => void) | null = null;
   private pending: StreamWarning[] = [];
+  /** Tests: the demo warning, kept in the list as if it came from the feed. */
+  private extra: StreamWarning[] = [];
   private manual: Scene[] = [];
   private pinned: string | null = null;
   private titleOverride: string | null = null;
@@ -247,7 +249,13 @@ class Director {
     if (env.STREAM_DEMO_ALERT === "1") {
       const demo = this.warnings[0] ?? demoWarning();
       // After the recording has started, so the clip has something to cut.
-      if (demo) setTimeout(() => (this.pending.push(demo), this.interrupt?.()), Number(env.STREAM_DEMO_DELAY ?? 40) * 1000);
+      if (demo)
+        setTimeout(() => {
+          if (!this.warnings.includes(demo)) [this.extra, this.warnings] = [[demo], [demo, ...this.warnings]];
+          this.seen.set(demo.key, Date.now());
+          this.pending.push(demo);
+          this.interrupt?.();
+        }, Number(env.STREAM_DEMO_DELAY ?? 40) * 1000);
     }
     startControl(CONFIG.controlPort, this.controls(), log);
     void this.watch();
@@ -296,7 +304,7 @@ class Director {
    */
   private async refresh(start: "first" | "restart" | null = null) {
     try {
-      const ws = await fetchWarnings();
+      const ws = [...(await fetchWarnings()), ...this.extra];
       const now = Date.now();
       const fresh = start === "first" ? [] : ws.filter((w) => !this.seen.has(w.key) && (start !== "restart" || now - Date.parse(w.sent) < 10 * 60_000));
       for (const w of ws) if (!this.seen.has(w.key)) this.seen.set(w.key, now);
@@ -473,10 +481,11 @@ class Director {
       await page.goto(urlFor(scene), { waitUntil: "domcontentloaded", timeout: 45_000 });
       await page.waitForTimeout(scene.kind === "pro" || (scene.kind === "custom" && scene.mode === "professional") ? 8_000 : 5_000);
       // The side panel (warnings list, tools) would cover part of the map; the overlay shows what matters.
+      // Forced: a toast or loading layer over the button mustn't leave the panel up.
       await page
-        .getByRole("button", { name: "Hide panel" })
+        .locator('button[aria-label="Hide panel"]')
         .first()
-        .click({ timeout: 3_000 })
+        .click({ timeout: 3_000, force: true })
         .catch(() => {});
       if (scene.kind === "national" || scene.kind === "model") {
         // The whole country: zoom out from the app's local view.
@@ -503,12 +512,13 @@ class Director {
   private async alertScene(w: StreamWarning) {
     log(`NEW: ${w.name} (${w.key})`);
     this.alerting = true;
-    const from = Date.now();
     const why = this.recent.find((r) => r.warning.key === w.key && Date.now() - r.at < 90_000)?.why;
     await this.show(
       { kind: "warning", warning: w, seconds: 40 },
       { kicker: why ? `UPGRADED · ${why.toUpperCase()}` : "NEW WARNING", title: w.name.toUpperCase(), places: sceneText(w).subtitle, chips: w.chips, color: w.color },
     );
+    // The clip starts where the takeover went on air.
+    const from = Date.now();
     await Promise.race([this.speak(announcement(w), w.level), sleep(60_000)]);
     await sleep(10_000);
     this.overlay = { ...this.overlay, banner: null };

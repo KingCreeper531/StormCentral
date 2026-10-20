@@ -49,7 +49,9 @@ One-time setup:
    curl -fsSL https://raw.githubusercontent.com/KingCreeper531/StormCentral/main/vps/setup.sh | sudo bash
    ```
 
-   It asks for the domain, the stream key and whether to turn on the AI. Leave one empty to skip that part.
+   It asks which parts this server runs, then only the questions those need: the Pro server's domain; the stream key,
+   YouTube API credentials (titles and clips), AI keys and extra RTMP addresses; the web app's domain and the watcher's
+   IP; the failover's Cloudflare token. Leave one empty to skip that part.
 4. Add the Pro data server to the app (the script prints these again):
    - Vercel → Settings → Environment Variables: `NEXT_PUBLIC_PRO_SERVER` = `https://pro.stormcentralwx.com` (Production), then Redeploy.
    - GitHub → Settings → Secrets and variables → Actions → Variables: `PRO_SERVER_URL`, same value (desktop and Android builds).
@@ -75,9 +77,22 @@ sudo systemctl restart stormcentral-stream      # restart it (it also restarts i
 cd /opt/stormcentral/StormCentral/pro-server && sudo docker compose logs -f processor
 ```
 
-The stream key lives in `/etc/stormcentral/stream.env` (readable by root and the service only). Settings there:
-`STREAM_FPS` (30), `STREAM_VIDEO_KBPS` (3500, YouTube's range for 720p), `OLLAMA_MODEL` (empty turns the AI off),
-`STREAM_BRIEFING_MINUTES` (20). Restart the service after changing them.
+The stream's keys and settings live in `/etc/stormcentral/stream.env` (readable by root and the service only).
+Running the installer again rewrites only its answers; anything you add or change there by hand stays.
+Restart the service after a change.
+
+| Setting | Default | |
+|---|---|---|
+| `STREAM_APP_URL` | `https://storm-central-pi.vercel.app` | the Storm Central the stream shows; your own domain saves Vercel's quota |
+| `STREAM_FPS`, `STREAM_VIDEO_KBPS` | 30, 3500 | YouTube's range for 720p |
+| `STREAM_COMMENTARY_MINUTES`, `STREAM_BRIEFING_MINUTES` | 4, 20 | how often it talks during warnings, and on quiet days |
+| `STREAM_TITLE_DAILY_MAX`, `STREAM_CLIPS_DAILY_MAX`, `STREAM_CLIPS_PRIVACY` | 40, 2, `public` | YouTube quota budgets for titles and clips |
+| `ANTHROPIC_MODEL` | `claude-haiku-5-5` | the Claude model |
+| `GEMINI_MODEL` | `gemini-flash-latest` | `gemini-flash-lite-latest` if your free daily limit is small (aistudio.google.com/rate-limit) |
+| `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL` | | any OpenAI-compatible API (OpenAI, Groq, OpenRouter…), tried after Gemini |
+| `OLLAMA_MODEL` | set by the installer | the local model, tried last; empty leaves it out |
+| `STREAM_VOICE` | `en-US-AndrewNeural` | the voice |
+| `STREAM_EXTRA_OUTPUTS` | | more `rtmp://` addresses, space-separated (Twitch, Kick…) |
 
 ## Taking control of the stream
 

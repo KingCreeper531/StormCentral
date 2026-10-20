@@ -8,8 +8,8 @@
  */
 import { readFileSync } from "node:fs";
 import type { StormReport } from "../src/lib/feeds/storm-reports";
-import { bearingDeg, haversineKm, type LatLon } from "../src/lib/geo";
-import { destination, stormEta } from "../src/lib/science/storm-motion";
+import { bearingDeg, destination, haversineKm, type LatLon } from "../src/lib/geo";
+import { stormEta } from "../src/lib/science/storm-motion";
 import { clockText, placesText } from "../shorts/kinds/breaking";
 import type { StreamWarning } from "./plan";
 

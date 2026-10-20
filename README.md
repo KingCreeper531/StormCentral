@@ -10,7 +10,7 @@ For downloads, features and how to use the app, see **[stormcentralwx.com](https
 
 ## Development
 
-Node.js 20.9+.
+Node.js 22.12+.
 
 ```bash
 npm install
@@ -20,7 +20,7 @@ npm run dev                  # http://localhost:3000
 
 | Command | What it does |
 |---|---|
-| `npm run check` | Typecheck, lint and tests (what CI runs) |
+| `npm run check` | Typecheck, lint and tests (CI runs it on every pull request) |
 | `npm run build` / `npm start` | Production build of the web app |
 | `npm run desktop:build`, `desktop:dist` | Windows app (Electron) |
 | `npm run android:build` | Android app (static export + Capacitor) |

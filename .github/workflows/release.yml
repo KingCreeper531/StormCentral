@@ -174,7 +174,7 @@ jobs:
             echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
             echo "signing=release" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::ANDROID_KEYSTORE_BASE64 isn't set, so the APK is signed with the shared development key. See README → Releases."
+            echo "::warning::ANDROID_KEYSTORE_BASE64 isn't set, so the APK is signed with the shared development key. See ARCHITECTURE.md → Releases."
             echo "signing=shared" >> "$GITHUB_OUTPUT"
           fi
       - name: Build APK

@@ -12,7 +12,7 @@ import {
 } from "../community";
 import { getDb } from "../db/client";
 import { blocks, comments, flags, posts, users } from "../db/schema";
-import { deleteComment, deletePost, getPostOwner } from "./community-repo";
+import { deleteComment, deletePost, getComment, getPostOwner } from "./community-repo";
 
 const DAY = 86_400_000;
 
@@ -217,13 +217,6 @@ export async function moderationQueue(): Promise<QueueItemDto[]> {
   return items.filter((i) => i.author);
 }
 
-/** Number of things waiting for review (for the moderator's badge). */
-export async function openFlagCount() {
-  const db = await getDb();
-  const rows = await db.selectDistinct({ t: flags.targetType, id: flags.targetId }).from(flags).where(eq(flags.status, "open")).limit(100);
-  return rows.length;
-}
-
 /* ---------- Moderator actions ---------- */
 
 export async function keepContent(type: FlagTarget, id: string) {
@@ -239,6 +232,7 @@ export async function removeContent(type: "post" | "comment", id: string): Promi
     if (!owner) return false;
     await deletePost(id, owner.mediaId); // also deletes its flags
   } else {
+    if (!(await getComment(id))) return false;
     await deleteComment(id);
   }
   return true;

@@ -82,7 +82,7 @@ In this repository on GitHub: **Settings → Secrets and variables → Actions
 
 **Actions → YouTube Shorts → Run workflow.**
 
-- Pick the **kind** (outlook, recap, weekly or tropical).
+- Pick the **kind** (outlook, recap, weekly, tropical, fire or lesson).
 - With **Upload** unticked, it renders it from the latest data. Download
   the video from the run's **Artifacts** to check it.
 - With **Upload** ticked, it also uploads it.
@@ -184,7 +184,7 @@ official warning source.
 
 - **On/off:** it runs with the other Shorts (`SHORTS_ENABLED`). To switch it
   off on its own, set `SHORTS_KINDS` to the kinds you want without `breaking`
-  (e.g. `outlook,recap,weekly,tropical,fire`).
+  (e.g. `outlook,recap,weekly,tropical,fire,lesson`).
 - **Daily cap:** `SHORTS_BREAKING_DAILY_MAX` (default `2`). YouTube's quota
   allows about 6 uploads a day across all the Shorts.
 - **Try it:** Run workflow → YouTube Breaking Shorts with a **fixture**
@@ -215,6 +215,7 @@ GitHub often starts scheduled runs late or drops them. For posts on time, let a 
 | tropical | 11:40 AM daily |
 | fire | 4:30 PM daily |
 | weekly | 9:40 AM Sundays |
+| lesson (Radar School) | 1:20 PM Wednesdays |
 | recap | 11:15 PM daily |
 | breaking | every 10 minutes (`youtube-breaking.yml`, body `{"ref":"main","inputs":{"scheduled":"true"}}`) |
 

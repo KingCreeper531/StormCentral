@@ -1,5 +1,5 @@
 import "server-only";
-import { desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lte, or } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db/client";
 import { posts, users } from "../db/schema";
@@ -78,7 +78,8 @@ export async function computeScorecard(days: ScorecardWindow, now = Date.now()):
     })
     .from(posts)
     .innerJoin(users, eq(posts.userId, users.id))
-    .where(gte(posts.createdAt, since))
+    // Like the public feed: nothing hidden for review, nothing from suspended accounts.
+    .where(and(gte(posts.createdAt, since), eq(posts.hidden, 0), or(isNull(users.suspendedUntil), lte(users.suspendedUntil, now))))
     .orderBy(desc(posts.createdAt))
     .limit(MAX_ROWS);
 

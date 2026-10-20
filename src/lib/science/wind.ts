@@ -84,8 +84,3 @@ export function windAtHeight(profile: readonly WindSample[], heightM: number): W
   }
   return null;
 }
-
-/** Gust factor — ratio of peak gust to mean wind; > 1.6 signals turbulent flow. */
-export function gustFactor(meanMs: number, gustMs: number) {
-  return meanMs > 0.5 ? gustMs / meanMs : 1;
-}

@@ -114,6 +114,8 @@ if [ -n "$APP_DOMAIN" ]; then
     mv "$APP_ENV.new" "$APP_ENV"
   fi
   grep -qE '^DATABASE_URL="?(libsql|https)://' "$APP_ENV" || warn "DATABASE_URL isn't a Turso (libsql://) address: Vercel and this server would keep separate data."
+  # Links in emails (password reset) always point here, whatever headers a request carries.
+  grep -q '^PUBLIC_SITE_URL=' "$APP_ENV" || echo "PUBLIC_SITE_URL=https://$APP_DOMAIN" >>"$APP_ENV"
 fi
 
 # ── Packages ────────────────────────────────────────────────────────────────
@@ -227,13 +229,14 @@ if [ -n "$YT_STREAM_KEY" ]; then
   chmod -R a+rX "$RUNTIME" "$BROWSERS" /opt/pipx
 
   umask 027
-  cat >"$STREAM_ENV" <<EOF
+  # The answers and paths are rewritten; any other setting already in the file (changed by hand) is kept.
+  local answered="YT_STREAM_KEY YT_CLIENT_ID YT_CLIENT_SECRET YT_REFRESH_TOKEN ANTHROPIC_API_KEY GEMINI_API_KEY STREAM_EXTRA_OUTPUTS STREAM_PLACES OLLAMA_MODEL STREAM_RUNTIME PLAYWRIGHT_BROWSERS_PATH"
+  {
+    cat <<EOF
 YT_STREAM_KEY=$YT_STREAM_KEY
 YT_CLIENT_ID=$YT_CLIENT_ID
 YT_CLIENT_SECRET=$YT_CLIENT_SECRET
 YT_REFRESH_TOKEN=$YT_REFRESH_TOKEN
-STREAM_TITLE_DAILY_MAX=40
-STREAM_CLIPS_DAILY_MAX=2
 ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
 GEMINI_API_KEY=$GEMINI_API_KEY
 STREAM_EXTRA_OUTPUTS=$STREAM_EXTRA_OUTPUTS
@@ -241,10 +244,13 @@ STREAM_PLACES=$RUNTIME/places.tsv
 OLLAMA_MODEL=$OLLAMA_MODEL
 STREAM_RUNTIME=$RUNTIME
 PLAYWRIGHT_BROWSERS_PATH=$BROWSERS
-STREAM_APP_URL=https://storm-central-pi.vercel.app
-STREAM_FPS=30
-STREAM_VIDEO_KBPS=3500
 EOF
+    [ -f "$STREAM_ENV" ] && grep -E '^[A-Z_][A-Z0-9_]*=' "$STREAM_ENV" | grep -vE "^(${answered// /|})=" || true
+  } >"$STREAM_ENV.new"
+  for kv in STREAM_APP_URL=https://storm-central-pi.vercel.app STREAM_FPS=30 STREAM_VIDEO_KBPS=3500 STREAM_TITLE_DAILY_MAX=40 STREAM_CLIPS_DAILY_MAX=2; do
+    grep -q "^${kv%%=*}=" "$STREAM_ENV.new" || echo "$kv" >>"$STREAM_ENV.new"
+  done
+  mv "$STREAM_ENV.new" "$STREAM_ENV"
   umask 022
   chown root:"$SVC_USER" "$STREAM_ENV"
   chmod 640 "$STREAM_ENV"
@@ -328,6 +334,7 @@ https://$APP_DOMAIN {
 	reverse_proxy 127.0.0.1:3000 {
 		header_up X-Forwarded-For {client_ip}
 		header_up X-Real-IP {client_ip}
+		header_up X-Forwarded-Host {host}
 	}
 }
 EOF

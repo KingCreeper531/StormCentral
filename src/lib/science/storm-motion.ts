@@ -6,7 +6,7 @@
  * projected track and an ETA for the user's location.
  */
 import type { StormMotion } from "../api/types";
-import { haversineKm, type LatLon } from "../geo";
+import { bearingDeg, destination, haversineKm, type LatLon } from "../geo";
 
 const RE = /^(\S+?)\.\.\.[^.]+\.\.\.(\d{1,3})DEG\.\.\.(\d{1,3})KT\.\.\.([\d\s]+)$/;
 
@@ -32,19 +32,7 @@ export function parseEventMotion(text: string | null | undefined): StormMotion |
   };
 }
 
-const R_KM = 6371.0088;
 const RAD = Math.PI / 180;
-
-/** Destination point along a great circle. */
-export function destination(p: LatLon, bearingDeg: number, distKm: number): LatLon {
-  const δ = distKm / R_KM;
-  const θ = bearingDeg * RAD;
-  const φ1 = p.lat * RAD;
-  const λ1 = p.lon * RAD;
-  const φ2 = Math.asin(Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(θ));
-  const λ2 = λ1 + Math.atan2(Math.sin(θ) * Math.sin(δ) * Math.cos(φ1), Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2));
-  return { lat: φ2 / RAD, lon: ((λ2 / RAD + 540) % 360) - 180 };
-}
 
 /** Positions after `minutes` (one entry per reference point). */
 export function projectTrack(motion: StormMotion, minutes: number[]): { minutes: number; points: LatLon[] }[] {
@@ -70,7 +58,7 @@ export function stormEta(motion: StormMotion, p: LatLon, corridorKm = 15, now = 
   for (const [lon, lat] of motion.positions) {
     const start = destination({ lat, lon }, motion.headingDeg, kmPerMin * elapsed);
     const d = haversineKm(start, p);
-    const brg = bearing(start, p);
+    const brg = bearingDeg(start, p);
     const off = ((brg - motion.headingDeg + 540) % 360) - 180;
     const along = d * Math.cos(off * RAD);
     const cross = Math.abs(d * Math.sin(off * RAD));
@@ -79,13 +67,4 @@ export function stormEta(motion: StormMotion, p: LatLon, corridorKm = 15, now = 
     if (best === null || eta < best) best = eta;
   }
   return best;
-}
-
-function bearing(a: LatLon, b: LatLon) {
-  const φ1 = a.lat * RAD;
-  const φ2 = b.lat * RAD;
-  const Δλ = (b.lon - a.lon) * RAD;
-  const y = Math.sin(Δλ) * Math.cos(φ2);
-  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-  return (Math.atan2(y, x) / RAD + 360) % 360;
 }

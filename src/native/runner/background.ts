@@ -173,8 +173,3 @@ addEventListener("check", (resolve, reject) => {
     (err) => reject(String(err)),
   );
 });
-
-addEventListener("test", (resolve) => {
-  notify({ id: 1, title: "Storm Central notifications are on", body: "You'll be notified about warnings and your custom alerts.", kind: "test" });
-  resolve();
-});
