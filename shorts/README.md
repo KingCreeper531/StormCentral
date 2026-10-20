@@ -11,6 +11,7 @@ to the Storm Central YouTube channel. Nothing runs on your PC.
 | **Hurricane update**: the National Hurricane Center's cone, track and forecast, with winds, pressure and movement | Every day at 11:40 AM Eastern, one per named storm (up to 2, strongest first); none when the tropics are quiet | Tropical Updates |
 | **Wildfire update**: the large active fires on the US map, then a zoom to the most significant one with its mapped perimeter, acres burned, containment, and how much it grew since the day before | Every day at 4:30 PM Eastern, when a fire is at least 5,000 acres and no more than 80% contained, or grew 1,000+ acres in a day; none otherwise | Wildfire Updates |
 | **Breaking news**: a Tornado Emergency, Flash Flood Emergency, Extreme Wind Warning, PDS tornado warning or watch, or SPC High Risk, with the polygon over radar, the counties, the end time, the damage tags and what to do | Within about 10 to 20 minutes of the NWS issuing it (checked every 10 minutes), at most 2 a day | Breaking Severe Weather |
+| **Radar School** (a full-length 16:9 video, not a Short): a lesson on reading weather radar, in chapters, with real storms from NOAA's NEXRAD archive (Moore 2013, Mayfield 2021, Rolling Fork 2023, the 2020 Iowa derecho) and labelled simulated examples, YouTube chapters and a thumbnail | Wednesdays 1:20 PM Eastern, one lesson a week while there's one scheduled | Radar School |
 
 Every video ends with stormcentralwx.com. Each upload has a Spanish title
 and description as a YouTube translation, so viewers with Spanish set get
@@ -120,7 +121,8 @@ usually takes a few weeks.
 | `SHORTS_VOICE_NAME` | `en-US-AndrewNeural` | another Microsoft neural voice for the narrator |
 | `SHORTS_PLAYLISTS` | `true` | `false` to leave videos out of playlists |
 | `SHORTS_AI` | `true` | `false` for the plain narration (AI narration, below) |
-| `SHORTS_AI_MODEL` | `gemma3:12b` | the Ollama model that writes it |
+| `SHORTS_AI_MODEL` | `gemma3:12b` | the Ollama model that writes it (and drafts Radar School lessons) |
+| `REVIEW_MODEL` | `qwen3:8b` | the second model that reviews every line of a Radar School draft |
 
 ## Livelier narration with AI
 
@@ -146,6 +148,19 @@ every line the model wrote and why any was turned down.
 - **Turn it off:** repository variable `SHORTS_AI` = `false`.
 - **Another model:** `SHORTS_AI_MODEL`, any Ollama model that fits in the
   runner's 16 GB. The default, Gemma 3 12B, sounded the most natural in tests; Gemma 4 12B is more literal but flatter.
+
+## Radar School
+
+A weekly full-length lesson (`kinds/lesson.ts`, drawn by `lesson.html`), about 6 minutes at 1920x1080, with chapters in the description and its own thumbnail (set on YouTube when the channel is verified for custom thumbnails).
+
+- **Real radar**: `radar-archive.ts` downloads a historic storm's Level II volume from NOAA's archive on AWS, decodes reflectivity, velocity and CC with the app's own decoder, and finds the debris signature and velocity couplet in the data so the rings land on them. Each real storm has a simulated stand-in in case the archive can't be reached.
+- **Simulated examples** (`radar-sim.js`) show what's hard to find in the archive (ground clutter, the bright band, bugs) and are always labelled.
+- **New lessons** come from **Actions → Draft a Radar School lesson**, which also runs by itself on Sundays, taking the next topic in `shorts/lessons/topics.txt`:
+  1. It reads Wikipedia and NOAA's JetStream pages on the topic.
+  2. The local model writes the lesson from that text, quoting a source for every factual line.
+  3. Each quote must appear in a source word for word and carry the line's numbers, and a second model (`REVIEW_MODEL`) has to agree each line is supported. Lines that fail are dropped.
+  4. A draft that passes every gate (enough lines kept, few dropped, safety advice only from NOAA/NWS, full length) is committed to `main` and scheduled for the next free Wednesday. One that doesn't becomes a pull request with its review report, and doesn't post.
+- The hand-written lessons are read as written; the narrator's AI rewrite is off for them.
 
 ## Breaking news
 

@@ -18,8 +18,8 @@ interface PageOptions {
   height?: number;
 }
 
-/** Opens `template` with `data` as window.DATA, fonts loaded; `use` draws with it. */
-async function withPage<T>(template: string, data: Record<string, unknown>, opts: PageOptions, use: (page: import("playwright-core").Page, errors: string[]) => Promise<T>): Promise<T> {
+/** Opens `template` with `data` as window.DATA, fonts loaded, and draws with it. */
+async function withPage<T>(template: string, data: Record<string, unknown>, opts: PageOptions, draw: (page: import("playwright-core").Page, errors: string[]) => Promise<T>): Promise<T> {
   const { dir = "shorts", logo = "desktop/resources/icon.png", width = 1080, height = 1920 } = opts;
   const pageData = { ...data, logo: `data:image/png;base64,${readFileSync(logo).toString("base64")}` };
   const browser = await chromium.launch();
@@ -34,7 +34,7 @@ async function withPage<T>(template: string, data: Record<string, unknown>, opts
       await document.fonts.ready;
     });
     if (errors.length) throw new Error(`${template}: ${errors.join("; ")}`);
-    return await use(page, errors);
+    return await draw(page, errors);
   } finally {
     await browser.close();
   }
