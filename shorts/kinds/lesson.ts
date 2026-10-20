@@ -25,6 +25,8 @@ const WEEK = 7 * 86_400_000;
 const WORDS_PER_SECOND = 2.6;
 /** The silent end screen, long enough for YouTube's end-screen elements (5-20 s). */
 export const OUTRO_SECONDS = 20;
+/** The web app (SITE is the project's website, which links to it), for the app tours. */
+export const WEB_APP = "https://storm-central-pi.vercel.app";
 
 type Product = "ref" | "vel" | "cc";
 /**
@@ -1064,12 +1066,12 @@ export const lessonKind: Kind = async (ctx) => {
       console.warn(`::warning::Couldn't load the ${id} radar; using a simulated example instead: ${err instanceof Error ? err.message : err}`);
     }
   }
-  // The app tour lessons record Professional mode on live data (the live site, or SHORTS_APP_URL).
+  // The app tour lessons record Professional mode on live data (the web app, or SHORTS_APP_URL).
   // No screens, no video: the run fails, and the backup run tries again.
   let screens: Screens | undefined;
   if (screensIn(lesson).length) {
     const { captureProScreens } = await import("../app-capture");
-    screens = await captureProScreens(ctx.env.SHORTS_APP_URL || SITE);
+    screens = await captureProScreens(ctx.env.SHORTS_APP_URL || WEB_APP);
   }
   return [lessonVideo(lesson, i + 1, seed, cases, screens)];
 };

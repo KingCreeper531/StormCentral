@@ -1,6 +1,6 @@
 /**
  * Screens of Storm Central's Professional mode for the Radar School lesson on
- * it: headless Chromium opens the live site (or SHORTS_APP_URL), centred on
+ * it: headless Chromium opens the live web app (or SHORTS_APP_URL), centred on
  * the most serious warning in effect right now (Oklahoma City when there's
  * none), and puts Pro mode through its tools: the panel layouts, the cursor
  * readout over the strongest storm, a sounding, a cross-section through the
@@ -439,7 +439,7 @@ export async function captureProScreens(appUrl: string, { log = console.log, fet
 
 /** For trying it by hand: `npx tsx shorts/app-capture.ts http://localhost:3000 out.json` (also writes each screen as a JPEG). */
 async function main() {
-  const [url = "https://www.stormcentralwx.com", out = "shorts/out/pro-screens.json"] = process.argv.slice(2);
+  const [url = "https://storm-central-pi.vercel.app", out = "shorts/out/pro-screens.json"] = process.argv.slice(2);
   const s = await captureProScreens(url);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, JSON.stringify(s));
