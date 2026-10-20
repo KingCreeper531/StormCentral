@@ -1,0 +1,37 @@
+# Temporary: checks the live hosting and the map sources for 3D terrain (not reachable from the dev sandbox).
+name: Probe (temporary)
+on:
+  push:
+    branches: [claude/trusting-pasteur-qzc0fq]
+    paths: [.github/workflows/probe.yml]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          set +e
+          echo "main is at $(git ls-remote https://github.com/KingCreeper531/StormCentral.git refs/heads/main | cut -c1-7)"
+          for u in https://app.stormcentralwx.com/api/health https://storm-central-pi.vercel.app/api/health; do
+            echo "== $u"; curl -s -m 20 -D /tmp/h "$u"; echo; grep -iE "^server:|^x-vercel-id|^cf-ray" /tmp/h
+          done
+          echo "== app.stormcentralwx.com DNS: $(dig +short app.stormcentralwx.com | tr '\n' ' ')"
+          echo "== www.stormcentralwx.com web-app links"; curl -s -m 20 https://www.stormcentralwx.com/ | grep -oE 'href="https://[^"]*(app\.stormcentralwx|vercel\.app)[^"]*"' | sort | uniq -c
+          curl -s -m 20 https://www.stormcentralwx.com/main.js | grep -oE 'WEB_APP = "[^"]*"'
+          for u in https://stormcentralwx.com/app https://www.stormcentralwx.com/app; do echo "== $u"; curl -s -m 20 -o /dev/null -w '%{http_code} -> %{redirect_url}\n' "$u"; done
+          echo "== app page title"; curl -s -m 20 https://app.stormcentralwx.com/ | grep -o '<title>[^<]*</title>'
+          python3 - <<'PY'
+          import json, urllib.request
+          for name in ("dark-matter", "positron"):
+              u = f"https://basemaps.cartocdn.com/gl/{name}-gl-style/style.json"
+              s = json.load(urllib.request.urlopen(u, timeout=30))
+              print(f"== carto {name}: {len(s['layers'])} layers; sources {list(s['sources'])}; glyphs {s.get('glyphs')}")
+              for l in s["layers"]:
+                  f = json.dumps(l.get("filter"))[:90] if l.get("filter") else ""
+                  print(f"  {l['id']:<34} {l['type']:<10} {l.get('source-layer',''):<20} z{l.get('minzoom','')}-{l.get('maxzoom','')} {f}")
+          PY
+          for u in "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/7/29/50.png" "https://elevation-tiles-prod.s3.amazonaws.com/terrarium/7/29/50.png" "https://tiles.mapterhorn.com/7/29/50.webp" "https://tiles.mapterhorn.com/tilejson.json" "https://demotiles.maplibre.org/terrain-tiles/7/29/50.png"; do
+            echo "== $u"; curl -s -m 30 -o /tmp/t -D /tmp/h -H "Origin: https://app.stormcentralwx.com" -w '%{http_code} %{content_type} %{size_download}B\n' "$u"; grep -iE "^access-control-allow-origin|^cache-control" /tmp/h; file /tmp/t | cut -c1-120
+          done
+          head -c 600 /tmp/t; echo
