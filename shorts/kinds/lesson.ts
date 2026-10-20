@@ -33,7 +33,7 @@ export const CASES: Record<string, CaseSpec> = {
   "moore-2013": { site: "KTLX", time: "2013-05-20T20:13:00Z", lat: 35.33, lon: -97.5, widthKm: 70, heightKm: 48, place: "Moore, Oklahoma", zone: "America/Chicago" },
   "mayfield-2021": { site: "KPAH", time: "2021-12-11T03:27:00Z", lat: 36.74, lon: -88.66, widthKm: 80, heightKm: 54, place: "Mayfield, Kentucky", zone: "America/Chicago" },
   "rolling-fork-2023": { site: "KDGX", time: "2023-03-25T01:05:00Z", lat: 32.9, lon: -90.88, widthKm: 80, heightKm: 54, place: "Rolling Fork, Mississippi", zone: "America/Chicago" },
-  "iowa-derecho-2020": { site: "KDMX", time: "2020-08-10T16:30:00Z", lat: 41.65, lon: -93.5, widthKm: 230, heightKm: 156, res: 1, place: "The Iowa derecho", zone: "America/Chicago" },
+  "iowa-derecho-2020": { site: "KDMX", time: "2020-08-10T16:30:00Z", lat: 41.7, lon: -93.6, widthKm: 330, heightKm: 224, res: 1.25, place: "The Iowa derecho", zone: "America/Chicago" },
 };
 
 export interface StormSpec {
@@ -94,7 +94,7 @@ export interface Lesson {
   sources?: { title: string; url: string }[];
   /** The series week it posts in (0 = the week of SERIES_START); drafts get the next free week when approved. */
   week?: number;
-  /** How a drafted lesson was checked, for the description: "auto" = quotes verified and a second model agreed. */
+  /** How a drafted lesson was checked: "auto" = quotes verified and a second model agreed (kept for the record, not shown). */
   checked?: "auto" | "person";
 }
 
@@ -558,9 +558,7 @@ export function lessonVideo(lesson: Lesson, n: number, seed: number, cases: Reco
       `Radar School is a free weekly series on reading weather radar. ${realLine}`,
       `Chapters:\n${chapterLines.join("\n")}`,
       ...(lesson.sources?.length ? [`Sources:\n${lesson.sources.map((s) => `${s.title}: ${s.url}`).join("\n")}`] : []),
-      ...(lesson.checked === "auto"
-        ? ["How this lesson was made: the script was drafted by an AI model from the sources above, every factual line was checked against a quote from them, and a second AI model reviewed each line. Spot a mistake? Tell us in the comments."]
-        : []),
+      ...(lesson.sources?.length ? ["Spot a mistake? Tell us in the comments."] : []),
       `Watch live radar, warnings and storm reports, free: ${SITE}`,
       LINK_LINE,
       DISCLAIMER,
