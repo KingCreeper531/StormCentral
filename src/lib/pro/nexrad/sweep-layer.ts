@@ -103,6 +103,9 @@ export class SweepLayer implements CustomLayerInterface {
   private uploaded = new Map<string, Uploaded>();
   private visible: string | null = null;
   private opacity = 0.85;
+  /** Sweeps too big for this GPU's textures (never seen from NEXRAD, but not worth a broken map). */
+  private skipped = new Set<string>();
+  private failed = false;
   private grid: { vao: WebGLVertexArrayObject; buffer: WebGLBuffer; index: WebGLBuffer; count: number; box: string } | null = null;
 
   constructor(readonly id: string) {}
@@ -130,9 +133,18 @@ export class SweepLayer implements CustomLayerInterface {
   onAdd(map: MlMap, gl: WebGL2RenderingContext) {
     this.map = map;
     this.gl = gl;
+    map.on("webglcontextlost", this.onContextLost);
   }
 
-  onRemove(_map: MlMap, gl: WebGL2RenderingContext) {
+  /** The GPU dropped everything (driver reset, too many contexts): forget it, and upload again once it's back. */
+  private readonly onContextLost = () => {
+    this.programs.clear();
+    this.uploaded.clear();
+    this.grid = null;
+  };
+
+  onRemove(map: MlMap, gl: WebGL2RenderingContext) {
+    map.off("webglcontextlost", this.onContextLost);
     for (const id of [...this.uploaded.keys()]) this.free(id);
     for (const p of this.programs.values()) gl.deleteProgram(p.program);
     this.programs.clear();
@@ -147,8 +159,18 @@ export class SweepLayer implements CustomLayerInterface {
   }
 
   render(gl: WebGL2RenderingContext, args: CustomRenderMethodInput) {
+    // An exception here would stop the whole map drawing: radar is skipped instead, and said once.
+    try {
+      this.draw(gl, args);
+    } catch (e) {
+      if (!this.failed) console.error("Radar layer:", e);
+      this.failed = true;
+    }
+  }
+
+  private draw(gl: WebGL2RenderingContext, args: CustomRenderMethodInput) {
     // Upload the whole loop up front: stepping through it then costs nothing.
-    for (const [id, f] of this.frames) if (!this.uploaded.has(id)) this.upload(gl, id, f);
+    for (const [id, f] of this.frames) if (!this.uploaded.has(id) && !this.skipped.has(id)) this.upload(gl, id, f);
     const id = this.visible;
     const frame = id ? this.frames.get(id) : undefined;
     const tex = id ? this.uploaded.get(id) : undefined;
@@ -264,6 +286,11 @@ export class SweepLayer implements CustomLayerInterface {
 
   private upload(gl: WebGL2RenderingContext, id: string, f: SweepImageData) {
     const s = f.sweep;
+    const max = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
+    if (s.nGates > max || s.nRadials > max || s.nGates * s.nRadials !== s.data.length || f.colors.length / 4 > 256 * max) {
+      this.skipped.add(id);
+      return;
+    }
     const align = gl.getParameter(gl.UNPACK_ALIGNMENT) as number;
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     const texture = (w: number, h: number, internal: number, format: number, type: number, pixels: ArrayBufferView) => {
@@ -291,6 +318,7 @@ export class SweepLayer implements CustomLayerInterface {
   }
 
   private free(id: string) {
+    this.skipped.delete(id);
     const t = this.uploaded.get(id);
     if (t && this.gl) {
       this.gl.deleteTexture(t.data);

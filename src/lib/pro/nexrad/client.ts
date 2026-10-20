@@ -47,6 +47,8 @@ type Entry = { state: "pending" } | { state: "done"; frame: DecodedFrame } | { s
 
 /** Failed decodes (a dropped download, say) are retried after this long. */
 const RETRY_MS = 60_000;
+/** A decode taking this long (download included) is stuck: the pool is replaced so the rest can go on. */
+const JOB_TIMEOUT_MS = 120_000;
 
 const MAX_ENTRIES = 90;
 const entries = new Map<string, Entry>();
@@ -72,6 +74,14 @@ let rr = 0;
 let nextId = 1;
 const waiting = new Map<number, (r: DecodeResponse) => void>();
 
+/** Fail everything in flight and drop the workers; the next request starts a fresh pool. */
+function resetPool(error: string) {
+  for (const [id, resolve] of waiting) resolve({ id, ok: false, error });
+  waiting.clear();
+  for (const x of pool ?? []) x.terminate();
+  pool = null;
+}
+
 function workers(): Worker[] {
   if (pool) return pool;
   const cores = typeof navigator !== "undefined" ? (navigator.hardwareConcurrency ?? 2) : 2;
@@ -83,13 +93,10 @@ function workers(): Worker[] {
       waiting.get(e.data.id)?.(e.data);
       waiting.delete(e.data.id);
     };
-    // A worker that can't start (or crashes) fails everything it holds; the next request starts a fresh pool.
+    // A worker that can't start (or crashes, out of memory say) fails what's in flight; those are retried later.
     w.onerror = (e) => {
       e.preventDefault();
-      for (const [id, resolve] of waiting) resolve({ id, ok: false, error: e.message || "Decoder failed" });
-      waiting.clear();
-      for (const x of pool ?? []) x.terminate();
-      pool = null;
+      resetPool(e.message || "Decoder failed");
     };
     return w;
   });
@@ -100,7 +107,11 @@ function run(job: DecodeJob): Promise<DecodeResponse> {
   const id = nextId++;
   const req = { ...job, id } as DecodeRequest;
   return new Promise((resolve) => {
-    waiting.set(id, resolve);
+    const timer = setTimeout(() => waiting.has(id) && resetPool("Decoder timed out"), JOB_TIMEOUT_MS);
+    waiting.set(id, (r) => {
+      clearTimeout(timer);
+      resolve(r);
+    });
     const ws = workers();
     ws[rr++ % ws.length]!.postMessage(req);
   });

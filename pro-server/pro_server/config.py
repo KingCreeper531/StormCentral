@@ -41,6 +41,19 @@ class Settings:
     # Skip MRMS files closer than this to the previous kept frame (0 = keep every ~2-min file).
     mrms_min_spacing_minutes: float = field(default_factory=lambda: float(_env("MRMS_MIN_SPACING_MINUTES", "0")))
 
+    # Lightning (GOES GLM flashes): GOES-East is goes_bucket; West covers the rest of the window.
+    lightning: bool = field(default_factory=lambda: _env("LIGHTNING", "1") not in ("0", "false", "no"))
+    lightning_west_bucket: str = field(default_factory=lambda: _env("LIGHTNING_WEST_BUCKET", "noaa-goes18"))
+    lightning_minutes: float = field(default_factory=lambda: float(_env("LIGHTNING_MINUTES", "15")))
+    lightning_poll_seconds: int = field(default_factory=lambda: int(_env("LIGHTNING_POLL_SECONDS", "30")))
+    # West of this longitude GOES-West's view is used, east of it GOES-East's (about halfway between them).
+    lightning_split_lon: float = field(default_factory=lambda: float(_env("LIGHTNING_SPLIT_LON", "-106")))
+    lightning_bounds: tuple = field(default_factory=lambda: _bounds(_env("LIGHTNING_BOUNDS", "-170,5,-50,72")))
+
+    # Restart (exit 75; Docker brings the processor back) when resident memory passes this.
+    # 0: 85 % of the container's memory limit, if it has one.
+    memory_limit_mb: float = field(default_factory=lambda: float(_env("MEMORY_LIMIT_MB", "0")))
+
     dask_workers: int = field(default_factory=lambda: int(_env("DASK_WORKERS", str(min(4, os.cpu_count() or 1)))))
     png_compress_level: int = field(default_factory=lambda: int(_env("PNG_COMPRESS_LEVEL", "6")))
     http_timeout: int = field(default_factory=lambda: int(_env("HTTP_TIMEOUT", "120")))

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { l2Time, l3Time, newest, parseKeys } from "./aws";
-import { bunzip2 } from "./bzip2";
+import { bunzip2, bzipCrc } from "./bzip2";
 import { gunzipIfNeeded } from "./gzip";
 import { parseLevel2 } from "./level2";
 import { float16, parseLevel3 } from "./level3";
@@ -80,6 +80,73 @@ describe("Level III", () => {
 describe("Level II", () => {
   const file = read("KTLX_cut1_V06");
   const e = expected.KTLX_cut1_V06 as L2Expected;
+
+  describe("damaged or incomplete volumes", () => {
+    const full = parseLevel2(file, "REF", 0.5).sweep!;
+    /** The records' [offset, size] (each a length word, then a bzip2 stream). */
+    const records = () => {
+      const out: [number, number][] = [];
+      const dv = new DataView(file.buffer, file.byteOffset, file.byteLength);
+      for (let pos = 24; pos + 4 <= file.length; ) {
+        const size = Math.abs(dv.getInt32(pos));
+        if (!size || pos + 4 + size > file.length) break;
+        out.push([pos + 4, size]);
+        pos += 4 + size;
+      }
+      return out;
+    };
+
+    it("checks bzip2's block CRC", () => {
+      // The CRC-32/BZIP2 check value.
+      expect(bzipCrc(new TextEncoder().encode("123456789"))).toBe(0xfc891918);
+    });
+
+    it("skips a corrupt record and keeps the rest of the sweep", () => {
+      const bad = file.slice();
+      const [at, size] = records()[3]!;
+      for (let i = 0; i < 64; i++) bad[at + Math.floor(size / 2) + i]! ^= 0x5a;
+      const r = parseLevel2(bad, "REF", 0.5);
+      expect(r.damaged).toBeGreaterThan(0);
+      expect(r.sweep!.nRadials).toBeLessThan(full.nRadials);
+      expect(r.sweep!.nRadials).toBeGreaterThan(full.nRadials / 2);
+      // The lost wedge is empty, not smeared over by its neighbours.
+      const lut = azimuthIndex(r.sweep!);
+      expect(lut.filter((v) => v < 0).length).toBeGreaterThan(300);
+      expect(lut.filter((v) => v < 0).length).toBeLessThan(1200);
+    });
+
+    it("returns what arrived of a file cut short", () => {
+      const [at] = records()[2]!;
+      const r = parseLevel2(file.subarray(0, at + 5000), "REF", 0.5);
+      expect(r.complete).toBe(false);
+      expect(r.sweep!.nRadials).toBeGreaterThan(0);
+      expect(r.sweep!.nRadials).toBeLessThan(full.nRadials);
+    });
+
+    it("survives garbage after the header", () => {
+      const junk = file.slice(0, 4096);
+      for (let i = 30; i < junk.length; i++) junk[i] = (i * 7919) & 0xff;
+      expect(() => parseLevel2(junk, "REF", 0.5)).not.toThrow();
+      expect(parseLevel2(junk, "REF", 0.5).sweep).toBeNull();
+    });
+  });
+
+  it("fills a dropped radial or two, but leaves wide gaps empty", () => {
+    const radials = (from: number, to: number, step = 0.5) => {
+      const az = Array.from({ length: Math.round((to - from) / step) }, (_, i) => from + i * step);
+      return { nRadials: az.length, azStart: Float32Array.from(az), azWidth: new Float32Array(az.length).fill(step) };
+    };
+    // A sweep still being scanned: only 0°–60°.
+    const partial = azimuthIndex(radials(0, 60));
+    expect(partial[300]).toBeGreaterThanOrEqual(0);
+    expect(partial[1800]).toBe(-1);
+    expect(partial[3000]).toBe(-1);
+    // A full sweep missing 1° (two radials): filled from both sides.
+    const s = radials(0, 360);
+    const keep = [...s.azStart.keys()].filter((i) => s.azStart[i]! < 100 || s.azStart[i]! >= 101);
+    const holed = azimuthIndex({ nRadials: keep.length, azStart: Float32Array.from(keep.map((i) => s.azStart[i]!)), azWidth: new Float32Array(keep.length).fill(0.5) });
+    expect(holed.every((v) => v >= 0)).toBe(true);
+  });
 
   it("reads the cut list from the VCP", () => {
     const r = parseLevel2(file, "REF", null);

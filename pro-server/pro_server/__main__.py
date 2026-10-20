@@ -10,7 +10,7 @@ import sys
 import threading
 import time
 
-from . import __version__, goes, mrms
+from . import __version__, goes, memory, mrms
 from .config import Settings
 from .output import Manifest
 from .products import enabled_products
@@ -63,6 +63,11 @@ def main(argv=None) -> int:
 
         serve.start(settings.output_dir, args.serve)
 
+    if settings.lightning and not args.once:
+        from . import glm
+
+        threading.Thread(target=glm.run, args=(settings, _stop), name="lightning", daemon=True).start()
+
     def _term(signum, _frame):
         log.info("signal %s: stopping after the current item", signum)
         _stop.set()
@@ -83,9 +88,13 @@ def main(argv=None) -> int:
         t0 = time.monotonic()
         try:
             n = run_cycle(settings, manifest, products, once=False)
-            log.info("cycle done: %d new frame(s) in %.1fs", n, time.monotonic() - t0)
+            log.info("cycle done: %d new frame(s) in %.1fs, %.0f MB resident", n, time.monotonic() - t0, memory.rss_mb())
         except Exception:
             log.exception("cycle failed")
+        # Restart fresh rather than creep: the index and frames on disk carry over, so nothing is lost.
+        if memory.over_limit(settings.memory_limit_mb):
+            _stop.set()
+            return 75
         _stop.wait(max(5.0, settings.poll_seconds - (time.monotonic() - t0)))
     return 0
 
