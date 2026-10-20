@@ -21,7 +21,12 @@
  *     loads: the others are hidden (hidden layers request no tiles) and
  *     reported not ready, so the loop holds still and all the bandwidth goes
  *     to the visible frame. Buffering resumes shortly after the map settles.
+ *  7. Decoded radar (`RadarFrame.sweep`) skips all of that: one GPU layer
+ *     (lib/pro/nexrad/sweep-layer) holds every sweep of the loop as textures
+ *     and draws the one on screen, so those frames are always ready.
  */
+import type { CustomLayerInterface } from "maplibre-gl";
+import { SweepLayer, type SweepImageData } from "../pro/nexrad/sweep-layer";
 import type { RadarFrame } from "./frames";
 
 /** The subset of maplibregl.Map we depend on (keeps this unit-testable). */
@@ -42,12 +47,17 @@ export interface RadarMap {
   ): unknown;
   removeSource(id: string): unknown;
   getSource(id: string): unknown;
-  addLayer(layer: {
-    id: string;
-    type: "raster";
-    source: string;
-    paint: Record<string, unknown>;
-  }, beforeId?: string): unknown;
+  addLayer(
+    layer:
+      | {
+          id: string;
+          type: "raster";
+          source: string;
+          paint: Record<string, unknown>;
+        }
+      | CustomLayerInterface,
+    beforeId?: string,
+  ): unknown;
   removeLayer(id: string): unknown;
   getLayer(id: string): unknown;
   setPaintProperty(layerId: string, name: string, value: unknown): unknown;
@@ -79,6 +89,7 @@ export interface LayerManagerOptions {
 
 const SOURCE_PREFIX = "radar-src-";
 const LAYER_PREFIX = "radar-lyr-";
+let sweepLayers = 0;
 /** Wait this long after the map stops before buffering the rest of the loop again. */
 const RESUME_MS = 500;
 
@@ -93,6 +104,8 @@ export class RadarLayerManager {
   private destroyed = false;
   private moving = false;
   private resumeTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Decoded frames (`RadarFrame.sweep`) all draw through one GPU layer; it shows one at a time. */
+  private sweeps: SweepLayer | null = null;
 
   constructor(
     private readonly map: RadarMap,
@@ -118,8 +131,12 @@ export class RadarLayerManager {
     const nextIds = new Set(next.map((f) => f.id));
     for (const f of this.frames) if (!nextIds.has(f.id)) this.removeFrame(f.id);
 
+    const sweeps = new Map<string, SweepImageData>();
+    for (const f of next) if (f.sweep) sweeps.set(f.id, f.sweep);
+    if (sweeps.size || this.sweeps) this.sweepLayer().setFrames(sweeps);
+
     // Add newest first so the most recent scan's tiles are requested first.
-    const toAdd = next.filter((f) => !this.map.getSource(SOURCE_PREFIX + f.id));
+    const toAdd = next.filter((f) => !f.sweep && !this.map.getSource(SOURCE_PREFIX + f.id));
     for (let i = toAdd.length - 1; i >= 0; i--) this.addFrame(toAdd[i]!);
 
     this.frames = [...next];
@@ -131,6 +148,7 @@ export class RadarLayerManager {
   show(index: number) {
     if (this.destroyed) return;
     if (index < 0) {
+      this.sweeps?.show(null);
       if (this.visibleId) this.setLayerOpacity(this.visibleId, 0);
       this.visibleId = null;
       return;
@@ -138,6 +156,7 @@ export class RadarLayerManager {
     const frame = this.frames[index];
     if (!frame || frame.id === this.visibleId) return;
     const prev = this.visibleId;
+    this.sweeps?.show(frame.sweep ? frame.id : null);
     if (this.moving) {
       this.setVisible(frame.id, true);
       if (prev) this.setVisible(prev, false);
@@ -149,11 +168,12 @@ export class RadarLayerManager {
 
   isReady(index: number): boolean {
     const f = this.frames[index];
-    return !!f && this.sourceLoaded(f.id);
+    return !!f && this.frameLoaded(f);
   }
 
   setOpacity(opacity: number) {
     this.opacity = opacity;
+    this.sweeps?.setOpacity(opacity);
     if (this.visibleId) this.setLayerOpacity(this.visibleId, opacity);
   }
 
@@ -176,6 +196,8 @@ export class RadarLayerManager {
   destroy() {
     if (this.destroyed) return;
     for (const f of this.frames) this.removeFrame(f.id);
+    if (this.sweeps && this.map.getLayer(this.sweeps.id)) this.map.removeLayer(this.sweeps.id);
+    this.sweeps = null;
     this.frames = [];
     this.visibleId = null;
     this.map.off("sourcedata", this.onData);
@@ -222,6 +244,21 @@ export class RadarLayerManager {
     );
     // Added mid-gesture: stay hidden until the map settles.
     if (this.moving && f.id !== this.visibleId) this.setVisible(f.id, false);
+  }
+
+  private sweepLayer(): SweepLayer {
+    if (!this.sweeps) {
+      this.sweeps = new SweepLayer(`radar-sweeps-${++sweepLayers}`);
+      this.sweeps.setOpacity(this.opacity);
+      const beforeId = this.opts.beforeId?.();
+      this.map.addLayer(this.sweeps, beforeId && this.map.getLayer(beforeId) ? beforeId : undefined);
+    }
+    return this.sweeps;
+  }
+
+  /** Decoded frames are on the GPU as soon as they're in the loop (uploaded on the next draw). */
+  private frameLoaded(f: RadarFrame) {
+    return f.sweep ? true : this.sourceLoaded(f.id);
   }
 
   private removeFrame(id: string) {
@@ -292,7 +329,7 @@ export class RadarLayerManager {
       this.scheduled = false;
       if (this.destroyed) return;
       // Mid-gesture, hidden frames have no tiles for the new view: only the visible one counts.
-      const ready = this.frames.map((f) => (!this.moving || f.id === this.visibleId) && this.sourceLoaded(f.id));
+      const ready = this.frames.map((f) => (!this.moving || f.id === this.visibleId || !!f.sweep) && this.frameLoaded(f));
       const key = ready.map((r) => (r ? 1 : 0)).join("") + this.frames.map((f) => f.id).join("|");
       if (key === this.lastStatusKey) return;
       this.lastStatusKey = key;

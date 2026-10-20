@@ -7,7 +7,8 @@ import { bunzip2 } from "./bzip2";
 import { gunzipIfNeeded } from "./gzip";
 import { parseLevel2 } from "./level2";
 import { float16, parseLevel3 } from "./level3";
-import { azimuthIndex, levelAt, polarOf, renderSweep, slantRange } from "./sweep";
+import { azimuthIndex, levelAt, maxRangeKm, polarOf, slantRange } from "./sweep";
+import { sweepBox } from "./sweep-layer";
 
 /**
  * Real files from the NOAA Open Data buckets (KTLX, 2026-10-19), with
@@ -184,15 +185,17 @@ describe("sweep geometry", () => {
     expect(levelAt(s, s.lat + 10, s.lon, lut)).toBe(-1);
   });
 
-  it("renders a Mercator image around the radar", () => {
-    const colors = new Uint8Array(256 * 4).fill(255);
-    const img = renderSweep(s, colors, 256);
-    expect(img.width).toBe(256);
-    expect(img.bounds[0]).toBeLessThan(s.lon);
-    expect(img.bounds[2]).toBeGreaterThan(s.lon);
-    let opaque = 0;
-    for (let i = 3; i < img.rgba.length; i += 4) if (img.rgba[i]) opaque++;
-    expect(opaque).toBeGreaterThan(1000);
+  it("covers the sweep's reach with the GPU layer's quad", () => {
+    const [x0, y0, x1, y1] = sweepBox(s);
+    const x = (s.lon + 180) / 360;
+    const y = (1 - Math.log(Math.tan(Math.PI / 4 + (s.lat * Math.PI) / 360)) / Math.PI) / 2;
+    expect(x0).toBeLessThan(x);
+    expect(x1).toBeGreaterThan(x);
+    // Web Mercator y runs south: the north edge is the smaller one.
+    expect(y0).toBeLessThan(y);
+    expect(y1).toBeGreaterThan(y);
+    // The sweep's whole range either way (the east–west width, in km at the radar's latitude).
+    expect(((x1 - x0) * 40075.017 * Math.cos((s.lat * Math.PI) / 180)) / 2 / maxRangeKm(s)).toBeCloseTo(1, 2);
   });
 });
 
