@@ -614,7 +614,7 @@ class Director {
   /** An answer on screen for 15 seconds. */
   private showCard(kicker: string, title: string, text: string, color: string) {
     if (this.cardTimer) clearTimeout(this.cardTimer);
-    this.overlay = { ...this.overlay, card: { kicker, title, text, color } };
+    this.overlay = { ...this.overlay, card: { kicker, title, text: text.charAt(0).toUpperCase() + text.slice(1), color } };
     void this.paint();
     this.cardTimer = setTimeout(() => {
       this.overlay = { ...this.overlay, card: null };
