@@ -11,6 +11,8 @@
  */
 import { normalizeAlert, type RawAlertFeature } from "../src/lib/alerts";
 import type { StormMotion, WeatherAlert } from "../src/lib/api/types";
+import type { Shape } from "../src/lib/draw/shapes";
+import { destination } from "../src/lib/geo";
 import { chipsOf, clockText, parseAreas, placesText, placesTitle, situationOf, vtecOf, zoneFor, type Area } from "../shorts/kinds/breaking";
 import { fitTitle, LINK_LINE } from "../shorts/meta";
 import { STATE_NAMES } from "../shorts/narration";
@@ -136,6 +138,32 @@ export function announcement(w: StreamWarning): string {
 /** The lower third's two lines: the warning, then where and until when. */
 export function sceneText(w: StreamWarning): { title: string; subtitle: string } {
   return { title: w.name.toUpperCase(), subtitle: `${placesTitle(w.areas)} · until ${clockText(w.ends, w.zone).short}` };
+}
+
+/**
+ * The stream's own telestrator marks on a warning (drawn by the app's
+ * drawing layers): a ring on the storm where it should be now, and an arrow
+ * to where it will be in 30 minutes, labelled with its speed. From the
+ * warning's own TIME...MOT...LOC; nothing when it doesn't give one.
+ */
+export function annotateWarning(w: Pick<StreamWarning, "motion">, now: number): Shape[] {
+  const m = w.motion;
+  if (!m || !m.positions.length || !(m.speedKt > 0)) return [];
+  // A line of storms gives several positions: mark the middle of them.
+  const lon = m.positions.reduce((a, p) => a + p[0], 0) / m.positions.length;
+  const lat = m.positions.reduce((a, p) => a + p[1], 0) / m.positions.length;
+  const kmh = m.speedKt * 1.852;
+  // Moved on from the warning's time to now (at most an hour: after that the motion is a guess).
+  const hours = Math.min(1, Math.max(0, (now - Date.parse(m.time)) / 3_600_000)) || 0;
+  const here = destination({ lat, lon }, m.headingDeg, kmh * hours);
+  const ahead = destination(here, m.headingDeg, kmh * 0.5);
+  const label = destination(ahead, m.headingDeg, 5);
+  const edge = destination(here, 90, 7);
+  return [
+    { id: "auto-ring", kind: "circle", color: "#ffd60a", width: 3, points: [[here.lon, here.lat], [edge.lon, edge.lat]] },
+    { id: "auto-arrow", kind: "arrow", color: "#ffd60a", width: 6, points: [[here.lon, here.lat], [ahead.lon, ahead.lat]] },
+    { id: "auto-label", kind: "text", color: "#ffffff", width: 3, points: [[label.lon, label.lat]], text: `${Math.round(m.speedKt * 1.15078)} MPH` },
+  ];
 }
 
 /** The active-warnings panel: each kind with its count, most serious first. */
