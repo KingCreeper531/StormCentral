@@ -16,6 +16,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
           gh run download 39354986000 -n lesson-short-2026-10-19 -D demo
           ls -la demo
           mkdir -p .demo-frames
