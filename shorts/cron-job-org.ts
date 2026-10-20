@@ -59,6 +59,7 @@ const PLANS: Plan[] = [
   { name: "fire", workflow: "youtube-shorts.yml", inputs: { kind: "fire" }, hours: [16], minutes: [30] },
   { name: "weekly", workflow: "youtube-shorts.yml", inputs: { kind: "weekly" }, hours: [9], minutes: [40], wdays: [0] },
   { name: "recap", workflow: "youtube-shorts.yml", inputs: { kind: "recap" }, hours: [23], minutes: [15] },
+  { name: "lesson", workflow: "youtube-shorts.yml", inputs: { kind: "lesson" }, hours: [13], minutes: [20], wdays: [3] },
   // Five minutes after GitHub's own every-10-minutes schedule, so together they look every 5.
   { name: "breaking", workflow: "youtube-breaking.yml", inputs: {}, hours: EVERY, minutes: [5, 15, 25, 35, 45, 55] },
 ];

@@ -1,0 +1,432 @@
+/**
+ * Radar School (Wednesdays): a full-length lesson on reading weather radar,
+ * 16:9 and several minutes long, in chapters, with simulated radar examples
+ * drawn for the lesson (radar-sim.js) and a new storm for each episode. The
+ * scripts are written and checked by hand (lessons below); the narrator reads
+ * them as written.
+ *
+ * Each week posts the next lesson in LESSONS, counted from SERIES_START;
+ * once they're all out, no video until more are added. SHORTS_LESSON picks
+ * one by number or id (manual runs).
+ */
+import { DISCLAIMER, DISCLAIMER_ES, LINK_LINE, LINK_LINE_ES, SITE } from "../meta";
+import type { Kind, Video } from "../video";
+
+/** The first Wednesday of the series (lesson 1). */
+export const SERIES_START = Date.parse("2026-10-21T00:00:00Z");
+const WEEK = 7 * 86_400_000;
+/** How fast the narrator talks, to time each beat to its line. */
+const WORDS_PER_SECOND = 2.6;
+/** The silent end screen, long enough for YouTube's end-screen elements (5-20 s). */
+export const OUTRO_SECONDS = 20;
+
+type Product = "ref" | "vel" | "cc";
+export interface StormSpec {
+  kind: "supercell" | "multicell" | "bow" | "hail";
+  /** Set per episode by lessonVideo; a beat can add an offset to get a different storm. */
+  seed?: number;
+  p?: Record<string, number | number[]>;
+  product?: Product;
+  anim?: { key: string; from: number; to: number; start?: number; over?: number };
+  focus?: string;
+  zoom?: number;
+  extra?: "clutter" | "brightband" | "bugs";
+  notes?: { at?: number; target: string; text?: string; r?: number; color?: string; side?: "left" | "right" }[];
+}
+export type Visual =
+  | { type: "title" }
+  | { type: "radar"; storm: StormSpec; highlight?: [number, number] }
+  | { type: "split"; storm: StormSpec; left?: Product; right?: Product }
+  | { type: "works"; phase: 0 | 1 | 2 | 3 }
+  | { type: "drops" }
+  | { type: "sweep"; storm: StormSpec }
+  | { type: "tilts" }
+  | { type: "beam"; marks?: number[]; storm?: boolean }
+  | { type: "bullets"; heading: string; items: (string | { text: string; color?: string })[] };
+
+export interface Beat {
+  /** What the narrator says while this beat is on screen. */
+  say: string;
+  /** The line on screen beside it. */
+  caption?: string;
+  /** A key point added to the chapter's list on screen. */
+  bullet?: string;
+  visual: Visual;
+  /** At least this long on screen, seconds. */
+  min?: number;
+}
+export interface Chapter {
+  title: string;
+  beats: Beat[];
+}
+export interface Lesson {
+  id: string;
+  title: string;
+  /** YouTube title. */
+  youtube: string;
+  es: { title: string; summary: string };
+  summary: string;
+  next?: string;
+  thumb: { lines: string[]; visual: { storm: StormSpec } };
+  chapters: Chapter[];
+  tags: string[];
+}
+
+// ── The lessons ─────────────────────────────────────────────────────────────
+// Rules of thumb are given as such; numbers are standard NWS / NEXRAD values.
+const REF = [5, 80] as const;
+
+const reflectivity: Lesson = {
+  id: "radar-basics",
+  title: "How weather radar works",
+  youtube: "How to Read Weather Radar: How It Works and What the Colors Mean | Radar School 1",
+  summary:
+    "How weather radar sees rain and hail, what reflectivity and dBZ mean, what each color on the radar means, how to read a storm's structure, and the things that fool people: ground clutter, the bright band, bugs and beam height.",
+  es: {
+    title: "Cómo leer el radar meteorológico: cómo funciona y qué significan los colores | Escuela de Radar 1",
+    summary:
+      "Cómo ve el radar la lluvia y el granizo, qué son la reflectividad y los dBZ, qué significa cada color, cómo leer la estructura de una tormenta y lo que confunde a la gente: ecos de tierra, la banda brillante, insectos y la altura del haz.",
+  },
+  next: "Radar velocity: seeing the wind",
+  thumb: { lines: ["HOW TO READ", "RADAR"], visual: { storm: { kind: "supercell", p: { hook: 1, notch: 1 }, zoom: 1.2, focus: "core", notes: [{ target: "hook", r: 5, color: "#ffd60a" }] } } },
+  tags: ["how to read weather radar", "weather radar", "reflectivity", "dBZ", "NEXRAD", "radar colors", "storm spotting", "meteorology", "severe weather", "Radar School", "Storm Central"],
+  chapters: [
+    {
+      title: "Introduction",
+      beats: [
+        { visual: { type: "title" }, say: "Radar is the most useful tool there is for watching storms. In this lesson, you'll learn how weather radar works, and how to read what it shows you.", min: 7 },
+        {
+          visual: { type: "radar", storm: { kind: "multicell" } },
+          caption: "Every radar image here is a simulated example",
+          say: "Every radar image in this video is a simulated example, made just for this lesson so each feature is easy to see. Real radar works exactly the same way.",
+        },
+        {
+          visual: { type: "bullets", heading: "In this lesson", items: ["How radar sees rain and hail", "What reflectivity and dBZ mean", "What every color means", "How to read a storm", "Things that fool people"] },
+          caption: "What we'll cover",
+          say: "We'll cover how radar sees rain and hail, what the colors mean, how to read a storm's structure, and the mistakes that fool a lot of people.",
+          min: 8,
+        },
+      ],
+    },
+    {
+      title: "How weather radar works",
+      beats: [
+        {
+          visual: { type: "works", phase: 0 },
+          caption: "NEXRAD: about 160 radars across the U.S.",
+          bullet: "About 160 NEXRAD radars cover the U.S.",
+          say: "The National Weather Service and its partners run a network of about 160 radars across the U.S., called NEXRAD. Each one is a big dish inside a white dome.",
+        },
+        {
+          visual: { type: "works", phase: 1 },
+          caption: "The dish sends short pulses of microwave energy",
+          bullet: "It sends pulses, then listens",
+          say: "The dish sends out short, powerful pulses of microwave energy, then listens. It spends almost all of its time listening, not transmitting.",
+        },
+        {
+          visual: { type: "works", phase: 2 },
+          caption: "Rain, hail and snow scatter a little energy back",
+          say: "When a pulse hits raindrops, hail or snowflakes, a tiny fraction of that energy scatters back toward the dish.",
+        },
+        {
+          visual: { type: "works", phase: 3 },
+          caption: "Echo time gives the distance, the dish's direction gives where",
+          bullet: "Echo time gives distance",
+          say: "The radar times how long each echo takes to come back. That tells it how far away the rain is, and the way the dish is pointing tells it where.",
+        },
+        {
+          visual: { type: "drops" },
+          caption: "Drop size matters most",
+          bullet: "Twice as wide: about 64 times the echo",
+          say: "How strong the echo is depends mostly on the size of the drops. A drop twice as wide sends back about 64 times more energy.",
+        },
+        {
+          visual: { type: "drops" },
+          caption: "A few big drops or hailstones can outshine many small ones",
+          say: "That's why a few big drops or hailstones can light up the radar more than a sky full of tiny ones.",
+        },
+        {
+          visual: { type: "sweep", storm: { kind: "multicell" } },
+          caption: "The dish turns in a full circle…",
+          bullet: "A full 3D scan every few minutes",
+          say: "The dish turns in a full circle, then tilts up a little and turns again, building a 3D picture of the sky every few minutes.",
+          min: 7,
+        },
+        {
+          visual: { type: "tilts" },
+          caption: "…at angles from 0.5° up to 19.5°",
+          bullet: "Apps usually show the 0.5° scan",
+          say: "The tilts run from 0.5 degrees, about half a degree above the horizon, up to 19.5 degrees. The lowest one is what most radar apps show you.",
+          min: 7,
+        },
+        {
+          visual: { type: "works", phase: 2 },
+          caption: "Radar sees precipitation, not clouds",
+          bullet: "It sees rain, hail and snow, not clouds",
+          say: "One more thing: radar doesn't see clouds. Cloud droplets are far too small. It sees precipitation, and sometimes bugs, birds and dust in clear air.",
+        },
+      ],
+    },
+    {
+      title: "Reflectivity and the color scale",
+      beats: [
+        {
+          visual: { type: "radar", storm: { kind: "multicell" } },
+          caption: "Reflectivity: how much energy comes back, in dBZ",
+          bullet: "Reflectivity is measured in dBZ",
+          say: "The most common radar image is reflectivity: how much energy bounces back, measured in a unit called dBZ.",
+        },
+        {
+          visual: { type: "radar", storm: { kind: "multicell" } },
+          caption: "Every 10 dBZ is about 10 times more energy",
+          bullet: "Each 10 dBZ is 10 times the energy",
+          say: "dBZ is a logarithmic scale, a bit like the one for earthquakes. Every 10 dBZ means about 10 times more energy coming back.",
+        },
+        {
+          visual: { type: "radar", storm: { kind: "multicell" }, highlight: [REF[0], 20] },
+          caption: "Below 20 dBZ: drizzle, very light rain, or bugs",
+          say: "Below about 20 dBZ, in blues and the faintest greens, you're looking at drizzle, very light rain, or even insects in clear air.",
+        },
+        {
+          visual: { type: "radar", storm: { kind: "multicell" }, highlight: [20, 35] },
+          caption: "20 to 35 dBZ: light to moderate rain",
+          bullet: "Green: light to moderate rain",
+          say: "Greens, from about 20 to 35 dBZ, are light to moderate rain. Steady, but not intense.",
+        },
+        {
+          visual: { type: "radar", storm: { kind: "multicell" }, highlight: [35, 50] },
+          caption: "35 to 50 dBZ: moderate to heavy rain",
+          bullet: "Yellow and orange: heavy rain",
+          say: "Yellows and oranges, roughly 35 to 50 dBZ, are moderate to heavy rain. Thunderstorms usually show up here.",
+        },
+        {
+          visual: { type: "radar", storm: { kind: "multicell" }, highlight: [50, 65] },
+          caption: "50 to 65 dBZ: very heavy rain, hail possible",
+          bullet: "Red: very heavy rain, hail possible",
+          say: "Reds, above 50 dBZ, mean very heavy rain. At this level, hail becomes possible, and flash flooding can develop quickly.",
+        },
+        {
+          visual: { type: "radar", storm: { kind: "multicell" }, highlight: [65, REF[1]] },
+          caption: "65 dBZ and up: hail likely",
+          bullet: "Pink, purple, white: hail likely",
+          say: "Pinks, purples and whites, around 65 dBZ and higher, almost always mean hail is in the storm.",
+        },
+        {
+          visual: { type: "radar", storm: { kind: "multicell" } },
+          caption: "Rules of thumb: always check your app's legend",
+          say: "These ranges are rules of thumb, and different apps use slightly different colors, so always check the legend.",
+        },
+      ],
+    },
+    {
+      title: "Reading a storm",
+      beats: [
+        {
+          visual: { type: "radar", storm: { kind: "multicell", zoom: 1.3, focus: "core", notes: [{ target: "core", r: 6, text: "Core" }] } },
+          caption: "The core: the heaviest rain and any hail",
+          bullet: "The brightest colors mark the core",
+          say: "Now let's read a whole storm. The brightest colors mark the core, where the heaviest rain and any hail are falling.",
+        },
+        {
+          visual: { type: "radar", storm: { kind: "multicell", zoom: 1.3, focus: "core", notes: [{ target: "edge", r: 4, text: "Tight color change", color: "#ffd60a" }] } },
+          caption: "Tight color changes mean a strong updraft",
+          bullet: "Tight color changes: a strong updraft",
+          say: "Look at how quickly the colors change. A sharp jump from green to red over a short distance points to a strong, concentrated updraft.",
+        },
+        {
+          visual: { type: "radar", storm: { kind: "multicell", notes: [{ target: "light", r: 10, text: "Steady, lighter rain", color: "#6cc4ff" }] } },
+          caption: "Soft, spread-out greens: steady, lighter rain",
+          bullet: "Broad greens: steady, lighter rain",
+          say: "Softer, spread-out greens are steadier, lighter rain, called stratiform rain, often trailing behind the strongest storms.",
+        },
+        {
+          visual: { type: "radar", storm: { kind: "supercell", p: { hook: 0.35, notch: 0.5 }, zoom: 1.2, focus: "core", notes: [{ target: "core", r: 6, text: "Compact core" }] } },
+          caption: "A compact, isolated storm is often a strong one",
+          say: "Shape matters too. An isolated storm with a sharp, compact core is often stronger than a broad, ragged area of rain.",
+        },
+        {
+          visual: { type: "radar", storm: { kind: "supercell", p: { hook: 1, notch: 1 }, zoom: 1.2, focus: "core", notes: [{ target: "hook", r: 4.5, text: "Hook echo", color: "#ff453a" }] } },
+          caption: "Some shapes have special meanings, like a hook",
+          bullet: "Shapes matter: hooks, bows, lines",
+          say: "Some shapes have special meanings, like this hook on the back side of a rotating storm. We'll spend a whole lesson on hooks.",
+        },
+        {
+          visual: { type: "radar", storm: { kind: "bow", p: { bow: 1, notch: 1 }, notes: [{ target: "apex", r: 5, text: "Bow echo", color: "#ff9f0a" }] } },
+          caption: "A line bowing forward: damaging winds",
+          say: "A line of storms that bulges forward into a bow often brings damaging straight-line winds. That's another lesson coming up.",
+        },
+        {
+          visual: { type: "radar", storm: { kind: "supercell", p: { hook: 0.6, notch: 0.8 } } },
+          caption: "Every scan is a few minutes old",
+          bullet: "Every scan is a few minutes old",
+          say: "Remember that every scan is a few minutes old by the time you see it. Storms keep moving, so always think about where they're heading.",
+        },
+      ],
+    },
+    {
+      title: "Things that fool people",
+      beats: [
+        {
+          visual: { type: "radar", storm: { kind: "multicell", extra: "clutter", focus: "radar", zoom: 1.6, notes: [{ target: "radar", r: 14, text: "Ground clutter", color: "#ffd60a" }] } },
+          caption: "Ground clutter: speckles around the radar that never move",
+          bullet: "Clutter near the radar never moves",
+          say: "Right around the radar site, you might see speckles that never move. That's ground clutter, echoes from buildings, trees and hills.",
+        },
+        {
+          visual: { type: "radar", storm: { kind: "multicell", extra: "brightband", focus: "radar", zoom: 0.75 } },
+          caption: "The bright band: melting snow looks like heavy rain",
+          bullet: "A ring in cool weather: the bright band",
+          say: "In cool weather, a ring of higher reflectivity around the radar can be snow melting as it falls. Wet snowflakes look huge to the radar. It's called the bright band.",
+        },
+        {
+          visual: { type: "radar", storm: { kind: "multicell", extra: "bugs", focus: "radar", zoom: 0.8 } },
+          caption: "A faint haze around the radar on calm nights: bugs and birds",
+          bullet: "Faint haze on calm nights: bugs, birds",
+          say: "On calm evenings, a faint blue or green haze spreading out around the radar is often insects and birds, not rain.",
+        },
+        {
+          visual: { type: "beam", marks: [60, 120] },
+          caption: "Far from the radar, the beam is high above the ground",
+          bullet: "Far away, the beam is high up",
+          say: "And far from the radar, the beam is thousands of feet up. It can overshoot light rain and the lowest part of a storm. We'll dig into that in a future lesson.",
+          min: 8,
+        },
+      ],
+    },
+    {
+      title: "Recap",
+      beats: [
+        {
+          visual: {
+            type: "bullets",
+            heading: "Recap",
+            items: [
+              "Radar sends pulses and times the echoes",
+              "Bigger drops send back much more energy",
+              { text: "Green: light to moderate rain", color: "#01c501" },
+              { text: "Yellow and orange: heavy rain", color: "#fd9500" },
+              { text: "Red: very heavy rain, hail possible", color: "#fd0000" },
+              { text: "Pink, purple, white: hail likely", color: "#f800fd" },
+            ],
+          },
+          caption: "What to remember",
+          say: "Let's recap. Radar sends out pulses and times the echoes, and bigger drops send back much more energy. Green is light rain, yellow and orange are heavier, red is very heavy, and pink, purple or white usually means hail.",
+          min: 14,
+        },
+        {
+          visual: { type: "radar", storm: { kind: "supercell", p: { hook: 1, notch: 1 }, zoom: 1.2, focus: "core" } },
+          caption: "Next week: radar velocity",
+          say: "Next week: radar velocity, and how to see the wind inside a storm. Subscribe so you don't miss it.",
+        },
+      ],
+    },
+  ],
+};
+
+export const LESSONS: Lesson[] = [reflectivity];
+
+// ── Building a lesson's video ───────────────────────────────────────────────
+
+const words = (s: string) => s.split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w)).length;
+/** How long a beat stays on screen: its line read aloud, a breath, and its minimum. */
+export const beatSeconds = (b: Beat) => Math.max(b.min ?? 5, words(b.say) / WORDS_PER_SECOND + 1.1);
+
+/** "1:05" for a chapter start. */
+export const stamp = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+export function timeline(lesson: Lesson) {
+  let t = 0;
+  const chapters: { title: string; start: number; end: number }[] = [];
+  const beats: (Omit<Beat, "min"> & { start: number; dur: number; chapter: number })[] = [];
+  lesson.chapters.forEach((ch, ci) => {
+    const start = t;
+    for (const b of ch.beats) {
+      const dur = beatSeconds(b);
+      beats.push({ say: b.say, caption: b.caption, bullet: b.bullet, visual: b.visual, start: t, dur, chapter: ci });
+      t += dur;
+    }
+    chapters.push({ title: ch.title, start, end: t });
+  });
+  return { chapters, beats, end: t };
+}
+
+/** Seeds every storm in the lesson from the episode's seed, so each episode's examples are new. */
+function seeded<T>(x: T, seed: number): T {
+  if (Array.isArray(x)) return x.map((y) => seeded(y, seed)) as T;
+  if (x && typeof x === "object") {
+    const o = Object.fromEntries(Object.entries(x).map(([k, v]) => [k, seeded(v, seed)])) as Record<string, unknown>;
+    if (typeof o.kind === "string" && ["supercell", "multicell", "bow", "hail"].includes(o.kind)) o.seed = seed + ((o.seed as number) || 0);
+    return o as T;
+  }
+  return x;
+}
+
+export function lessonVideo(lesson: Lesson, n: number, seed: number): Video {
+  const tl = timeline(seeded(lesson, seed));
+  const chapterLines = tl.chapters.map((c) => `${stamp(c.start)} ${c.title}`).concat(`${stamp(tl.end)} End`);
+  const chapterLinesEs = chapterLines; // the chapter names stay as on screen
+  return {
+    key: `lesson-${lesson.id}`,
+    template: "lesson.html",
+    title: lesson.youtube,
+    description: [
+      `${lesson.summary}`,
+      `Radar School is a free weekly series on reading weather radar. The radar images in this video are simulated examples, drawn for the lesson so each feature is easy to see; real radar works the same way.`,
+      `Chapters:\n${chapterLines.join("\n")}`,
+      `Watch live radar, warnings and storm reports, free: ${SITE}`,
+      LINK_LINE,
+      DISCLAIMER,
+      "#weather #radar #weatherradar #meteorology #severeweather #education",
+    ].join("\n\n"),
+    tags: lesson.tags,
+    es: {
+      title: lesson.es.title,
+      description: [
+        lesson.es.summary,
+        "La Escuela de Radar es una serie semanal y gratuita sobre cómo leer el radar meteorológico. Las imágenes de radar de este video son ejemplos simulados, dibujados para la lección; el radar real funciona igual.",
+        `Capítulos:\n${chapterLinesEs.join("\n")}`,
+        LINK_LINE_ES,
+        DISCLAIMER_ES,
+        "#clima #radar #meteorología #tormentas #educación",
+      ].join("\n\n"),
+    },
+    playlist: "Radar School",
+    size: { width: 1920, height: 1080 },
+    thumbnailAt: 0,
+    data: {
+      lesson: { n, title: lesson.title },
+      chapters: tl.chapters,
+      beats: tl.beats,
+      end: tl.end,
+      outro: { next: lesson.next },
+      outroSeconds: OUTRO_SECONDS,
+      thumb: seeded(lesson.thumb, seed),
+    },
+  };
+}
+
+/** Which lesson this week is (0-based), from the series start; manual runs can name one. */
+export function pickLesson(now: number, pick?: string): number | null {
+  if (pick?.trim()) {
+    const p = pick.trim().toLowerCase();
+    const i = /^\d+$/.test(p) ? Number(p) - 1 : LESSONS.findIndex((l) => l.id === p);
+    return i >= 0 && i < LESSONS.length ? i : null;
+  }
+  const week = Math.floor((now - SERIES_START) / WEEK);
+  return week >= 0 && week < LESSONS.length ? week : null;
+}
+
+export const lessonKind: Kind = async (ctx) => {
+  const now = Date.now();
+  let i = pickLesson(now, ctx.env.SHORTS_LESSON);
+  // A manual run with no lesson named makes the newest one that's out (or the first).
+  if (i == null && ctx.env.SHORTS_LATEST === "1" && !ctx.env.SHORTS_LESSON) i = Math.min(LESSONS.length - 1, Math.max(0, Math.floor((now - SERIES_START) / WEEK)));
+  if (i == null) {
+    console.log(ctx.env.SHORTS_LESSON ? `No lesson "${ctx.env.SHORTS_LESSON}".` : "No new Radar School lesson this week (add more to kinds/lesson.ts).");
+    return [];
+  }
+  // A new storm for every week, the same one for every run of that week.
+  const seed = 1000 + Math.floor(now / WEEK);
+  console.log(`Radar School lesson ${i + 1}: ${LESSONS[i]!.title} (seed ${seed}).`);
+  return [lessonVideo(LESSONS[i]!, i + 1, seed)];
+};

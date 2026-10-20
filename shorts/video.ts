@@ -20,6 +20,10 @@ export interface Video extends Localized {
   es: Localized;
   /** The playlist it goes into, by title (created when missing). */
   playlist: string;
+  /** A landscape, full-length video (Radar School) instead of a 1080x1920 Short. */
+  size?: { width: number; height: number };
+  /** For full-length videos: render the page's thumbnail (render(t, true)) and set it on YouTube. */
+  thumbnailAt?: number;
 }
 
 export interface KindContext {
