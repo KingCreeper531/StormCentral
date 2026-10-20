@@ -2,12 +2,14 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 import { AttributionControl, getVersion, Map as MlMap, NavigationControl, setWorkerUrl, type StyleSpecification } from "maplibre-gl";
-import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { BBox } from "@/lib/geo";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import { useT } from "@/lib/i18n/use-t";
-import type { Theme } from "@/lib/theme";
+import { basemapUrl, isDarkBasemap, MAX_PITCH, resolveBasemap, START_PITCH, type BaseLayer } from "@/lib/map/style";
 import { cn } from "@/lib/utils";
+import { useMapStyleStore } from "@/store/map-style-store";
+import { BasemapStyle } from "./basemap-style";
 import { PluginLayers } from "./layers/plugin-layers";
 
 /**
@@ -35,10 +37,6 @@ const BELOW_LABELS = [SLOTS.base, SLOTS.satellite, SLOTS.outlook, SLOTS.heat, SL
 const ABOVE_LABELS = [SLOTS.tracks, SLOTS.sites, SLOTS.cells, SLOTS.stormReports, SLOTS.reports] as const;
 
 const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY;
-const styleUrl = (theme: Theme) =>
-  MAPTILER_KEY
-    ? `https://api.maptiler.com/maps/dataviz-${theme}/style.json?key=${MAPTILER_KEY}`
-    : `https://basemaps.cartocdn.com/gl/${theme === "light" ? "positron" : "dark-matter"}-gl-style/style.json`;
 
 interface MapCtx {
   map: MlMap | null;
@@ -46,11 +44,19 @@ interface MapCtx {
   font: string[];
   /** The basemap style's own layers (everything that was there before ours). */
   basemap: ReadonlySet<string>;
+  /** Those layers as the style was loaded, before any restyling (lib/map/style). */
+  baseLayers: readonly BaseLayer[];
+  /** The dark basemap is on screen. */
+  dark: boolean;
+  /** The satellite map stands in for the basemap's area fills (set by SatelliteMapLayer). */
+  satellite: boolean;
+  setSatellite: (on: boolean) => void;
 }
 
+type LoadedMap = Pick<MapCtx, "map" | "font" | "basemap" | "baseLayers" | "dark">;
 const NO_LAYERS: ReadonlySet<string> = new Set();
-const EMPTY: MapCtx = { map: null, font: [], basemap: NO_LAYERS };
-const Ctx = createContext<MapCtx>(EMPTY);
+const UNLOADED: LoadedMap = { map: null, font: [], basemap: NO_LAYERS, baseLayers: [], dark: true };
+const Ctx = createContext<MapCtx>({ ...UNLOADED, satellite: false, setSatellite: () => {} });
 
 /**
  * True while the map still has a style. React may run the MapView's cleanup
@@ -87,19 +93,24 @@ interface Props {
   interactive?: boolean;
   /** Re-centre when `center` changes (otherwise only the initial centre is used). */
   follow?: boolean;
+  /** The map may tilt for 3D terrain when the map style asks for it. */
+  allow3d?: boolean;
   className?: string;
   children?: React.ReactNode;
   onViewChange?: (bbox: BBox, zoom: number) => void;
   onReady?: (map: MlMap) => void;
 }
 
-export function MapView({ center, zoom = 6.5, interactive = true, follow = true, className, children, onViewChange, onReady }: Props) {
+export function MapView({ center, zoom = 6.5, interactive = true, follow = true, allow3d = false, className, children, onViewChange, onReady }: Props) {
   const t = useT();
   const container = useRef<HTMLDivElement>(null);
-  const [ctx, setCtx] = useState<MapCtx>(EMPTY);
+  const [loaded, setLoaded] = useState<LoadedMap>(UNLOADED);
+  const [satellite, setSatellite] = useState(false);
+  const ctx = useMemo<MapCtx>(() => ({ ...loaded, satellite, setSatellite }), [loaded, satellite]);
   const supported = useSyncExternalStore(noSubscribe, hasWebGL2, () => true);
-  // A theme switch rebuilds the map on the matching basemap; layers re-add themselves.
+  // A theme or basemap switch rebuilds the map on the new style; layers re-add themselves.
   const theme = useResolvedTheme();
+  const basemapId = resolveBasemap(useMapStyleStore((s) => s.style.basemap), theme);
   const viewCb = useRef(onViewChange);
   const readyCb = useRef(onReady);
   useEffect(() => {
@@ -115,18 +126,21 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
       setWorkerUrl(`/vendor/maplibre-gl-worker.mjs?v=${getVersion()}`);
       workerConfigured = true;
     }
+    const tilted = allow3d && interactive && useMapStyleStore.getState().style.terrain3d;
     let map: MlMap;
     try {
       map = new MlMap({
         container: container.current,
-        style: styleUrl(theme),
+        style: basemapUrl(basemapId, MAPTILER_KEY),
         center: [center.lon, center.lat],
         zoom,
         interactive,
         attributionControl: false,
         dragRotate: false,
         touchPitch: false,
-        maxPitch: 0,
+        // Flat unless 3D terrain is on (BasemapStyle unlocks tilting); starting tilted means
+        // the first fly to the location keeps the tilt instead of cutting it short.
+        ...(tilted ? { pitch: START_PITCH, maxPitch: MAX_PITCH } : { maxPitch: 0 }),
         // Bounded per-source tile cache: with one source per radar frame this is
         // what keeps GPU memory flat during long loops.
         maxTileCacheSize: 48,
@@ -173,18 +187,15 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
     map.on("load", () => {
       const style = map.getStyle() as StyleSpecification;
       const basemap = new Set(style.layers.map((l) => l.id));
-      // OLED pass (dark theme): pull the basemap's background and water to near-black.
-      for (const layer of theme === "dark" ? style.layers : []) {
-        if (layer.type === "background") map.setPaintProperty(layer.id, "background-color", "#030406");
-        else if (layer.type === "fill" && /water|ocean|lake/i.test(layer.id)) map.setPaintProperty(layer.id, "fill-color", "#070b12");
-      }
+      // Copied before anything restyles them (BasemapStyle works from these originals).
+      const baseLayers = structuredClone(style.layers) as BaseLayer[];
       const firstSymbol = style.layers.find((l) => l.type === "symbol");
       const fontLayer = style.layers.find((l) => l.type === "symbol" && Array.isArray((l.layout as Record<string, unknown> | undefined)?.["text-font"]));
       const font = ((fontLayer?.layout as Record<string, unknown> | undefined)?.["text-font"] as string[] | undefined) ?? ["Open Sans Regular"];
       const marker = (id: string) => ({ id, type: "background" as const, layout: { visibility: "none" as const }, paint: { "background-opacity": 0 } });
       for (const id of BELOW_LABELS) map.addLayer(marker(id), firstSymbol?.id);
       for (const id of ABOVE_LABELS) map.addLayer(marker(id));
-      setCtx({ map, font, basemap });
+      setLoaded({ map, font, basemap, baseLayers, dark: isDarkBasemap(basemapId) });
       readyCb.current?.(map);
       emitView();
     });
@@ -193,12 +204,13 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
 
     return () => {
       attribWatch?.disconnect();
-      setCtx(EMPTY);
+      setLoaded(UNLOADED);
+      setSatellite(false);
       map.remove();
     };
     // The map is created once; centre/zoom changes are applied imperatively below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interactive, supported, theme]);
+  }, [interactive, supported, basemapId]);
 
   useEffect(() => {
     const map = ctx.map;
@@ -219,6 +231,7 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
           </p>
         )}
       </div>
+      {ctx.map && <BasemapStyle allow3d={allow3d && interactive} />}
       {ctx.map && children}
       {ctx.map && interactive && <PluginLayers />}
     </Ctx.Provider>
