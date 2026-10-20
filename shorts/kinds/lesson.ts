@@ -104,7 +104,8 @@ const REF = [5, 80] as const;
 
 const reflectivity: Lesson = {
   id: "radar-basics",
-  week: 0,
+  // Posted by hand on Oct 19, 2026, before the weekly schedule began (week 0 = Oct 21).
+  week: -1,
   title: "How weather radar works",
   youtube: "How to Read Weather Radar: How It Works and What the Colors Mean | Radar School 1",
   summary:
