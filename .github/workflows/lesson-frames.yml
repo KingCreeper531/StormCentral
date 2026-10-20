@@ -1,0 +1,29 @@
+# Temporary: frames from the lesson 2 test render, to look at.
+name: Lesson frames (temporary)
+on:
+  push:
+    branches: [claude/trusting-pasteur-qzc0fq]
+    paths: [.github/workflows/lesson-frames.yml]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  frames:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: { ref: claude/trusting-pasteur-qzc0fq }
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          gh run download 39361447891 -n lesson-short-2026-10-19 -D demo
+          mkdir -p .lesson-frames
+          for t in 15 45 50 85 95 105 112 130 150 168 190 215 228 245 272 284 295 305 315 333 343 352 370 390 405 425 433 445; do
+            ffmpeg -v error -ss $t -i demo/lesson-professional-mode.mp4 -frames:v 1 -vf scale=1280:-1 -q:v 4 .lesson-frames/f$t.jpg
+          done
+          cp demo/*-thumbnail.jpg .lesson-frames/ || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull -q --rebase origin claude/trusting-pasteur-qzc0fq || true
+          git add .lesson-frames && git commit -m "Temporary: lesson 2 frames" && git push origin HEAD:claude/trusting-pasteur-qzc0fq
