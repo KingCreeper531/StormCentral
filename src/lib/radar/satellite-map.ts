@@ -43,7 +43,8 @@ export const SATELLITE_MAP_LABELS = { "text-color": "#ffffff", "text-halo-color"
  * the basemap's background, under every basemap line (borders, roads,
  * rivers); the basemap's area fills, which would cover it, are hidden. Our
  * layers are never touched. `before` is undefined when the basemap is only a
- * background.
+ * background. (The hiding and restyling happen with the rest of the map
+ * style, lib/map/style.ts.)
  */
 export function satelliteMapPlan(
   layers: readonly StyleLayer[],
