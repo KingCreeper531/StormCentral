@@ -425,6 +425,10 @@ export const BASICS: readonly { title: string; body: string }[] = [
     body: "Single-site radar comes from NOAA and the Iowa Environmental Mesonet, plus Level III and Level II data decoded in the app. National products come from NOAA's MRMS, satellite from GOES-East and -West. Level II volumes need a desktop; a few products need the Pro data server, and they're only listed when one is connected.",
   },
   {
+    title: "Colour tables",
+    body: "Radar decoded in the app (Level II and Level III) can be drawn in other colours: open a panel's settings and pick a colour table, or import a GRLevelX palette (.pal). The pick applies to every panel showing that product, and the values you read don't change.",
+  },
+  {
     title: "Keyboard",
     body: "Space: play or pause. ← and →: step one frame. Esc: close the warning inspector.",
   },

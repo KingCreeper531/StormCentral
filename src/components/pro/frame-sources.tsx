@@ -7,7 +7,9 @@ import { useRadarLoop } from "@/hooks/use-radar-loop";
 import { listLevel2, listLevel3, liveVolumes, newest } from "@/lib/pro/nexrad/aws";
 import { decodedVersion, jobKey, liveJob, peekDecoded, requestDecode, subscribeDecoded, type DecodeJob } from "@/lib/pro/nexrad/client";
 import { archiveNote, l3CodeFor, mrmsLayer, PRO_PRODUCTS, satelliteFrames, type ProProductId } from "@/lib/pro/products";
-import { DECODED_SCALES, type ValueScale } from "@/lib/pro/scales";
+import { sweepColors, type Sweep } from "@/lib/pro/nexrad/sweep";
+import { paletteScale, type Palette } from "@/lib/pro/palettes";
+import type { DecodedScaleId, ValueScale } from "@/lib/pro/scales";
 import { fetchServerIndex, PRO_SERVER, serverFrames } from "@/lib/pro/server";
 import { useProSync } from "@/lib/pro/sync";
 import { iemSiteId, type RadarFrame } from "@/lib/radar/frames";
@@ -17,6 +19,7 @@ import { FAMILIES, resolveTilts, TILTS, type ProductFamily, type ResolvedTilt, t
 import { pickSatellite } from "@/lib/radar/satellite";
 import { getSite } from "@/lib/radar/site-utils";
 import { useAppStore } from "@/store/app-store";
+import { usePalette } from "@/store/palette-store";
 import { usePro } from "./pro-context";
 import type { ProCaps } from "./use-pro-caps";
 
@@ -43,6 +46,8 @@ export interface PaneFeed {
   scale?: ValueScale | null;
   /** Frames hold decoded radar: the readout reads exact values instead of colours. */
   decoded?: boolean;
+  /** Decoded products: which scale they're on (for picking a colour table). */
+  scaleId?: DecodedScaleId;
 }
 
 export const EMPTY_FEED: PaneFeed = { frames: [], family: null, tilts: [], tilt: null, source: "", loading: true, empty: false };
@@ -63,10 +68,10 @@ interface SourceProps {
 
 /** Report a feed upward whenever what it shows changes. */
 function useReport(onFeed: (f: PaneFeed) => void, feed: PaneFeed) {
-  const { frames, family, tilts, tilt, elevations, source, loading, empty, missing = false, note, scale, decoded } = feed;
+  const { frames, family, tilts, tilt, elevations, source, loading, empty, missing = false, note, scale, decoded, scaleId } = feed;
   useEffect(() => {
-    onFeed({ frames, family, tilts, tilt, elevations, source, loading, empty, missing, note, scale, decoded });
-  }, [onFeed, frames, family, tilts, tilt, elevations, source, loading, empty, missing, note, scale, decoded]);
+    onFeed({ frames, family, tilts, tilt, elevations, source, loading, empty, missing, note, scale, decoded, scaleId });
+  }, [onFeed, frames, family, tilts, tilt, elevations, source, loading, empty, missing, note, scale, decoded, scaleId]);
 }
 
 const noTilts: ResolvedTilt[] = [];
@@ -100,8 +105,31 @@ function SiteSource({ product, site, tilt, frameCount, onFeed }: SourceProps) {
   return null;
 }
 
-/** Decode a list of files (once each, cached) and return the frames that are ready, in order. */
-function useDecodedFrames(jobs: readonly { job: DecodeJob; time: number }[]) {
+const NO_CUTS: readonly number[] = [];
+
+/** Decoded sweeps' colours in a picked colour table, worked out once per sweep and table. */
+const recoloured = new WeakMap<Sweep, Map<string, Uint8Array>>();
+function coloursIn(sweep: Sweep, scaleId: DecodedScaleId, palette: Palette): Uint8Array {
+  let byPalette = recoloured.get(sweep);
+  if (!byPalette) recoloured.set(sweep, (byPalette = new Map()));
+  let colors = byPalette.get(palette.id);
+  if (!colors) byPalette.set(palette.id, (colors = sweepColors(sweep, paletteScale(scaleId, palette))));
+  return colors;
+}
+
+/** A product's colour table and the scale it makes (stable while neither changes, so feeds don't churn). */
+function useDecodedScale(scaleId: DecodedScaleId) {
+  const palette = usePalette(scaleId);
+  const scale = useMemo(() => paletteScale(scaleId, palette), [scaleId, palette]);
+  return { palette, scale };
+}
+
+/**
+ * Decode a list of files (once each, cached) and return the frames that are
+ * ready, in order, in the picked colour table (the worker colours them in
+ * the standard one).
+ */
+function useDecodedFrames(jobs: readonly { job: DecodeJob; time: number }[], scaleId: DecodedScaleId, palette: Palette | null) {
   useEffect(() => {
     for (const j of jobs) requestDecode(j.job);
   }, [jobs]);
@@ -115,11 +143,15 @@ function useDecodedFrames(jobs: readonly { job: DecodeJob; time: number }[]) {
     return jobs.flatMap(({ job, time }) => {
       const e = done.has(jobKey(job)) ? peekDecoded(jobKey(job)) : undefined;
       if (e?.state !== "done") return [];
-      return [{ id: e.frame.key, time, tileUrl: "", maxzoom: 0, sweep: { sweep: e.frame.sweep, colors: e.frame.colors } }];
+      // A new id for new colours: the GPU layer uploads each frame once per id.
+      const id = palette ? `${e.frame.key}#${palette.id}` : e.frame.key;
+      const colors = palette ? coloursIn(e.frame.sweep, scaleId, palette) : e.frame.colors;
+      return [{ id, time, tileUrl: "", maxzoom: 0, sweep: { sweep: e.frame.sweep, colors } }];
     });
-  }, [jobs, readyKey]);
+  }, [jobs, readyKey, scaleId, palette]);
   let failed = 0;
-  let cuts: number[] = [];
+  // A constant when there are none: a new [] each render would re-report the feed forever.
+  let cuts: readonly number[] = NO_CUTS;
   let elevation: number | null = null;
   for (const j of jobs) {
     const e = peekDecoded(jobKey(j.job));
@@ -163,7 +195,8 @@ function L3Source({ product, site, tilt, frameCount, onFeed, until = null }: Sou
     () => newest(list.data?.files ?? [], frameCount).map((f) => ({ time: f.time, job: { kind: "l3", url: f.url, scale: scaleId } as DecodeJob })),
     [list.data, frameCount, scaleId],
   );
-  const { frames, failed, elevation } = useDecodedFrames(jobs);
+  const { palette, scale } = useDecodedScale(scaleId);
+  const { frames, failed, elevation } = useDecodedFrames(jobs, scaleId, palette);
   // Nominal angles, except the shown tilt's actual one (it varies with the scan pattern).
   const tilts = useMemo(() => (letter ? tiltsFor(letter).map((x) => (x.prefix === tilt && elevation != null ? { ...x, angle: elevation } : x)) : noTilts), [letter, tilt, elevation]);
   const shown = tilts.find((x) => x.prefix === tilt) ?? null;
@@ -175,8 +208,9 @@ function L3Source({ product, site, tilt, frameCount, onFeed, until = null }: Sou
     source: `NOAA Level III ${site3} ${list.data?.code ?? code}`,
     loading: list.isLoading || (jobs.length > 0 && !frames.length && failed < jobs.length),
     empty: list.isError || (list.isSuccess && !jobs.length) || (jobs.length > 0 && failed === jobs.length),
-    scale: DECODED_SCALES[scaleId],
+    scale,
     decoded: true,
+    scaleId,
   });
   return null;
 }
@@ -217,21 +251,25 @@ function VolumeSource({ product, site, elev, frameCount, onFeed, until = null }:
     return [...archived, ...live].slice(-count);
   }, [list.data, chunked.data, until, count, moment, elev, scaleId, at]);
   const realTime = jobs.some((j) => j.job.kind === "l2chunks");
-  const { frames, failed, cuts, elevation } = useDecodedFrames(jobs);
+  const { palette, scale } = useDecodedScale(scaleId);
+  const { frames, failed, cuts, elevation } = useDecodedFrames(jobs, scaleId, palette);
   const elevations = useMemo(() => [...new Set(cuts.map((c) => Math.round(c * 10) / 10))].sort((a, b) => a - b), [cuts]);
+  // Memoised like every other field of the feed: a new object each render would re-report it forever.
+  const tilt = useMemo<ResolvedTilt | null>(() => (elevation != null ? { prefix: "N0", angle: elevation, code: moment } : null), [elevation, moment]);
   const allFailed = jobs.length > 0 && failed === jobs.length;
   useReport(onFeed, {
     frames,
     family: null,
     tilts: noTilts,
-    tilt: elevation != null ? { prefix: "N0", angle: elevation, code: moment } : null,
+    tilt,
     elevations,
     source: realTime ? `NOAA Level II ${site}, real time` : `NOAA Level II ${site}`,
     loading: list.isLoading || (jobs.length > 0 && !frames.length && !allFailed),
     empty: list.isError || (list.isSuccess && !jobs.length) || allFailed,
     note: allFailed && elevations.length ? "This tilt isn't in the radar's current scan pattern" : undefined,
-    scale: DECODED_SCALES[scaleId],
+    scale,
     decoded: true,
+    scaleId,
   });
   return null;
 }
