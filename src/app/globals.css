@@ -32,6 +32,11 @@
   --color-series-1: #3987e5;
   --color-series-2: #d95926;
   --color-series-3: #199e70;
+  --color-series-4: #c98500;
+  --color-series-5: #d55181;
+  --color-series-6: #008300;
+  --color-series-7: #9085e9;
+  --color-series-8: #e66767;
   --color-grid: #1c1f23;
 
   --radius-control: 6px;
@@ -74,6 +79,11 @@
   --color-series-1: #2563d4;
   --color-series-2: #c2410c;
   --color-series-3: #0f7f58;
+  --color-series-4: #bd8500;
+  --color-series-5: #c63d7a;
+  --color-series-6: #008300;
+  --color-series-7: #6250d6;
+  --color-series-8: #d03a3a;
   --color-grid: #eceef1;
 
   --overlay-bg: rgb(255 255 255 / 0.94);

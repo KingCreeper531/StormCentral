@@ -52,7 +52,8 @@ export function timeTicks(t0: number, t1: number, maxTicks: number, timeZone?: s
 
   const multiDay = spanH > 24;
   const hourFmt = fmtIn(timeZone, { hour: "numeric" }, locale);
-  const dayFmt = fmtIn(timeZone, { weekday: "short" }, locale);
+  // Past a week, weekdays repeat ("Thu … Thu"): label days by date instead.
+  const dayFmt = fmtIn(timeZone, spanH > 6 * 24 ? { month: "short", day: "numeric" } : { weekday: "short" }, locale);
   const out: TimeTick[] = [];
   for (let t = start, n = 0; t <= t1 && n < MAX_SCAN; t += HOUR, n++) {
     const { dayIndex, hour, minute } = local(t);

@@ -9,6 +9,7 @@ export const FORECAST_SOURCES = [
   { id: "google", label: "Google", short: "Google", model: null, note: "Google's Weather API, with your own API key." },
   { id: "ecmwf", label: "ECMWF (Europe)", short: "ECMWF", model: "ecmwf_ifs025", note: "The European Centre's global model, widely rated the most accurate." },
   { id: "ecmwf_ai", label: "ECMWF AI", short: "ECMWF AI", model: "ecmwf_aifs025_single", note: "The European Centre's machine-learning model." },
+  { id: "noaa_ai", label: "NOAA AI GFS", short: "NOAA AI", model: "ncep_aigfs025", note: "NOAA's machine-learning version of the GFS: temperature, rain, wind and pressure, without humidity, gusts, UV or rain chances." },
   { id: "gfs", label: "NOAA GFS (US)", short: "GFS", model: "gfs_seamless", note: "The US global model, with HRRR for the first hours over the US." },
   { id: "nbm", label: "NWS National Blend", short: "NWS Blend", model: "ncep_nbm_conus", note: "The National Weather Service's statistical blend.", region: "US" },
   { id: "icon", label: "DWD ICON (Germany)", short: "ICON", model: "icon_seamless", note: "The German Weather Service's model." },

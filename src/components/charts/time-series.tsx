@@ -13,7 +13,12 @@ export interface SeriesDef {
   label: string;
   color: string;
   values: ReadonlyArray<number | null>;
-  kind?: "line" | "area" | "bar";
+  /** "range": a shaded band from `lower` up to `values` (an ensemble's spread). */
+  kind?: "line" | "area" | "bar" | "range";
+  /** The band's lower edge (range only). */
+  lower?: ReadonlyArray<number | null>;
+  /** A thin, faint line kept out of the legend and readout (an ensemble member under its summary). */
+  quiet?: boolean;
   dashed?: boolean;
   format?: (v: number) => string;
   /** Compact formatter for y-axis ticks (defaults to `format`). */
@@ -156,12 +161,13 @@ export function TimeSeriesChart({
   // Touch/pen: a tap pins the readout until the next tap outside the chart.
   const [pinned, setPinned] = useState(false);
   const pad = compact ? PAD_COMPACT : PAD;
-  const showLegend = legend ?? series.length > 1;
+  const keyed = series.filter((s) => !s.quiet);
+  const showLegend = legend ?? keyed.length > 1;
 
   const geo = useMemo(() => {
     const t0 = times[0] ?? 0;
     const t1 = times[times.length - 1] ?? 1;
-    const all = series.flatMap((s) => s.values.filter((v): v is number => v != null && Number.isFinite(v)));
+    const all = series.flatMap((s) => [...s.values, ...(s.lower ?? [])].filter((v): v is number => v != null && Number.isFinite(v)));
     for (const th of thresholds) all.push(th.value);
     let lo = yDomain?.[0] ?? Math.min(...all);
     let hi = yDomain?.[1] ?? Math.max(...all);
@@ -263,12 +269,12 @@ export function TimeSeriesChart({
     <div className={cn("relative w-full select-none", className)}>
       {(showLegend || legendThresholds.length > 0) && (
         <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-2" aria-label={t("Legend")}>
-          {(showLegend ? series : []).map((s) => (
+          {(showLegend ? keyed : []).map((s) => (
             <li key={s.key} className="flex min-w-0 items-center gap-1.5">
               {/* The key mirrors the mark: a square for bars/areas, a short stroke for lines. */}
               <svg width={14} height={8} className="shrink-0" aria-hidden>
-                {s.kind === "bar" || s.kind === "area" ? (
-                  <rect x={3} y={0} width={8} height={8} rx={2} fill={s.color} />
+                {s.kind === "bar" || s.kind === "area" || s.kind === "range" ? (
+                  <rect x={3} y={0} width={8} height={8} rx={2} fill={s.color} opacity={s.kind === "range" ? 0.35 : 1} />
                 ) : (
                   <line x1={1} x2={13} y1={4} y2={4} stroke={s.color} strokeWidth={2} strokeDasharray={s.dashed ? "3 2" : undefined} />
                 )}
@@ -299,7 +305,7 @@ export function TimeSeriesChart({
               <g key={v}>
                 <line x1={pad.left} x2={width - pad.right} y1={geo.sy(v)} y2={geo.sy(v)} stroke="var(--color-grid)" strokeWidth={1} />
                 <text x={pad.left - 6} y={geo.sy(v)} dy="0.32em" textAnchor="end" className="fill-ink-3 text-[10px] tabular">
-                  {(series[0]?.axisFormat ?? series[0]?.format)?.(v) ?? v}
+                  {((keyed[0] ?? series[0])?.axisFormat ?? (keyed[0] ?? series[0])?.format)?.(v) ?? v}
                 </text>
               </g>
             ))}
@@ -333,7 +339,44 @@ export function TimeSeriesChart({
                   </g>
                 );
               }
+              if (s.kind === "range") {
+                // Runs where both edges have values: along the top, back along the bottom.
+                const runs: { x: number; hi: number; lo: number }[][] = [[]];
+                s.values.forEach((v, i) => {
+                  const l = s.lower?.[i];
+                  if (v == null || l == null) {
+                    if (runs.at(-1)!.length) runs.push([]);
+                    return;
+                  }
+                  runs.at(-1)!.push({ x: geo.sx(times[i]!), hi: geo.sy(v), lo: geo.sy(l) });
+                });
+                return (
+                  <g key={s.key}>
+                    {runs.map((r, i) =>
+                      r.length > 1 ? (
+                        <path
+                          key={i}
+                          d={`M${r.map((p) => `${p.x.toFixed(1)},${p.hi.toFixed(1)}`).join("L")}L${[...r]
+                            .reverse()
+                            .map((p) => `${p.x.toFixed(1)},${p.lo.toFixed(1)}`)
+                            .join("L")}Z`}
+                          fill={s.color}
+                          opacity={0.22}
+                        />
+                      ) : null,
+                    )}
+                  </g>
+                );
+              }
               const segs = segments(times, s.values, geo.sx, geo.sy);
+              if (s.quiet)
+                return (
+                  <g key={s.key} opacity={0.28}>
+                    {segs.map((pts, i) => (
+                      <path key={i} d={monotonePath(pts)} fill="none" stroke={s.color} strokeWidth={1} strokeLinejoin="round" />
+                    ))}
+                  </g>
+                );
               return (
                 <g key={s.key}>
                   {s.kind === "area" &&
@@ -386,9 +429,9 @@ export function TimeSeriesChart({
             {hover != null && (
               <g pointerEvents="none">
                 <line x1={hx} x2={hx} y1={pad.top} y2={pad.top + geo.innerH} stroke="var(--color-ink-2)" strokeOpacity={0.6} strokeWidth={1} />
-                {series.map((s) => {
+                {keyed.map((s) => {
                   const v = s.values[hover];
-                  if (v == null || s.kind === "bar") return null;
+                  if (v == null || s.kind === "bar" || s.kind === "range") return null;
                   return <circle key={s.key} cx={hx} cy={geo.sy(v)} r={4} fill={s.color} stroke="var(--color-surface-1)" strokeWidth={2} />;
                 })}
               </g>
@@ -413,15 +456,17 @@ export function TimeSeriesChart({
             style={tipStyle}
           >
             <p className="mb-1 truncate text-ink-3 tabular">{fmtTime.format(times[hover]!)}</p>
-            {series.map((s) => {
+            {keyed.map((s) => {
               const v = s.values[hover];
+              const lo = s.kind === "range" ? s.lower?.[hover] : null;
+              const show = (n: number) => (s.format ? s.format(n) : n.toFixed(1));
               return (
                 <p key={s.key} className="flex items-center justify-between gap-3 leading-5">
                   <span className="flex min-w-0 items-center gap-1.5 text-ink-2">
                     <span className="h-0.5 w-2.5 shrink-0 rounded-[1px]" style={{ background: v != null && s.colorFor ? s.colorFor(v) : s.color }} aria-hidden />
                     <span className="truncate">{s.label}</span>
                   </span>
-                  <span className="shrink-0 font-medium whitespace-nowrap text-ink tabular">{v == null ? "—" : s.format ? s.format(v) : v.toFixed(1)}</span>
+                  <span className="shrink-0 font-medium whitespace-nowrap text-ink tabular">{v == null ? "—" : lo != null ? `${show(lo)} – ${show(v)}` : show(v)}</span>
                 </p>
               );
             })}

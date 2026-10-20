@@ -172,7 +172,8 @@ export function ToolClicks({ tool }: { tool: ProTool }) {
     const onClick = (e: MapLayerMouseEvent) => {
       const p = { lat: e.lngLat.lat, lon: e.lngLat.lng };
       const { tool: active, tools: act } = ref.current;
-      if (active === "sounding") act.sounding(p);
+      // The meteogram shares the sounding's spot.
+      if (active === "sounding" || active === "meteogram") act.sounding(p);
       else if (active === "xsect") act.xsect(p);
       else if (active === "vector") act.vector(p);
       else if (active === "toa") act.toa(p);

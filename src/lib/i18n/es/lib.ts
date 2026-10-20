@@ -194,6 +194,10 @@ export const LIB: Record<string, string> = {
   "ECMWF (Europe)": "ECMWF (Europa)",
   "The European Centre's global model, widely rated the most accurate.": "El modelo global del Centro Europeo, considerado por muchos el más preciso.",
   "The European Centre's machine-learning model.": "El modelo de aprendizaje automático del Centro Europeo.",
+  "NOAA AI GFS": "GFS con IA de la NOAA",
+  "NOAA AI": "NOAA IA",
+  "NOAA's machine-learning version of the GFS: temperature, rain, wind and pressure, without humidity, gusts, UV or rain chances.":
+    "La versión de aprendizaje automático del GFS de la NOAA: temperatura, lluvia, viento y presión, sin humedad, ráfagas, UV ni probabilidad de lluvia.",
   "NOAA GFS (US)": "NOAA GFS (EE. UU.)",
   "The US global model, with HRRR for the first hours over the US.": "El modelo global de EE. UU., con HRRR para las primeras horas sobre EE. UU.",
   "NWS National Blend": "Combinación Nacional del NWS",

@@ -13,7 +13,7 @@ const source = readdirSync(COMPONENTS)
 describe("Pro guide content", () => {
   it("covers every product and tool", () => {
     for (const id of PRO_PRODUCT_IDS) expect(PRODUCT_GUIDE[id].what, id).toBeTruthy();
-    for (const tool of ["inspect", "sounding", "xsect", "vector", "toa", "warngen"] as const) expect(TOOL_GUIDE[tool].steps.length, tool).toBeGreaterThan(0);
+    for (const tool of ["inspect", "sounding", "meteogram", "xsect", "vector", "toa", "warngen"] as const) expect(TOOL_GUIDE[tool].steps.length, tool).toBeGreaterThan(0);
   });
 
   it("badges desktop-only and data-server products", () => {
