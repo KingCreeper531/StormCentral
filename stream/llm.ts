@@ -91,7 +91,7 @@ function ollama(host: string, model: string): Writer {
 /** The writers configured in the environment, best first. */
 export function writersFromEnv(env: Env = process.env): Writer[] {
   const out: Writer[] = [];
-  if (env.ANTHROPIC_API_KEY) out.push(claude(env.ANTHROPIC_API_KEY, env.ANTHROPIC_MODEL || "claude-sonnet-5-5"));
+  if (env.ANTHROPIC_API_KEY) out.push(claude(env.ANTHROPIC_API_KEY, env.ANTHROPIC_MODEL || "claude-haiku-5-5"));
   if (env.GEMINI_API_KEY) out.push(gemini(env.GEMINI_API_KEY, env.GEMINI_MODEL || "gemini-flash-latest"));
   if (env.OPENAI_API_KEY && env.OPENAI_MODEL) out.push(openaiCompatible(env.OPENAI_API_KEY, env.OPENAI_MODEL, env.OPENAI_BASE_URL || "https://api.openai.com/v1"));
   if (env.OLLAMA_MODEL) out.push(ollama(env.OLLAMA_HOST || "http://127.0.0.1:11434", env.OLLAMA_MODEL));
