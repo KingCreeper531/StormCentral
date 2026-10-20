@@ -203,7 +203,7 @@ const reflectivity: Lesson = {
           visual: { type: "radar", storm: { kind: "multicell" }, highlight: [50, 65] },
           caption: "50 to 65 dBZ: very heavy rain, hail possible",
           bullet: "Red: very heavy rain, hail possible",
-          say: "Reds, above 50 dBZ, mean very heavy rain. At this level, hail becomes possible, and flash flooding can develop quickly.",
+          say: "Reds, from about 50 to 65 dBZ, mean very heavy rain. At this level, hail becomes possible, and flash flooding can develop quickly.",
         },
         {
           visual: { type: "radar", storm: { kind: "multicell" }, highlight: [65, REF[1]] },
