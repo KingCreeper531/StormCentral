@@ -1,0 +1,29 @@
+name: Demo frames (temporary)
+on:
+  push:
+    branches: [claude/trusting-pasteur-qzc0fq]
+    paths: [.github/workflows/probe-cams.yml]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  frames:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: { ref: claude/trusting-pasteur-qzc0fq }
+      - name: Frames from the demo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 39354986000 -n lesson-short-2026-10-19 -D demo
+          ls -la demo
+          mkdir -p .demo-frames
+          for t in 5 15 152 162 186 205 226 243 253 300 322 345; do
+            ffmpeg -v error -ss $t -i demo/lesson-radar-basics.mp4 -frames:v 1 -vf scale=960:-1 -q:v 4 .demo-frames/f$t.jpg
+          done
+          cp demo/*-thumbnail.jpg .demo-frames/ || true
+          ffprobe -v error -show_entries format=duration:stream=codec_name,width,height -of compact demo/lesson-radar-basics.mp4 | tee .demo-frames/info.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .demo-frames && git commit -m "Temporary: demo frames" && git push origin HEAD:claude/trusting-pasteur-qzc0fq
