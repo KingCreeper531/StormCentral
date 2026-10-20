@@ -7,7 +7,7 @@
  * with the Shorts workflow).
  */
 import { execFile } from "node:child_process";
-import { readdirSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { accessToken, liveVideoId, setVideoTitle, uploadVideo, type YouTubeCredentials } from "../shorts/youtube";
@@ -18,10 +18,13 @@ const errText = (err: unknown) => (err instanceof Error ? err.message : String(e
 /** YouTube's quota day runs on Pacific time. */
 const quotaDay = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(Date.now());
 
+/** A file path as a filtergraph option value. */
+const pathValue = (p: string) => `'${p.replace(/[\\:']/g, (c) => `\\${c}`)}'`;
+
 /** drawtext's font option for a fontconfig pattern: the file itself, so the style is exact. */
 async function fontFile(pattern: string) {
   const { stdout } = await run("fc-match", ["-f", "%{file}", pattern]).catch(() => ({ stdout: "" }));
-  return stdout ? `fontfile='${stdout.replace(/[\\:']/g, (c) => `\\${c}`)}'` : "font=Inter";
+  return stdout ? `fontfile=${pathValue(stdout)}` : "font=Inter";
 }
 
 /** A daily allowance, counted on YouTube's quota day. */
@@ -75,7 +78,15 @@ export class YouTubeLive {
   /** The live broadcast's id (looked up every 10 minutes: a restart starts a new broadcast). */
   async liveId(): Promise<string | null> {
     if (!this.enabled) return null;
-    if (Date.now() - this.live.at > 10 * 60_000) this.live = { id: await liveVideoId(await this.auth()).catch(() => null), at: Date.now() };
+    if (Date.now() - this.live.at > 10 * 60_000) {
+      let id: string | null = null;
+      try {
+        id = await liveVideoId(await this.auth());
+      } catch (err) {
+        this.o.log(`couldn't find the live broadcast: ${errText(err)}`);
+      }
+      this.live = { id, at: Date.now() };
+    }
     return this.live.id;
   }
 
@@ -84,9 +95,11 @@ export class YouTubeLive {
     if (!this.enabled || title === this.title || (!urgent && Date.now() - this.titledAt < 10 * 60_000)) return;
     const id = await this.liveId();
     if (!id || !this.titles.take()) return;
+    // Counted as an attempt either way, so a title YouTube keeps refusing isn't retried every 30 seconds.
+    this.titledAt = Date.now();
     try {
       await setVideoTitle(id, title, await this.auth());
-      [this.title, this.titledAt] = [title, Date.now()];
+      this.title = title;
       this.o.log(`title: ${title}`);
     } catch (err) {
       this.o.log(`couldn't change the title: ${errText(err)}`);
@@ -100,6 +113,7 @@ export class YouTubeLive {
   async clip(w: StreamWarning, from: number, to: number) {
     const dry = this.o.dryRunClip;
     if ((!this.enabled && !dry) || !this.o.segments) return;
+    let dir: string | null = null;
     try {
       const segs = readdirSync(this.o.segments)
         .filter((f) => f.endsWith(".ts"))
@@ -109,12 +123,20 @@ export class YouTubeLive {
         .sort((a, b) => a.t - b.t);
       if (segs.length < 3) return this.o.log("clip: not enough of the recording yet");
       if (!this.clips.take()) return this.o.log("clip: today's clips are used up");
-      const list = join(this.o.tmp, "clip.txt"), raw = join(this.o.tmp, "clip-raw.ts"), out = join(this.o.tmp, "clip.mp4");
+      // A folder per clip: two warnings close together render side by side without sharing files.
+      dir = mkdtempSync(join(this.o.tmp, "clip-"));
+      const list = join(dir, "list.txt"), raw = join(dir, "raw.ts"), out = join(dir, "clip.mp4");
       writeFileSync(list, segs.map((s) => `file '${s.f}'`).join("\n"));
       await run("ffmpeg", ["-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", raw], { timeout: 120_000 });
       const { title, subtitle } = sceneText(w);
-      const text = (s: string) => s.replace(/[\\:'%]/g, (c) => `\\${c}`);
       const fit = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
+      // Text from files, read as written: names like O'Brien County need no escaping.
+      let n = 0;
+      const text = (s: string) => {
+        const file = join(dir!, `text${n++}.txt`);
+        writeFileSync(file, s);
+        return `textfile=${pathValue(file)}:expansion=none`;
+      };
       const [black, bold] = await Promise.all([fontFile("Inter:style=Black"), fontFile("Inter:style=Bold")]);
       // The subtitle's parts ("Cleveland and McClain Counties, OK", "until 11:46 PM CDT") on lines of their own.
       const lines = subtitle.split(" · ").slice(0, 3).map((l) => fit(l, 42));
@@ -124,9 +146,9 @@ export class YouTubeLive {
         "[a]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=24:2,eq=brightness=-0.22[bg]",
         "[b]scale=1080:-2[fg]",
         "[bg][fg]overlay=(W-w)/2:(H-h)/2+40",
-        `drawtext=${black}:text='${text(fit(title, 22))}':fontcolor=${w.color}:fontsize=80:x=(w-text_w)/2:y=300:borderw=4:bordercolor=black@0.6`,
-        ...lines.map((l, i) => `drawtext=${bold}:text='${text(l)}':fontcolor=white:fontsize=42:x=(w-text_w)/2:y=${410 + i * 58}:borderw=3:bordercolor=black@0.6`),
-        `drawtext=${bold}:text='LIVE 24/7 · STORM CENTRAL':fontcolor=white@0.9:fontsize=44:x=(w-text_w)/2:y=1530`,
+        `drawtext=${black}:${text(fit(title, 22))}:fontcolor=${w.color}:fontsize=80:x=(w-text_w)/2:y=300:borderw=4:bordercolor=black@0.6`,
+        ...lines.map((l, i) => `drawtext=${bold}:${text(l)}:fontcolor=white:fontsize=42:x=(w-text_w)/2:y=${410 + i * 58}:borderw=3:bordercolor=black@0.6`),
+        `drawtext=${bold}:${text("LIVE 24/7 · STORM CENTRAL")}:fontcolor=white@0.9:fontsize=44:x=(w-text_w)/2:y=1530`,
       ].join(",");
       await run("ffmpeg", ["-v", "error", "-y", "-i", raw, "-filter_complex", vf, "-c:v", "libx264", "-preset", "medium", "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-t", "58", "-movflags", "+faststart", out], { timeout: 600_000 });
       if (dry) {
@@ -139,6 +161,8 @@ export class YouTubeLive {
       this.o.log(`clip posted: https://youtube.com/shorts/${id}`);
     } catch (err) {
       this.o.log(`clip failed: ${errText(err)}`);
+    } finally {
+      if (dir) rmSync(dir, { recursive: true, force: true });
     }
   }
 }

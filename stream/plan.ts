@@ -5,9 +5,9 @@
  * browser or network, so they're tested on their own (plan.test.ts).
  *
  * Warnings are read in fixed sentences from the NWS's own facts, like the
- * breaking-news Shorts. The optional AI briefing only rephrases a template of
- * facts, and is thrown out for the template itself if it brings in a number
- * or a hazard that isn't in them.
+ * breaking-news Shorts. Commentary and briefings are facts worked out here and
+ * in analysis.ts; an AI only words them, and analysis.checkAgainst throws its
+ * version out for the facts themselves if it adds anything.
  */
 import { normalizeAlert, type RawAlertFeature } from "../src/lib/alerts";
 import type { StormMotion, WeatherAlert } from "../src/lib/api/types";
@@ -133,31 +133,9 @@ export function announcement(w: StreamWarning): string {
   return [`${article} ${w.name} has been issued for ${placesText(w.areas)}, until ${until}.`, w.situation].filter(Boolean).join(" ");
 }
 
-/** The lower-third title: "TORNADO WARNING · Cleveland and McClain Counties, OK · until 8:15 PM CDT". */
-export function sceneTitle(w: StreamWarning): string {
-  return `${w.name.toUpperCase()} · ${placesTitle(w.areas)} · until ${clockText(w.ends, w.zone).short}`;
-}
-
-/** The same, in the lower third's two lines: the warning, then where and until when. */
+/** The lower third's two lines: the warning, then where and until when. */
 export function sceneText(w: StreamWarning): { title: string; subtitle: string } {
   return { title: w.name.toUpperCase(), subtitle: `${placesTitle(w.areas)} · until ${clockText(w.ends, w.zone).short}` };
-}
-
-const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
-
-/** "2 Tornado Warnings · 9 Severe Thunderstorm Warnings", most serious first. */
-export function counts(ws: StreamWarning[]): string {
-  return EVENTS.map((e) => [e, ws.filter((w) => w.event === e).length] as const)
-    .filter(([, n]) => n > 0)
-    .map(([e, n]) => plural(n, e))
-    .join(" · ");
-}
-
-/** The ticker: the counts, then each warning in order, short. */
-export function ticker(ws: StreamWarning[], max = 25): string {
-  if (!ws.length) return "No tornado, severe thunderstorm or flash flood warnings in effect right now.";
-  const items = ws.slice(0, max).map((w) => `${w.name}: ${placesTitle(w.areas)} until ${clockText(w.ends, w.zone).short}`);
-  return [counts(ws), ...items, ws.length > max ? `and ${ws.length - max} more` : ""].filter(Boolean).join("   •   ");
 }
 
 /** The active-warnings panel: each kind with its count, most serious first. */
@@ -223,6 +201,16 @@ export interface Outlook {
 const RISK_WORDS: Record<string, string> = { MARGINAL: "Marginal", SLIGHT: "Slight", ENHANCED: "Enhanced", MODERATE: "Moderate", HIGH: "High" };
 const RISK_LEVEL: Record<string, number> = { MARGINAL: 1, SLIGHT: 2, ENHANCED: 3, MODERATE: 4, HIGH: 5 };
 
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+
+/** "2 Tornado Warnings · 9 Severe Thunderstorm Warnings", most serious first. */
+function counts(ws: StreamWarning[]): string {
+  return EVENTS.map((e) => [e, ws.filter((w) => w.event === e).length] as const)
+    .filter(([, n]) => n > 0)
+    .map(([e, n]) => plural(n, e))
+    .join(" · ");
+}
+
 /** The facts, as the plain sentences read when there's no AI (or its version fails the check). */
 export function briefingFacts(ws: StreamWarning[], outlook: Outlook | null): string {
   const now = ws.length ? `Right now there ${ws.length === 1 ? "is" : "are"} ${counts(ws).replace(/ · /g, ", ").replace(/, ([^,]*)$/, " and $1").toLowerCase()} in effect.` : "Right now there are no tornado, severe thunderstorm or flash flood warnings in effect.";
@@ -232,27 +220,6 @@ export function briefingFacts(ws: StreamWarning[], outlook: Outlook | null): str
       : "The Storm Prediction Center doesn't expect organized severe storms today.";
   return `${now} ${risk}`;
 }
-
-const HAZARDS = ["tornado", "hail", "wind", "flood", "flash", "hurricane", "emergency", "derecho", "blizzard", "snow", "ice"];
-const numbersIn = (s: string): string[] => s.match(/\d+(?:\.\d+)?/g) ?? [];
-
-/**
- * The AI's version of the briefing, if it's safe to read: short, every number
- * and hazard word in it also in the facts, no instructions to the viewer.
- */
-export function checkBriefing(ai: string, facts: string): string | null {
-  const s = ai.replace(/\s+/g, " ").trim().replace(/^["']|["']$/g, "");
-  if (!s || s.split(" ").length > 60) return null;
-  const f = facts.toLowerCase();
-  if (numbersIn(s).some((n) => !numbersIn(facts).includes(n))) return null;
-  if (HAZARDS.some((h) => s.toLowerCase().includes(h) && !f.includes(h))) return null;
-  if (/\b(take cover|evacuate|shelter|seek|go to|you should|you must)\b/i.test(s)) return null;
-  return s;
-}
-
-/** The prompt for the AI briefing. */
-export const briefingPrompt = (facts: string) =>
-  `You are the voice of a 24/7 weather radar livestream. Rewrite these facts as a short, calm, friendly spoken update (2 sentences, at most 45 words). Use only these facts: no other numbers, places, hazards or advice. Facts: ${facts}`;
 
 // ── The live title and clips ──────────────────────────────────────────────
 

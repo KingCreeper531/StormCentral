@@ -29,7 +29,10 @@ One-time setup:
    *Zone → DNS → Edit*, *Zone → Cache Rules → Edit* and *Zone → Zone Settings → Edit*.
 3. **Vercel**: Project → Settings → Domains → add the app's address (e.g. `app.stormcentralwx.com`). Vercel asks for a
    `TXT` record to verify it: add that in Cloudflare. That's what lets Vercel answer on your address during a failover.
-4. **The app server**: run the installer, answer the *web app* question with the address, and paste the app's
+   Also add the environment variable `PUBLIC_SITE_URL` = `https://app.stormcentralwx.com` (Production), so password-reset
+   emails always link to your address (the installer sets the same on your server).
+4. **The app server**: run the installer, answer the *web app* question with the address and the watcher's IP (the
+   stream server), and paste the app's
    environment variables from Vercel (Settings → Environment Variables) when asked — at least `DATABASE_URL` and
    `DATABASE_AUTH_TOKEN`.
 5. **The watcher's server**: run the installer, answer the *failover watcher* questions: the app's address, the app
@@ -69,6 +72,10 @@ sudo stormcentral-app-deploy --force             # rebuild now (even a commit th
 journalctl -t stormcentral-failover -f           # on the watcher's server
 ```
 
+Before changing anything a live server runs: **Actions → Server test → Run workflow** runs the stream for 4 minutes
+with a demo tornado emergency (frames, sound and the clip in the run's artifact) and installs the web app on fresh
+machines. It also runs on every pull request that touches `stream/` or `vps/`.
+
 The stream and the Pro data server:
 
 ```bash
@@ -86,7 +93,7 @@ Restart the service after a change.
 | `STREAM_APP_URL` | `https://storm-central-pi.vercel.app` | the Storm Central the stream shows; your own domain saves Vercel's quota |
 | `STREAM_FPS`, `STREAM_VIDEO_KBPS` | 30, 3500 | YouTube's range for 720p |
 | `STREAM_COMMENTARY_MINUTES`, `STREAM_BRIEFING_MINUTES` | 4, 20 | how often it talks during warnings, and on quiet days |
-| `STREAM_TITLE_DAILY_MAX`, `STREAM_CLIPS_DAILY_MAX`, `STREAM_CLIPS_PRIVACY` | 40, 2, `public` | YouTube quota budgets for titles and clips |
+| `STREAM_TITLE_DAILY_MAX`, `STREAM_CLIPS_DAILY_MAX`, `STREAM_CLIPS_PRIVACY` | 20, 1, `public` | titles and clips a day: they share YouTube's 10,000 daily units with the Shorts (a title ~51, any upload 1,600). For more, ask YouTube for a quota increase (free, in the Google Cloud console) |
 | `ANTHROPIC_MODEL` | `claude-haiku-5-5` | the Claude model |
 | `GEMINI_MODEL` | `gemini-flash-latest` | `gemini-flash-lite-latest` if your free daily limit is small (aistudio.google.com/rate-limit) |
 | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL` | | any OpenAI-compatible API (OpenAI, Groq, OpenRouter…), tried after Gemini |

@@ -165,13 +165,14 @@ export async function liveVideoId(token: string): Promise<string | null> {
 export async function setVideoTitle(videoId: string, title: string, token: string): Promise<void> {
   const got = await fetch(`${API}/videos?part=snippet&id=${encodeURIComponent(videoId)}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30_000) });
   if (!got.ok) throw await failure(got, "Reading the video");
-  const snippet = ((await got.json()) as { items?: { snippet: { title: string; description?: string; categoryId: string; tags?: string[] } }[] }).items?.[0]?.snippet;
+  const snippet = ((await got.json()) as { items?: { snippet: { title: string; description?: string; categoryId: string; tags?: string[]; defaultLanguage?: string; defaultAudioLanguage?: string } }[] }).items?.[0]?.snippet;
   if (!snippet) throw new YouTubeError(`No video ${videoId}`, 404);
   if (snippet.title === title) return;
   const res = await fetch(`${API}/videos?part=snippet`, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ id: videoId, snippet: { title, description: snippet.description ?? "", categoryId: snippet.categoryId, tags: snippet.tags } }),
+    // An update replaces the whole snippet: everything else is sent back as it was.
+    body: JSON.stringify({ id: videoId, snippet: { ...snippet, title, description: snippet.description ?? "" } }),
     signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) throw await failure(res, "Changing the title");

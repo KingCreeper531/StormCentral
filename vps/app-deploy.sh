@@ -36,8 +36,16 @@ if [ ! -f "$rel/.built" ]; then
   runuser -u "$SVC_USER" -- git -C "$rel" checkout -q "$sha"
   # Built at low priority beside the running version; NEXT_DEPLOYMENT_ID makes open pages reload after the swap
   # instead of mixing old and new code.
-  if ! (cd "$rel" && nice -n 10 runuser -u "$SVC_USER" -- env SHA="$sha" ENV_FILE="$ENV_FILE" bash -c '
-      set -a; . "$ENV_FILE"; set +a
+  # The settings read the way systemd reads them for the running app (quotes dropped, nothing expanded),
+  # so NEXT_PUBLIC_* values built into the pages match.
+  settings=()
+  while IFS= read -r line || [ -n "$line" ]; do
+    [[ $line =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || continue
+    k=${BASH_REMATCH[1]} v=${BASH_REMATCH[2]}
+    if [[ $v =~ ^\"(.*)\"$ || $v =~ ^\'(.*)\'$ ]]; then v=${BASH_REMATCH[1]}; fi
+    settings+=("$k=$v")
+  done <"$ENV_FILE"
+  if ! (cd "$rel" && nice -n 10 runuser -u "$SVC_USER" -- env "${settings[@]}" SHA="$sha" bash -c '
       export NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 ELECTRON_SKIP_BINARY_DOWNLOAD=1 NEXT_DEPLOYMENT_ID="$SHA"
       npm ci --include=dev --no-audit --no-fund --loglevel=error && npx next build'); then
     echo "$sha" >"$APP/failed"
@@ -77,5 +85,5 @@ echo "Now running $sha."
 
 # Keep the newest three releases (the running one is always among them).
 find "$APP/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | tail -n +4 | cut -d' ' -f2- | while read -r old; do
-  [ "$old" != "$(readlink -f "$APP/current")" ] && rm -rf "$old"
+  if [ "$old" != "$(readlink -f "$APP/current")" ]; then rm -rf "$old"; fi
 done

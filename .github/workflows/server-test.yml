@@ -1,19 +1,27 @@
-# Temporary: (1) runs the live stream for 200 s into a file instead of YouTube and commits frames to look at;
-# (2) installs the web app with vps/setup.sh on a fresh runner and checks it answers through Caddy.
-name: Stream test (temporary)
+# The servers' parts, tested on fresh runners before they reach a real server:
+# (1) the live stream runs 4 minutes into a file instead of YouTube, with a demo tornado emergency
+#     (takeover, read-out, a clip rendered but not posted); frames, the sound and the clip are kept
+#     as the run's artifact;
+# (2) vps/setup.sh installs the web app and it answers through Caddy.
+name: Server test
 on:
-  push:
-    branches: [claude/trusting-pasteur-qzc0fq]
-    paths: [.github/workflows/stream-test.yml]
+  workflow_dispatch:
+  pull_request:
+    paths: ["stream/**", "vps/**", "pro-server/docker-compose*.yml", ".github/workflows/server-test.yml"]
+concurrency:
+  group: server-test-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
-  contents: write
+  contents: read
+env:
+  # setup.sh downloads the code it installs: the branch under test.
+  BRANCH: ${{ github.head_ref || github.ref_name }}
 jobs:
   stream:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
-        with: { ref: claude/trusting-pasteur-qzc0fq }
       - uses: actions/setup-node@v5
         with: { node-version: 22 }
       - name: Install what vps/setup.sh installs for the stream
@@ -41,42 +49,48 @@ jobs:
         run: |
           timeout 380 bash stream/run.sh || echo "run.sh exited with $?"
           ls -la "$RUNNER_TEMP"/test.mp4
-      - name: Frames and sound
+      - name: Frames, sound and the clip
         run: |
-          mkdir -p .stream-test
+          out="$RUNNER_TEMP/result" && mkdir -p "$out" && cd "$out"
           for t in 10 30 50 60 70 90 110 130 150 170 190 210 230; do
-            ffmpeg -v error -ss $t -i "$RUNNER_TEMP/test.mp4" -frames:v 1 -q:v 3 .stream-test/f$t.jpg || true
+            ffmpeg -v error -ss $t -i "$RUNNER_TEMP/test.mp4" -frames:v 1 -q:v 3 f$t.jpg || true
           done
-          ffprobe -v error -show_entries format=duration:stream=codec_name,width,height,r_frame_rate,sample_rate -of compact "$RUNNER_TEMP/test.mp4" | tee .stream-test/info.txt
+          ffprobe -v error -show_entries format=duration:stream=codec_name,width,height,r_frame_rate,sample_rate -of compact "$RUNNER_TEMP/test.mp4" | tee info.txt
           if [ -f "$RUNNER_TEMP/clip.mp4" ]; then
-            ffprobe -v error -show_entries format=duration:stream=codec_name,width,height -of compact "$RUNNER_TEMP/clip.mp4" | tee -a .stream-test/info.txt
-            for t in 2 15 35; do ffmpeg -v error -ss $t -i "$RUNNER_TEMP/clip.mp4" -frames:v 1 -vf scale=540:-1 -q:v 3 .stream-test/clip$t.jpg || true; done
-          else echo "no clip" | tee -a .stream-test/info.txt; fi
-          ffmpeg -v error -i "$RUNNER_TEMP/test.mp4" -vn -ac 1 -ar 22050 -c:a libmp3lame -b:a 48k .stream-test/audio.mp3 || true
-          ffmpeg -v info -i "$RUNNER_TEMP/test.mp4" -af volumedetect -vn -f null - 2>&1 | grep -E "mean_volume|max_volume" | tee -a .stream-test/info.txt
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f .stream-test && git commit -qm "Temporary: stream test frames"
-          for i in 1 2 3 4; do git pull -q --rebase origin claude/trusting-pasteur-qzc0fq && git push -q origin HEAD:claude/trusting-pasteur-qzc0fq && break; sleep 5; done
+            ffprobe -v error -show_entries format=duration:stream=codec_name,width,height -of compact "$RUNNER_TEMP/clip.mp4" | tee -a info.txt
+            for t in 2 15 35; do ffmpeg -v error -ss $t -i "$RUNNER_TEMP/clip.mp4" -frames:v 1 -vf scale=540:-1 -q:v 3 clip$t.jpg || true; done
+          else echo "no clip" | tee -a info.txt; fi
+          ffmpeg -v error -i "$RUNNER_TEMP/test.mp4" -vn -ac 1 -ar 22050 -c:a libmp3lame -b:a 48k audio.mp3 || true
+          ffmpeg -v info -i "$RUNNER_TEMP/test.mp4" -af volumedetect -vn -f null - 2>&1 | grep -E "mean_volume|max_volume" | tee -a info.txt
+          cp "$RUNNER_TEMP/clip.mp4" . 2>/dev/null || true
+          # It talked (the read-out and its alert sound), and the warning was cut into a vertical clip.
+          max=$(grep -oP 'max_volume: \K-?[0-9.]+' info.txt)
+          awk -v m="$max" 'BEGIN { exit !(m > -30) }' || { echo "::error::The stream is silent (max volume $max dB)"; exit 1; }
+          grep -q "width=1080|height=1920" info.txt || { echo "::error::No clip was rendered"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stream-test
+          path: ${{ runner.temp }}/result
+          retention-days: 7
   app:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
-        with: { ref: claude/trusting-pasteur-qzc0fq }
       - name: Answers for setup.sh (there's no terminal in CI)
         run: |
           sudo mkdir -p /etc/stormcentral
-          printf 'DOMAIN=\nYT_STREAM_KEY=\nAI=no\nAPP_DOMAIN=app.test\nWATCHER_IP=\nWATCH_DOMAIN=\nWATCH_IP=\nCF_API_TOKEN=\nBACKUP_HOST=storm-central-pi.vercel.app\nNTFY_TOPIC=\n' | sudo tee /etc/stormcentral/setup.env > /dev/null
+          printf 'DOMAIN=\nYT_STREAM_KEY=\nAI=no\nAPP_DOMAIN=app.test\nWATCHER_IP=203.0.113.9\nWATCH_DOMAIN=\nWATCH_IP=\nCF_API_TOKEN=\nBACKUP_HOST=storm-central-pi.vercel.app\nNTFY_TOPIC=\n' | sudo tee /etc/stormcentral/setup.env > /dev/null
           echo 'DATABASE_URL=file:/opt/stormcentral/test.db' | sudo tee /etc/stormcentral/app.env > /dev/null
       - name: Install the web app with vps/setup.sh
-        run: sudo STORMCENTRAL_BRANCH=claude/trusting-pasteur-qzc0fq bash vps/setup.sh < /dev/null
-      - name: It answers through Caddy, and updates are a no-op when main hasn't moved
+        run: sudo STORMCENTRAL_BRANCH="$BRANCH" bash vps/setup.sh < /dev/null
+      - name: It answers through Caddy, and an update with nothing new is a no-op
         run: |
           curl -skf --resolve app.test:443:127.0.0.1 https://app.test/api/health | tee /dev/stderr | grep -q '"ok":true'
           curl -skf --resolve app.test:443:127.0.0.1 -o /dev/null -w "page: %{http_code} %{size_download} bytes\n" "https://app.test/?mode=severe"
           curl -skf --resolve app.test:443:127.0.0.1 -o /dev/null -w "feed: %{http_code}\n" https://app.test/api/outlook || true
-          sudo STORMCENTRAL_BRANCH=claude/trusting-pasteur-qzc0fq /usr/local/bin/stormcentral-app-deploy && echo "deploy again: nothing to do"
+          sudo STORMCENTRAL_BRANCH="$BRANCH" /usr/local/bin/stormcentral-app-deploy && echo "deploy again: nothing to do"
           systemctl status stormcentral-app --no-pager | head -5
           systemctl list-timers stormcentral-app-deploy.timer --no-pager | head -3
           sudo ufw status | head -8

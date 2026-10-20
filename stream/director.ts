@@ -82,7 +82,6 @@ const CONFIG = {
   briefingMinutes: Number(env.STREAM_BRIEFING_MINUTES) || 20,
   commentaryMinutes: Number(env.STREAM_COMMENTARY_MINUTES) || 4,
   controlPort: Number(env.STREAM_CONTROL_PORT) || 8787,
-  heartbeat: env.STREAM_HEARTBEAT || "",
 };
 const UA = "StormCentralLive/1.0 (github.com/KingCreeper531/StormCentral)";
 const NWS = "https://api.weather.gov";
@@ -208,8 +207,8 @@ class Director {
   private writers = writersFromEnv(env);
   private youtube = new YouTubeLive({
     credentials: credentialsFromEnv(env),
-    titlesPerDay: Number(env.STREAM_TITLE_DAILY_MAX ?? 40),
-    clipsPerDay: Number(env.STREAM_CLIPS_DAILY_MAX ?? 2),
+    titlesPerDay: Number(env.STREAM_TITLE_DAILY_MAX ?? 20),
+    clipsPerDay: Number(env.STREAM_CLIPS_DAILY_MAX ?? 1),
     segments: env.STREAM_SEGMENTS || "",
     tmp: CONFIG.tmp,
     privacy: env.STREAM_CLIPS_PRIVACY || "public",
@@ -231,6 +230,8 @@ class Director {
   private lastCommentary = 0;
   private lastReportRead = 0;
   private alerting = false;
+  /** How the first successful read of the warnings treats the ones already out (see refresh). */
+  private startMode: "first" | "restart" | null = null;
   closed = false;
 
   constructor(private context: BrowserContext) {}
@@ -243,7 +244,8 @@ class Director {
     this.outlook = await fetchOutlook().catch(() => null);
     [this.reports, this.cameras] = await Promise.all([fetchReports().catch(() => []), fetchCameras().catch(() => [])]);
     for (const r of this.reports) this.readReports.add(r.id);
-    await this.refresh(restored ? "restart" : "first");
+    this.startMode = restored ? "restart" : "first";
+    await this.refresh();
     // Tests: read the most serious warning in effect as if it had just been issued (or, with none, one
     // from a saved scenario, STREAM_DEMO_FIXTURE, moved to now).
     if (env.STREAM_DEMO_ALERT === "1") {
@@ -259,6 +261,7 @@ class Director {
     }
     startControl(CONFIG.controlPort, this.controls(), log);
     void this.watch();
+    void this.talk();
     for (;;) {
       for (const scene of cycle(this.pinnedFirst(), { outlook: this.outlook })) {
         for (let urgent = this.pending.shift(); urgent; urgent = this.pending.shift()) await this.alertScene(urgent);
@@ -302,17 +305,22 @@ class Director {
    * title follows. On the very first start, warnings already out aren't news;
    * after a restart, ones issued in the last 10 minutes that weren't seen are.
    */
-  private async refresh(start: "first" | "restart" | null = null) {
+  private async refresh() {
     try {
-      const ws = [...(await fetchWarnings()), ...this.extra];
       const now = Date.now();
+      this.extra = this.extra.filter((w) => Date.parse(w.ends) > now);
+      const ws = [...(await fetchWarnings()), ...this.extra];
+      const start = this.startMode;
+      this.startMode = null;
       const fresh = start === "first" ? [] : ws.filter((w) => !this.seen.has(w.key) && (start !== "restart" || now - Date.parse(w.sent) < 10 * 60_000));
       for (const w of ws) if (!this.seen.has(w.key)) this.seen.set(w.key, now);
-      this.recent = [...this.recent.filter((r) => now - r.at < 60 * 60_000), ...(start ? [] : strengthened(this.warnings, ws, now))];
+      const ups = start ? [] : strengthened(this.warnings, ws, now);
+      this.recent = [...this.recent.filter((r) => now - r.at < 60 * 60_000), ...ups];
       this.warnings = ws;
-      const urgent = [...fresh.filter(worthAnnouncing), ...this.recent.filter((r) => now - r.at < 90_000 && !fresh.includes(r.warning)).map((r) => r.warning)];
+      const urgent = [...fresh.filter(worthAnnouncing), ...ups.map((r) => r.warning).filter((w) => !fresh.some((f) => f.key === w.key))];
       if (urgent.length) {
-        this.pending = [...this.pending, ...urgent].sort((a, b) => b.rank - a.rank).slice(0, 4);
+        const queued = new Set(this.pending.map((w) => w.key));
+        this.pending = [...this.pending, ...urgent.filter((w) => !queued.has(w.key))].sort((a, b) => b.rank - a.rank).slice(0, 4);
         this.interrupt?.();
       }
       this.save();
@@ -354,6 +362,7 @@ class Director {
     await this.youtube.retitle(this.aiTitle.text, this.warnings.some((w) => w.level === "emergency"));
   }
 
+  /** The data, every 30 seconds; never waits on the AI, so a new warning is never late. */
   private async watch() {
     let n = 0;
     for (;;) {
@@ -363,10 +372,20 @@ class Director {
       if (n % 60 === 30) this.cameras = await fetchCameras().catch(() => this.cameras);
       if (n % 4 === 0) await this.checkReports();
       await this.refresh();
-      await this.maybeComment();
-      await this.maybeBrief();
       if (this.overlay.camera) await this.paint();
-      if (CONFIG.heartbeat) writeFileSync(CONFIG.heartbeat, new Date().toISOString());
+    }
+  }
+
+  /** Commentary and briefings, which can take a while to write. */
+  private async talk() {
+    for (;;) {
+      await sleep(15_000);
+      try {
+        await this.maybeComment();
+        await this.maybeBrief();
+      } catch (err) {
+        log(`commentary: ${errText(err)}`);
+      }
     }
   }
 
@@ -421,6 +440,8 @@ class Director {
 
   /** Waits `ms`, or less when a new warning (or a hand-picked scene) comes in. */
   private hold(ms: number) {
+    // Something came in while the scene was loading: no wait at all.
+    if (this.pending.length || this.manual.length) return Promise.resolve();
     return new Promise<void>((resolve) => {
       const t = setTimeout(done, ms);
       function done() {
@@ -552,7 +573,7 @@ class Director {
       say: (text: string) => void this.speak(text, null),
       title: (text: string | null) => {
         this.titleOverride = text;
-        void this.updateTitle();
+        void this.updateTitle().catch((err) => log(`title: ${errText(err)}`));
       },
     };
   }
@@ -605,6 +626,9 @@ async function main() {
   log(`Live stream director: ${CONFIG.app}, ${CONFIG.width}x${CONFIG.height}, YouTube titles and clips ${credentialsFromEnv(env) ? "on" : "off (no YT_* credentials)"}.`);
   await director.start();
 }
+
+// A side task that fails (a title, a clip, a camera) is logged; it never takes the stream down.
+process.on("unhandledRejection", (err) => log(`unhandled: ${errText(err)}`));
 
 main().catch((err) => {
   console.error(err);

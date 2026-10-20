@@ -129,7 +129,14 @@ export function commentaryFacts(w: StreamWarning, f: StormFacts, reports: StormR
 
 const HAZARDS = ["tornado", "funnel", "debris", "rotation", "couplet", "hook", "wall cloud", "hail", "wind", "gust", "flood", "flash", "hurricane", "emergency", "derecho", "blizzard", "snow", "ice", "damage", "destructive", "catastrophic", "lightning"];
 const ALLOWED_NAMES = new Set(["storm", "central", "national", "weather", "service", "prediction", "center", "nws", "spc", "eastern", "mountain", "pacific", "alaska", "hawaii", "atlantic", "am", "pm", "i", "doppler", "radar", "live", "hrrr", "tornado", "warning", "watch", "emergency", "severe", "thunderstorm", "flash", "flood", "pds", "extreme", "wind", "risk", "marginal", "slight", "enhanced", "moderate", "high", "today", "tonight", "right", "now"]);
-const numbersIn = (s: string): string[] => s.match(/\d+(?:[.:]\d+)?/g) ?? [];
+/** Ordinary words that start sentences (a town name in that spot still has to be in the facts). */
+const OPENERS = new Set(["the", "this", "that", "these", "those", "it", "its", "a", "an", "on", "in", "at", "as", "and", "but", "so", "also", "now", "meanwhile", "there", "here", "we", "our", "with", "if", "another", "moving", "heading", "expect", "reports", "according", "by", "from", "for", "until", "residents", "people", "anyone"]);
+const WORD_NUMBERS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+/** Numbers in digits, and small ones in words ("two tornado warnings" is a 2). */
+const numbersIn = (s: string): string[] => [
+  ...(s.match(/\d+(?:[.:]\d+)?/g) ?? []),
+  ...(s.toLowerCase().match(new RegExp(`\\b(${WORD_NUMBERS.join("|")})\\b`, "g")) ?? []).map((w) => String(WORD_NUMBERS.indexOf(w))),
+];
 
 /**
  * The AI's text if it's safe to read: within `maxWords` (or `maxChars`), every
@@ -142,9 +149,11 @@ export function checkAgainst(text: string, facts: string, { maxWords = 70, maxCh
   const f = facts.toLowerCase();
   if (numbersIn(s).some((n) => !numbersIn(facts).includes(n))) return null;
   if (HAZARDS.some((h) => s.toLowerCase().includes(h) && !f.includes(h))) return null;
-  // Capitalized words that don't start a sentence are names: each must be in the facts.
-  const names = [...s.matchAll(/(?<![.!?]\s|^)\b([A-Z][a-z'’.-]+(?:\s+[A-Z][a-z'’.-]+)*)/g)].map((m) => m[1]!);
-  for (const n of names) for (const word of n.split(/\s+/)) if (!ALLOWED_NAMES.has(word.toLowerCase().replace(/[.'’]+$/, "")) && !f.includes(word.toLowerCase().replace(/[.'’]+$/, ""))) return null;
+  // Every capitalized word is a name (towns included) unless it's a known term or an ordinary sentence opener; names must be in the facts.
+  for (const [word] of s.matchAll(/\b[A-Z][A-Za-z'’-]*/g)) {
+    const w = word.toLowerCase().replace(/['’]s?$/, "");
+    if (!ALLOWED_NAMES.has(w) && !OPENERS.has(w) && !WORD_NUMBERS.includes(w) && !f.includes(w)) return null;
+  }
   if (/\b(take cover|evacuate|shelter|seek|go to|get to|you should|you must|stay inside|move to)\b/i.test(s)) return null;
   return s;
 }

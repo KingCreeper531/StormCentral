@@ -27,11 +27,22 @@ function claude(key: string, model: string): Writer {
   return {
     name: `Claude (${model})`,
     async write(system, prompt, maxTokens) {
-      const r = await post<{ content?: { type: string; text?: string }[] }>(
+      // Haiku thinks by default, and thinking counts against max_tokens: a two-sentence line doesn't need it.
+      // Models that can't turn it off get room for it instead.
+      const haiku = /haiku/.test(model);
+      const r = await post<{ content?: { type: string; text?: string }[]; stop_reason?: string }>(
         "https://api.anthropic.com/v1/messages",
         { "x-api-key": key, "anthropic-version": "2023-06-01" },
-        { model, max_tokens: maxTokens, system, messages: [{ role: "user", content: prompt }] },
+        {
+          model,
+          max_tokens: haiku ? maxTokens : maxTokens + 4096,
+          ...(haiku ? { thinking: { type: "disabled" } } : {}),
+          system,
+          messages: [{ role: "user", content: prompt }],
+        },
       );
+      // A cut-off sentence could still pass the fact check; only a finished answer goes on air.
+      if (r.stop_reason !== "end_turn") throw new Error(`stopped: ${r.stop_reason}`);
       return (r.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
     },
   };

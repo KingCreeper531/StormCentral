@@ -186,10 +186,12 @@ jobs:
             shorts/out/*.jpg
           retention-days: 7
       - name: Mark today as posted
-        if: steps.make.outputs.uploaded == 'true'
+        # always(): a run where one of two videos failed still records the one it posted.
+        if: always() && steps.make.outputs.uploaded == 'true'
         run: mkdir -p shorts/.posted && date -u > shorts/.posted/at
       - uses: actions/cache/save@v4
-        if: steps.make.outputs.uploaded == 'true'
+        # always(): a run where one of two videos failed still records the one it posted.
+        if: always() && steps.make.outputs.uploaded == 'true'
         with:
           path: shorts/.posted
           key: shorts-posted-et-${{ env.SHORTS_KIND }}-${{ steps.today.outputs.date }}

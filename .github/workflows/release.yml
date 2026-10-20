@@ -213,6 +213,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.check.outputs.version }}
           SIGNING: ${{ needs.android.outputs.signing }}
+          WINDOWS_SIGNED: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
         run: |
           tag="v$VERSION"
           {
@@ -226,7 +227,9 @@ jobs:
               echo "| Microsoft Store | \`StormCentral-$VERSION-store.appx\`: the package uploaded to Partner Center. It can't be installed directly; get Storm Central from the Store or use the installer above. |"
             fi
             echo
-            echo "The Windows installer isn't code-signed yet, so Windows may say \"Windows protected your PC\". Choose **More info → Run anyway**."
+            if [ "$WINDOWS_SIGNED" != "true" ]; then
+              echo "The Windows installer isn't code-signed yet, so Windows may say \"Windows protected your PC\". Choose **More info → Run anyway**."
+            fi
             if [ "$SIGNING" = "shared" ]; then
               echo
               echo "This APK is signed with the project's shared development key."

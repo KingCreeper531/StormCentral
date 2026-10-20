@@ -75,6 +75,8 @@ case "${AI,,}" in y | yes) AI=yes ;; *) AI=no ;; esac
 ask APP_DOMAIN "Web app on this server? Its domain (e.g. app.stormcentralwx.com, on Cloudflare)"
 if [ -n "$APP_DOMAIN" ]; then
   ask WATCHER_IP "IP of the server that will watch this one for failover (it's let through the firewall)"
+  # Without it the firewall turns the watcher away, it sees the app as down, and the address moves to Vercel for good.
+  [ -n "$WATCHER_IP" ] || { echo "The watcher's IP is needed with the web app (the stream server's IP)." >&2; exit 1; }
 fi
 ask WATCH_DOMAIN "Failover watcher on this server? The web app's domain it watches (on another server)"
 if [ -n "$WATCH_DOMAIN" ]; then
@@ -104,7 +106,7 @@ if [ -n "$APP_DOMAIN" ]; then
     echo "Paste the web app's environment variables from Vercel (Settings → Environment Variables), one KEY=value per line."
     echo "At least DATABASE_URL and DATABASE_AUTH_TOKEN (the same Turso database, so Vercel and this server share everything)."
     echo "Finish with an empty line:"
-    : >"$APP_ENV.new"
+    (umask 077 && : >"$APP_ENV.new")
     while IFS= read -r line </dev/tty; do
       [ -z "$line" ] && break
       [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && printf '%s\n' "$line" >>"$APP_ENV.new"
@@ -176,9 +178,12 @@ if [ -n "$DOMAIN" ]; then
   there=$(getent ahostsv4 "$DOMAIN" | awk 'NR==1{print $1}' || true)
   [ -n "$there" ] && [ "$there" != "$here" ] && warn "$DOMAIN points to $there, but this server is $here. HTTPS won't work until the DNS A record points here."
   [ -z "$there" ] && warn "$DOMAIN doesn't resolve yet. Add an A record for it pointing to $here; HTTPS starts working once it does."
-  printf 'DOMAIN=%s\nDASK_WORKERS=1\n' "$DOMAIN" >"$SRC/pro-server/.env"
+  printf 'DOMAIN=%s\n' "$DOMAIN" >"$SRC/pro-server/.env"
+  # Sharing the server with the stream: the processor is capped so it can't stall the video.
+  compose=(-f docker-compose.yml)
+  [ -n "$YT_STREAM_KEY" ] && compose+=(-f docker-compose.shared.yml)
   systemctl enable --now docker >/dev/null
-  (cd "$SRC/pro-server" && docker compose -f docker-compose.yml -f docker-compose.shared.yml up -d --build --remove-orphans)
+  (cd "$SRC/pro-server" && docker compose "${compose[@]}" up -d --build --remove-orphans)
 else
   warn "No domain: skipping the Pro data server."
 fi
@@ -247,7 +252,8 @@ PLAYWRIGHT_BROWSERS_PATH=$BROWSERS
 EOF
     [ -f "$STREAM_ENV" ] && grep -E '^[A-Z_][A-Z0-9_]*=' "$STREAM_ENV" | grep -vE "^(${answered// /|})=" || true
   } >"$STREAM_ENV.new"
-  for kv in STREAM_APP_URL=https://storm-central-pi.vercel.app STREAM_FPS=30 STREAM_VIDEO_KBPS=3500 STREAM_TITLE_DAILY_MAX=40 STREAM_CLIPS_DAILY_MAX=2; do
+  # YouTube's 10,000 daily units are shared with the Shorts (1,600 an upload): a title is ~51, a clip 1,600.
+  for kv in STREAM_APP_URL=https://storm-central-pi.vercel.app STREAM_FPS=30 STREAM_VIDEO_KBPS=3500 STREAM_TITLE_DAILY_MAX=20 STREAM_CLIPS_DAILY_MAX=1; do
     grep -q "^${kv%%=*}=" "$STREAM_ENV.new" || echo "$kv" >>"$STREAM_ENV.new"
   done
   mv "$STREAM_ENV.new" "$STREAM_ENV"
@@ -385,7 +391,7 @@ EOF
   systemctl daemon-reload
   systemctl enable stormcentral-app >/dev/null
   say "Building the web app (a few minutes the first time)"
-  /usr/local/bin/stormcentral-app-deploy --force
+  /usr/local/bin/stormcentral-app-deploy --force || warn "The first build failed (journalctl -u stormcentral-app-deploy); it tries again every 5 minutes."
   systemctl enable --now stormcentral-app-deploy.timer >/dev/null
 fi
 

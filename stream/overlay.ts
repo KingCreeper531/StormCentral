@@ -64,7 +64,7 @@ header.fixed.top-0{display:none!important}
 #scl-live .count .lbl{flex:1;font-size:12.5px;color:#cfd5e2;font-weight:600}
 #scl-live .count .n{font-size:20px;font-weight:800}
 #scl-live .none{font-size:13px;color:#cfd5e2;font-weight:600}
-#scl-live .spc{margin:9px 14px 12px;padding:6px 9px;border-radius:7px;font-size:11px;font-weight:900;letter-spacing:.6px;color:#0a0d14;white-space:nowrap}
+#scl-live .spc{margin:9px 0 1px;padding:6px 9px;border-radius:7px;font-size:11px;font-weight:900;letter-spacing:.6px;color:#0a0d14;white-space:nowrap}
 /* lower third */
 #scl-live .l3{position:absolute;left:18px;right:18px;bottom:46px;height:78px;border-radius:14px;display:flex;align-items:stretch;overflow:hidden;
   animation:scl-rise .7s cubic-bezier(.2,.8,.2,1) both}
@@ -95,6 +95,8 @@ header.fixed.top-0{display:none!important}
 /* captions */
 #scl-live .cap{position:absolute;left:50%;bottom:140px;transform:translateX(-50%);max-width:940px;padding:10px 18px;border-radius:10px;
   background:rgba(0,0,0,.74);font-size:21px;line-height:1.38;font-weight:600;text-align:center;transition:opacity .35s}
+/* beside the camera, not over it */
+#scl-live .cap.beside{left:18px;transform:none;max-width:calc(100% - 358px)}
 /* alert takeover */
 #scl-live .ban{position:absolute;left:18px;right:18px;top:84px;border-radius:16px;overflow:hidden;color:#fff;
   box-shadow:0 18px 60px rgba(0,0,0,.6);animation:scl-drop .6s cubic-bezier(.2,.9,.25,1.15) both}
@@ -169,7 +171,7 @@ header.fixed.top-0{display:none!important}
     (s.counts.length
       ? s.counts.map((c) => `<div class="count"><span class="code" style="background:${c.color}">${esc(c.code)}</span><span class="lbl">${esc(c.label)}</span><span class="n">${c.n}</span></div>`).join("")
       : `<div class="none">None in effect</div>`) +
-    (s.outlook ? `</div><div class="spc" style="background:${s.outlook.color}">SPC TODAY · ${esc(s.outlook.label)}` : "");
+    (s.outlook ? `<div class="spc" style="background:${s.outlook.color}">SPC TODAY · ${esc(s.outlook.label)}</div>` : "");
 
   // Ticker: rebuilt only when its items change, at a steady ~95 px/s whatever its length.
   const key = JSON.stringify(s.ticker);
@@ -206,6 +208,7 @@ header.fixed.top-0{display:none!important}
   // Captions.
   const cap = $(".cap");
   if (s.caption) cap.textContent = s.caption;
+  cap.classList.toggle("beside", !!s.camera);
   cap.style.opacity = s.caption ? "1" : "0";
 
   // Alert takeover.

@@ -82,6 +82,11 @@ describe("checkAgainst", () => {
     expect(checkAgainst("People in Bristow should take cover now.", facts)).toBeNull();
     expect(checkAgainst("word ".repeat(80), facts)).toBeNull();
   });
+
+  it("checks a town name that starts a sentence too", () => {
+    expect(checkAgainst("Moving northeast at 35 mph. Sapulpa is next in its path.", facts)).toBeNull();
+    expect(checkAgainst("Bristow is in its path. It would arrive around 7:58 PM.", facts)).not.toBeNull();
+  });
 });
 
 describe("writeChecked", () => {

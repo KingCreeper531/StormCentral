@@ -1,22 +1,19 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { RawAlertFeature } from "../src/lib/alerts";
+import { checkAgainst } from "./analysis";
 import {
   activeWarnings,
   announcement,
   briefingFacts,
-  checkBriefing,
   clipText,
-  counts,
   countsOf,
   cycle,
   liveTitle,
   outlookBadge,
   placeOf,
   sceneText,
-  sceneTitle,
   strengthened,
-  ticker,
   tickerItems,
   worthAnnouncing,
   type StreamWarning,
@@ -51,13 +48,6 @@ describe("what's read and shown", () => {
     expect(s).toContain("tornado");
   });
 
-  it("titles the scene and fills the ticker", () => {
-    expect(sceneTitle(emergency!)).toBe("TORNADO EMERGENCY · Cleveland, McClain and Oklahoma Counties, OK · until 8:30 PM CDT");
-    const t = ticker(activeWarnings(features, NOW));
-    expect(t.startsWith("2 Tornado Warnings")).toBe(true);
-    expect(t).toContain("Creek County, OK until 8:15 PM CDT");
-    expect(ticker([])).toMatch(/^No tornado/);
-  });
 
   it("announces tornado warnings and the most serious storms, not every warning", () => {
     const base = { ...emergency!, tags: [] as string[] };
@@ -89,17 +79,18 @@ describe("the briefing", () => {
   const facts = briefingFacts(ws, { risk: "MODERATE", region: "Southern Plains" });
 
   it("states the counts and the outlook", () => {
-    expect(counts(ws)).toBe("2 Tornado Warnings");
     expect(facts).toBe("Right now there are 2 tornado warnings in effect. The Storm Prediction Center has a Moderate Risk of severe storms today, level 4 of 5, for the Southern Plains.");
     expect(briefingFacts([], null)).toBe("Right now there are no tornado, severe thunderstorm or flash flood warnings in effect. The Storm Prediction Center doesn't expect organized severe storms today.");
   });
 
   it("only lets the AI's version through when it sticks to the facts", () => {
-    expect(checkBriefing("Two tornado warnings are out right now, and there's a level 4 of 5 Moderate Risk across the Southern Plains today.", facts)).not.toBeNull();
-    expect(checkBriefing("There are 3 tornado warnings right now.", facts)).toBeNull();
-    expect(checkBriefing("Watch out for large hail across the Southern Plains.", facts)).toBeNull();
-    expect(checkBriefing("Take cover now if you're in Oklahoma.", facts)).toBeNull();
-    expect(checkBriefing("", facts)).toBeNull();
+    const check = (t: string) => checkAgainst(t, facts, { maxWords: 50 });
+    expect(check("Two tornado warnings are out right now, and there's a level 4 of 5 Moderate Risk across the Southern Plains today.")).not.toBeNull();
+    expect(check("There are 3 tornado warnings right now.")).toBeNull();
+    expect(check("Three tornado warnings are out right now.")).toBeNull();
+    expect(check("Watch out for large hail across the Southern Plains.")).toBeNull();
+    expect(check("Take cover now if you're in Oklahoma.")).toBeNull();
+    expect(check("")).toBeNull();
   });
 });
 
