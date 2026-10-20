@@ -19,7 +19,8 @@
  *   node director.mjs      (env: see CONFIG below; stream.env on the VPS)
  */
 import { execFile } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { chromium, type BrowserContext, type Page } from "playwright-core";
@@ -68,6 +69,14 @@ async function fetchOutlook(): Promise<Outlook | null> {
   const p = await getJson<{ productText: string }>(`${NWS}/products/${id}`);
   const o = parseOutlook(p.productText);
   return o ? { risk: o.risk ?? null, region: regionOf(p.productText) } : null;
+}
+
+/** Tests only: the top warning of a saved NWS scenario (STREAM_DEMO_FIXTURE, STREAM_DEMO_NOW), ending 30 minutes from now. */
+function demoWarning(): StreamWarning | null {
+  if (!env.STREAM_DEMO_FIXTURE || !env.STREAM_DEMO_NOW) return null;
+  const fc = JSON.parse(readFileSync(env.STREAM_DEMO_FIXTURE, "utf8")) as { features?: RawAlertFeature[] };
+  const w = activeWarnings(fc.features ?? [], Date.parse(env.STREAM_DEMO_NOW))[0];
+  return w ? { ...w, key: `demo-${w.key}`, ends: new Date(Date.now() + 30 * 60_000).toISOString().replace(/\.\d+Z$/, "Z") } : null;
 }
 
 // ── Voice ─────────────────────────────────────────────────────────────────
@@ -188,16 +197,23 @@ class Director {
   private interrupt: (() => void) | null = null;
   private pending: StreamWarning[] = [];
   private overlay: OverlayState = { title: "", color: "#5b9cf6", ticker: "", banner: null };
-  private lastBriefing = Date.now();
+  // The first briefing comes two minutes in, so someone tuning in soon after a restart hears one.
+  private lastBriefing = Date.now() - (CONFIG.briefingMinutes - 2) * 60_000;
+  private alerting = false;
+  closed = false;
 
   constructor(private context: BrowserContext) {}
 
   async start() {
-    this.front = await this.context.newPage();
+    this.front = this.context.pages()[0] ?? (await this.context.newPage());
     this.back = await this.context.newPage();
     await this.refresh(true);
-    // Tests: read the most serious warning in effect as if it had just been issued.
-    if (env.STREAM_DEMO_ALERT === "1" && this.warnings[0]) this.pending.push(this.warnings[0]);
+    // Tests: read the most serious warning in effect as if it had just been issued (or, with none, one
+    // from a saved scenario, STREAM_DEMO_FIXTURE, moved to now).
+    if (env.STREAM_DEMO_ALERT === "1") {
+      const demo = this.warnings[0] ?? demoWarning();
+      if (demo) this.pending.push(demo);
+    }
     void this.watch();
     for (;;) {
       for (const scene of cycle(this.warnings)) {
@@ -205,7 +221,6 @@ class Director {
         if (urgent) await this.alertScene(urgent);
         await this.show(scene);
         await this.hold(scene.seconds * 1000);
-        await this.maybeBrief();
       }
     }
   }
@@ -238,6 +253,7 @@ class Director {
     for (;;) {
       await sleep(60_000);
       await this.refresh();
+      await this.maybeBrief();
       if (n++ % 30 === 0) this.outlook = await fetchOutlook().catch(() => this.outlook);
       if (CONFIG.heartbeat) writeFileSync(CONFIG.heartbeat, new Date().toISOString());
     }
@@ -291,12 +307,13 @@ class Director {
       log(`scene: ${this.overlay.title}`);
     } catch (err) {
       log(`scene failed (${urlFor(scene)}): ${err instanceof Error ? err.message : err}`);
-      if (page.isClosed() || !this.context.browser()?.isConnected()) throw err;
+      if (page.isClosed() || this.closed) throw err;
     }
   }
 
   private async alertScene(w: StreamWarning) {
     log(`NEW: ${w.name} (${w.key})`);
+    this.alerting = true;
     await this.show({ kind: "warning", warning: w, seconds: 40 }, { title: `NEW ${w.name.toUpperCase()}`, places: sceneTitle(w).split(" · ").slice(1).join(" · "), color: w.color });
     const spoken = say(announcement(w), { alert: true });
     await Promise.race([spoken, sleep(40_000)]);
@@ -304,10 +321,11 @@ class Director {
     this.overlay.banner = null;
     await this.paint();
     this.lastBriefing = Date.now();
+    this.alerting = false;
   }
 
   private async maybeBrief() {
-    if (Date.now() - this.lastBriefing < CONFIG.briefingMinutes * 60_000) return;
+    if (this.alerting || this.pending.length || Date.now() - this.lastBriefing < CONFIG.briefingMinutes * 60_000) return;
     this.lastBriefing = Date.now();
     const facts = briefingFacts(this.warnings, this.outlook);
     void say(await aiBriefing(facts));
@@ -316,17 +334,25 @@ class Director {
 
 async function main() {
   await makeChime().catch((err: unknown) => log(`no chime: ${err instanceof Error ? err.message : err}`));
-  const browser = await chromium.launch({
+  // A persistent profile, because only then does Chromium open its window with --kiosk (no tabs or address bar).
+  const context = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), "scl-chromium-")), {
     headless: false,
+    viewport: null,
+    bypassCSP: true,
+    locale: "en-US",
+    timezoneId: "America/New_York",
+    colorScheme: "dark",
     // No "controlled by automated software" bar on the stream.
     ignoreDefaultArgs: ["--enable-automation"],
     args: [
       "--kiosk",
+      "--start-fullscreen",
       `--window-size=${CONFIG.width},${CONFIG.height}`,
       "--window-position=0,0",
       "--noerrdialogs",
       "--disable-infobars",
       "--disable-session-crashed-bubble",
+      "--no-first-run",
       "--autoplay-policy=no-user-gesture-required",
       // The next scene renders in a background tab.
       "--disable-background-timer-throttling",
@@ -337,17 +363,19 @@ async function main() {
       "--ignore-gpu-blocklist",
     ],
   });
-  browser.on("disconnected", () => {
+  await context.addInitScript(() => {
+    // Dark, imperial, Professional mode on, and observed radar only: no model forecast or extrapolated frames on a live stream.
+    localStorage.setItem("stormcentral:v1", JSON.stringify({ state: { professional: true, theme: "dark", units: "imperial", radar: { future: false, nowcast: false } }, version: 1 }));
+    localStorage.setItem("stormcentral:pro", JSON.stringify({ state: { layout: "2x2", frames: 10, speed: 1 }, version: 1 }));
+  });
+  const director = new Director(context);
+  context.on("close", () => {
+    director.closed = true;
     log("Chromium closed; exiting so systemd restarts the stream.");
     process.exit(1);
   });
-  const context = await browser.newContext({ viewport: null, bypassCSP: true, locale: "en-US", timezoneId: "America/New_York", colorScheme: "dark" });
-  await context.addInitScript(() => {
-    localStorage.setItem("stormcentral:v1", JSON.stringify({ state: { professional: true, theme: "dark", units: "imperial" }, version: 1 }));
-    localStorage.setItem("stormcentral:pro", JSON.stringify({ state: { layout: "2x2", frames: 10, speed: 1 }, version: 1 }));
-  });
   log(`Live stream director: ${CONFIG.app}, ${CONFIG.width}x${CONFIG.height}, AI briefing ${CONFIG.ollama ? CONFIG.ollama.model : "off"}.`);
-  await new Director(context).start();
+  await director.start();
 }
 
 main().catch((err) => {
