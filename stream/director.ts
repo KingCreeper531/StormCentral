@@ -44,6 +44,7 @@ import { regionOf } from "../shorts/meta";
 import { parseOutlook } from "../shorts/spc-outlook";
 import { credentialsFromEnv } from "../shorts/youtube";
 import { checkAgainst, commentaryFacts, loadPlaces, notable, reportSentence, reportsNear, stormFacts, type Place } from "./analysis";
+import { alertsText, ChatReader, Cooldowns, fetchAlerts, fetchForecast, findPlace, forecastText, geocode, HELP, parseCommand, postChat, type ChatMessage } from "./chat";
 import { startControl } from "./control";
 import { writeChecked, writersFromEnv } from "./llm";
 import { drawOverlay, type OverlayState } from "./overlay";
@@ -53,6 +54,7 @@ import {
   briefingFacts,
   countsOf,
   cycle,
+  isMajor,
   liveTitle,
   outlookBadge,
   sceneText,
@@ -65,7 +67,7 @@ import {
   type Strengthening,
   type StreamWarning,
 } from "./plan";
-import { YouTubeLive } from "./youtube-live";
+import { Budget, YouTubeLive } from "./youtube-live";
 
 const run = promisify(execFile);
 const env = process.env;
@@ -216,6 +218,12 @@ class Director {
     log,
   });
   private aiTitle = { basis: "", text: "" };
+  /** Viewers' chat commands (needs the YouTube credentials; STREAM_CHAT=off turns it off). */
+  private chat: ChatReader | null = null;
+  private chatCooldowns = new Cooldowns();
+  private chatReplies = new Budget(Number(env.STREAM_CHAT_REPLIES_DAILY_MAX ?? 60));
+  private viewerRadarAt = 0;
+  private cardTimer: ReturnType<typeof setTimeout> | null = null;
   private overlay: OverlayState = {
     scene: { title: "NATIONAL RADAR", subtitle: "", color: ACCENT.national },
     counts: [],
@@ -251,6 +259,8 @@ class Director {
     if (env.STREAM_DEMO_ALERT === "1") {
       const demo = this.warnings[0] ?? demoWarning();
       // After the recording has started, so the clip has something to cut.
+      // And a viewer asking for a forecast in chat, 20 seconds in.
+      setTimeout(() => void this.onChat({ id: "demo", author: "demo", moderator: true, text: "!forecast Moore, OK", at: Date.now() }).catch((err) => log(`chat command: ${errText(err)}`)), 20_000);
       if (demo)
         setTimeout(() => {
           if (!this.warnings.includes(demo)) [this.extra, this.warnings] = [[demo], [demo, ...this.warnings]];
@@ -260,6 +270,16 @@ class Director {
         }, Number(env.STREAM_DEMO_DELAY ?? 40) * 1000);
     }
     startControl(CONFIG.controlPort, this.controls(), log);
+    if (this.youtube.enabled && env.STREAM_CHAT !== "off") {
+      this.chat = new ChatReader({
+        token: () => this.youtube.auth(),
+        chatId: () => this.youtube.chatId(),
+        onMessage: (m) => void this.onChat(m).catch((err) => log(`chat command: ${errText(err)}`)),
+        log,
+      });
+      void this.chat.run();
+      log("chat commands on: !forecast, !alerts, !radar, !help");
+    }
     void this.watch();
     void this.talk();
     for (;;) {
@@ -550,6 +570,56 @@ class Director {
     this.alerting = false;
     // The clip: from the cut-in to now, posted in the background.
     if (w.level !== "severe") void this.youtube.clip(w, from, Date.now());
+  }
+
+  /** A viewer's chat command: answered on screen and, within the day's budget, in chat. */
+  private async onChat(m: ChatMessage) {
+    const c = parseCommand(m.text);
+    if (!c || !this.chatCooldowns.take(m.author, m.moderator)) return;
+    if (c.cmd === "help") return this.reply(HELP);
+    if (!c.arg) return this.reply(`Add a town and state, like !${c.cmd} Moore, OK`);
+    const local = findPlace(c.arg, this.places);
+    const place = local ? { label: `${local.name}, ${local.state}`, lat: local.lat, lon: local.lon, state: local.state } : await geocode(c.arg).catch(() => null);
+    // What the viewer typed is never repeated: only a place that was found is named.
+    if (!place) return this.reply(`I couldn't find that place. Try a town and state, like !${c.cmd} Moore, OK`);
+    log(`chat: !${c.cmd} ${place.label}`);
+    if (c.cmd === "forecast") {
+      const text = forecastText(place.label, await fetchForecast(place.lat, place.lon));
+      this.showCard("FORECAST · ASKED IN CHAT", place.label, text.slice(place.label.length + 2), ACCENT.national);
+      return this.reply(text);
+    }
+    if (c.cmd === "alerts") {
+      const text = alertsText(place.label, place.state, await fetchAlerts(place.lat, place.lon, UA));
+      this.showCard("ALERTS · ASKED IN CHAT", place.label, text.slice(place.label.length + 2), ACCENT.model);
+      return this.reply(text);
+    }
+    // !radar: a viewer's place on the stream for 45 seconds; moderators any time, viewers when no major tornado
+    // is on and nobody else's place was shown in the last 5 minutes.
+    const top = this.warnings[0];
+    if (!m.moderator && top && isMajor(top)) return this.reply("We're staying on the tornado right now. Try !radar again once it's over.");
+    if (!m.moderator && Date.now() - this.viewerRadarAt < 5 * 60_000) return this.reply("Another viewer's place was just on. Try !radar again in a few minutes.");
+    this.viewerRadarAt = Date.now();
+    this.manual.push({ kind: "custom", lat: place.lat, lon: place.lon, name: place.label, mode: "severe", seconds: 45 });
+    // With no warnings it cuts in now; with warnings it waits for the next scene.
+    if (!this.warnings.length) this.interrupt?.();
+    return this.reply(`Showing ${place.label} on the stream ${this.warnings.length ? "next" : "now"}.`);
+  }
+
+  private async reply(text: string) {
+    const chatId = await this.youtube.chatId();
+    if (!chatId || !this.chatReplies.take()) return;
+    await postChat(chatId, text, await this.youtube.auth()).catch((err) => log(`chat reply: ${errText(err)}`));
+  }
+
+  /** An answer on screen for 15 seconds. */
+  private showCard(kicker: string, title: string, text: string, color: string) {
+    if (this.cardTimer) clearTimeout(this.cardTimer);
+    this.overlay = { ...this.overlay, card: { kicker, title, text: text.charAt(0).toUpperCase() + text.slice(1), color } };
+    void this.paint();
+    this.cardTimer = setTimeout(() => {
+      this.overlay = { ...this.overlay, card: null };
+      void this.paint();
+    }, 15_000);
   }
 
   private controls() {

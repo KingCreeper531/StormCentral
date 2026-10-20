@@ -10,7 +10,7 @@ import { execFile } from "node:child_process";
 import { mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { accessToken, liveVideoId, setVideoTitle, uploadVideo, type YouTubeCredentials } from "../shorts/youtube";
+import { accessToken, liveBroadcast, setVideoTitle, uploadVideo, type YouTubeCredentials } from "../shorts/youtube";
 import { clipText, sceneText, type StreamWarning } from "./plan";
 
 const run = promisify(execFile);
@@ -55,7 +55,7 @@ export interface YouTubeLiveOptions {
 
 export class YouTubeLive {
   private token: { value: string; at: number } | null = null;
-  private live: { id: string | null; at: number } = { id: null, at: 0 };
+  private live: { id: string | null; chatId: string | null; at: number } = { id: null, chatId: null, at: 0 };
   title = "";
   private titledAt = 0;
   private titles: Budget;
@@ -70,24 +70,33 @@ export class YouTubeLive {
     return !!this.o.credentials;
   }
 
-  private async auth() {
+  async auth() {
     if (!this.token || Date.now() - this.token.at > 45 * 60_000) this.token = { value: await accessToken(this.o.credentials!), at: Date.now() };
     return this.token.value;
   }
 
-  /** The live broadcast's id (looked up every 10 minutes: a restart starts a new broadcast). */
-  async liveId(): Promise<string | null> {
-    if (!this.enabled) return null;
-    if (Date.now() - this.live.at > 10 * 60_000) {
-      let id: string | null = null;
+  /** The live broadcast (looked up every 10 minutes, sooner while there's none: a restart starts a new one). */
+  private async broadcast() {
+    if (this.enabled && Date.now() - this.live.at > (this.live.id ? 10 : 2) * 60_000) {
+      let b: Awaited<ReturnType<typeof liveBroadcast>> = null;
       try {
-        id = await liveVideoId(await this.auth());
+        b = await liveBroadcast(await this.auth());
       } catch (err) {
         this.o.log(`couldn't find the live broadcast: ${errText(err)}`);
       }
-      this.live = { id, at: Date.now() };
+      this.live = { id: b?.id ?? null, chatId: b?.chatId ?? null, at: Date.now() };
     }
-    return this.live.id;
+    return this.live;
+  }
+
+  /** The live broadcast's video id. */
+  async liveId(): Promise<string | null> {
+    return (await this.broadcast()).id;
+  }
+
+  /** The live broadcast's chat id. */
+  async chatId(): Promise<string | null> {
+    return (await this.broadcast()).chatId;
   }
 
   /** Sets the title when it says something new: at most every 10 minutes (urgent ones at once), within the day's budget. */

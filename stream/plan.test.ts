@@ -9,6 +9,7 @@ import {
   clipText,
   countsOf,
   cycle,
+  isMajor,
   liveTitle,
   outlookBadge,
   placeOf,
@@ -61,9 +62,19 @@ describe("what's read and shown", () => {
 
 describe("cycle", () => {
   const ws = activeWarnings(features, NOW);
-  it("shows the country, each warning, then the top one in Professional mode", () => {
-    expect(cycle(ws).map((s) => s.kind)).toEqual(["national", "warning", "warning", "pro"]);
-    expect(cycle(ws).at(-1)).toMatchObject({ kind: "pro", warning: ws[0] });
+  it("stays on a major tornado: its warning and Professional mode take turns", () => {
+    expect(isMajor(ws[0]!)).toBe(true);
+    const c = cycle(ws);
+    expect(c.map((s) => s.kind)).toEqual(["warning", "pro", "national", "warning", "pro"]);
+    expect(c.filter((s) => s.kind === "pro").every((s) => s.kind === "pro" && s.warning === ws[0])).toBe(true);
+    const pro = c.filter((s) => s.kind === "pro").reduce((n, s) => n + s.seconds, 0);
+    expect(pro / c.reduce((n, s) => n + s.seconds, 0)).toBeGreaterThan(0.45);
+  });
+  it("otherwise shows the country, each warning, then the top one in Professional mode", () => {
+    const radarIndicated = ws.map((w) => ({ ...w, level: "tornado" as const, chips: ["TORNADO RADAR INDICATED"] }));
+    expect(isMajor(radarIndicated[0]!)).toBe(false);
+    expect(cycle(radarIndicated).map((s) => s.kind)).toEqual(["national", "warning", "warning", "pro"]);
+    expect(cycle(radarIndicated).at(-1)).toMatchObject({ kind: "pro", warning: radarIndicated[0], seconds: 90 });
   });
   it("takes turns between the country and Professional mode when it's quiet", () => {
     expect(cycle([]).map((s) => s.kind)).toEqual(["national", "pro"]);

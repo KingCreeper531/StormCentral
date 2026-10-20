@@ -27,6 +27,8 @@ export interface OverlayState {
   caption: string | null;
   /** A public camera near the storm, picture-in-picture. */
   camera?: { url: string; name: string; credit: string } | null;
+  /** An answer to a viewer's chat command ("FORECAST", "Moore, OK", the answer). */
+  card?: { kicker: string; title: string; text: string; color: string } | null;
 }
 
 export function drawOverlay(s: OverlayState) {
@@ -92,6 +94,12 @@ header.fixed.top-0{display:none!important}
 #scl-live .cam .lab em{font-style:normal;font-size:10px;font-weight:900;letter-spacing:1.4px;background:#e5162b;padding:2px 6px;border-radius:4px}
 #scl-live .cam .lab span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #scl-live .cam .lab small{font-size:10px;color:#9aa4b8;font-weight:600}
+/* chat command answer */
+#scl-live .card{position:absolute;left:18px;top:96px;width:380px;border-radius:12px;padding:12px 15px 13px;border-left:4px solid var(--c);
+  animation:scl-rise .5s cubic-bezier(.2,.8,.2,1) both}
+#scl-live .card .k{font-size:10.5px;font-weight:900;letter-spacing:1.8px;color:var(--c)}
+#scl-live .card .h{font-size:20px;font-weight:800;margin-top:2px}
+#scl-live .card .x{font-size:14.5px;line-height:1.42;color:#dfe5f0;margin-top:5px}
 /* captions */
 #scl-live .cap{position:absolute;left:50%;bottom:140px;transform:translateX(-50%);max-width:940px;padding:10px 18px;border-radius:10px;
   background:rgba(0,0,0,.74);font-size:21px;line-height:1.38;font-weight:600;text-align:center;transition:opacity .35s}
@@ -127,6 +135,7 @@ header.fixed.top-0{display:none!important}
 <div class="side glass"><div class="clock"><b class="time"></b><small class="date"></small></div><div class="counts"></div></div>
 <div class="cam glass" hidden><img alt=""><div class="lab"><em>CAM</em><span></span><small></small></div></div>
 <div class="cap" style="opacity:0"></div>
+<div class="card glass" hidden><div class="k"></div><div class="h"></div><div class="x"></div></div>
 <div class="ban" hidden><div class="bg"></div><div class="st"></div><div class="in"><div class="ic">!</div><div><div class="k"></div><div class="h"></div><div class="p"></div><div class="chips"></div></div></div></div>
 <div class="l3 glass"><div class="bar"></div><div class="txt"><div class="t"></div><div class="s"></div></div><div class="cd"><small>ENDS IN</small><b></b></div></div>
 <div class="tick"><div class="lab">WARNINGS</div><div class="win"><div class="run"></div></div></div>`;
@@ -210,6 +219,16 @@ header.fixed.top-0{display:none!important}
   if (s.caption) cap.textContent = s.caption;
   cap.classList.toggle("beside", !!s.camera);
   cap.style.opacity = s.caption ? "1" : "0";
+
+  // A viewer's chat command, answered.
+  const card = $(".card");
+  card.hidden = !s.card;
+  if (s.card) {
+    card.style.setProperty("--c", s.card.color);
+    $(".card .k").textContent = s.card.kicker;
+    $(".card .h").textContent = s.card.title;
+    $(".card .x").textContent = s.card.text;
+  }
 
   // Alert takeover.
   const ban = $(".ban");
