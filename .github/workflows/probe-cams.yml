@@ -17,7 +17,11 @@ jobs:
           import { gunzipSync } from "node:zlib";
           import { parseLevel2 } from "./src/lib/pro/nexrad/level2";
           import { levelAt } from "./src/lib/pro/nexrad/sweep";
-          const BUCKET = "https://noaa-nexrad-level2.s3.amazonaws.com";
+          let BUCKET = "https://unidata-nexrad-level2.s3.amazonaws.com";
+          for (const b of ["https://noaa-nexrad-level2.s3.amazonaws.com", "https://unidata-nexrad-level2.s3.amazonaws.com"]) {
+            const x = await (await fetch(`${b}/?list-type=2&max-keys=3&prefix=2013/05/20/KTLX/`)).text();
+            console.log(b, x.slice(0, 400));
+          }
           const cases = [
             { name: "Moore 2013", site: "KTLX", day: "2013/05/20", at: "20:10", lat: 35.33, lon: -97.48 },
             { name: "Mayfield 2021", site: "KPAH", day: "2021/12/11", at: "03:25", lat: 36.74, lon: -88.64 },
