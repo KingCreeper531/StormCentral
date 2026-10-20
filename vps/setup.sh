@@ -253,7 +253,7 @@ EOF
     [ -f "$STREAM_ENV" ] && grep -E '^[A-Z_][A-Z0-9_]*=' "$STREAM_ENV" | grep -vE "^(${answered// /|})=" || true
   } >"$STREAM_ENV.new"
   # YouTube's 10,000 daily units are shared with the Shorts (1,600 an upload): a title is ~51, a clip 1,600.
-  for kv in STREAM_APP_URL=https://storm-central-pi.vercel.app STREAM_FPS=30 STREAM_VIDEO_KBPS=3500 STREAM_TITLE_DAILY_MAX=20 STREAM_CLIPS_DAILY_MAX=1; do
+  for kv in STREAM_APP_URL=https://app.stormcentralwx.com STREAM_FPS=30 STREAM_VIDEO_KBPS=3500 STREAM_TITLE_DAILY_MAX=20 STREAM_CLIPS_DAILY_MAX=1; do
     grep -q "^${kv%%=*}=" "$STREAM_ENV.new" || echo "$kv" >>"$STREAM_ENV.new"
   done
   mv "$STREAM_ENV.new" "$STREAM_ENV"

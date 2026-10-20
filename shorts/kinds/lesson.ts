@@ -26,7 +26,7 @@ const WORDS_PER_SECOND = 2.6;
 /** The silent end screen, long enough for YouTube's end-screen elements (5-20 s). */
 export const OUTRO_SECONDS = 20;
 /** The web app (SITE is the project's website, which links to it), for the app tours. */
-export const WEB_APP = "https://storm-central-pi.vercel.app";
+export const WEB_APP = "https://app.stormcentralwx.com";
 
 type Product = "ref" | "vel" | "cc";
 /**
