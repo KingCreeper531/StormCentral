@@ -7,6 +7,8 @@
  * map layer and the cursor readout on the main thread.
  */
 
+import { scaleColor, type ValueScale } from "../scales";
+
 export interface Sweep {
   /** Radar location (degrees) and antenna height above sea level (m). */
   lat: number;
@@ -122,4 +124,15 @@ export function levelColors(table: Float32Array, color: (value: number) => [numb
     out[i * 4 + 3] = 255;
   }
   return out;
+}
+
+/** A sweep's colour per raw level on a scale, range-folded gates in the scale's flag colour. */
+export function sweepColors(sweep: Pick<Sweep, "table" | "special">, scale: ValueScale & { clearBelow?: boolean }): Uint8Array {
+  const colors = levelColors(sweep.table, (v) => scaleColor(scale, v));
+  const rf = scale.special?.[0];
+  if (rf) {
+    const n = parseInt(rf.color.slice(1), 16);
+    for (const sp of sweep.special) colors.set([(n >> 16) & 255, (n >> 8) & 255, n & 255, 255], sp.level * 4);
+  }
+  return colors;
 }

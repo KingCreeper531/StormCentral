@@ -4,12 +4,12 @@
  * sweep, plus a colour per raw level. The map draws it on the GPU
  * (sweep-layer.ts) and the cursor readout reads exact gate values from it.
  */
-import { DECODED_SCALES, scaleColor } from "../scales";
+import { DECODED_SCALES } from "../scales";
 import { gunzipIfNeeded } from "./gzip";
 import { parseLevel2 } from "./level2";
 import { parseLevel3 } from "./level3";
 import type { DecodeRequest, DecodeResponse } from "./protocol";
-import { levelColors, type Sweep } from "./sweep";
+import { sweepColors, type Sweep } from "./sweep";
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -63,20 +63,6 @@ async function chunkedVolume(urls: readonly string[]): Promise<Uint8Array> {
   return out;
 }
 
-function colorsFor(sweep: Sweep, scaleId: DecodeRequest["scale"]) {
-  const scale = DECODED_SCALES[scaleId];
-  const colors = levelColors(sweep.table, (v) => scaleColor(scale, v));
-  // Range-folded gates in the scale's flag colour.
-  const rf = scale.special?.[0];
-  if (rf) {
-    const n = parseInt(rf.color.slice(1), 16);
-    for (const sp of sweep.special) {
-      colors.set([(n >> 16) & 255, (n >> 8) & 255, n & 255, 255], sp.level * 4);
-    }
-  }
-  return colors;
-}
-
 self.onmessage = async (e: MessageEvent<DecodeRequest>) => {
   const req = e.data;
   try {
@@ -96,7 +82,7 @@ self.onmessage = async (e: MessageEvent<DecodeRequest>) => {
         return;
       }
     }
-    const colors = colorsFor(sweep, req.scale);
+    const colors = sweepColors(sweep, DECODED_SCALES[req.scale]);
     const msg: DecodeResponse = { id: req.id, ok: true, sweep, colors, cuts, complete };
     self.postMessage(msg, [sweep.data.buffer, sweep.azStart.buffer, sweep.azWidth.buffer, sweep.table.buffer, colors.buffer] as Transferable[]);
   } catch (err) {

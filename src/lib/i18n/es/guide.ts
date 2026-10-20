@@ -449,4 +449,7 @@ export const GUIDE: Record<string, string> = {
   Meteogram: "Meteograma",
   "A chart of one place's forecast over time, here for several models or an ensemble at once.":
     "Un gráfico del pronóstico de un lugar a lo largo del tiempo, aquí para varios modelos o un ensamble a la vez.",
+  "Colour tables": "Tablas de colores",
+  "Radar decoded in the app (Level II and Level III) can be drawn in other colours: open a panel's settings and pick a colour table, or import a GRLevelX palette (.pal). The pick applies to every panel showing that product, and the values you read don't change.":
+    "El radar decodificado en la app (Nivel II y Nivel III) puede dibujarse con otros colores: abre los ajustes de un panel y elige una tabla de colores, o importa una paleta de GRLevelX (.pal). La elección se aplica a todos los paneles que muestran ese producto, y los valores que lees no cambian.",
 };
