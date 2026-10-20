@@ -1,0 +1,70 @@
+# Drafts a Radar School lesson on a topic (shorts/lesson-draft.ts): the local
+# model writes it from Wikipedia and NOAA/NWS pages, every factual line must
+# quote a source word for word, and lines no source backs are dropped. The
+# draft and its review report go up as a pull request, unapproved: read the
+# report, fix anything, set "approved": true, merge, and the lesson joins the
+# weekly schedule after the ones already out.
+name: Draft a Radar School lesson
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: 'What the lesson teaches, e.g. "radar velocity" or "tornado debris signature"'
+        required: true
+      id:
+        description: "Short name for the file (letters and dashes), e.g. velocity"
+        required: true
+      urls:
+        description: "Extra NOAA/NWS pages to read, comma-separated (optional)"
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      SHORTS_AI_MODEL: ${{ vars.SHORTS_AI_MODEL || 'gemma3:12b' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Start the model (Ollama)
+        timeout-minutes: 15
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama pull "$SHORTS_AI_MODEL"
+      - name: Research, draft and check
+        env:
+          TOPIC: ${{ inputs.topic }}
+          ID: ${{ inputs.id }}
+          URLS: ${{ inputs.urls }}
+        run: npx --yes tsx shorts/lesson-draft.ts --topic "$TOPIC" --id "$ID" --urls "$URLS"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: radar-school-draft
+          path: shorts/lessons/
+          retention-days: 14
+      - name: Open a pull request for review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ID: ${{ inputs.id }}
+          TOPIC: ${{ inputs.topic }}
+        run: |
+          id=$(echo "$ID" | tr 'A-Z' 'a-z' | sed -E 's/[^a-z0-9]+/-/g; s/^-|-$//g')
+          branch="radar-school/$id"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add "shorts/lessons/$id.json" "shorts/lessons/$id.review.md"
+          git commit -m "Radar School draft: $TOPIC (unapproved)"
+          git push -u origin "$branch"
+          body=$(head -c 60000 "shorts/lessons/$id.review.md")
+          gh pr create --title "Radar School draft: $TOPIC" --body "$body" --base main --head "$branch" \
+            || echo "::warning::Couldn't open the pull request (Settings → Actions → General → Allow GitHub Actions to create pull requests). The draft is on the $branch branch and in this run's artifact."

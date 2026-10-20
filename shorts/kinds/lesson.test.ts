@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { narration } from "../narration";
-import { LESSONS, lessonVideo, pickLesson, SERIES_START, stamp, timeline } from "./lesson";
+import { draftedLessons, LESSONS, lessonVideo, pickLesson, SERIES_START, stamp, timeline, validLesson, type StormSpec } from "./lesson";
 
 const WEEK = 7 * 86_400_000;
 const numbers = (s: string) => (s.match(/\d+(?:[.,]\d+)*/g) ?? []).map((n) => n.replace(/,/g, ""));
@@ -92,5 +92,61 @@ describe("stamp", () => {
     expect(stamp(0)).toBe("0:00");
     expect(stamp(65.9)).toBe("1:05");
     expect(stamp(600)).toBe("10:00");
+  });
+});
+
+describe("drafted lessons", () => {
+  const draft = {
+    id: "Radar Velocity!",
+    title: "Radar velocity",
+    youtube: "Radar Velocity Explained | Radar School",
+    summary: "What velocity shows.",
+    chapters: [
+      { title: "Intro", beats: [{ say: "Hello.", visual: { type: "title" } }] },
+      {
+        title: "Colors",
+        beats: [
+          { say: "Green means toward the radar.", caption: "Green: toward", visual: { type: "radar", storm: { kind: "supercell", product: "vel", notes: [{ target: "couplet", text: "Couplet" }, { target: "nonsense" }] } } },
+          { say: "A real storm.", caption: "Moore", visual: { type: "radar", storm: { kind: "case", case: "moore-2013", product: "vel" } } },
+          { say: "Not a real case.", caption: "Made up", visual: { type: "radar", storm: { kind: "case", case: "nowhere-1999" } } },
+          { say: "Something the page can't draw.", caption: "A hologram", visual: { type: "hologram" } },
+          { say: "", caption: "empty" },
+        ],
+      },
+      { title: "Recap", beats: [{ say: "Bye.", visual: { type: "bullets", heading: "Recap", items: ["Green toward", 5] } }] },
+    ],
+    approved: false,
+    sources: [{ title: "JetStream", url: "https://www.weather.gov/jetstream/vel" }, { title: "bad", url: "javascript:alert(1)" }],
+  };
+
+  it("keeps a draft to what the page can draw, and leaves it unapproved", () => {
+    const l = validLesson(draft);
+    expect(l.id).toBe("radar-velocity-");
+    expect(l.approved).toBe(false);
+    const beats = l.chapters[1]!.beats;
+    expect(beats).toHaveLength(4); // the empty line is gone
+    const storm = (beats[0]!.visual as { storm: StormSpec }).storm;
+    expect(storm.notes?.map((n) => n.target)).toEqual(["couplet"]);
+    expect((beats[1]!.visual as { storm: StormSpec }).storm).toMatchObject({ kind: "case", case: "moore-2013", fallback: { kind: "supercell" } });
+    expect((beats[2]!.visual as { storm: StormSpec }).storm.kind).toBe("supercell");
+    expect(beats[3]!.visual).toEqual({ type: "bullets", heading: "A hologram", items: ["A hologram"] });
+    expect(l.sources).toEqual([{ title: "JetStream", url: "https://www.weather.gov/jetstream/vel" }]);
+  });
+
+  it("refuses something that isn't a lesson", () => {
+    expect(() => validLesson({})).toThrow();
+    expect(() => validLesson({ id: "x", title: "X", chapters: [{ title: "One", beats: [{ say: "a" }] }] })).toThrow(/3 chapters/);
+  });
+
+  it("only schedules approved drafts, and every draft in shorts/lessons is a valid lesson", () => {
+    const all = draftedLessons("shorts/lessons", true);
+    expect(draftedLessons("shorts/lessons").every((l) => l.approved)).toBe(true);
+    expect(LESSONS.slice(1).every((l) => l.approved)).toBe(true);
+    for (const l of all) expect(timeline(l).end).toBeGreaterThan(0);
+  });
+
+  it("lists a drafted lesson's sources in its description", () => {
+    const v = lessonVideo(validLesson({ ...draft, approved: true }), 2, 1);
+    expect(v.description).toContain("Sources:\nJetStream: https://www.weather.gov/jetstream/vel");
   });
 });

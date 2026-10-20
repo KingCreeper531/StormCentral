@@ -10,6 +10,8 @@
  * once they're all out, no video until more are added. SHORTS_LESSON picks
  * one by number or id (manual runs).
  */
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { DISCLAIMER, DISCLAIMER_ES, LINK_LINE, LINK_LINE_ES, SITE } from "../meta";
 import { loadCase, type CaseData, type CaseSpec } from "../radar-archive";
 import type { Kind, Video } from "../video";
@@ -86,6 +88,10 @@ export interface Lesson {
   thumb: { lines: string[]; visual: { storm: StormSpec } };
   chapters: Chapter[];
   tags: string[];
+  /** Drafted lessons (shorts/lessons/*.json) only go out once a person has checked them and set this. */
+  approved?: boolean;
+  /** Where a drafted lesson's facts came from (listed in the description). */
+  sources?: { title: string; url: string }[];
 }
 
 // ── The lessons ─────────────────────────────────────────────────────────────
@@ -361,7 +367,108 @@ const reflectivity: Lesson = {
   ],
 };
 
-export const LESSONS: Lesson[] = [reflectivity];
+// ── Drafted lessons (lesson-draft.ts) ───────────────────────────────────────
+
+const TARGETS: Record<string, string[]> = {
+  supercell: ["core", "hook", "meso", "notch", "couplet", "debris", "ffd", "tip"],
+  multicell: ["core", "light", "edge", "moderate"],
+  bow: ["apex", "notch", "north", "south"],
+  hail: ["core", "spike", "toward"],
+  case: ["core", "couplet", "debris"],
+};
+const str = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
+
+/** A storm spec from a draft, kept to what the simulator and the archive can draw. */
+function validStorm(raw: unknown): StormSpec {
+  const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const kind = (["supercell", "multicell", "bow", "hail", "case"] as const).find((k) => k === o.kind) ?? "supercell";
+  const isCase = kind === "case" && typeof o.case === "string" && o.case in CASES;
+  const k = isCase ? "case" : kind === "case" ? "supercell" : kind;
+  const product = (["ref", "vel", "cc"] as const).find((p) => p === o.product);
+  const notes = (Array.isArray(o.notes) ? o.notes : [])
+    .map((n) => (n && typeof n === "object" ? (n as Record<string, unknown>) : {}))
+    .filter((n) => typeof n.target === "string" && TARGETS[k]!.includes(n.target))
+    .slice(0, 3)
+    .map((n) => ({ target: n.target as string, text: str(n.text, 28) || undefined, r: 4.5 }));
+  const p: Record<string, number> = k === "supercell" ? { hook: 1, notch: 1, ...(notes.some((n) => n.target === "debris") || product === "cc" ? { debris: 1 } : {}) } : k === "bow" ? { bow: 1, notch: 1 } : k === "hail" ? { spike: 1 } : {};
+  const spec: StormSpec = { kind: k, ...(Object.keys(p).length ? { p } : {}), ...(product ? { product } : {}), ...(notes.length ? { notes } : {}) };
+  return isCase ? { ...spec, case: o.case as string, fallback: { kind: "supercell", p: { hook: 1, notch: 1, debris: product === "cc" ? 1 : 0 }, ...(product ? { product } : {}) } } : spec;
+}
+
+/** A visual from a draft, or a text card with the caption when it isn't one lesson.html can draw. */
+function validVisual(raw: unknown, caption: string): Visual {
+  const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  switch (o.type) {
+    case "title":
+    case "drops":
+    case "tilts":
+      return { type: o.type };
+    case "works":
+      return { type: "works", phase: ([0, 1, 2, 3] as const).find((p) => p === o.phase) ?? 1 };
+    case "beam":
+      return { type: "beam", marks: [60, 120] };
+    case "sweep":
+      return { type: "sweep", storm: { kind: "multicell" } };
+    case "radar":
+      return { type: "radar", storm: validStorm(o.storm) };
+    case "bullets": {
+      const items = (Array.isArray(o.items) ? o.items : []).map((i) => str(i, 60)).filter(Boolean).slice(0, 6);
+      if (items.length) return { type: "bullets", heading: str(o.heading, 40) || caption, items };
+    }
+  }
+  return { type: "bullets", heading: caption || "Radar School", items: [caption].filter(Boolean) };
+}
+
+/** A lesson read from JSON, checked and trimmed to what the page can show; throws when it isn't a lesson. */
+export function validLesson(raw: unknown): Lesson {
+  const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const id = str(o.id, 60).toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+  const title = str(o.title, 80);
+  if (!id || !title) throw new Error("A lesson needs an id and a title");
+  const chapters = (Array.isArray(o.chapters) ? o.chapters : [])
+    .map((c) => (c && typeof c === "object" ? (c as Record<string, unknown>) : {}))
+    .map((c) => ({
+      title: str(c.title, 60),
+      beats: (Array.isArray(c.beats) ? c.beats : [])
+        .map((b) => (b && typeof b === "object" ? (b as Record<string, unknown>) : {}))
+        .filter((b) => str(b.say, 400))
+        .map((b): Beat => {
+          const caption = str(b.caption, 70);
+          return { say: str(b.say, 400), ...(caption ? { caption } : {}), ...(str(b.bullet, 45) ? { bullet: str(b.bullet, 45) } : {}), visual: validVisual(b.visual, caption), ...(typeof b.min === "number" ? { min: Math.min(30, Math.max(5, b.min)) } : {}) };
+        }),
+    }))
+    .filter((c) => c.title && c.beats.length);
+  if (chapters.length < 3) throw new Error(`Lesson ${id} needs at least 3 chapters`);
+  const es = (o.es && typeof o.es === "object" ? o.es : {}) as Record<string, unknown>;
+  const thumb = (o.thumb && typeof o.thumb === "object" ? o.thumb : {}) as Record<string, unknown>;
+  const thumbStorm = ((thumb.visual && typeof thumb.visual === "object" ? thumb.visual : {}) as Record<string, unknown>).storm;
+  return {
+    id,
+    title,
+    youtube: str(o.youtube, 100) || `${title} | Radar School`,
+    summary: str(o.summary, 600),
+    es: { title: str(es.title, 100) || `${title} | Escuela de Radar`, summary: str(es.summary, 600) || str(o.summary, 600) },
+    ...(str(o.next, 80) ? { next: str(o.next, 80) } : {}),
+    thumb: { lines: (Array.isArray(thumb.lines) ? thumb.lines : [title.toUpperCase()]).map((l) => str(l, 16)).filter(Boolean).slice(0, 3), visual: { storm: validStorm(thumbStorm) } },
+    chapters,
+    tags: (Array.isArray(o.tags) ? o.tags : []).map((t) => str(t, 40)).filter(Boolean).slice(0, 15),
+    approved: o.approved === true,
+    ...(Array.isArray(o.sources) ? { sources: o.sources.map((s) => (s && typeof s === "object" ? (s as Record<string, unknown>) : {})).map((s) => ({ title: str(s.title, 120), url: str(s.url, 300) })).filter((s) => /^https:\/\//.test(s.url)) } : {}),
+  };
+}
+
+/** Drafted lessons in shorts/lessons/ (approved ones only, unless `all`), in file-name order. */
+export function draftedLessons(dir = "shorts/lessons", all = false): Lesson[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((f) => f.endsWith(".json"))
+    .sort()
+    .map((f) => validLesson(JSON.parse(readFileSync(join(dir, f), "utf8"))))
+    .filter((l) => all || l.approved);
+}
+
+/** The series in order: the hand-written lessons, then approved drafts. */
+export const LESSONS: Lesson[] = [reflectivity, ...draftedLessons()];
 
 // ── Building a lesson's video ───────────────────────────────────────────────
 
@@ -437,6 +544,7 @@ export function lessonVideo(lesson: Lesson, n: number, seed: number, cases: Reco
       `${lesson.summary}`,
       `Radar School is a free weekly series on reading weather radar. ${realLine}`,
       `Chapters:\n${chapterLines.join("\n")}`,
+      ...(lesson.sources?.length ? [`Sources:\n${lesson.sources.map((s) => `${s.title}: ${s.url}`).join("\n")}`] : []),
       `Watch live radar, warnings and storm reports, free: ${SITE}`,
       LINK_LINE,
       DISCLAIMER,
