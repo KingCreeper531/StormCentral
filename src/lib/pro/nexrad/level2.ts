@@ -36,6 +36,8 @@ export interface Level2Result {
   sweep: Sweep | null;
   /** The cut ran to its end (a volume still arriving in chunks may hold only part of it). */
   complete: boolean;
+  /** Records or messages that couldn't be read and were skipped (a damaged file still shows the rest). */
+  damaged: number;
 }
 
 export interface Level2Options {
@@ -82,6 +84,10 @@ interface Radial {
  * Decode the first cut at `angle` (±0.25°) that carries `moment`. With
  * `angle` null only the cut list is read.
  */
+/** Sanity limits: past these a header is corrupt, not a radar (super-res has 1832 gates and 720 radials a cut). */
+const MAX_GATES = 2048;
+const MAX_RADIALS = 1500;
+
 export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | null, opts: Level2Options = {}): Level2Result {
   const head = new DataView(file.buffer, file.byteOffset, 24);
   // "ARCHIVE2." before about 2000.
@@ -99,6 +105,7 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
   let cutAngle = 0;
   let done = false;
   let complete = false;
+  let damaged = 0;
   const radials: Radial[] = [];
 
   const handleMsg31 = (m: Uint8Array, dv: DataView, o: number) => {
@@ -133,6 +140,11 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
         const gates = dv.getUint16(p + 8);
         const wordBits = dv.getUint8(p + 19);
         const bytes = (gates * wordBits) / 8;
+        // A block that claims more than the message holds (or nonsense sizes) is damage, not data.
+        if ((wordBits !== 8 && wordBits !== 16) || !gates || gates > MAX_GATES || p + 28 + bytes > m.length) {
+          damaged++;
+          continue;
+        }
         found = {
           az: azAngle,
           spacing,
@@ -146,7 +158,7 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
         };
       }
     }
-    if (!found) return;
+    if (!found || radials.length >= MAX_RADIALS) return;
     if (targetEl < 0) {
       targetEl = elNum;
       cutAngle = cuts[elNum - 1]?.angle ?? elAngle;
@@ -171,8 +183,12 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
     const nominal = cuts[elNum - 1]?.angle ?? elAngle;
     if (Math.abs(nominal - angle) > 0.25) return;
     const gates = dv.getUint16(o + (def.doppler ? 28 : 26));
-    if (!gates) return;
+    if (!gates || radials.length >= MAX_RADIALS) return;
     const ptr = dv.getUint16(o + (moment === "REF" ? 36 : moment === "VEL" ? 38 : 40));
+    if (gates > MAX_GATES || o + ptr + gates > m.length) {
+      damaged++;
+      return;
+    }
     // Velocity resolution: 2 = 0.5 m/s steps, 4 = 1 m/s.
     const fine = moment !== "VEL" || dv.getUint16(o + 42) !== 4;
     vcp ||= dv.getUint16(o + 44) || null;
@@ -216,11 +232,16 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
       if (sizeHw) {
         if (sizeHw === 65535) bytes = ((dv.getUint16(p + CTM + 12) << 16) | dv.getUint16(p + CTM + 14)) + CTM;
         else if (type === 31 || type === 29) bytes = CTM + 2 * sizeHw;
-        if (type === 31) handleMsg31(rec, dv, p + CTM + 16);
-        else if (type === 1) handleMsg1(rec, dv, p + CTM + 16);
-        else if (type === 5 && !cuts.length) handleMsg5(dv, p + CTM + 16);
+        // One bad message (a pointer past its end, a cut-off radial) loses that message, not the volume.
+        try {
+          if (type === 31) handleMsg31(rec, dv, p + CTM + 16);
+          else if (type === 1) handleMsg1(rec, dv, p + CTM + 16);
+          else if (type === 5 && !cuts.length) handleMsg5(dv, p + CTM + 16);
+        } catch {
+          damaged++;
+        }
       }
-      p += bytes;
+      p += Math.max(CTM + 16, bytes);
     }
   };
 
@@ -232,8 +253,16 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
   while (compressed && pos + 4 <= file.length && !done) {
     const size = Math.abs(dvFile.getInt32(pos));
     pos += 4;
+    // A record cut short is the end of what's arrived (a download dropped, a volume still coming in).
     if (!size || pos + size > file.length) break;
-    readMessages(bunzip2(file.subarray(pos, pos + size), size * 8));
+    // A corrupt record loses its radials (a wedge of the sweep), not the volume.
+    let rec: Uint8Array | null = null;
+    try {
+      rec = bunzip2(file.subarray(pos, pos + size), size * 8);
+    } catch {
+      damaged++;
+    }
+    if (rec) readMessages(rec);
     pos += size;
     // Only the cut list was wanted: it's in the first (metadata) record.
     if (angle == null && cuts.length) break;
@@ -241,13 +270,19 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
 
   // Older archives' scan pattern message is empty: the cut list comes from the radials themselves.
   if (!cuts.length && !compressed) cuts.push(...legacyCuts(file));
-  if (!radials.length) return { site, time, vcp, cuts, sweep: null, complete };
+  if (!radials.length) return { site, time, vcp, cuts, sweep: null, complete, damaged };
   // Message 1 doesn't say where the radar is.
   if (!lat && opts.site) [lat, lon, heightM] = [opts.site.lat, opts.site.lon, opts.site.heightM ?? 0];
 
+  // One gate geometry and scaling per sweep: a radial that disagrees with the first is damaged.
+  const ref = radials[0]!;
+  const same = radials.filter((r) => r.first === ref.first && r.width === ref.width && r.scale === ref.scale && r.offset === ref.offset && r.wordBits === ref.wordBits);
+  damaged += radials.length - same.length;
+  radials.length = 0;
+  radials.push(...same);
   const nRadials = radials.length;
   const nGates = Math.max(...radials.map((r) => r.gates));
-  const wide = radials.some((r) => r.wordBits === 16);
+  const wide = ref.wordBits === 16;
   const data = wide ? new Uint16Array(nRadials * nGates) : new Uint8Array(nRadials * nGates);
   const azStart = new Float32Array(nRadials);
   const azWidth = new Float32Array(nRadials);
@@ -256,10 +291,9 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
     azWidth[i] = r.spacing;
     if (r.wordBits === 16) {
       const dv = new DataView(r.data.buffer, r.data.byteOffset, r.data.byteLength);
-      for (let g = 0; g < r.gates; g++) data[i * nGates + g] = dv.getUint16(g * 2);
+      for (let g = 0; g < Math.min(r.gates, r.data.byteLength >> 1); g++) data[i * nGates + g] = dv.getUint16(g * 2);
     } else data.set(r.data.subarray(0, r.gates), i * nGates);
   });
-  const ref = radials[0]!;
   const levels = wide ? 65536 : 256;
   const table = new Float32Array(levels).fill(NaN);
   const k = moment === "VEL" || moment === "SW" ? MS_TO_KT : 1;
@@ -271,6 +305,7 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
     vcp,
     cuts,
     complete,
+    damaged,
     sweep: {
       lat,
       lon,

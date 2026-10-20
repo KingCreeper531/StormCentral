@@ -42,6 +42,23 @@ class BitReader {
   }
 }
 
+/** bzip2's CRC-32 (big-endian, polynomial 0x04c11db7). */
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i << 24;
+    for (let k = 0; k < 8; k++) c = c & 0x80000000 ? (c << 1) ^ 0x04c11db7 : c << 1;
+    t[i] = c >>> 0;
+  }
+  return t;
+})();
+
+export function bzipCrc(bytes: Uint8Array, start = 0, end = bytes.length): number {
+  let crc = 0xffffffff;
+  for (let i = start; i < end; i++) crc = ((crc << 8) ^ CRC_TABLE[((crc >>> 24) ^ bytes[i]!) & 0xff]!) >>> 0;
+  return ~crc >>> 0;
+}
+
 class Output {
   buf: Uint8Array;
   len = 0;
@@ -110,9 +127,14 @@ function decodeSymbol(r: BitReader, t: Table): number {
   throw new Error("bzip2: bad Huffman code");
 }
 
-/** Decode one block's symbols, then undo BWT and RLE1 into `out`. */
+/**
+ * Decode one block's symbols, then undo BWT and RLE1 into `out`, and check the
+ * block's CRC: a corrupted download that still parses must not come out as
+ * plausible-looking radar.
+ */
 function readBlock(r: BitReader, blockSize: number, out: Output) {
-  r.bits32(); // block CRC (not verified: NEXRAD transport already checks integrity)
+  const expected = r.bits32() >>> 0;
+  const from = out.len;
   if (r.bits(1)) throw new Error("bzip2: randomised blocks are not supported");
   const origPtr = r.bits(24);
 
@@ -238,6 +260,7 @@ function readBlock(r: BitReader, blockSize: number, out: Output) {
       same = 1;
     }
   }
+  if (bzipCrc(out.buf, from, out.len) !== expected) throw new Error("bzip2: block CRC mismatch (corrupted data)");
 }
 
 /** Decompress one or more concatenated bzip2 streams. */
