@@ -20,6 +20,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb ffmpeg pulseaudio pulseaudio-utils fonts-inter fonts-noto-color-emoji > /dev/null
+          fc-list | grep -i "inter" | head -3
           npm install --prefix "$RUNNER_TEMP/stream" --no-audit --no-fund --silent playwright-core@1.56.1
           "$RUNNER_TEMP/stream/node_modules/.bin/playwright-core" install --with-deps chromium > /dev/null
           npx --yes esbuild@0.28.2 stream/director.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNNER_TEMP/stream/director.mjs" --log-level=warning
@@ -33,6 +34,7 @@ jobs:
           STREAM_BRIEFING_MINUTES: "3"
           STREAM_DEMO_FIXTURE: shorts/fixtures/breaking/tornado-emergency/nws-active.json
           STREAM_DEMO_NOW: "2026-05-21T00:55:00Z"
+          STREAM_CLIPS_DRY: ${{ runner.temp }}/clip.mp4
         run: |
           timeout 320 bash stream/run.sh || echo "run.sh exited with $?"
           ls -la "$RUNNER_TEMP"/test.mp4
@@ -43,6 +45,10 @@ jobs:
             ffmpeg -v error -ss $t -i "$RUNNER_TEMP/test.mp4" -frames:v 1 -q:v 3 .stream-test/f$t.jpg || true
           done
           ffprobe -v error -show_entries format=duration:stream=codec_name,width,height,r_frame_rate,sample_rate -of compact "$RUNNER_TEMP/test.mp4" | tee .stream-test/info.txt
+          if [ -f "$RUNNER_TEMP/clip.mp4" ]; then
+            ffprobe -v error -show_entries format=duration:stream=codec_name,width,height -of compact "$RUNNER_TEMP/clip.mp4" | tee -a .stream-test/info.txt
+            for t in 2 15 35; do ffmpeg -v error -ss $t -i "$RUNNER_TEMP/clip.mp4" -frames:v 1 -vf scale=540:-1 -q:v 3 .stream-test/clip$t.jpg || true; done
+          else echo "no clip" | tee -a .stream-test/info.txt; fi
           ffmpeg -v info -i "$RUNNER_TEMP/test.mp4" -af volumedetect -vn -f null - 2>&1 | grep -E "mean_volume|max_volume" | tee -a .stream-test/info.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

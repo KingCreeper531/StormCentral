@@ -1,7 +1,26 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { RawAlertFeature } from "../src/lib/alerts";
-import { activeWarnings, announcement, briefingFacts, checkBriefing, counts, cycle, sceneTitle, ticker, worthAnnouncing, type StreamWarning } from "./plan";
+import {
+  activeWarnings,
+  announcement,
+  briefingFacts,
+  checkBriefing,
+  clipText,
+  counts,
+  countsOf,
+  cycle,
+  liveTitle,
+  outlookBadge,
+  placeOf,
+  sceneText,
+  sceneTitle,
+  strengthened,
+  ticker,
+  tickerItems,
+  worthAnnouncing,
+  type StreamWarning,
+} from "./plan";
 
 const NOW = Date.parse("2026-05-21T00:55:00Z");
 const features = (JSON.parse(readFileSync("shorts/fixtures/breaking/tornado-emergency/nws-active.json", "utf8")) as { features: RawAlertFeature[] }).features;
@@ -81,5 +100,68 @@ describe("the briefing", () => {
     expect(checkBriefing("Watch out for large hail across the Southern Plains.", facts)).toBeNull();
     expect(checkBriefing("Take cover now if you're in Oklahoma.", facts)).toBeNull();
     expect(checkBriefing("", facts)).toBeNull();
+  });
+});
+
+describe("the stream's graphics", () => {
+  const ws = activeWarnings(features, NOW);
+
+  it("gives each warning its sound level, colour and impact chips", () => {
+    expect(ws[0]).toMatchObject({ level: "emergency", color: "#ff2bd6" });
+    expect(ws[0]!.chips.some((c) => c.startsWith("TORNADO"))).toBe(true);
+    expect(ws[1]).toMatchObject({ level: "tornado", color: "#ff3b3b" });
+  });
+
+  it("splits the lower third into the warning and where it is", () => {
+    expect(sceneText(ws[1]!)).toEqual({ title: "TORNADO WARNING", subtitle: "Creek County, OK · until 8:15 PM CDT" });
+  });
+
+  it("counts by kind and lists the ticker with codes", () => {
+    expect(countsOf(ws)).toEqual([{ code: "TOR", label: "Tornado", color: "#ff3b3b", n: 2 }]);
+    expect(tickerItems(ws).map((t) => t.code)).toEqual(["EMERG", "TOR"]);
+    expect(outlookBadge({ risk: "ENHANCED", region: "" })).toEqual({ label: "ENHANCED RISK", color: "#f2b25c" });
+    expect(outlookBadge(null)).toBeNull();
+  });
+});
+
+describe("the live title", () => {
+  const ws = activeWarnings(features, NOW);
+  const tor = ws[1]!;
+
+  it("leads with an emergency, named where the warning says the storm is", () => {
+    expect(placeOf(ws[0]!)).toBe("Moore, OK");
+    expect(placeOf(tor)).toMatch(/^[A-Z][a-z]+, OK$/);
+    expect(liveTitle(ws, null)).toBe("🔴 TORNADO EMERGENCY: Moore, OK • Live Radar | Storm Central");
+  });
+
+  it("says when a storm strengthened: a tornado warning where a severe storm warning was", () => {
+    const svr: StreamWarning = { ...tor, key: "KTSA.SV.W.80.2026", event: "Severe Thunderstorm Warning", name: "Severe Thunderstorm Warning", rank: 10, level: "severe" };
+    const up = strengthened([svr], [tor], NOW);
+    expect(up).toEqual([{ warning: tor, why: "now a Tornado Warning", at: NOW }]);
+    expect(liveTitle([tor], null, up, NOW)).toBe(`Watching a strengthening storm near ${placeOf(tor)}: now a Tornado Warning • Live | Storm Central`);
+    // Half an hour on, it's just a tornado warning again.
+    expect(liveTitle([tor], null, up, NOW + 31 * 60_000)).toBe(`Tornado Warning near ${placeOf(tor)} • Live Storm Tracking | Storm Central`);
+  });
+
+  it("notices an upgrade of the same warning", () => {
+    const observed = { ...tor, rank: tor.rank + 10, tags: ["OBSERVED"] };
+    expect(strengthened([tor], [observed], NOW)[0]!.why).toBe("tornado observed");
+    expect(strengthened([tor], [tor], NOW)).toEqual([]);
+  });
+
+  it("falls back to severe storms, SPC's risk, then the 24/7 title, always within YouTube's 100 characters", () => {
+    const svr = { ...tor, event: "Severe Thunderstorm Warning" as const, name: "Severe Thunderstorm Warning", level: "severe" as const };
+    expect(liveTitle([svr], null)).toBe("Severe Storms in Oklahoma • 1 Warning • Live Radar | Storm Central");
+    expect(liveTitle([], { risk: "MODERATE", region: "Southern Plains" })).toBe("Moderate Risk of Severe Storms Today for the Southern Plains • 24/7 Live Radar | Storm Central");
+    expect(liveTitle([], { risk: "MARGINAL", region: "" })).toMatch(/^24\/7 Live Weather Radar/);
+    for (const t of [liveTitle(ws, null), liveTitle([svr], null), liveTitle([], null)]) expect(t.length).toBeLessThanOrEqual(100);
+  });
+
+  it("writes a clip's title and description from the warning", () => {
+    const c = clipText(ws[0]!, "https://youtu.be/abc");
+    expect(c.title).toMatch(/^Tornado Emergency: .+#shorts$/);
+    expect(c.title.length).toBeLessThanOrEqual(100);
+    expect(c.description).toContain("Watch the live stream: https://youtu.be/abc");
+    expect(c.description).toContain("Not an official warning source");
   });
 });

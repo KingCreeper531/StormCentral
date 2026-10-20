@@ -23,7 +23,12 @@ DISPLAY_NUM=${STREAM_DISPLAY:-99}
 export DISPLAY=":$DISPLAY_NUM"
 export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/tmp/stormcentral-xdg}
 export STREAM_TMP=${STREAM_TMP:-$XDG_RUNTIME_DIR/tmp}
-mkdir -p "$XDG_RUNTIME_DIR" "$STREAM_TMP"
+# The alert sounds (made fresh at each start) and the rolling recording the clips are cut from.
+export STREAM_SOUNDS=${STREAM_SOUNDS:-$STREAM_TMP/sounds}
+export STREAM_SEGMENTS=${STREAM_SEGMENTS:-${TMPDIR:-/tmp}/stormcentral-segments}
+mkdir -p "$XDG_RUNTIME_DIR" "$STREAM_TMP" "$STREAM_SEGMENTS"
+rm -f "$STREAM_SEGMENTS"/*.ts
+bash "$(dirname "$0")/sounds.sh" "$STREAM_SOUNDS" >/dev/null
 chmod 700 "$XDG_RUNTIME_DIR"
 
 if [ -n "${STREAM_OUTPUT:-}" ]; then
@@ -60,7 +65,9 @@ node "$RUNTIME/director.mjs" &
 pids+=($!)
 sleep "${STREAM_WARMUP:-25}"
 
-# Out to YouTube: H.264 at a constant bitrate, a keyframe every 2 seconds, AAC stereo (YouTube's live settings).
+# Out to YouTube: H.264 at a constant bitrate, a keyframe every 2 seconds, AAC stereo (YouTube's live settings),
+# the sound kept in sync with the picture and limited so alerts never clip. The same encode also goes to a
+# rolling 4-minute recording in 6-second pieces, for the clips.
 limit=()
 [ -n "${STREAM_SECONDS:-}" ] && limit=(-t "$STREAM_SECONDS")
 fmt=flv
@@ -68,10 +75,11 @@ case "$OUT" in *.mp4) fmt=mp4 ;; esac
 ffmpeg -hide_banner -loglevel warning -nostdin \
   -thread_queue_size 1024 -f x11grab -draw_mouse 0 -framerate "$FPS" -video_size "${W}x${H}" -i "$DISPLAY.0+0,0" \
   -thread_queue_size 1024 -f pulse -i stream.monitor \
+  -map 0:v -map 1:a -af "aresample=async=1000,alimiter=limit=0.89:level=disabled" \
   -c:v libx264 -preset veryfast -b:v "${KBPS}k" -maxrate "${KBPS}k" -bufsize "$((KBPS * 2))k" \
   -g "$((FPS * 2))" -keyint_min "$((FPS * 2))" -sc_threshold 0 -pix_fmt yuv420p \
-  -c:a aac -b:a 128k -ar 44100 -ac 2 \
-  "${limit[@]}" -f "$fmt" "$OUT" &
+  -c:a aac -b:a 160k -ar 48000 -ac 2 -flags +global_header \
+  "${limit[@]}" -f tee "[f=$fmt:onfail=abort]$OUT|[f=segment:segment_time=6:segment_wrap=40:reset_timestamps=1:onfail=ignore]$STREAM_SEGMENTS/seg%02d.ts" &
 pids+=($!)
 
 # Whichever stops first (ffmpeg losing YouTube, Chromium crashing) ends the stream; systemd restarts it.

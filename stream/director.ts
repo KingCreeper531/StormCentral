@@ -4,22 +4,27 @@
  * screen that ffmpeg sends to YouTube Live:
  *
  * - every minute it reads the NWS's active warnings; scenes cycle through the
- *   national radar, the most serious warnings and Professional mode (plan.ts);
- * - a new tornado warning, emergency or destructive storm cuts in: a chime,
- *   a banner, and the warning read aloud in fixed sentences;
+ *   national radar, the most serious warnings and Professional mode, tornado
+ *   warnings first (plan.ts);
+ * - a new tornado warning, emergency or destructive storm cuts in: its alert
+ *   sound, a full-width takeover, and the warning read aloud in fixed
+ *   sentences from its own text, with captions;
+ * - the stream's title follows what's happening ("Watching a strengthening
+ *   storm near Moore, OK…"), and each warning read out is cut from the stream
+ *   into a Short (both with YouTube credentials, within a daily budget);
  * - every 20 minutes or so, a short briefing: the warning counts and SPC's
  *   outlook, reworded by the local AI (Ollama) when it's on and its version
  *   passes the fact check, read as written otherwise.
  *
- * The next scene loads in a second tab and swaps in when it's ready, so the
- * stream never shows a page loading. Speech goes to the PulseAudio sink
- * "stream", which ffmpeg records. Anything going badly wrong ends the process;
- * systemd starts the whole stream again.
+ * The next scene loads in a second tab and swaps in when it's ready, behind a
+ * branded wipe. Sound goes to the PulseAudio sink "stream", which ffmpeg
+ * records. Anything going badly wrong ends the process; systemd starts the
+ * whole stream again.
  *
  *   node director.mjs      (env: see CONFIG below; stream.env on the VPS)
  */
 import { execFile } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -27,7 +32,29 @@ import { chromium, type BrowserContext, type Page } from "playwright-core";
 import type { RawAlertFeature } from "../src/lib/alerts";
 import { regionOf } from "../shorts/meta";
 import { parseOutlook } from "../shorts/spc-outlook";
-import { activeWarnings, announcement, briefingFacts, briefingPrompt, checkBriefing, cycle, sceneTitle, ticker, worthAnnouncing, type Outlook, type Scene, type StreamWarning } from "./plan";
+import { accessToken, credentialsFromEnv, liveVideoId, setVideoTitle, uploadVideo } from "../shorts/youtube";
+import { drawOverlay, type OverlayState } from "./overlay";
+import {
+  activeWarnings,
+  announcement,
+  briefingFacts,
+  briefingPrompt,
+  checkBriefing,
+  clipText,
+  countsOf,
+  cycle,
+  liveTitle,
+  outlookBadge,
+  sceneText,
+  strengthened,
+  tickerItems,
+  worthAnnouncing,
+  type AlertLevel,
+  type Outlook,
+  type Scene,
+  type Strengthening,
+  type StreamWarning,
+} from "./plan";
 
 const run = promisify(execFile);
 const env = process.env;
@@ -38,16 +65,27 @@ const CONFIG = {
   voice: env.STREAM_VOICE || "en-US-AndrewNeural",
   sink: env.STREAM_SINK || "stream",
   tmp: env.STREAM_TMP || "/tmp/stormcentral-stream",
+  sounds: env.STREAM_SOUNDS || "",
+  segments: env.STREAM_SEGMENTS || "",
   ollama: env.OLLAMA_MODEL ? { host: env.OLLAMA_HOST || "http://127.0.0.1:11434", model: env.OLLAMA_MODEL } : null,
   briefingMinutes: Number(env.STREAM_BRIEFING_MINUTES) || 20,
   heartbeat: env.STREAM_HEARTBEAT || "",
+  youtube: credentialsFromEnv(env),
+  /** Live title changes a day (each costs ~51 of YouTube's 10,000 daily quota units). */
+  titleBudget: Number(env.STREAM_TITLE_DAILY_MAX ?? 40),
+  /** Clips posted as Shorts a day (each upload costs 1,600 units, shared with the Shorts workflow). */
+  clipBudget: Number(env.STREAM_CLIPS_DAILY_MAX ?? 2),
 };
 const UA = "StormCentralLive/1.0 (github.com/KingCreeper531/StormCentral)";
 const NWS = "https://api.weather.gov";
 const EVENTS = "Tornado Warning,Severe Thunderstorm Warning,Flash Flood Warning,Extreme Wind Warning";
 const HOME = { lat: 35.47, lon: -97.52, name: "Oklahoma City" };
+const ACCENT = { national: "#4f8cff", pro: "#a77bff" };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...a);
+const errText = (err: unknown) => (err instanceof Error ? err.message : String(err));
+/** YouTube's quota day runs on Pacific time. */
+const quotaDay = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(Date.now());
 
 // ── Data ──────────────────────────────────────────────────────────────────
 
@@ -79,28 +117,31 @@ function demoWarning(): StreamWarning | null {
   return w ? { ...w, key: `demo-${w.key}`, ends: new Date(Date.now() + 30 * 60_000).toISOString().replace(/\.\d+Z$/, "Z") } : null;
 }
 
-// ── Voice ─────────────────────────────────────────────────────────────────
+// ── Sound ─────────────────────────────────────────────────────────────────
 
 let speaking: Promise<void> = Promise.resolve();
-let chime = "";
+const play = (file: string) => run("paplay", [`--device=${CONFIG.sink}`, file], { timeout: 180_000 });
 
-async function makeChime() {
-  mkdirSync(CONFIG.tmp, { recursive: true });
-  chime = join(CONFIG.tmp, "chime.wav");
-  await run("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=880:duration=0.18", "-f", "lavfi", "-i", "sine=frequency=1175:duration=0.3", "-filter_complex", "[0][1]concat=n=2:v=0:a=1,volume=0.35", chime]);
-}
-
-/** Reads `text` aloud on the stream (one at a time, in order), with the chime first for alerts. */
-function say(text: string, { alert = false } = {}): Promise<void> {
+/**
+ * Reads `text` on the stream, one thing at a time in order: the alert sound
+ * first (sounds.sh), then the voice, cleaned up like a broadcast mic (rumble
+ * cut, gentle compression, normalized loudness). `onAir` runs as the voice
+ * starts and stops, for the captions.
+ */
+function say(text: string, sound: AlertLevel | "update" | null, onAir: (on: boolean) => void = () => {}): Promise<void> {
   speaking = speaking.then(async () => {
     try {
       const mp3 = join(CONFIG.tmp, "say.mp3"), wav = join(CONFIG.tmp, "say.wav");
-      await run("edge-tts", ["--voice", CONFIG.voice, "--text", text, "--write-media", mp3], { timeout: 60_000 });
-      await run("ffmpeg", ["-v", "error", "-y", "-i", mp3, "-ar", "44100", "-ac", "2", wav]);
-      if (alert && chime) await run("paplay", [`--device=${CONFIG.sink}`, chime]);
-      await run("paplay", [`--device=${CONFIG.sink}`, wav], { timeout: 120_000 });
+      await run("edge-tts", ["--voice", CONFIG.voice, "--rate", "-4%", "--text", text, "--write-media", mp3], { timeout: 60_000 });
+      await run("ffmpeg", ["-v", "error", "-y", "-i", mp3, "-af", "highpass=f=85,acompressor=threshold=-20dB:ratio=3:attack=5:release=150:makeup=2,loudnorm=I=-15:TP=-1.5:LRA=7", "-ar", "48000", "-ac", "2", wav]);
+      const tone = sound && CONFIG.sounds ? join(CONFIG.sounds, `${sound}.wav`) : "";
+      if (tone && existsSync(tone)) await play(tone);
+      onAir(true);
+      await play(wav);
     } catch (err) {
-      log(`couldn't speak: ${err instanceof Error ? err.message : err}`);
+      log(`couldn't speak: ${errText(err)}`);
+    } finally {
+      onAir(false);
     }
   });
   return speaking;
@@ -120,63 +161,107 @@ async function aiBriefing(facts: string): Promise<string> {
     if (!ok) log(`AI briefing failed the check, reading the facts: ${JSON.stringify(response)}`);
     return ok ?? facts;
   } catch (err) {
-    log(`AI briefing unavailable: ${err instanceof Error ? err.message : err}`);
+    log(`AI briefing unavailable: ${errText(err)}`);
     return facts;
   }
 }
 
-// ── The overlay (drawn into the app's page) ─────────────────────────────
+// ── YouTube: the live title and clips ─────────────────────────────────────
 
-interface OverlayState {
-  title: string;
-  color: string;
-  ticker: string;
-  banner: { title: string; places: string; color: string } | null;
+/** A daily allowance, counted on YouTube's Pacific-time quota day. */
+class Budget {
+  private day = quotaDay();
+  private used = 0;
+  constructor(private max: number) {}
+  take(): boolean {
+    if (this.day !== quotaDay()) [this.day, this.used] = [quotaDay(), 0];
+    if (this.used >= this.max) return false;
+    this.used++;
+    return true;
+  }
 }
 
-/** Runs in the page: the LIVE badge, lower third, ticker and banner, created once and updated. */
-function drawOverlay(s: OverlayState) {
-  const d = document;
-  let root = d.getElementById("scl-live");
-  if (!root) {
-    const css = d.createElement("style");
-    css.textContent = `
-      #scl-live{position:fixed;inset:0;pointer-events:none;z-index:2147483647;font-family:Inter,"SC Inter",system-ui,sans-serif;color:#f2f4f8}
-      #scl-live .bar{position:absolute;left:0;right:0;bottom:30px;height:48px;display:flex;align-items:center;gap:14px;padding:0 16px;background:rgba(3,6,13,.94);border-top:3px solid var(--c,#5b9cf6)}
-      #scl-live .live{background:#e11d2e;color:#fff;font-weight:800;font-size:15px;letter-spacing:2px;padding:4px 10px;border-radius:4px}
-      #scl-live .brand{font-weight:800;font-size:15px;letter-spacing:1px;color:#a9b1bf}
-      #scl-live .title{flex:1;font-weight:700;font-size:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      #scl-live .clock{font-weight:700;font-size:17px;font-variant-numeric:tabular-nums;color:#a9b1bf}
-      #scl-live .tick{position:absolute;left:0;right:0;bottom:0;height:30px;overflow:hidden;background:#0b1120;border-top:1px solid rgba(255,255,255,.08)}
-      #scl-live .tick span{position:absolute;white-space:nowrap;line-height:30px;font-size:15px;font-weight:600;padding-left:100%;animation:scl-tick var(--d,60s) linear infinite}
-      @keyframes scl-tick{to{transform:translateX(-100%)}}
-      #scl-live .banner{position:absolute;left:50%;top:84px;transform:translateX(-50%);min-width:560px;max-width:1100px;padding:14px 26px;border-radius:10px;background:var(--b,#e11d2e);color:#fff;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5);animation:scl-flash 1s ease-in-out infinite alternate}
-      #scl-live .banner b{display:block;font-size:30px;font-weight:900;letter-spacing:1px}
-      #scl-live .banner i{display:block;font-style:normal;font-size:19px;font-weight:600;margin-top:4px}
-      @keyframes scl-flash{from{filter:brightness(1)}to{filter:brightness(1.25)}}`;
-    d.head.appendChild(css);
-    root = d.createElement("div");
-    root.id = "scl-live";
-    root.innerHTML = `<div class="bar"><span class="live">LIVE</span><span class="brand">STORM CENTRAL</span><span class="title"></span><span class="clock"></span></div><div class="tick"><span></span></div><div class="banner" hidden><b></b><i></i></div>`;
-    d.body.appendChild(root);
-    const clock = root.querySelector(".clock")!;
-    const tickClock = () => (clock.textContent = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York", timeZoneName: "short" }));
-    tickClock();
-    setInterval(tickClock, 10_000);
+class YouTube {
+  private token: { value: string; at: number } | null = null;
+  private live: { id: string | null; at: number } = { id: null, at: 0 };
+  private title = "";
+  private titledAt = 0;
+  private titles = new Budget(CONFIG.titleBudget);
+  private clips = new Budget(CONFIG.clipBudget);
+
+  get enabled() {
+    return !!CONFIG.youtube;
   }
-  root.style.setProperty("--c", s.color);
-  root.querySelector(".title")!.textContent = s.title;
-  const t = root.querySelector<HTMLElement>(".tick span")!;
-  if (t.textContent !== s.ticker) {
-    t.textContent = s.ticker;
-    t.style.setProperty("--d", `${Math.max(30, Math.round(s.ticker.length / 9))}s`);
+
+  private async auth() {
+    if (!this.token || Date.now() - this.token.at > 45 * 60_000) this.token = { value: await accessToken(CONFIG.youtube!), at: Date.now() };
+    return this.token.value;
   }
-  const b = root.querySelector<HTMLElement>(".banner")!;
-  b.hidden = !s.banner;
-  if (s.banner) {
-    b.style.setProperty("--b", s.banner.color);
-    b.querySelector("b")!.textContent = s.banner.title;
-    b.querySelector("i")!.textContent = s.banner.places;
+
+  /** The live broadcast's id (looked up every 10 minutes: a restart starts a new broadcast). */
+  async liveId(): Promise<string | null> {
+    if (!this.enabled) return null;
+    if (Date.now() - this.live.at > 10 * 60_000) this.live = { id: await liveVideoId(await this.auth()).catch(() => null), at: Date.now() };
+    return this.live.id;
+  }
+
+  /** Sets the title when it says something new: at most every 10 minutes (an emergency at once), within the day's budget. */
+  async retitle(title: string, urgent: boolean) {
+    if (!this.enabled || title === this.title || (!urgent && Date.now() - this.titledAt < 10 * 60_000)) return;
+    const id = await this.liveId();
+    if (!id || !this.titles.take()) return;
+    try {
+      await setVideoTitle(id, title, await this.auth());
+      [this.title, this.titledAt] = [title, Date.now()];
+      log(`title: ${title}`);
+    } catch (err) {
+      log(`couldn't change the title: ${errText(err)}`);
+    }
+  }
+
+  /**
+   * Cuts the stream from a few seconds before `from` to `to` out of the rolling
+   * recording (run.sh), makes it vertical with the warning on top, and posts it
+   * as a Short.
+   */
+  async clip(w: StreamWarning, from: number, to: number) {
+    // Tests: STREAM_CLIPS_DRY=<file> renders the clip there without posting it.
+    const dry = env.STREAM_CLIPS_DRY;
+    if ((!this.enabled && !dry) || !CONFIG.segments || !this.clips.take()) return;
+    try {
+      const segs = readdirSync(CONFIG.segments)
+        .filter((f) => f.endsWith(".ts"))
+        .map((f) => ({ f: join(CONFIG.segments, f), t: statSync(join(CONFIG.segments, f)).mtimeMs }))
+        .filter((s) => s.t >= from - 4_000 && s.t <= to + 8_000)
+        .sort((a, b) => a.t - b.t);
+      if (segs.length < 3) return log("clip: not enough of the recording yet");
+      const list = join(CONFIG.tmp, "clip.txt"), raw = join(CONFIG.tmp, "clip-raw.ts"), out = join(CONFIG.tmp, "clip.mp4");
+      writeFileSync(list, segs.map((s) => `file '${s.f}'`).join("\n"));
+      await run("ffmpeg", ["-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", raw], { timeout: 120_000 });
+      const { title, subtitle } = sceneText(w);
+      const text = (s: string) => s.replace(/[\\:'%]/g, (c) => `\\${c}`);
+      // 1080x1920: the stream, blurred, behind itself at full width; the warning above, the channel below.
+      const vf = [
+        "[0:v]split[a][b]",
+        "[a]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=24:2,eq=brightness=-0.22[bg]",
+        "[b]scale=1080:-2[fg]",
+        "[bg][fg]overlay=(W-w)/2:(H-h)/2+40",
+        `drawtext=font='Inter\\:style=Black':text='${text(title)}':fontcolor=${w.color}:fontsize=74:x=(w-text_w)/2:y=330:borderw=4:bordercolor=black@0.6`,
+        `drawtext=font='Inter\\:style=Bold':text='${text(subtitle)}':fontcolor=white:fontsize=40:x=max(40\\,(w-text_w)/2):y=430:borderw=3:bordercolor=black@0.6`,
+        "drawtext=font='Inter\\:style=Bold':text='LIVE 24/7 · STORM CENTRAL':fontcolor=white@0.9:fontsize=44:x=(w-text_w)/2:y=1530",
+      ].join(",");
+      await run("ffmpeg", ["-v", "error", "-y", "-i", raw, "-filter_complex", vf, "-c:v", "libx264", "-preset", "medium", "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-t", "58", "-movflags", "+faststart", out], { timeout: 600_000 });
+      if (dry) {
+        await run("cp", [out, dry]);
+        return log(`clip rendered (not posted): ${dry}`);
+      }
+      const live = await this.liveId();
+      const meta = clipText(w, live ? `https://youtu.be/${live}` : null);
+      const id = await uploadVideo(out, { ...meta, privacy: env.STREAM_CLIPS_PRIVACY || "public" }, await this.auth());
+      log(`clip posted: https://youtube.com/shorts/${id}`);
+    } catch (err) {
+      log(`clip failed: ${errText(err)}`);
+    }
   }
 }
 
@@ -194,9 +279,18 @@ class Director {
   private warnings: StreamWarning[] = [];
   private seen = new Set<string>();
   private outlook: Outlook | null = null;
+  private recent: Strengthening[] = [];
   private interrupt: (() => void) | null = null;
   private pending: StreamWarning[] = [];
-  private overlay: OverlayState = { title: "", color: "#5b9cf6", ticker: "", banner: null };
+  private youtube = new YouTube();
+  private overlay: OverlayState = {
+    scene: { title: "NATIONAL RADAR", subtitle: "", color: ACCENT.national },
+    counts: [],
+    outlook: null,
+    ticker: [],
+    banner: null,
+    caption: null,
+  };
   // The first briefing comes two minutes in, so someone tuning in soon after a restart hears one.
   private lastBriefing = Date.now() - (CONFIG.briefingMinutes - 2) * 60_000;
   private alerting = false;
@@ -207,6 +301,7 @@ class Director {
   async start() {
     this.front = this.context.pages()[0] ?? (await this.context.newPage());
     this.back = await this.context.newPage();
+    this.outlook = await fetchOutlook().catch(() => null);
     await this.refresh(true);
     // Tests: read the most serious warning in effect as if it had just been issued (or, with none, one
     // from a saved scenario, STREAM_DEMO_FIXTURE, moved to now).
@@ -225,26 +320,28 @@ class Director {
     }
   }
 
-  /** Reads the warnings (and now and then the outlook); new ones worth it go to the front of the queue. */
+  /** Reads the warnings; new ones worth it go to the front of the queue, and the title follows. */
   private async refresh(first = false) {
     try {
       const ws = await fetchWarnings();
       const fresh = ws.filter((w) => !this.seen.has(w.key));
       for (const w of ws) this.seen.add(w.key);
+      if (!first) this.recent = [...this.recent.filter((r) => Date.now() - r.at < 60 * 60_000), ...strengthened(this.warnings, ws)];
       this.warnings = ws;
       // Warnings already out when the stream starts aren't news; only ones issued while it runs.
       if (!first) {
-        const urgent = fresh.filter(worthAnnouncing);
+        const urgent = [...fresh.filter(worthAnnouncing), ...this.recent.filter((r) => Date.now() - r.at < 90_000 && !fresh.includes(r.warning)).map((r) => r.warning)];
         if (urgent.length) {
-          this.pending.push(...urgent);
-          this.pending = this.pending.sort((a, b) => b.rank - a.rank).slice(0, 4);
+          this.pending = [...this.pending, ...urgent].sort((a, b) => b.rank - a.rank).slice(0, 4);
           this.interrupt?.();
         }
       }
-      this.overlay.ticker = `Not an official warning source: follow the National Weather Service.   •   ${ticker(ws)}`;
+      this.overlay = { ...this.overlay, counts: countsOf(ws), outlook: outlookBadge(this.outlook), ticker: tickerItems(ws) };
       await this.paint();
+      const urgentTitle = ws.some((w) => w.level === "emergency");
+      await this.youtube.retitle(liveTitle(ws, this.outlook, this.recent), urgentTitle);
     } catch (err) {
-      log(`warnings: ${err instanceof Error ? err.message : err}`);
+      log(`warnings: ${errText(err)}`);
     }
   }
 
@@ -252,9 +349,9 @@ class Director {
     let n = 0;
     for (;;) {
       await sleep(60_000);
+      if (++n % 30 === 0) this.outlook = await fetchOutlook().catch(() => this.outlook);
       await this.refresh();
       await this.maybeBrief();
-      if (n++ % 30 === 0) this.outlook = await fetchOutlook().catch(() => this.outlook);
       if (CONFIG.heartbeat) writeFileSync(CONFIG.heartbeat, new Date().toISOString());
     }
   }
@@ -275,12 +372,26 @@ class Director {
     await this.front?.evaluate(drawOverlay, this.overlay).catch(() => {});
   }
 
+  private sceneOverlay(scene: Scene): OverlayState["scene"] {
+    if (scene.kind === "national") {
+      const n = this.warnings.length;
+      return { title: "NATIONAL RADAR", subtitle: n ? `${n} warning${n === 1 ? "" : "s"} in effect · tornado warnings first` : "No tornado, severe thunderstorm or flash flood warnings right now", color: ACCENT.national };
+    }
+    if (scene.kind === "pro") {
+      return scene.warning
+        ? { title: "PROFESSIONAL MODE", subtitle: `Reflectivity · Velocity · Storm-relative · Composite — ${sceneText(scene.warning).subtitle}`, color: ACCENT.pro, ends: scene.warning.ends }
+        : { title: "PROFESSIONAL MODE", subtitle: `Reflectivity · Velocity · Storm-relative · Composite — ${HOME.name}`, color: ACCENT.pro };
+    }
+    return { ...sceneText(scene.warning), color: scene.warning.color, ends: scene.warning.ends };
+  }
+
   /** Loads the scene in the back tab, then swaps it to the front. */
   private async show(scene: Scene, banner: OverlayState["banner"] = null) {
     const page = this.back;
     try {
+      // The scene loads and settles in the background tab while the current one stays on air.
       await page.goto(urlFor(scene), { waitUntil: "domcontentloaded", timeout: 45_000 });
-      await page.waitForTimeout(scene.kind === "pro" ? 9_000 : 6_000);
+      await page.waitForTimeout(scene.kind === "pro" ? 8_000 : 5_000);
       // The side panel (warnings list, tools) would cover part of the map; the overlay shows what matters.
       await page
         .getByRole("button", { name: "Hide panel" })
@@ -295,18 +406,14 @@ class Director {
           await page.waitForTimeout(250);
         }
       }
-      this.overlay = {
-        ...this.overlay,
-        title: scene.kind === "national" ? "National radar" : scene.warning ? sceneTitle(scene.warning) : `Professional mode · ${HOME.name}`,
-        color: scene.kind !== "national" && scene.warning ? scene.warning.color : "#5b9cf6",
-        banner,
-      };
+      // Graphics on, then on air: the branded wipe sweeps off the finished scene.
+      this.overlay = { ...this.overlay, scene: this.sceneOverlay(scene), banner };
       await page.evaluate(drawOverlay, this.overlay);
       await page.bringToFront();
       [this.front, this.back] = [page, this.front];
-      log(`scene: ${this.overlay.title}`);
+      log(`scene: ${this.overlay.scene.title} · ${this.overlay.scene.subtitle}`);
     } catch (err) {
-      log(`scene failed (${urlFor(scene)}): ${err instanceof Error ? err.message : err}`);
+      log(`scene failed (${urlFor(scene)}): ${errText(err)}`);
       if (page.isClosed() || this.closed) throw err;
     }
   }
@@ -314,26 +421,39 @@ class Director {
   private async alertScene(w: StreamWarning) {
     log(`NEW: ${w.name} (${w.key})`);
     this.alerting = true;
-    await this.show({ kind: "warning", warning: w, seconds: 40 }, { title: `NEW ${w.name.toUpperCase()}`, places: sceneTitle(w).split(" · ").slice(1).join(" · "), color: w.color });
-    const spoken = say(announcement(w), { alert: true });
-    await Promise.race([spoken, sleep(40_000)]);
-    await sleep(8_000);
-    this.overlay.banner = null;
+    const from = Date.now();
+    const why = this.recent.find((r) => r.warning.key === w.key && Date.now() - r.at < 90_000)?.why;
+    await this.show(
+      { kind: "warning", warning: w, seconds: 40 },
+      { kicker: why ? `UPGRADED · ${why.toUpperCase()}` : "NEW WARNING", title: w.name.toUpperCase(), places: sceneText(w).subtitle, chips: w.chips, color: w.color },
+    );
+    const spoken = say(announcement(w), w.level, (on) => {
+      this.overlay = { ...this.overlay, caption: on ? announcement(w) : null };
+      void this.paint();
+    });
+    await Promise.race([spoken, sleep(60_000)]);
+    await sleep(10_000);
+    this.overlay = { ...this.overlay, banner: null };
     await this.paint();
     this.lastBriefing = Date.now();
     this.alerting = false;
+    // The clip: from the cut-in to now, posted in the background.
+    if (w.level !== "severe") void this.youtube.clip(w, from, Date.now());
   }
 
   private async maybeBrief() {
     if (this.alerting || this.pending.length || Date.now() - this.lastBriefing < CONFIG.briefingMinutes * 60_000) return;
     this.lastBriefing = Date.now();
-    const facts = briefingFacts(this.warnings, this.outlook);
-    void say(await aiBriefing(facts));
+    const text = `Storm Central update. ${await aiBriefing(briefingFacts(this.warnings, this.outlook))}`;
+    void say(text, "update", (on) => {
+      this.overlay = { ...this.overlay, caption: on ? text : null };
+      void this.paint();
+    });
   }
 }
 
 async function main() {
-  await makeChime().catch((err: unknown) => log(`no chime: ${err instanceof Error ? err.message : err}`));
+  mkdirSync(CONFIG.tmp, { recursive: true });
   // A persistent profile, because only then does Chromium open its window with --kiosk (no tabs or address bar).
   const context = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), "scl-chromium-")), {
     headless: false,
@@ -374,7 +494,10 @@ async function main() {
     log("Chromium closed; exiting so systemd restarts the stream.");
     process.exit(1);
   });
-  log(`Live stream director: ${CONFIG.app}, ${CONFIG.width}x${CONFIG.height}, AI briefing ${CONFIG.ollama ? CONFIG.ollama.model : "off"}.`);
+  log(
+    `Live stream director: ${CONFIG.app}, ${CONFIG.width}x${CONFIG.height}, AI briefing ${CONFIG.ollama ? CONFIG.ollama.model : "off"}, ` +
+      `YouTube titles and clips ${CONFIG.youtube ? `on (${CONFIG.titleBudget} titles, ${CONFIG.clipBudget} clips a day)` : "off (no YT_* credentials)"}.`,
+  );
   await director.start();
 }
 

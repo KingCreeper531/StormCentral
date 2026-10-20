@@ -35,7 +35,7 @@ warn() { printf '\033[1;33m!!  %s\033[0m\n' "$*"; }
 # ── Your settings ───────────────────────────────────────────────────────────
 mkdir -p "$CONF"
 chmod 755 "$CONF"
-DOMAIN="" YT_STREAM_KEY="" AI="no" APP_DOMAIN="" WATCHER_IP="" WATCH_DOMAIN="" WATCH_IP="" CF_API_TOKEN="" NTFY_TOPIC="" BACKUP_HOST="storm-central-pi.vercel.app"
+DOMAIN="" YT_STREAM_KEY="" YT_CLIENT_ID="" YT_CLIENT_SECRET="" YT_REFRESH_TOKEN="" AI="no" APP_DOMAIN="" WATCHER_IP="" WATCH_DOMAIN="" WATCH_IP="" CF_API_TOKEN="" NTFY_TOPIC="" BACKUP_HOST="storm-central-pi.vercel.app"
 # shellcheck disable=SC1090
 [ -f "$SETTINGS" ] && . "$SETTINGS"
 
@@ -57,6 +57,13 @@ ask() { # ask VAR "Question" [secret]
 echo "Storm Central server setup. Leave an answer empty to skip that part."
 ask DOMAIN "Pro data server on this server? Its domain (e.g. pro.stormcentralwx.com; DNS A record pointing here, not proxied)"
 ask YT_STREAM_KEY "Live stream on this server? YouTube stream key (YouTube Studio → Go live → Stream)" secret
+if [ -n "$YT_STREAM_KEY" ]; then
+  echo "Optional: YouTube API credentials let the stream retitle itself as storms change and post clips as Shorts"
+  echo "(the same ones as the Shorts' GitHub secrets; the refresh token needs the https://www.googleapis.com/auth/youtube scope)."
+  ask YT_CLIENT_ID "YouTube client ID"
+  ask YT_CLIENT_SECRET "YouTube client secret" secret
+  ask YT_REFRESH_TOKEN "YouTube refresh token" secret
+fi
 ask AI "Local AI for the stream's briefings? (yes/no)"
 case "${AI,,}" in y | yes) AI=yes ;; *) AI=no ;; esac
 ask APP_DOMAIN "Web app on this server? Its domain (e.g. app.stormcentralwx.com, on Cloudflare)"
@@ -79,7 +86,7 @@ if [ -n "$APP_DOMAIN" ] && [ -n "$WATCH_DOMAIN" ]; then
   exit 1
 fi
 umask 077
-for v in DOMAIN YT_STREAM_KEY AI APP_DOMAIN WATCHER_IP WATCH_DOMAIN WATCH_IP CF_API_TOKEN BACKUP_HOST NTFY_TOPIC; do printf '%s=%q\n' "$v" "${!v}"; done >"$SETTINGS"
+for v in DOMAIN YT_STREAM_KEY YT_CLIENT_ID YT_CLIENT_SECRET YT_REFRESH_TOKEN AI APP_DOMAIN WATCHER_IP WATCH_DOMAIN WATCH_IP CF_API_TOKEN BACKUP_HOST NTFY_TOPIC; do printf '%s=%q\n' "$v" "${!v}"; done >"$SETTINGS"
 umask 022
 
 # The web app's settings: the same environment variables as on Vercel (Settings → Environment Variables).
@@ -204,6 +211,11 @@ if [ -n "$YT_STREAM_KEY" ]; then
   umask 027
   cat >"$STREAM_ENV" <<EOF
 YT_STREAM_KEY=$YT_STREAM_KEY
+YT_CLIENT_ID=$YT_CLIENT_ID
+YT_CLIENT_SECRET=$YT_CLIENT_SECRET
+YT_REFRESH_TOKEN=$YT_REFRESH_TOKEN
+STREAM_TITLE_DAILY_MAX=40
+STREAM_CLIPS_DAILY_MAX=2
 OLLAMA_MODEL=$OLLAMA_MODEL
 STREAM_RUNTIME=$RUNTIME
 PLAYWRIGHT_BROWSERS_PATH=$BROWSERS

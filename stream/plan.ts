@@ -11,11 +11,26 @@
  */
 import { normalizeAlert, type RawAlertFeature } from "../src/lib/alerts";
 import type { WeatherAlert } from "../src/lib/api/types";
-import { clockText, parseAreas, placesText, placesTitle, situationOf, vtecOf, zoneFor, type Area } from "../shorts/kinds/breaking";
+import { chipsOf, clockText, parseAreas, placesText, placesTitle, situationOf, vtecOf, zoneFor, type Area } from "../shorts/kinds/breaking";
+import { fitTitle, LINK_LINE } from "../shorts/meta";
+import { STATE_NAMES } from "../shorts/narration";
 
 /** The products the stream follows, in the order they're shown when nothing else decides. */
 export const EVENTS = ["Tornado Warning", "Extreme Wind Warning", "Severe Thunderstorm Warning", "Flash Flood Warning"] as const;
 export type StreamEvent = (typeof EVENTS)[number];
+
+/** On-screen code and colour per kind of warning (brighter than the NWS map colours, for a dark screen). */
+export const STYLE: Record<StreamEvent, { code: string; label: string; color: string }> = {
+  "Tornado Warning": { code: "TOR", label: "Tornado", color: "#ff3b3b" },
+  "Extreme Wind Warning": { code: "EWW", label: "Extreme wind", color: "#ff7a1a" },
+  "Severe Thunderstorm Warning": { code: "SVR", label: "Severe storm", color: "#ffb020" },
+  "Flash Flood Warning": { code: "FFW", label: "Flash flood", color: "#2fd27c" },
+};
+/** Emergencies and PDS tornado warnings stand out from the rest. */
+const EMERGENCY_COLOR = "#ff2bd6";
+
+/** Which alert sound a new warning gets: emergencies and PDS warnings, other tornado warnings, the rest. */
+export type AlertLevel = "emergency" | "tornado" | "severe";
 
 export interface StreamWarning {
   /** One warning across its updates: office, product, number and year. */
@@ -34,6 +49,9 @@ export interface StreamWarning {
   rank: number;
   sent: string;
   color: string;
+  level: AlertLevel;
+  /** The impact tags, as shown: "TORNADO OBSERVED", "DAMAGE THREAT CATASTROPHIC", "HAIL 2.75 IN". */
+  chips: string[];
 }
 
 /** The name to say and show: the emergencies and PDS warnings by their own names. */
@@ -72,6 +90,7 @@ export function activeWarnings(features: RawAlertFeature[], now = Date.now()): S
     const prev = byKey.get(key);
     if (prev && Date.parse(prev.sent) >= Date.parse(a.sent)) continue;
     const areas = parseAreas(a.areaDesc);
+    const emergency = a.tags.some((t) => t === "TORNADO EMERGENCY" || t === "FLASH FLOOD EMERGENCY" || t === "PDS") || ev === "Extreme Wind Warning";
     byKey.set(key, {
       key,
       event: ev as StreamEvent,
@@ -85,7 +104,9 @@ export function activeWarnings(features: RawAlertFeature[], now = Date.now()): S
       situation: situationOf(a.description),
       rank: a.rank,
       sent: a.sent,
-      color: a.color,
+      color: emergency ? EMERGENCY_COLOR : STYLE[ev as StreamEvent].color,
+      level: emergency ? "emergency" : ev === "Tornado Warning" ? "tornado" : "severe",
+      chips: chipsOf(a).map((c) => `${c.label} ${c.value}`),
     });
   }
   return [...byKey.values()].sort((a, b) => b.rank - a.rank || Date.parse(b.sent) - Date.parse(a.sent));
@@ -114,6 +135,11 @@ export function sceneTitle(w: StreamWarning): string {
   return `${w.name.toUpperCase()} · ${placesTitle(w.areas)} · until ${clockText(w.ends, w.zone).short}`;
 }
 
+/** The same, in the lower third's two lines: the warning, then where and until when. */
+export function sceneText(w: StreamWarning): { title: string; subtitle: string } {
+  return { title: w.name.toUpperCase(), subtitle: `${placesTitle(w.areas)} · until ${clockText(w.ends, w.zone).short}` };
+}
+
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
 /** "2 Tornado Warnings · 9 Severe Thunderstorm Warnings", most serious first. */
@@ -129,6 +155,33 @@ export function ticker(ws: StreamWarning[], max = 25): string {
   if (!ws.length) return "No tornado, severe thunderstorm or flash flood warnings in effect right now.";
   const items = ws.slice(0, max).map((w) => `${w.name}: ${placesTitle(w.areas)} until ${clockText(w.ends, w.zone).short}`);
   return [counts(ws), ...items, ws.length > max ? `and ${ws.length - max} more` : ""].filter(Boolean).join("   •   ");
+}
+
+/** The active-warnings panel: each kind with its count, most serious first. */
+export function countsOf(ws: StreamWarning[]): { code: string; label: string; n: number; color: string }[] {
+  return EVENTS.map((e) => ({ ...STYLE[e], n: ws.filter((w) => w.event === e).length })).filter((c) => c.n > 0);
+}
+
+/** The ticker's items: each warning, short, with its code and colour. */
+export function tickerItems(ws: StreamWarning[], max = 30): { code: string; color: string; text: string }[] {
+  const items = ws.slice(0, max).map((w) => ({
+    code: w.level === "emergency" ? (w.event === "Extreme Wind Warning" ? "EWW" : w.name.startsWith("PDS") ? "PDS" : "EMERG") : STYLE[w.event].code,
+    color: w.color,
+    text: `${w.name}: ${placesTitle(w.areas)} until ${clockText(w.ends, w.zone).short}`,
+  }));
+  return ws.length > max ? [...items, { code: "+", color: "#9aa4b8", text: `and ${ws.length - max} more` }] : items;
+}
+
+/** SPC's Day 1 category as a badge, in SPC's own colours. */
+export function outlookBadge(o: Outlook | null): { label: string; color: string } | null {
+  const badge: Record<string, { label: string; color: string }> = {
+    MARGINAL: { label: "MARGINAL RISK", color: "#7fd18b" },
+    SLIGHT: { label: "SLIGHT RISK", color: "#f7f36a" },
+    ENHANCED: { label: "ENHANCED RISK", color: "#f2b25c" },
+    MODERATE: { label: "MODERATE RISK", color: "#ef6b6b" },
+    HIGH: { label: "HIGH RISK", color: "#ff7cff" },
+  };
+  return (o?.risk && badge[o.risk]) || null;
 }
 
 export type Scene =
@@ -191,3 +244,96 @@ export function checkBriefing(ai: string, facts: string): string | null {
 /** The prompt for the AI briefing. */
 export const briefingPrompt = (facts: string) =>
   `You are the voice of a 24/7 weather radar livestream. Rewrite these facts as a short, calm, friendly spoken update (2 sentences, at most 45 words). Use only these facts: no other numbers, places, hazards or advice. Facts: ${facts}`;
+
+// ── The live title and clips ──────────────────────────────────────────────
+
+/** A storm that just got worse: a tornado warning where a severe thunderstorm warning was, or an upgraded warning. */
+export interface Strengthening {
+  warning: StreamWarning;
+  /** "now a Tornado Warning", "tornado observed", "now a Tornado Emergency". */
+  why: string;
+  at: number;
+}
+
+const kmBetween = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => {
+  const r = Math.PI / 180;
+  const x = (b.lon - a.lon) * r * Math.cos(((a.lat + b.lat) / 2) * r), y = (b.lat - a.lat) * r;
+  return Math.hypot(x, y) * 6371;
+};
+
+/**
+ * What got worse between two readings of the warnings: a warning whose rank
+ * went up (tornado observed, PDS, emergency), or a new tornado warning within
+ * 30 km of a severe thunderstorm warning from before (the same storm, upgraded).
+ */
+export function strengthened(before: StreamWarning[], now: StreamWarning[], at = Date.now()): Strengthening[] {
+  const prev = new Map(before.map((w) => [w.key, w]));
+  const out: Strengthening[] = [];
+  for (const w of now) {
+    const p = prev.get(w.key);
+    if (p) {
+      if (w.rank > p.rank) out.push({ warning: w, why: w.name !== p.name ? `now a ${w.name}` : w.tags.includes("OBSERVED") && !p.tags.includes("OBSERVED") ? "tornado observed" : "upgraded", at });
+    } else if (w.event === "Tornado Warning" && before.some((b) => b.event === "Severe Thunderstorm Warning" && kmBetween(b, w) < 30)) {
+      out.push({ warning: w, why: `now a ${w.name}`, at });
+    }
+  }
+  return out;
+}
+
+/** "Moore, OK" from the warning's own situation sentence ("…located near Moore, moving…"), else its first county. */
+export function placeOf(w: StreamWarning): string {
+  const near = w.situation?.match(/\b(?:near|over)\s+([A-Z][A-Za-z.' -]+?)(?:,|\.|\s+moving|\s+and\b)/)?.[1]?.trim();
+  const st = w.areas[0]?.state;
+  if (near && st) return `${near}, ${st}`;
+  return w.areas[0] ? `${w.areas[0].name} ${st === "LA" ? "Parish" : "County"}, ${st}` : "the warned area";
+}
+
+const statesOf = (ws: StreamWarning[]) => {
+  const names = [...new Set(ws.flatMap((w) => w.areas.map((a) => STATE_NAMES[a.state] ?? a.state)))];
+  return names.length > 3 ? `${names.slice(0, 3).join(", ")} and more` : names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? "the U.S.");
+};
+
+const BRAND = " | Storm Central";
+const withBrand = (t: string) => (t.length + BRAND.length <= 100 ? t + BRAND : t);
+
+/**
+ * The live stream's title, saying what's happening: an emergency first, then
+ * a storm that just strengthened, tornado warnings, severe storms, flash
+ * flooding, SPC's risk for the day, and the plain 24/7 title when it's quiet.
+ */
+export function liveTitle(ws: StreamWarning[], outlook: Outlook | null, recent: Strengthening[] = [], now = Date.now()): string {
+  const emergency = ws.find((w) => w.tags.includes("TORNADO EMERGENCY") || w.tags.includes("FLASH FLOOD EMERGENCY"));
+  if (emergency) return fitTitle(withBrand(`🔴 ${emergency.name.toUpperCase()}: ${placeOf(emergency)} • Live Radar`), `🔴 ${emergency.name.toUpperCase()} • Live Radar`);
+  const fresh = recent.filter((r) => now - r.at < 30 * 60_000 && ws.some((w) => w.key === r.warning.key)).sort((a, b) => b.warning.rank - a.warning.rank)[0];
+  if (fresh) return fitTitle(withBrand(`Watching a strengthening storm near ${placeOf(fresh.warning)}: ${fresh.why} • Live`), `Strengthening storm near ${placeOf(fresh.warning)} • Live`);
+  const tor = ws.filter((w) => w.event === "Tornado Warning");
+  if (tor.length === 1) return fitTitle(withBrand(`${tor[0]!.name} near ${placeOf(tor[0]!)} • Live Storm Tracking`), `${tor[0]!.name} • Live Storm Tracking`);
+  if (tor.length > 1) return fitTitle(withBrand(`${tor.length} Tornado Warnings in ${statesOf(tor)} • Live Storm Tracking`), `${tor.length} Tornado Warnings • Live Storm Tracking`);
+  const svr = ws.filter((w) => w.event === "Severe Thunderstorm Warning" || w.event === "Extreme Wind Warning");
+  if (svr.length) return fitTitle(withBrand(`Severe Storms in ${statesOf(svr)} • ${svr.length} Warning${svr.length === 1 ? "" : "s"} • Live Radar`), `Severe Storms • Live Radar`);
+  const ffw = ws.filter((w) => w.event === "Flash Flood Warning");
+  if (ffw.length) return fitTitle(withBrand(`Flash Flooding in ${statesOf(ffw)} • Live Radar`), "Flash Flooding • Live Radar");
+  const badge = outlookBadge(outlook);
+  if (badge && outlook?.risk !== "MARGINAL") {
+    const risk = badge.label.replace(/ RISK$/, "").toLowerCase().replace(/^./, (c) => c.toUpperCase());
+    return fitTitle(withBrand(`${risk} Risk of Severe Storms Today${outlook?.region ? ` for the ${outlook.region}` : ""} • 24/7 Live Radar`), `${risk} Risk of Severe Storms Today • 24/7 Live Radar`);
+  }
+  return "24/7 Live Weather Radar • Severe Weather Alerts & Storm Tracking | Storm Central";
+}
+
+/** A clip of the stream when a warning is read, posted as a Short. */
+export function clipText(w: StreamWarning, liveUrl: string | null) {
+  return {
+    title: fitTitle(`${w.name}: ${placesTitle(w.areas)} • Live Radar #shorts`, `${w.name} near ${placeOf(w)} #shorts`, `${w.name} #shorts`),
+    description: [
+      announcement(w),
+      liveUrl ? `Watch the live stream: ${liveUrl}` : "",
+      "Not an official warning source; follow the National Weather Service.",
+      LINK_LINE,
+      "#tornado #severeweather #weather #live #shorts",
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    tags: ["live weather radar", w.name.toLowerCase(), "severe weather", "Storm Central", ...new Set(w.areas.map((a) => STATE_NAMES[a.state] ?? a.state))],
+  };
+}
