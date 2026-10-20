@@ -23,6 +23,9 @@ export const SATELLITE_MAP_SOURCE = {
   attribution: "Imagery: Sentinel-2 cloudless 2016 by EOX (contains modified Copernicus Sentinel data 2016), CC BY 4.0",
 } as const;
 
+/** Dimmed a little so the radar's light greens and blues and the place names stand out; more on the dark theme. */
+export const SATELLITE_MAP_BRIGHTNESS = { dark: 0.72, light: 0.88 } as const;
+
 interface StyleLayer {
   id: string;
   type: string;

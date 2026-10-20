@@ -56,10 +56,9 @@ jobs:
             await ctx.close();
           }
           const sat = (on) => (st) => { st.radar.satelliteMap = on; st.mode = "severe"; };
-          await shoot("dark", "plain-dark", sat(false));
           await shoot("dark", "sat-dark", sat(true));
           await shoot("light", "sat-light", sat(true));
-          await shoot("dark", "sat-dark-zoomed", sat(true), 6);
+          await shoot("dark", "sat-dark-zoomed", sat(true), 4);
           await browser.close();
           JS
           cp "$RUNNER_TEMP/shot.mjs" ./.shot.mjs && node ./.shot.mjs
