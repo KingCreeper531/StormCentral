@@ -13,7 +13,7 @@
   "redirects": [
     {
       "source": "/app",
-      "destination": "https://storm-central-pi.vercel.app/",
+      "destination": "https://app.stormcentralwx.com/",
       "permanent": false
     },
     {
@@ -28,7 +28,7 @@
     },
     {
       "source": "/privacy",
-      "destination": "https://storm-central-pi.vercel.app/privacy",
+      "destination": "https://app.stormcentralwx.com/privacy",
       "permanent": false
     }
   ],

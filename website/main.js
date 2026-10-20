@@ -10,7 +10,7 @@
 
   const REPO = "KingCreeper531/StormCentral";
   const STORE = "https://apps.microsoft.com/detail/9P3SXT2T0CLQ";
-  const WEB_APP = "https://storm-central-pi.vercel.app/";
+  const WEB_APP = "https://app.stormcentralwx.com/";
 
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];

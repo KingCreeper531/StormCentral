@@ -72,7 +72,7 @@ import { Budget, YouTubeLive } from "./youtube-live";
 const run = promisify(execFile);
 const env = process.env;
 const CONFIG = {
-  app: (env.STREAM_APP_URL || "https://storm-central-pi.vercel.app").replace(/\/$/, ""),
+  app: (env.STREAM_APP_URL || "https://app.stormcentralwx.com").replace(/\/$/, ""),
   width: Number(env.STREAM_WIDTH) || 1280,
   height: Number(env.STREAM_HEIGHT) || 720,
   voice: env.STREAM_VOICE || "en-US-AndrewNeural",
