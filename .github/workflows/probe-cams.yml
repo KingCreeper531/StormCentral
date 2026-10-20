@@ -1,0 +1,68 @@
+name: Probe webcam sources (temporary)
+on:
+  push:
+    branches: [claude/trusting-pasteur-qzc0fq]
+    paths: [.github/workflows/probe-cams.yml]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Probe
+        run: |
+          cat > p.mjs <<'JS'
+          const UA = { "User-Agent": "StormCentral probe (github.com/KingCreeper531/StormCentral)" };
+          async function hit(label, url, { json = false, show = 1200, init = {} } = {}) {
+            try {
+              const r = await fetch(url, { headers: UA, redirect: "follow", ...init, signal: AbortSignal.timeout(25000) });
+              const h = (k) => r.headers.get(k);
+              console.log(`\n=== ${label}\n${r.status} ${h("content-type")} len=${h("content-length")} acao=${h("access-control-allow-origin")} cache=${h("cache-control")} lastmod=${h("last-modified")} final=${r.url}`);
+              const buf = Buffer.from(await r.arrayBuffer());
+              console.log("bytes", buf.length);
+              if (json) return JSON.parse(buf.toString());
+              const t = buf.toString("utf8");
+              if (show && !/image|octet/.test(h("content-type") || "")) console.log(t.slice(0, show));
+              return t;
+            } catch (e) { console.log(`\n=== ${label}\nERR ${e.message}`); return null; }
+          }
+          const grep = (t, re, n = 25) => { if (!t) return; const m = t.split(/\n/).filter((l) => re.test(l)).slice(0, n); console.log("--- grep", re, "\n" + m.map((l) => l.trim().slice(0, 300)).join("\n")); };
+
+          // ALERTCalifornia
+          const ac = await hit("ALERTCA list", "https://cameras.alertcalifornia.org/public-camera-data/all_cameras-v3.json", { json: true });
+          if (ac) { const f = ac.features ?? ac; console.log("count", f.length); console.log(JSON.stringify(f.slice(0, 2), null, 1).slice(0, 2500));
+            const withGeo = f.filter((x) => x.geometry?.coordinates?.length); console.log("withGeo", withGeo.length);
+            const id = withGeo[0]?.properties?.id; if (id) await hit("ALERTCA frame", `https://cameras.alertcalifornia.org/public-camera-data/${id}/latest-frame.jpg`); }
+          const acHome = await hit("ALERTCA site", "https://cameras.alertcalifornia.org/", { show: 0 }); grep(acHome, /licen|creative|terms|copyright|commercial/i);
+          const acTerms = await hit("ALERTCA terms", "https://alertcalifornia.org/terms-of-use/", { show: 0 }); grep(acTerms, /licen|creative|commercial|attribut|copyright/i, 40);
+
+          // USGS AshCam
+          const ash = await hit("AshCam list", "https://volcview.wr.usgs.gov/ashcam-api/webcamApi/webcams", { json: true });
+          if (ash) { const list = Array.isArray(ash) ? ash : ash.webcams ?? Object.values(ash)[0]; console.log("keys", Object.keys(ash).slice(0,10), "count", list?.length); console.log(JSON.stringify(list?.slice(0, 2), null, 1)?.slice(0, 2500));
+            const img = list?.find((w) => w.newestImage?.imageUrl)?.newestImage?.imageUrl; if (img) await hit("AshCam image", img); }
+
+          // Caltrans
+          for (const d of ["07", "04", "03"]) {
+            const ct = await hit(`Caltrans D${d}`, `https://cwwp2.dot.ca.gov/data/d${+d}/cctv/cctvStatusD${d}.json`, { json: true });
+            if (ct) { const list = ct.data ?? ct; console.log("count", list.length); if (d === "07") console.log(JSON.stringify(list.slice(0, 1), null, 1).slice(0, 3000));
+              const u = list.find((x) => x.cctv?.imageData?.static?.currentImageURL)?.cctv.imageData.static.currentImageURL; if (u && d === "07") await hit("Caltrans image", u); }
+          }
+          const ctTerms = await hit("Caltrans CWWP2 page", "https://cwwp2.dot.ca.gov/documentation/cctv/cctv.htm", { show: 0 }); grep(ctTerms, /licen|terms|use|attribut|disclaim/i, 30);
+
+          // USGS NIMS
+          for (const p of ["https://api.waterdata.usgs.gov/docs/nims/hivis/", "https://api.waterdata.usgs.gov/docs/nims/overview", "https://api.waterdata.usgs.gov/docs/nims/"]) { const t = await hit("NIMS docs " + p, p, { show: 0 }); grep(t, /https?:\/\/[^\s"'<]*(nims|cameras|hivis)[^\s"'<]*/i, 40); }
+          const py = await hit("pyNIMS search", "https://api.github.com/search/code?q=nims+cameras+repo:DOI-USGS/pyNIMS", { show: 600 });
+
+          // FAA WeatherCams
+          const faaDocs = await hit("FAA docs", "https://weathercams.faa.gov/api/docs/", { show: 0 }); grep(faaDocs, /redistribut|token|terms|licen|api\//i, 40);
+          await hit("FAA redistributable (no token)", "https://weathercams.faa.gov/api/redistributable/sites", { show: 400 });
+          const faaTerms = await hit("FAA site", "https://weathercams.faa.gov/", { show: 0 }); grep(faaTerms, /terms|redistribut|licen|disclaim/i);
+
+          // HPWREN
+          const hp = await hit("HPWREN sites.js", "https://www.hpwren.ucsd.edu/cameras/sites.js", { show: 1500 });
+          const hpT = await hit("HPWREN cameras page", "https://www.hpwren.ucsd.edu/cameras/", { show: 0 }); grep(hpT, /credit|licen|copyright|terms|permission|use of/i);
+
+          // WebCOOS
+          await hit("WebCOOS assets", "https://app.webcoos.org/webcoos/api/v1/assets/?_format=json", { show: 1200 });
+          JS
+          node p.mjs
