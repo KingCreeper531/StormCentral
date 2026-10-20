@@ -1,5 +1,5 @@
 stream|codec_name=h264|width=1280|height=720|r_frame_rate=30/1
 stream|codec_name=aac|sample_rate=44100|r_frame_rate=0/0
 format|duration=200.000000
-[Parsed_volumedetect_0 @ 0x559312a6af00] mean_volume: -33.6 dB
-[Parsed_volumedetect_0 @ 0x559312a6af00] max_volume: -6.5 dB
+[Parsed_volumedetect_0 @ 0x564387c715c0] mean_volume: -33.4 dB
+[Parsed_volumedetect_0 @ 0x564387c715c0] max_volume: -6.6 dB
