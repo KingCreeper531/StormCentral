@@ -59,7 +59,8 @@ healthy() {
   return 1
 }
 if ! healthy; then
-  echo "$sha didn't come up; rolling back."
+  echo "$sha didn't come up; rolling back. The app's last words:"
+  journalctl -u stormcentral-app -n 40 --no-pager 2>/dev/null || true
   echo "$sha" >"$APP/failed"
   if [ -n "$prev" ] && [ -d "$prev" ]; then
     ln -sfn "$prev" "$APP/current.new" && mv -Tf "$APP/current.new" "$APP/current"

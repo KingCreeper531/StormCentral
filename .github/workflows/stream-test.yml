@@ -70,3 +70,10 @@ jobs:
           systemctl status stormcentral-app --no-pager | head -5
           systemctl list-timers stormcentral-app-deploy.timer --no-pager | head -3
           sudo ufw status | head -8
+      - name: Logs if it failed
+        if: failure()
+        run: |
+          sudo journalctl -u stormcentral-app -n 80 --no-pager || true
+          sudo journalctl -u caddy -n 30 --no-pager || true
+          ls -la /opt/stormcentral/app /opt/stormcentral/app/current/ 2>&1 | head -30
+          which -a node; node -v; /usr/bin/node -v
