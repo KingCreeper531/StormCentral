@@ -281,6 +281,12 @@ class Director {
     try {
       await page.goto(urlFor(scene), { waitUntil: "domcontentloaded", timeout: 45_000 });
       await page.waitForTimeout(scene.kind === "pro" ? 9_000 : 6_000);
+      // The side panel (warnings list, tools) would cover part of the map; the overlay shows what matters.
+      await page
+        .getByRole("button", { name: "Hide panel" })
+        .first()
+        .click({ timeout: 3_000 })
+        .catch(() => {});
       if (scene.kind === "national") {
         // The whole country: zoom out from the app's local view.
         await page.mouse.move(CONFIG.width / 2, CONFIG.height / 2);
@@ -288,12 +294,6 @@ class Director {
           await page.mouse.wheel(0, 360);
           await page.waitForTimeout(250);
         }
-      }
-      if (scene.kind === "pro") {
-        await page
-          .getByRole("button", { name: "Hide panel" })
-          .click({ timeout: 3_000 })
-          .catch(() => {});
       }
       this.overlay = {
         ...this.overlay,
