@@ -35,7 +35,7 @@ warn() { printf '\033[1;33m!!  %s\033[0m\n' "$*"; }
 # ── Your settings ───────────────────────────────────────────────────────────
 mkdir -p "$CONF"
 chmod 755 "$CONF"
-DOMAIN="" YT_STREAM_KEY="" YT_CLIENT_ID="" YT_CLIENT_SECRET="" YT_REFRESH_TOKEN="" AI="no" APP_DOMAIN="" WATCHER_IP="" WATCH_DOMAIN="" WATCH_IP="" CF_API_TOKEN="" NTFY_TOPIC="" BACKUP_HOST="storm-central-pi.vercel.app"
+DOMAIN="" YT_STREAM_KEY="" YT_CLIENT_ID="" YT_CLIENT_SECRET="" YT_REFRESH_TOKEN="" ANTHROPIC_API_KEY="" GEMINI_API_KEY="" STREAM_EXTRA_OUTPUTS="" AI="no" APP_DOMAIN="" WATCHER_IP="" WATCH_DOMAIN="" WATCH_IP="" CF_API_TOKEN="" NTFY_TOPIC="" BACKUP_HOST="storm-central-pi.vercel.app"
 # shellcheck disable=SC1090
 [ -f "$SETTINGS" ] && . "$SETTINGS"
 
@@ -64,7 +64,13 @@ if [ -n "$YT_STREAM_KEY" ]; then
   ask YT_CLIENT_SECRET "YouTube client secret" secret
   ask YT_REFRESH_TOKEN "YouTube refresh token" secret
 fi
-ask AI "Local AI for the stream's briefings? (yes/no)"
+if [ -n "$YT_STREAM_KEY" ]; then
+  echo "Optional: the AI that words the stream's commentary, best first. Each is fact-checked before it's read."
+  ask ANTHROPIC_API_KEY "Anthropic API key (Claude; best, paid per use)" secret
+  ask GEMINI_API_KEY "Google AI Studio API key (Gemini; has a free tier)" secret
+  ask STREAM_EXTRA_OUTPUTS "Other platforms, RTMP URLs with keys, space-separated (Twitch, Kick…)"
+fi
+ask AI "Local AI as a free fallback? (yes/no; needs 8 GB RAM for the better model)"
 case "${AI,,}" in y | yes) AI=yes ;; *) AI=no ;; esac
 ask APP_DOMAIN "Web app on this server? Its domain (e.g. app.stormcentralwx.com, on Cloudflare)"
 if [ -n "$APP_DOMAIN" ]; then
@@ -86,7 +92,7 @@ if [ -n "$APP_DOMAIN" ] && [ -n "$WATCH_DOMAIN" ]; then
   exit 1
 fi
 umask 077
-for v in DOMAIN YT_STREAM_KEY YT_CLIENT_ID YT_CLIENT_SECRET YT_REFRESH_TOKEN AI APP_DOMAIN WATCHER_IP WATCH_DOMAIN WATCH_IP CF_API_TOKEN BACKUP_HOST NTFY_TOPIC; do printf '%s=%q\n' "$v" "${!v}"; done >"$SETTINGS"
+for v in DOMAIN YT_STREAM_KEY YT_CLIENT_ID YT_CLIENT_SECRET YT_REFRESH_TOKEN ANTHROPIC_API_KEY GEMINI_API_KEY STREAM_EXTRA_OUTPUTS AI APP_DOMAIN WATCHER_IP WATCH_DOMAIN WATCH_IP CF_API_TOKEN BACKUP_HOST NTFY_TOPIC; do printf '%s=%q\n' "$v" "${!v}"; done >"$SETTINGS"
 umask 022
 
 # The web app's settings: the same environment variables as on Vercel (Settings → Environment Variables).
@@ -118,7 +124,7 @@ apt-get install -y -qq ca-certificates curl git jq ufw gnupg >/dev/null
 # Only what this server's parts need (Docker isn't installed over one that's already there).
 if [ -n "$DOMAIN" ] && ! command -v docker >/dev/null; then apt-get install -y -qq docker.io docker-compose-v2 >/dev/null; fi
 if [ -n "$YT_STREAM_KEY" ]; then
-  apt-get install -y -qq xvfb ffmpeg pulseaudio pulseaudio-utils pipx fonts-inter fonts-dejavu-core fonts-noto-color-emoji >/dev/null
+  apt-get install -y -qq xvfb ffmpeg pulseaudio pulseaudio-utils pipx unzip fonts-inter fonts-dejavu-core fonts-noto-color-emoji >/dev/null
 fi
 if { [ -n "$YT_STREAM_KEY" ] || [ -n "$APP_DOMAIN" ]; } && { ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 22 ]; }; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
@@ -178,7 +184,11 @@ fi
 # ── Local AI ────────────────────────────────────────────────────────────────
 OLLAMA_MODEL=""
 if [ "$AI" = yes ]; then
-  say "Local AI (Ollama, gemma3:4b)"
+  # The biggest model the server's memory allows next to the stream.
+  mem_gb=$(awk '/MemTotal/ {print int($2 / 1024 / 1024 + 0.5)}' /proc/meminfo)
+  LOCAL_MODEL=gemma3:1b
+  [ "$mem_gb" -ge 7 ] && LOCAL_MODEL=gemma3:4b
+  say "Local AI (Ollama, $LOCAL_MODEL for ${mem_gb} GB of memory)"
   command -v ollama >/dev/null || curl -fsSL https://ollama.com/install.sh | sh
   mkdir -p /etc/systemd/system/ollama.service.d
   # One request at a time, and the stream always comes first for the CPU.
@@ -194,8 +204,8 @@ EOF
   systemctl daemon-reload
   systemctl enable --now ollama >/dev/null
   for _ in $(seq 30); do curl -sf http://127.0.0.1:11434/api/version >/dev/null && break; sleep 1; done
-  ollama pull gemma3:4b
-  OLLAMA_MODEL=gemma3:4b
+  ollama pull "$LOCAL_MODEL"
+  OLLAMA_MODEL=$LOCAL_MODEL
 fi
 
 # ── Live stream ─────────────────────────────────────────────────────────────
@@ -206,6 +216,14 @@ if [ -n "$YT_STREAM_KEY" ]; then
   PLAYWRIGHT_BROWSERS_PATH=$BROWSERS "$RUNTIME/node_modules/.bin/playwright-core" install --with-deps chromium >/dev/null
   (cd "$SRC" && npx --yes esbuild@0.28.2 stream/director.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNTIME/director.mjs" --log-level=warning)
   PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install --force edge-tts==7.3.1 >/dev/null
+  # US towns of 5,000 people and more, for "6 miles west of Bristow" and arrival times (GeoNames, CC BY 4.0).
+  if curl -fsSL -o /tmp/cities5000.zip https://download.geonames.org/export/dump/cities5000.zip; then
+    unzip -p /tmp/cities5000.zip cities5000.txt | awk -F'\t' '$9 == "US" && $11 ~ /^[A-Z][A-Z]$/ {print $3 "\t" $11 "\t" $5 "\t" $6 "\t" $15}' >"$RUNTIME/places.tsv"
+    rm -f /tmp/cities5000.zip
+    echo "$(wc -l <"$RUNTIME/places.tsv") towns for distances."
+  else
+    warn "Couldn't download the town list; the stream says where storms are without distances to towns."
+  fi
   chmod -R a+rX "$RUNTIME" "$BROWSERS" /opt/pipx
 
   umask 027
@@ -216,6 +234,10 @@ YT_CLIENT_SECRET=$YT_CLIENT_SECRET
 YT_REFRESH_TOKEN=$YT_REFRESH_TOKEN
 STREAM_TITLE_DAILY_MAX=40
 STREAM_CLIPS_DAILY_MAX=2
+ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
+GEMINI_API_KEY=$GEMINI_API_KEY
+STREAM_EXTRA_OUTPUTS=$STREAM_EXTRA_OUTPUTS
+STREAM_PLACES=$RUNTIME/places.tsv
 OLLAMA_MODEL=$OLLAMA_MODEL
 STREAM_RUNTIME=$RUNTIME
 PLAYWRIGHT_BROWSERS_PATH=$BROWSERS
@@ -440,6 +462,8 @@ if [ -n "$YT_STREAM_KEY" ]; then
 Live stream:  on its way to YouTube (YouTube Studio → Go live shows it within a minute)
   Logs:     journalctl -u stormcentral-stream -f
   Stop:     sudo systemctl stop stormcentral-stream      Start: sudo systemctl start stormcentral-stream
+  Control:  from your computer, ssh -L 8787:127.0.0.1:8787 root@<this server>, then e.g.
+            curl localhost:8787/state     (see vps/README.md for show, pin, say and title)
 EOF
 fi
 if [ -n "$APP_DOMAIN" ]; then

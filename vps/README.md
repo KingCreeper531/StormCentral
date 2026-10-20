@@ -6,8 +6,8 @@ any of these parts; each server gets the parts you answer for:
 | Part | What it does | Where |
 |---|---|---|
 | **Pro data server** | MESH, rotation tracks, VIL and GOES RGBs for Professional mode | `pro-server/`, Docker, capped at 1 CPU / 2 GB |
-| **24/7 live stream** | Storm Central's radar on YouTube Live: scenes cycle through the national radar, the most serious warnings and Professional mode; new tornado warnings and emergencies are read aloud; a short briefing every 20 minutes | `stream/` (`run.sh` + `director.ts`), systemd `stormcentral-stream` |
-| **Local AI** (optional) | rewords the briefings (gemma3:4b); any version with a number or hazard that isn't in the facts is thrown out for the plain facts | Ollama, lowest CPU priority |
+| **24/7 live stream** | Storm Central itself on YouTube Live (and any other RTMP platform), run by a director: tornado warnings first, then the rest by severity; a takeover, alert sound and read-out for each new or upgraded warning; live commentary with the storm's position, motion and arrival times for the towns in its path; storm reports, nearby live cameras, the HRRR model before storms; a title that follows what's happening; clips of warnings posted as Shorts | `stream/` (`run.sh`, `director.ts`), systemd `stormcentral-stream` |
+| **AI** (optional) | words the commentary, briefings and titles: Claude (Anthropic key), Gemini (Google AI Studio key, free tier), then a local model (gemma3:4b with 8 GB, gemma3:1b with less). Every line is checked against the facts first: a number, place, hazard or piece of advice that isn't in them, and it's thrown out for the next AI or the plain facts | `stream/llm.ts`; Ollama at the lowest CPU priority |
 | **Web app** | the app itself, behind Cloudflare, building and switching to each new `main` by itself (rolling back if it doesn't come up) | Caddy + systemd `stormcentral-app`, `app-deploy.sh` every 5 minutes |
 | **Failover watcher** | on a *different* server: checks the app server every minute and points the app's address at Vercel after 3 failures, back after 5 good checks | `failover.sh`, systemd timer |
 
@@ -79,9 +79,25 @@ The stream key lives in `/etc/stormcentral/stream.env` (readable by root and the
 `STREAM_FPS` (30), `STREAM_VIDEO_KBPS` (3500, YouTube's range for 720p), `OLLAMA_MODEL` (empty turns the AI off),
 `STREAM_BRIEFING_MINUTES` (20). Restart the service after changing them.
 
+## Taking control of the stream
+
+The director listens on the server itself (port 8787, not open to the internet). From your computer:
+
+```bash
+ssh -L 8787:127.0.0.1:8787 root@<stream server>      # keep this open, then in another window:
+curl localhost:8787/state                                                    # what's on air, the warnings, the title
+curl -X POST localhost:8787/show -d '{"lat":35.33,"lon":-97.49,"name":"Moore, OK","mode":"professional","seconds":120}'
+curl -X POST localhost:8787/pin -d '{"key":"KOUN.TO.W.45.2026"}'            # keep coming back to one warning (DELETE to stop)
+curl -X POST localhost:8787/say -d '{"text":"We are watching the storm near Moore closely."}'
+curl -X POST localhost:8787/title -d '{"text":"Tracking the Moore tornado live"}'   # DELETE /title goes back to automatic
+```
+
 ## What the stream says
 
 Warnings are read in fixed sentences from the NWS's own text, never by the AI: the product, the counties, when it ends,
 and the warning's situation sentence. Every tornado warning, extreme wind warning and emergency is read, plus destructive
 or considerable severe thunderstorm and flash flood warnings; the rest scroll on the ticker (on a busy day there are dozens).
-Warnings already in effect when the stream starts aren't read. The ticker always says it's not an official warning source.
+Warnings already in effect when the stream first starts aren't read; after a restart, ones issued in the last 10 minutes are.
+The ticker always says it's not an official warning source. Commentary is the storm's facts (position, motion, the towns in
+its path and when it would reach them, nearby storm reports), worked out in code and only worded by the AI. Scanner and
+radio feeds aren't used: their terms don't allow rebroadcasting. Town data: [GeoNames](https://www.geonames.org) (CC BY 4.0).

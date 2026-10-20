@@ -10,7 +10,7 @@
  * or a hazard that isn't in them.
  */
 import { normalizeAlert, type RawAlertFeature } from "../src/lib/alerts";
-import type { WeatherAlert } from "../src/lib/api/types";
+import type { StormMotion, WeatherAlert } from "../src/lib/api/types";
 import { chipsOf, clockText, parseAreas, placesText, placesTitle, situationOf, vtecOf, zoneFor, type Area } from "../shorts/kinds/breaking";
 import { fitTitle, LINK_LINE } from "../shorts/meta";
 import { STATE_NAMES } from "../shorts/narration";
@@ -52,6 +52,8 @@ export interface StreamWarning {
   level: AlertLevel;
   /** The impact tags, as shown: "TORNADO OBSERVED", "DAMAGE THREAT CATASTROPHIC", "HAIL 2.75 IN". */
   chips: string[];
+  /** The storm's position and motion from the warning (TIME...MOT...LOC), when it gives them. */
+  motion: StormMotion | null;
 }
 
 /** The name to say and show: the emergencies and PDS warnings by their own names. */
@@ -107,6 +109,7 @@ export function activeWarnings(features: RawAlertFeature[], now = Date.now()): S
       color: emergency ? EMERGENCY_COLOR : STYLE[ev as StreamEvent].color,
       level: emergency ? "emergency" : ev === "Tornado Warning" ? "tornado" : "severe",
       chips: chipsOf(a).map((c) => `${c.label} ${c.value}`),
+      motion: a.motion,
     });
   }
   return [...byKey.values()].sort((a, b) => b.rank - a.rank || Date.parse(b.sent) - Date.parse(a.sent));
@@ -187,17 +190,23 @@ export function outlookBadge(o: Outlook | null): { label: string; color: string 
 export type Scene =
   | { kind: "national"; seconds: number }
   | { kind: "warning"; warning: StreamWarning; seconds: number }
-  | { kind: "pro"; warning: StreamWarning | null; seconds: number };
+  | { kind: "pro"; warning: StreamWarning | null; seconds: number }
+  /** The HRRR model's next hours (Storm Central's model frames), on quiet days with a severe risk. */
+  | { kind: "model"; seconds: number }
+  /** A place picked by hand through the control API. */
+  | { kind: "custom"; lat: number; lon: number; name: string; mode: "severe" | "professional"; seconds: number };
 
 /**
  * One cycle of scenes: the national radar, then the most serious warnings one
  * by one on the radar, then the top one in Professional mode. With nothing in
- * effect, the national radar and a Pro mode look around Oklahoma City take turns.
+ * effect, the national radar and a Pro mode look around Oklahoma City take
+ * turns, with the HRRR model's next hours when SPC has a severe risk out.
  */
-export function cycle(ws: StreamWarning[], { perWarning = 35, maxWarnings = 5 } = {}): Scene[] {
+export function cycle(ws: StreamWarning[], { perWarning = 35, maxWarnings = 5, outlook = null as Outlook | null } = {}): Scene[] {
   if (!ws.length)
     return [
       { kind: "national", seconds: 240 },
+      ...(outlook?.risk && outlook.risk !== "MARGINAL" ? [{ kind: "model" as const, seconds: 75 }] : []),
       { kind: "pro", warning: null, seconds: 90 },
     ];
   return [{ kind: "national", seconds: 30 }, ...ws.slice(0, maxWarnings).map((warning): Scene => ({ kind: "warning", warning, seconds: perWarning })), { kind: "pro", warning: ws[0]!, seconds: 60 }];

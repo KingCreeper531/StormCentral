@@ -25,6 +25,8 @@ export interface OverlayState {
   banner: { kicker: string; title: string; places: string; chips: string[]; color: string } | null;
   /** What the narrator is saying right now. */
   caption: string | null;
+  /** A public camera near the storm, picture-in-picture. */
+  camera?: { url: string; name: string; credit: string } | null;
 }
 
 export function drawOverlay(s: OverlayState) {
@@ -83,6 +85,13 @@ header.fixed.top-0{display:none!important}
 #scl-live .tick .it em{font-style:normal;font-size:11px;font-weight:900;letter-spacing:1px;padding:2px 6px;border-radius:4px;color:#0a0d14}
 #scl-live .tick .it.note{color:#8f99ad}
 @keyframes scl-tick{from{transform:translateX(var(--from,1200px))}to{transform:translateX(-100%)}}
+/* live camera */
+#scl-live .cam{position:absolute;right:18px;bottom:140px;width:304px;border-radius:12px;overflow:hidden;animation:scl-rise .6s cubic-bezier(.2,.8,.2,1) both}
+#scl-live .cam img{display:block;width:304px;height:171px;object-fit:cover;background:#000}
+#scl-live .cam .lab{display:flex;align-items:center;gap:7px;padding:6px 10px 7px;font-size:12px;font-weight:700}
+#scl-live .cam .lab em{font-style:normal;font-size:10px;font-weight:900;letter-spacing:1.4px;background:#e5162b;padding:2px 6px;border-radius:4px}
+#scl-live .cam .lab span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#scl-live .cam .lab small{font-size:10px;color:#9aa4b8;font-weight:600}
 /* captions */
 #scl-live .cap{position:absolute;left:50%;bottom:140px;transform:translateX(-50%);max-width:940px;padding:10px 18px;border-radius:10px;
   background:rgba(0,0,0,.74);font-size:21px;line-height:1.38;font-weight:600;text-align:center;transition:opacity .35s}
@@ -114,6 +123,7 @@ header.fixed.top-0{display:none!important}
 <div class="wipe"><div><img src="/icon.svg" alt="">STORM CENTRAL</div></div>
 <div class="bug glass"><img src="/icon.svg" alt=""><div><b>STORM CENTRAL</b><div class="row"><span class="live"><i></i>LIVE</span><small>Radar · Warnings · 24/7</small></div></div></div>
 <div class="side glass"><div class="clock"><b class="time"></b><small class="date"></small></div><div class="counts"></div></div>
+<div class="cam glass" hidden><img alt=""><div class="lab"><em>CAM</em><span></span><small></small></div></div>
 <div class="cap" style="opacity:0"></div>
 <div class="ban" hidden><div class="bg"></div><div class="st"></div><div class="in"><div class="ic">!</div><div><div class="k"></div><div class="h"></div><div class="p"></div><div class="chips"></div></div></div></div>
 <div class="l3 glass"><div class="bar"></div><div class="txt"><div class="t"></div><div class="s"></div></div><div class="cd"><small>ENDS IN</small><b></b></div></div>
@@ -181,6 +191,16 @@ header.fixed.top-0{display:none!important}
     void run.offsetWidth;
     run.style.animation = "";
     run.style.animationDelay = `-${((Date.now() / 1000) % dur).toFixed(2)}s`;
+  }
+
+  // Live camera.
+  const cam = $(".cam");
+  cam.hidden = !s.camera;
+  if (s.camera) {
+    const img = cam.querySelector("img")!;
+    if (img.getAttribute("src") !== s.camera.url) img.setAttribute("src", s.camera.url);
+    $(".cam .lab span").textContent = s.camera.name;
+    $(".cam .lab small").textContent = s.camera.credit;
   }
 
   // Captions.
