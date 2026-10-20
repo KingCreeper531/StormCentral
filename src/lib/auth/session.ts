@@ -47,6 +47,12 @@ export function isDeveloper(username: string) {
   return usernames(process.env.DEVELOPERS ?? DEFAULT_DEVELOPERS).includes(username.toLowerCase());
 }
 
+/** Who can draw on the live stream (components/draw): moderators and the app's developers, unless suspended. */
+export function isPresenter(user: Pick<SessionUser, "username" | "moderator" | "suspendedUntil">, now = Date.now()) {
+  if (user.suspendedUntil != null && user.suspendedUntil > now) return false;
+  return user.moderator || isDeveloper(user.username);
+}
+
 /** Spotters given the Trusted Spotter rank by hand, whatever their confirmations. */
 const GRANTED_TRUSTED_SPOTTERS = "zenitsu132";
 

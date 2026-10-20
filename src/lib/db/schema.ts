@@ -234,6 +234,17 @@ export const chaserPositions = sqliteTable(
   (t) => [index("chaser_positions_updated_idx").on(t.updatedAt)],
 );
 
+/**
+ * What a presenter has drawn for the live stream (components/draw, lib/draw):
+ * one row, the drawing on air now, as lib/draw `Shape[]` JSON.
+ */
+export const liveDrawing = sqliteTable("live_drawing", {
+  id: text("id").primaryKey(),
+  shapes: text("shapes").notNull(),
+  userId: text("user_id"),
+  updatedAt: integer("updated_at").notNull(),
+});
+
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
@@ -369,9 +380,15 @@ CREATE TABLE IF NOT EXISTS chaser_positions (
   expires_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS chaser_positions_updated_idx ON chaser_positions(updated_at);
+CREATE TABLE IF NOT EXISTS live_drawing (
+  id TEXT PRIMARY KEY,
+  shapes TEXT NOT NULL,
+  user_id TEXT,
+  updated_at INTEGER NOT NULL
+);
 `;
 
-export const schema = { users, sessions, passwordResets, media, posts, verifications, comments, blocks, flags, spotterWarnings, chaserPositions };
+export const schema = { users, sessions, passwordResets, media, posts, verifications, comments, blocks, flags, spotterWarnings, chaserPositions, liveDrawing };
 
 /**
  * Columns added after a table first shipped. CREATE TABLE IF NOT EXISTS
