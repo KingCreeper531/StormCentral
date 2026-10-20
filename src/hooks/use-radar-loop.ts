@@ -25,6 +25,8 @@ export interface RadarLoopOptions {
   nowcast?: { map: NowcastMap | null; enabled: boolean };
   /** Spread the loop's frames over this many minutes of history (0: the latest scans). */
   historyMinutes?: number;
+  /** Look back at the archive: the loop ends at this past time (epoch ms). IEM's tiles only, no forecast. */
+  archiveEnd?: number | null;
 }
 
 export interface RadarLoop {
@@ -41,6 +43,8 @@ export interface RadarLoop {
   source: RadarSource;
   /** "MRMS" or "KTLX SR" while NOAA is the source. */
   sourceLabel: string | null;
+  /** The Level III code IEM's frames show (the archive's mosaic is N0R before about 2010). */
+  product: string;
   /** Frames before this index are observed scans; the rest are future radar, then model forecast. */
   liveCount: number;
   setIndex: (i: number) => void;
@@ -56,7 +60,8 @@ export interface RadarLoop {
  * The clock only advances onto frames whose tiles are buffered, so the
  * viewer never sees a half-loaded frame.
  */
-export function useRadarLoop({ site, product, frameCount, speed, crossfade, autoplay = true, futureHours = 0, historyMinutes = 0, nowcast }: RadarLoopOptions): RadarLoop {
+export function useRadarLoop({ site, product, frameCount, speed, crossfade, autoplay = true, futureHours = 0, historyMinutes = 0, nowcast, archiveEnd = null }: RadarLoopOptions): RadarLoop {
+  const archived = archiveEnd != null;
   const isMosaic = site === null;
   const iemSite = isMosaic ? MOSAIC_SITE : iemSiteId(site);
   const iemProduct = isMosaic ? "N0Q" : product;
@@ -68,8 +73,9 @@ export function useRadarLoop({ site, product, frameCount, speed, crossfade, auto
   const minutes = historyMinutes > 0 ? Math.min(240, historyMinutes + 10) : Math.min(240, count * (isMosaic ? 5 : 6) + 15);
 
   // Preferred source: NOAA itself (MRMS mosaic, super-res NEXRAD; lib/radar/noaa).
-  // IEM's tiles cover everything else, and stand in whenever NOAA can't be reached.
-  const noaaLayer = useMemo(() => noaaLayerFor(site, product), [site, product]);
+  // IEM's tiles cover everything else, and stand in whenever NOAA can't be reached;
+  // they're also the only ones with an archive.
+  const noaaLayer = useMemo(() => (archived ? null : noaaLayerFor(site, product)), [archived, site, product]);
   const [noaaOk, setNoaaOk] = useState<boolean | null>(null);
   useEffect(() => {
     if (!noaaLayer) return;
@@ -86,9 +92,10 @@ export function useRadarLoop({ site, product, frameCount, speed, crossfade, auto
   const noaaPending = !useIem && !noaaList?.length;
   const spanMs = (historyMinutes > 0 ? historyMinutes : count * (isMosaic ? 5 : 6)) * 60_000;
 
-  const scans = useRadarScans(useIem ? iemSite : null, iemProduct, minutes);
+  const scans = useRadarScans(useIem ? iemSite : null, iemProduct, minutes, archiveEnd);
   const scanList = useIem ? scans.data?.scans : undefined;
-  const usingFallback = isMosaic && useIem && (scans.isError || (scans.isSuccess && !scanList?.length));
+  // The rolling offset layers only ever show the last hour.
+  const usingFallback = !archived && isMosaic && useIem && (scans.isError || (scans.isSuccess && !scanList?.length));
   const live = useMemo(() => {
     if (!useIem && noaaLayer && noaaList?.length) return noaaFrames(noaaLayer, noaaList, count, spanMs);
     // The feed may answer with a related code (N0U for N0G) when the preferred one has no scans.
@@ -100,14 +107,14 @@ export function useRadarLoop({ site, product, frameCount, speed, crossfade, auto
   const source: RadarSource = !useIem && live.length ? "noaa" : "iem";
   // Future frames follow the newest scan (which stands in for "now"); each new scan rebuilds them.
   const lastLive = live.at(-1)?.time ?? 0;
-  const extrapolated = useNowcast(live, nowcast?.map ?? null, !!nowcast?.enabled);
+  const extrapolated = useNowcast(live, nowcast?.map ?? null, !!nowcast?.enabled && !archived);
   // The previous set stays up while a new scan's is computed: only what's still ahead of the newest scan.
   const ahead = useMemo(() => extrapolated.filter((f) => f.time > lastLive), [extrapolated, lastLive]);
   // The model forecast picks up where future radar ends.
   const lastAhead = ahead.at(-1)?.time ?? lastLive;
   const future = useMemo(
-    () => (isMosaic && futureHours > 0 && lastLive ? hrrrFrames(lastAhead, lastLive, futureHours) : []),
-    [isMosaic, futureHours, lastLive, lastAhead],
+    () => (isMosaic && !archived && futureHours > 0 && lastLive ? hrrrFrames(lastAhead, lastLive, futureHours) : []),
+    [isMosaic, archived, futureHours, lastLive, lastAhead],
   );
   const frames = useMemo(() => (ahead.length || future.length ? [...live, ...ahead, ...future] : live), [live, ahead, future]);
   const liveCount = live.length;
@@ -175,6 +182,7 @@ export function useRadarLoop({ site, product, frameCount, speed, crossfade, auto
     usingFallback,
     source,
     sourceLabel: source === "noaa" && noaaLayer ? noaaLayer.label : null,
+    product: scans.data?.product ?? iemProduct,
     liveCount,
     setIndex: (i) => {
       setPlaying(false);

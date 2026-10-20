@@ -21,7 +21,8 @@ export interface DecodedFrame {
 
 export type DecodeJob =
   | { kind: "l3"; url: string; scale: DecodedScaleId; maxPx: number }
-  | { kind: "l2"; url: string; moment: Moment; angle: number; scale: DecodedScaleId; maxPx: number };
+  /** `site`: the radar's location, for volumes from before 2008 that don't carry it. */
+  | { kind: "l2"; url: string; moment: Moment; angle: number; scale: DecodedScaleId; maxPx: number; site?: { lat: number; lon: number } };
 
 export const jobKey = (j: DecodeJob) => (j.kind === "l3" ? `l3|${j.url}|${j.maxPx}` : `l2|${j.url}|${j.moment}|${j.angle}|${j.maxPx}`);
 

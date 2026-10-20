@@ -268,6 +268,37 @@ interface RawAlertFeature {
 
 const first = (p: Record<string, string[] | undefined> | undefined, k: string) => p?.[k]?.[0];
 
+/** A warning's impact-based tags (damage threat, tornado detection), however they were sent. */
+export interface ImpactTags {
+  event: string;
+  tornadoThreat?: string | null;
+  tstmThreat?: string | null;
+  ffThreat?: string | null;
+  tornadoDetection?: string | null;
+  tornadoEmergency?: boolean;
+  ffEmergency?: boolean;
+  pds?: boolean;
+}
+
+/** The tags a warning shows (TORNADO EMERGENCY, PDS, OBSERVED…) and the rank they add. */
+export function impactTags(w: ImpactTags): { tags: string[]; bonus: number } {
+  const tags: string[] = [];
+  if (w.tornadoThreat === "CATASTROPHIC" || w.tornadoEmergency) tags.push("TORNADO EMERGENCY");
+  else if (w.tornadoThreat === "CONSIDERABLE" || w.pds) tags.push("PDS");
+  if (w.ffThreat === "CATASTROPHIC" || w.ffEmergency) tags.push("FLASH FLOOD EMERGENCY");
+  else if (w.ffThreat === "CONSIDERABLE") tags.push("CONSIDERABLE");
+  if (w.tornadoDetection === "OBSERVED") tags.push("OBSERVED");
+  else if (w.tornadoDetection === "POSSIBLE" && w.event === "Severe Thunderstorm Warning") tags.push("TORNADO POSSIBLE");
+  if (w.tstmThreat === "DESTRUCTIVE") tags.push("DESTRUCTIVE");
+  else if (w.tstmThreat === "CONSIDERABLE") tags.push("CONSIDERABLE");
+
+  let bonus = 0;
+  if (tags.includes("TORNADO EMERGENCY") || tags.includes("FLASH FLOOD EMERGENCY")) bonus += 60;
+  else if (tags.includes("PDS") || tags.includes("DESTRUCTIVE")) bonus += 25;
+  if (tags.includes("OBSERVED")) bonus += 10;
+  return { tags, bonus };
+}
+
 export function normalizeAlert(f: RawAlertFeature): WeatherAlert {
   const p = f.properties;
   const params = p.parameters;
@@ -276,21 +307,17 @@ export function normalizeAlert(f: RawAlertFeature): WeatherAlert {
   const tstmThreat = first(params, "thunderstormDamageThreat");
   const ffThreat = first(params, "flashFloodDamageThreat");
   const description = p.description ?? "";
-
-  const tags: string[] = [];
-  if (tornadoThreat === "CATASTROPHIC" || /TORNADO EMERGENCY/i.test(description)) tags.push("TORNADO EMERGENCY");
-  else if (tornadoThreat === "CONSIDERABLE" || /PARTICULARLY DANGEROUS SITUATION/i.test(description)) tags.push("PDS");
-  if (ffThreat === "CATASTROPHIC" || /FLASH FLOOD EMERGENCY/i.test(description)) tags.push("FLASH FLOOD EMERGENCY");
-  else if (ffThreat === "CONSIDERABLE") tags.push("CONSIDERABLE");
-  if (tornadoDetection === "OBSERVED") tags.push("OBSERVED");
-  else if (tornadoDetection === "POSSIBLE" && p.event === "Severe Thunderstorm Warning") tags.push("TORNADO POSSIBLE");
-  if (tstmThreat === "DESTRUCTIVE") tags.push("DESTRUCTIVE");
-  else if (tstmThreat === "CONSIDERABLE") tags.push("CONSIDERABLE");
-
-  let rank = baseRank(p.event) + (SEVERITY_RANK[p.severity ?? ""] ?? 0);
-  if (tags.includes("TORNADO EMERGENCY") || tags.includes("FLASH FLOOD EMERGENCY")) rank += 60;
-  else if (tags.includes("PDS") || tags.includes("DESTRUCTIVE")) rank += 25;
-  if (tags.includes("OBSERVED")) rank += 10;
+  const { tags, bonus } = impactTags({
+    event: p.event,
+    tornadoThreat,
+    tstmThreat,
+    ffThreat,
+    tornadoDetection,
+    tornadoEmergency: /TORNADO EMERGENCY/i.test(description),
+    ffEmergency: /FLASH FLOOD EMERGENCY/i.test(description),
+    pds: /PARTICULARLY DANGEROUS SITUATION/i.test(description),
+  });
+  const rank = baseRank(p.event) + (SEVERITY_RANK[p.severity ?? ""] ?? 0) + bonus;
 
   const geometry =
     f.geometry && (f.geometry.type === "Polygon" || f.geometry.type === "MultiPolygon")

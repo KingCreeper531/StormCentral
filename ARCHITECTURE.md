@@ -200,7 +200,7 @@ ProfessionalWorkspace          sync bus (zustand/vanilla) + pane registry + tool
 - **Level III** (`unidata-nexrad-level3`, a few KB per file, about 5 minutes behind the scan): CC, ZDR, HC and KDP at all six published tilts, reflectivity and velocity above 0.5°, digital VIL and enhanced echo tops. On every device.
 - **Level II** (`unidata-nexrad-level2`, 2–20 MB per volume, about 11 minutes behind): any cut of the volume up to 19.5° for Z, V, ZDR and ρHV. Desktop only.
 
-The decoders are our own TypeScript, with no dependencies: `bzip2.ts`, `level3.ts` (packet 16 digital radials, per-product scaling from the threshold halfwords) and `level2.ts` (Message 31, with the cut list from the VCP in Message 5; it stops decompressing once the requested cut is complete). The available npm decoders don't cover the dual-pol Level III products and need Node's `Buffer`. Tests check them against MetPy, value for value, on real KTLX files in `__fixtures__/`.
+The decoders are our own TypeScript, with no dependencies: `bzip2.ts`, `level3.ts` (packet 16 digital radials, per-product scaling from the threshold halfwords) and `level2.ts` (Message 31, with the cut list from the VCP in Message 5, and the legacy Message 1 of volumes from before 2008; it stops decompressing once the requested cut is complete). The available npm decoders don't cover the dual-pol Level III products and need Node's `Buffer`. Tests check them against MetPy, value for value, on real KTLX files in `__fixtures__/`.
 
 Decoding runs in a pool of Web Workers (`decode.worker.ts`). Each worker renders the sweep to a Web Mercator PNG around the radar, placing gates by 4/3-earth beam geometry. The frame pool shows it as an image source (`RadarFrame.image`) in place of tiles, and keeps the compact sweep so the cursor readout shows the exact gate value.
 
@@ -227,4 +227,21 @@ A small Python service renders them on a schedule (satpy for the RGB recipes, GR
 |---|---|---|
 | Live Level II (seconds behind) | The archive bucket publishes whole volumes about 11 minutes after the scan starts | Assemble the real-time chunks from `unidata-nexrad-level2-chunks` (S/I/E chunks per volume, concatenated) |
 | Raw GRIB2 in the browser (HRRR native levels, RAP) | No practical browser decoder for JPEG2000/CCSDS-packed fields | Add them to the Pro data server ([ecCodes](https://confluence.ecmwf.int/display/ECC) / `cfgrib`), or keep using Open-Meteo |
+
+## 10. Radar archive
+
+The radar views can look back at any minute since 1995. One app-wide time, `archiveAt` in the app store (not persisted, shared as `?at=2013-05-20T20:00Z` by `useUrlSync`), switches every radar view from live to that moment; `null` is live. `lib/radar/archive.ts` holds the range check (`archiveTime`), wall-clock conversion for the picker (times are entered in the location's zone, like every other time on screen) and the list of notable storms.
+
+| Data | Source | Back to |
+|---|---|---|
+| National mosaic | IEM's composite tiles (`ridge::USCOMP-N0R-…` until about 2010, N0Q since), listed by `radar.py` with `end` | 1995 |
+| Warnings in effect | IEM's storm-based warning archive (`sbw.geojson?ts=`); county-based before October 2007 | 1995 |
+| Storm reports | IEM's local storm reports (`lsr.geojson?sts&ets`) | mid-2000s |
+| Level II volumes (Pro) | `unidata-nexrad-level2` on AWS: gzipped `AR2V`/`ARCHIVE2` files with Message 1 radials before 2008 | 1995 |
+| Level III products (Pro) | `unidata-nexrad-level3` on AWS: N0Q/N0U and dual-pol from April 2020, super-res N0B/N0G from February 2022 | April 2020 |
+
+The feeds take the time as a parameter (`/api/radar/scans?end=`, `/api/storm-reports?end=`, `/api/alerts?at=`) and, once it has settled (an hour; a day for storm reports, which keep arriving), are cached for a day (`archiveMaxAge`). Their hooks stop polling. Archived warnings (`parseIemWarnings`) come out as the same `WeatherAlert`s as live ones, with tags and rank from the shared `impactTags`, and their text loads from IEM's product archive when opened.
+
+- **Radar mode** shows the national mosaic only (IEM's single-site tiles aren't archived), the warnings then in effect and the storm reports of the hours before. Layers with no archive (cells, outlooks, satellite, lightning, other countries, cameras, chasers, spotter reports) are hidden while looking back, and the archive time stands in for "now" in every relative time. The timeline carries an archive button; while looking back, a strip above it shows the time, steps an hour either way and returns to live.
+- **Professional mode** reads each product from its own archive: `FrameSource` passes the time to the loaders, which list the AWS buckets up to it (`listLevel2/3(…, until)`). The lowest tilt of reflectivity and velocity comes from Level III too (the live tiles have no archive), falling back to N0Q/N0U before 2022; before April 2020 a desktop reads those panels from the Level II volume instead, at the panel's tilt. Products with no archive (MRMS, the Pro data server, satellite, other countries) say so in the panel (`archiveNote`). Volumes from before 2008 don't carry the radar's location, so jobs pass it from the site table. Model soundings and cross-sections stay current, and WarnGen is live only.
 

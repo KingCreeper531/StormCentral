@@ -1,6 +1,7 @@
 import type { ProductsResponse, ScansResponse } from "../api/types";
 import { gridTimes, INTL_RADARS, isIntlRadarId, JMA_TIMES_URL, parseJmaTimes, type IntlRadarId } from "../radar/intl";
 import { noaaCapabilitiesUrl, parseTimeDimension } from "../radar/noaa";
+import { archiveMaxAge, archiveTime, isoMinute } from "../radar/archive";
 import { alternateProducts } from "../radar/products";
 import { parseIemProducts, parseIemScans } from "./parse";
 import { cached } from "./cache";
@@ -8,28 +9,32 @@ import type { Feed } from "./types";
 import { badParams, upstreamJson, upstreamText } from "./upstream";
 
 const IEM_RADAR = "https://mesonet.agron.iastate.edu/json/radar.py";
-const isoMinute = (t: number) => new Date(t).toISOString().slice(0, 16) + "Z";
 
 /**
  * `site=LOT&product=N0B&minutes=90`: volume-scan index from IEM. When the site
  * has no scans of that code, tries the same moment's other codes (N0G → N0U …)
- * and reports which one it found in `product`.
+ * and reports which one it found in `product`. `end` (an ISO time) looks back
+ * at the archive instead: the window ends there.
  */
 export const radarScansFeed: Feed<ScansResponse> = {
   path: "/api/radar/scans",
-  maxAge: 30,
+  maxAge: (sp) => archiveMaxAge(sp.get("end"), 30),
   async load(sp) {
     const site = (sp.get("site") ?? "").toUpperCase();
     const product = (sp.get("product") ?? "").toUpperCase();
     const minutes = Math.min(240, Math.max(15, Number(sp.get("minutes")) || 90));
     if (!/^[A-Z]{3,6}$/.test(site) || !/^[A-Z0-9]{3}$/.test(product)) throw badParams("invalid site/product");
 
+    const past = sp.get("end");
+    const archive = past ? archiveTime(past) : null;
+    if (past && archive == null) throw badParams("end must be a time from 1995 to now");
     // Round the window to the minute so concurrent clients share a cache key.
-    const end = Math.floor(Date.now() / 60_000) * 60_000 + 60_000;
+    const end = archive ?? Math.floor(Date.now() / 60_000) * 60_000 + 60_000;
     const start = end - minutes * 60_000;
     const list = async (code: string) =>
       parseIemScans(await upstreamJson(`${IEM_RADAR}?operation=list&radar=${site}&product=${code}&start=${isoMinute(start)}&end=${isoMinute(end)}`));
-    return cached(`scans:${site}:${product}:${minutes}:${end}`, 30_000, async () => {
+    // The past doesn't change: an hour old or more, it's kept for a day.
+    return cached(`scans:${site}:${product}:${minutes}:${end}`, archiveMaxAge(past, 30) * 1000, async () => {
       const scans = await list(product);
       if (scans.length) return { site, product, scans };
       for (const alt of alternateProducts(product)) {

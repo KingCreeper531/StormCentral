@@ -5,7 +5,7 @@ import type { Sweep } from "./sweep";
 
 export type DecodeRequest =
   | { id: number; kind: "l3"; url: string; scale: DecodedScaleId; maxPx: number }
-  | { id: number; kind: "l2"; url: string; moment: Moment; angle: number; scale: DecodedScaleId; maxPx: number };
+  | { id: number; kind: "l2"; url: string; moment: Moment; angle: number; scale: DecodedScaleId; maxPx: number; site?: { lat: number; lon: number } };
 
 export type DecodeResponse =
   | {

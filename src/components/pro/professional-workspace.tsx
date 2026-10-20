@@ -1,6 +1,6 @@
 "use client";
 
-import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { History, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForecast, useStormCells } from "@/hooks/queries";
 import { useHotkeys } from "@/hooks/use-hotkeys";
@@ -20,6 +20,7 @@ import { useAlertsStore } from "@/store/alerts-store";
 import { useAppStore } from "@/store/app-store";
 import { PANE_COUNT, useProStore, type Layout } from "@/store/pro-store";
 import { AlertDetail } from "../radar/alert-detail";
+import { ArchivePicker } from "../radar/archive-picker";
 import { AlertKindsPicker } from "../radar/alert-kinds";
 import { IconButton } from "../ui/button";
 import { PanelBoundary } from "../ui/panel-boundary";
@@ -94,8 +95,11 @@ export function ProfessionalWorkspace() {
   // Storm-based warnings plus the hazard-map products picked in the radar settings.
   const { all: mapAlerts } = useMapAlerts();
   const alerts = useMemo(() => mapAlerts.filter((a) => a.geometry), [mapAlerts]);
-  const now = useNow();
-  const cellsQ = useStormCells(panes.some((p) => p.cells));
+  // Looking back at the archive: that moment stands in for now (and storm cells are live only).
+  const archiveAt = useAppStore((s) => s.archiveAt);
+  const liveNow = useNow();
+  const now = archiveAt ?? liveNow;
+  const cellsQ = useStormCells(panes.some((p) => p.cells) && archiveAt == null);
   const cells = useMemo(() => cellsQ.data?.cells ?? [], [cellsQ.data]);
   const timeZone = useForecast().data?.timezone;
 
@@ -143,6 +147,7 @@ export function ProfessionalWorkspace() {
   const [soundingAt, setSoundingAt] = useState<LatLon>({ lat: home.lat, lon: home.lon });
   const [xsect, setXsect] = useState<{ a: LatLon; b: LatLon | null } | null>(null);
   const [selectedAlert, setSelectedAlert] = useState<string | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
   // Phones start with the maps uncovered; the panel opens when a tool needs it.
   const [panelOpen, setPanelOpen] = useState(!narrow);
   const toolRef = useRef(tool);
@@ -153,7 +158,9 @@ export function ProfessionalWorkspace() {
   useEffect(
     () =>
       useProStore.subscribe((s, prev) => {
-        if (s.tool !== prev.tool && s.tool !== "inspect") setPanelOpen(true);
+        if (s.tool === prev.tool) return;
+        setArchiveOpen(false);
+        if (s.tool !== "inspect") setPanelOpen(true);
       }),
     [],
   );
@@ -186,6 +193,7 @@ export function ProfessionalWorkspace() {
       selectAlert: (id) => {
         if (toolRef.current !== "inspect") return;
         setSelectedAlert(id);
+        setArchiveOpen(false);
         setPanelOpen(true);
       },
     }),
@@ -219,10 +227,40 @@ export function ProfessionalWorkspace() {
   });
 
   const toolDef = TOOLS.find((x) => x.id === tool)!;
+  const openArchive = useCallback(() => {
+    setArchiveOpen(true);
+    setPanelOpen(true);
+  }, []);
   const panel = (() => {
-    if (tool === "sounding") return <SoundingPanel point={soundingAt} motion={motion} />;
-    if (tool === "xsect") return xsect?.b ? <CrossSectionPanel a={xsect.a} b={xsect.b} /> : <p className="p-3 text-[12px] text-ink-3">{t(xsect ? "Now click the end point (A′)." : "Click the start point (A) on any panel.")}</p>;
-    if (tool === "warngen") return <WarnGenPanel timeZone={timeZone} />;
+    if (archiveOpen)
+      return (
+        <ArchivePicker
+          className="p-3"
+          timeZone={timeZone}
+          onEvent={(e) => {
+            // The storm's radar, centred on it.
+            useProStore.getState().setSite(e.site);
+            sync.setState({ camera: { lng: e.lon, lat: e.lat, zoom: 8, source: "workspace" } });
+          }}
+        />
+      );
+    // The model and WarnGen only know the present.
+    const liveOnly = archiveAt != null && <p className="m-3 mb-0 rounded-[4px] bg-caution/15 p-2 text-[12px] text-ink">{t("Model data is today's, not the archive's.")}</p>;
+    if (tool === "sounding")
+      return (
+        <>
+          {liveOnly}
+          <SoundingPanel point={soundingAt} motion={motion} />
+        </>
+      );
+    if (tool === "xsect")
+      return (
+        <>
+          {liveOnly}
+          {xsect?.b ? <CrossSectionPanel a={xsect.a} b={xsect.b} /> : <p className="p-3 text-[12px] text-ink-3">{t(xsect ? "Now click the end point (A′)." : "Click the start point (A) on any panel.")}</p>}
+        </>
+      );
+    if (tool === "warngen") return archiveAt != null ? <p className="p-3 text-[12px] text-ink-3">{t("WarnGen works on live radar only.")}</p> : <WarnGenPanel timeZone={timeZone} />;
     if (tool === "vector" || tool === "toa")
       return (
         <StormToolsPanel
@@ -256,7 +294,7 @@ export function ProfessionalWorkspace() {
   return (
     <ProProvider value={ctx}>
       <div className="absolute inset-0 flex flex-col bg-canvas">
-        <ProToolbar site={site} onStep={step} onToggle={toggle} narrow={narrow} />
+        <ProToolbar site={site} onStep={step} onToggle={toggle} narrow={narrow} timeZone={timeZone} onArchive={openArchive} />
         <div className="relative flex min-h-0 flex-1">
           <div
             className="grid min-h-0 min-w-0 flex-1 gap-px bg-line"
@@ -292,15 +330,24 @@ export function ProfessionalWorkspace() {
               )}
             >
               <div className="flex items-center gap-2 border-b border-line px-3 py-1.5">
-                <toolDef.Icon className="size-4 text-ink-3" aria-hidden />
-                <h2 className="flex-1 text-[13px] font-semibold text-ink">{t(activeAlert && tool === "inspect" ? "Warning inspector" : toolDef.label)}</h2>
-                <IconButton size="sm" label={t("Hide panel")} onClick={() => setPanelOpen(false)}>
+                {archiveOpen ? <History className="size-4 text-ink-3" aria-hidden /> : <toolDef.Icon className="size-4 text-ink-3" aria-hidden />}
+                <h2 className="flex-1 text-[13px] font-semibold text-ink">
+                  {t(archiveOpen ? "Radar archive" : activeAlert && tool === "inspect" ? "Warning inspector" : toolDef.label)}
+                </h2>
+                <IconButton
+                  size="sm"
+                  label={t("Hide panel")}
+                  onClick={() => {
+                    setPanelOpen(false);
+                    setArchiveOpen(false);
+                  }}
+                >
                   <PanelRightClose className="size-4" aria-hidden />
                 </IconButton>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {vectorSameTime && <p className="m-3 mb-0 rounded-[4px] bg-caution/15 p-2 text-[12px] text-ink">{t("Both clicks were on the same frame. Step the loop, then click the storm again.")}</p>}
-                <PanelBoundary name="pro-tool-panel" resetKey={tool}>
+                <PanelBoundary name="pro-tool-panel" resetKey={archiveOpen ? "archive" : tool}>
                   {panel}
                 </PanelBoundary>
               </div>

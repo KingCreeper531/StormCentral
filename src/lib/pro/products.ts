@@ -23,6 +23,7 @@ import type { RadarFrame } from "../radar/frames";
 import { PRO_SERVER } from "./server";
 import type { DecodedScaleId } from "./scales";
 import type { Moment } from "./nexrad/level2";
+import { L3_ARCHIVE_START } from "../radar/archive";
 
 export const PRO_PRODUCT_IDS = [
   "ref",
@@ -151,11 +152,24 @@ export const PRO_PRODUCTS: Record<ProProductId, ProProduct> = {
 };
 
 /** The Level III product code for a pane, or null when it uses tiles or another source. */
-export function l3CodeFor(id: ProProductId, tilt: string): string | null {
+export function l3CodeFor(id: ProProductId, tilt: string, archived = false): string | null {
   const p = PRO_PRODUCTS[id];
   if (p.kind === "l3") return p.code ?? `${tilt}${p.letter}`;
-  if (p.kind === "site" && p.l3Letter && tilt !== "N0") return `${tilt}${p.l3Letter}`;
+  // Looking back, the lowest tilt too: the live tiles have no archive.
+  if (p.kind === "site" && p.l3Letter && (tilt !== "N0" || archived)) return `${tilt}${p.l3Letter}`;
   return null;
+}
+
+/**
+ * Why a product has nothing at a past time (the radar archive), or null when
+ * it has: Level II volumes and the national mosaic go back to 1995, Level III
+ * products to April 2020; the rest are live only.
+ */
+export function archiveNote(id: ProProductId, at: number): string | null {
+  const p = PRO_PRODUCTS[id];
+  if (p.kind === "l2" || p.kind === "mosaic") return null;
+  if (p.kind === "l3" || (p.kind === "site" && p.l3Letter)) return at >= L3_ARCHIVE_START ? null : "The Level III archive starts in April 2020. Level II goes back to 1995.";
+  return "Not in the archive: live only";
 }
 
 /** GIBS only carries the RGB composites for GOES-East (which still covers the CONUS). */

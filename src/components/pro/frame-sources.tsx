@@ -1,12 +1,12 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useIntlTimes, useNoaaTimes, useRadarProducts } from "@/hooks/queries";
 import { useRadarLoop } from "@/hooks/use-radar-loop";
 import { listLevel2, listLevel3, newest } from "@/lib/pro/nexrad/aws";
 import { decodedVersion, jobKey, peekDecoded, requestDecode, subscribeDecoded, type DecodeJob } from "@/lib/pro/nexrad/client";
-import { l3CodeFor, mrmsLayer, PRO_PRODUCTS, satelliteFrames, type ProProductId } from "@/lib/pro/products";
+import { archiveNote, l3CodeFor, mrmsLayer, PRO_PRODUCTS, satelliteFrames, type ProProductId } from "@/lib/pro/products";
 import { DECODED_SCALES, type ValueScale } from "@/lib/pro/scales";
 import { corners, fetchServerIndex, PRO_SERVER, serverFrames } from "@/lib/pro/server";
 import { useProSync } from "@/lib/pro/sync";
@@ -15,6 +15,8 @@ import { INTL_RADARS, intlFrame } from "@/lib/radar/intl";
 import { noaaFrames, noaaTilesUsable } from "@/lib/radar/noaa";
 import { FAMILIES, resolveTilts, TILTS, type ProductFamily, type ResolvedTilt, type TiltPrefix } from "@/lib/radar/products";
 import { pickSatellite } from "@/lib/radar/satellite";
+import { getSite } from "@/lib/radar/site-utils";
+import { useAppStore } from "@/store/app-store";
 import { usePro } from "./pro-context";
 import type { ProCaps } from "./use-pro-caps";
 
@@ -55,6 +57,8 @@ interface SourceProps {
   basis: boolean;
   caps: ProCaps;
   onFeed: (f: PaneFeed) => void;
+  /** Looking back at the archive: the loop ends at this past time (set by FrameSource). */
+  until?: number | null;
 }
 
 /** Report a feed upward whenever what it shows changes. */
@@ -130,22 +134,33 @@ function useDecodedFrames(jobs: readonly { job: DecodeJob; time: number }[]) {
   return { frames, failed, cuts, elevation };
 }
 
-function L3Source({ product, site, tilt, frameCount, caps, onFeed }: SourceProps) {
+/** The older Level III code for the same moment: reflectivity and velocity before the super-res products. */
+const OLDER_CODE: Record<string, string> = { B: "Q", G: "U" };
+
+function L3Source({ product, site, tilt, frameCount, caps, onFeed, until = null }: SourceProps) {
   const def = PRO_PRODUCTS[product];
-  const code = l3CodeFor(product, tilt)!;
+  const code = l3CodeFor(product, tilt, until != null)!;
   const site3 = iemSiteId(site);
   const scaleId = def.kind === "l3" || def.kind === "site" ? (def.scale ?? "ref") : "ref";
   const letter = def.kind === "l3" ? def.letter : def.kind === "site" ? def.l3Letter : undefined;
   const spanMin = frameCount * 7 + 20;
   const list = useQuery({
-    queryKey: ["pro-l3", site3, code, spanMin],
-    queryFn: ({ signal }) => listLevel3(site3, code, Date.now() - spanMin * 60_000, signal),
-    refetchInterval: 60_000,
-    staleTime: 30_000,
+    queryKey: ["pro-l3", site3, code, spanMin, until],
+    queryFn: async ({ signal }) => {
+      const since = (until ?? Date.now()) - spanMin * 60_000;
+      const files = await listLevel3(site3, code, since, signal, until ?? undefined);
+      // Before 2022 the archive has the 8-bit codes (N0Q, N0U) instead of the super-res ones (N0B, N0G).
+      const older = until != null && !files.length ? OLDER_CODE[code[2]!] : undefined;
+      if (older) return { code: code.slice(0, 2) + older, files: await listLevel3(site3, code.slice(0, 2) + older, since, signal, until ?? undefined) };
+      return { code, files };
+    },
+    // The past doesn't change.
+    refetchInterval: until != null ? false : 60_000,
+    staleTime: until != null ? Infinity : 30_000,
     retry: 1,
   });
   const jobs = useMemo(
-    () => newest(list.data ?? [], frameCount).map((f) => ({ time: f.time, job: { kind: "l3", url: f.url, scale: scaleId, maxPx: caps.l3Px } as DecodeJob })),
+    () => newest(list.data?.files ?? [], frameCount).map((f) => ({ time: f.time, job: { kind: "l3", url: f.url, scale: scaleId, maxPx: caps.l3Px } as DecodeJob })),
     [list.data, frameCount, scaleId, caps.l3Px],
   );
   const { frames, failed, elevation } = useDecodedFrames(jobs);
@@ -157,7 +172,7 @@ function L3Source({ product, site, tilt, frameCount, caps, onFeed }: SourceProps
     family: def.kind === "site" ? def.family : null,
     tilts,
     tilt: shown,
-    source: `NOAA Level III ${site3} ${code}`,
+    source: `NOAA Level III ${site3} ${list.data?.code ?? code}`,
     loading: list.isLoading || (jobs.length > 0 && !frames.length && failed < jobs.length),
     empty: list.isError || (list.isSuccess && !jobs.length) || (jobs.length > 0 && failed === jobs.length),
     scale: DECODED_SCALES[scaleId],
@@ -166,22 +181,26 @@ function L3Source({ product, site, tilt, frameCount, caps, onFeed }: SourceProps
   return null;
 }
 
-function VolumeSource({ product, site, elev, frameCount, caps, onFeed }: SourceProps) {
+function VolumeSource({ product, site, elev, frameCount, caps, onFeed, until = null }: SourceProps) {
   const def = PRO_PRODUCTS[product];
   const moment = def.kind === "l2" ? def.moment : "REF";
   const scaleId = def.kind === "l2" ? def.scale : "ref";
   const count = Math.min(frameCount, 6);
   const spanMin = count * 7 + 30;
   const list = useQuery({
-    queryKey: ["pro-l2", site, spanMin],
-    queryFn: ({ signal }) => listLevel2(site, Date.now() - spanMin * 60_000, signal),
-    refetchInterval: 90_000,
-    staleTime: 45_000,
+    queryKey: ["pro-l2", site, spanMin, until],
+    queryFn: ({ signal }) => listLevel2(site, (until ?? Date.now()) - spanMin * 60_000, signal, until ?? undefined),
+    refetchInterval: until != null ? false : 90_000,
+    staleTime: until != null ? Infinity : 45_000,
     retry: 1,
   });
+  // Volumes from before 2008 don't say where the radar is.
+  const where = getSite(site);
+  const at = useMemo(() => (where ? { lat: where.lat, lon: where.lon } : undefined), [where]);
   const jobs = useMemo(
-    () => newest(list.data ?? [], count).map((f) => ({ time: f.time, job: { kind: "l2", url: f.url, moment, angle: elev, scale: scaleId, maxPx: caps.l2Px } as DecodeJob })),
-    [list.data, count, moment, elev, scaleId, caps.l2Px],
+    () =>
+      newest(list.data ?? [], count).map((f) => ({ time: f.time, job: { kind: "l2", url: f.url, moment, angle: elev, scale: scaleId, maxPx: caps.l2Px, site: at } as DecodeJob })),
+    [list.data, count, moment, elev, scaleId, caps.l2Px, at],
   );
   const { frames, failed, cuts, elevation } = useDecodedFrames(jobs);
   const elevations = useMemo(() => [...new Set(cuts.map((c) => Math.round(c * 10) / 10))].sort((a, b) => a - b), [cuts]);
@@ -231,14 +250,14 @@ function ServerSource({ product, frameCount, onFeed }: SourceProps) {
   return null;
 }
 
-function MosaicSource({ frameCount, onFeed }: SourceProps) {
-  const loop = useRadarLoop({ site: null, product: "N0Q", frameCount, speed: 1, crossfade: false, autoplay: false });
+function MosaicSource({ frameCount, onFeed, until = null }: SourceProps) {
+  const loop = useRadarLoop({ site: null, product: "N0Q", frameCount, speed: 1, crossfade: false, autoplay: false, archiveEnd: until });
   useReport(onFeed, {
     frames: loop.frames,
     family: "reflectivity",
     tilts: noTilts,
     tilt: null,
-    source: loop.sourceLabel ? `NOAA ${loop.sourceLabel}` : "IEM N0Q",
+    source: loop.sourceLabel ? `NOAA ${loop.sourceLabel}` : "IEM national mosaic",
     loading: loop.isLoading,
     empty: !loop.isLoading && !loop.frames.length,
   });
@@ -316,16 +335,46 @@ function SatelliteSource({ product, frameCount, basis, onFeed }: SourceProps) {
   return null;
 }
 
+/**
+ * Looking back before Level III's archive: a radar's reflectivity or velocity
+ * from its Level II volume instead (desktop), at the tilt the panel picked.
+ */
+function VolumeTiltSource(props: SourceProps & { volume: "vol-ref" | "vol-vel" }) {
+  const { onFeed, tilt, product, volume } = props;
+  const def = PRO_PRODUCTS[product];
+  const family = def.kind === "site" ? def.family : null;
+  const tilts = useMemo(() => TILTS.map((x) => ({ ...x, code: "L2" })), []);
+  const shown = tilts.find((x) => x.prefix === tilt) ?? tilts[0]!;
+  const relay = useCallback((f: PaneFeed) => onFeed({ ...f, family, tilts, tilt: shown, elevations: undefined }), [onFeed, family, tilts, shown]);
+  return <VolumeSource {...props} product={volume} elev={shown.angle} onFeed={relay} />;
+}
+
+/** A product with nothing at the archive's time: says why. */
+function Unarchived({ note, onFeed }: SourceProps & { note: string }) {
+  useReport(onFeed, { frames: noFrames, family: null, tilts: noTilts, tilt: null, source: "", loading: false, empty: true, note });
+  return null;
+}
+const noFrames: RadarFrame[] = [];
+
 /** Picks the loader for a product; renders nothing. */
-export function FrameSource(props: SourceProps) {
+export function FrameSource(sourceProps: SourceProps) {
+  const until = useAppStore((s) => s.archiveAt);
+  const props = { ...sourceProps, until };
   const def = PRO_PRODUCTS[props.product];
-  // Keyed so switching products starts from a clean loader.
+  const note = until != null ? archiveNote(props.product, until) : null;
+  // Keyed so switching products (or between live and the archive) starts from a clean loader.
   // Products this device can't show never reach here (see `shownProduct`).
-  if (def.kind === "l2") return <VolumeSource key={`l2-${props.product}-${props.site}`} {...props} />;
-  if (l3CodeFor(props.product, props.tilt)) return <L3Source key={`l3-${props.product}-${props.site}-${props.tilt}`} {...props} />;
+  const when = until ?? "live";
+  if (note && def.kind === "site" && props.caps.volume && (def.family === "reflectivity" || def.family === "velocity")) {
+    const volume = def.family === "velocity" ? "vol-vel" : "vol-ref";
+    return <VolumeTiltSource key={`l2t-${props.product}-${props.site}-${when}`} {...props} volume={volume} />;
+  }
+  if (note) return <Unarchived key={`none-${props.product}`} {...props} note={note} />;
+  if (def.kind === "l2") return <VolumeSource key={`l2-${props.product}-${props.site}-${when}`} {...props} />;
+  if (l3CodeFor(props.product, props.tilt, until != null)) return <L3Source key={`l3-${props.product}-${props.site}-${props.tilt}-${when}`} {...props} />;
   if (def.kind === "site") return <SiteSource key={`site-${props.product}-${props.site}`} {...props} />;
   if (def.kind === "server") return <ServerSource key={`srv-${props.product}`} {...props} />;
-  if (def.kind === "mosaic") return <MosaicSource key="mosaic" {...props} />;
+  if (def.kind === "mosaic") return <MosaicSource key={`mosaic-${when}`} {...props} />;
   if (def.kind === "mrms") return <MrmsSource key={`mrms-${props.product}`} {...props} />;
   if (def.kind === "intl") return <IntlSource key={`intl-${props.product}`} {...props} />;
   return <SatelliteSource key={`sat-${props.product}`} {...props} />;

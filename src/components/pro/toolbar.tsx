@@ -1,6 +1,6 @@
 "use client";
 
-import { Crosshair, Layers, MousePointer2, Pause, Play, Route, Scissors, Siren, SkipBack, SkipForward, Square, Columns2, Grid2x2, Grid3x3, Waves } from "lucide-react";
+import { Crosshair, History, Layers, MousePointer2, Pause, Play, Route, Scissors, Siren, SkipBack, SkipForward, Square, Columns2, Grid2x2, Grid3x3, Waves } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { useT } from "@/lib/i18n/use-t";
 import { syncTime, useProSync } from "@/lib/pro/sync";
@@ -9,6 +9,7 @@ import { useAppStore } from "@/store/app-store";
 import { LAYOUTS, useProStore, type Layout, type ProTool } from "@/store/pro-store";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { cn } from "@/lib/utils";
+import { ArchiveStrip } from "../radar/archive-picker";
 import { IconButton } from "../ui/button";
 import { usePro } from "./pro-context";
 
@@ -24,8 +25,8 @@ export const TOOLS: { id: ProTool; label: string; Icon: typeof Square; hint: str
   ...(COMMUNITY_ENABLED ? [{ id: "warngen" as const, label: "WarnGen", Icon: Siren, hint: "Draw and issue a spotter-network warning" }] : []),
 ];
 
-/** The loop clock in Zulu time, written straight to the DOM on each step. */
-function LoopClock() {
+/** The loop clock in Zulu time (with the date, looking back), written straight to the DOM on each step. */
+function LoopClock({ dated }: { dated: boolean }) {
   const { sync } = usePro();
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -37,17 +38,32 @@ function LoopClock() {
         return;
       }
       const d = new Date(syncTime(s));
-      ref.current.textContent = `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}Z  ${s.index + 1}/${s.timeline.length}`;
+      const day = dated ? `${d.toISOString().slice(0, 10)} ` : "";
+      ref.current.textContent = `${day}${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}Z  ${s.index + 1}/${s.timeline.length}`;
     };
     write();
     return sync.subscribe((s, prev) => {
       if (s.index !== prev.index || s.timeline !== prev.timeline) write();
     });
-  }, [sync]);
+  }, [sync, dated]);
   return <span ref={ref} className="min-w-[7.5rem] font-mono text-[12px] text-ink tabular-nums whitespace-pre" />;
 }
 
-export function ProToolbar({ site, onStep, onToggle, narrow }: { site: RadarSite; onStep: (d: number) => void; onToggle: () => void; narrow: boolean }) {
+export function ProToolbar({
+  site,
+  onStep,
+  onToggle,
+  narrow,
+  timeZone,
+  onArchive,
+}: {
+  site: RadarSite;
+  onStep: (d: number) => void;
+  onToggle: () => void;
+  narrow: boolean;
+  timeZone?: string;
+  onArchive: () => void;
+}) {
   const t = useT();
   const { sync } = usePro();
   const playing = useProSync(sync, (s) => s.playing);
@@ -62,6 +78,7 @@ export function ProToolbar({ site, onStep, onToggle, narrow }: { site: RadarSite
   const pinned = useProStore((s) => s.site);
   const setSite = useProStore((s) => s.setSite);
   const loc = useAppStore((s) => s.location);
+  const archived = useAppStore((s) => s.archiveAt != null);
   const sites = useMemo(() => {
     const near = nearestSites(loc, 40);
     return near.some((s) => s.icao === site.icao) ? near : [{ ...site, distanceKm: 0 }, ...near];
@@ -122,7 +139,14 @@ export function ProToolbar({ site, onStep, onToggle, narrow }: { site: RadarSite
         ))}
       </div>
 
+      <ArchiveStrip timeZone={timeZone} onPick={onArchive} variant="inline" />
+
       <div className="ml-auto flex items-center gap-1">
+        {!archived && (
+          <IconButton size="sm" label={t("Radar archive")} onClick={onArchive}>
+            <History className="size-4" aria-hidden />
+          </IconButton>
+        )}
         <IconButton size="sm" label={t("Previous frame")} onClick={() => onStep(-1)}>
           <SkipBack className="size-4" aria-hidden />
         </IconButton>
@@ -132,7 +156,7 @@ export function ProToolbar({ site, onStep, onToggle, narrow }: { site: RadarSite
         <IconButton size="sm" label={t("Next frame")} onClick={() => onStep(1)}>
           <SkipForward className="size-4" aria-hidden />
         </IconButton>
-        <LoopClock />
+        <LoopClock dated={archived} />
         <select aria-label={t("Frames")} value={frames} onChange={(e) => setFrames(Number(e.target.value))} className="rounded-[4px] border border-line bg-surface-2 px-1 py-1 font-mono text-ink">
           {[6, 8, 10, 12, 16, 20].map((n) => (
             <option key={n} value={n}>

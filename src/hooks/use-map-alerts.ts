@@ -5,7 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import { visibleHazards } from "@/lib/alerts";
 import { useAppStore } from "@/store/app-store";
 import { spotterAlert } from "@/lib/warngen/alerts";
-import { useHazards, useNationalAlerts, useSpotterWarnings } from "./queries";
+import { useArchivedAlerts, useHazards, useNationalAlerts, useSpotterWarnings } from "./queries";
 
 /**
  * The polygons every radar map draws: NWS storm-based warnings, plus the
@@ -18,16 +18,20 @@ export function useMapAlerts() {
   const { showWarnings, alertKinds, intlAlerts, showSpotter } = useAppStore(
     useShallow((s) => ({ showWarnings: s.radar.showWarnings, alertKinds: s.radar.alertKinds, intlAlerts: s.radar.intlAlerts, showSpotter: s.radar.showSpotterWarnings })),
   );
-  const national = useNationalAlerts(true);
-  const hazardsQ = useHazards(showWarnings && alertKinds.length > 0);
+  // Looking back at the radar archive: the warnings in effect then, and nothing else.
+  const archiveAt = useAppStore((s) => s.archiveAt);
+  const archived = useArchivedAlerts(archiveAt);
+  const live = useNationalAlerts(archiveAt == null);
+  const national = archiveAt != null ? archived : live;
+  const hazardsQ = useHazards(archiveAt == null && showWarnings && alertKinds.length > 0);
   const hazards = useMemo(
-    () => (showWarnings ? visibleHazards(hazardsQ.data?.alerts ?? [], national.data?.alerts ?? [], alertKinds, intlAlerts) : []),
-    [hazardsQ.data, national.data, showWarnings, alertKinds, intlAlerts],
+    () => (showWarnings && archiveAt == null ? visibleHazards(hazardsQ.data?.alerts ?? [], national.data?.alerts ?? [], alertKinds, intlAlerts) : []),
+    [hazardsQ.data, national.data, showWarnings, alertKinds, intlAlerts, archiveAt],
   );
-  const spotterQ = useSpotterWarnings(showSpotter);
+  const spotterQ = useSpotterWarnings(showSpotter && archiveAt == null);
   const spotter = useMemo(
-    () => (showSpotter ? (spotterQ.data?.warnings ?? []).filter((w) => w.status === "active").map((w) => spotterAlert(w)) : []),
-    [spotterQ.data, showSpotter],
+    () => (showSpotter && archiveAt == null ? (spotterQ.data?.warnings ?? []).filter((w) => w.status === "active").map((w) => spotterAlert(w)) : []),
+    [spotterQ.data, showSpotter, archiveAt],
   );
   const all = useMemo(() => [...hazards, ...spotter, ...(national.data?.alerts ?? [])], [hazards, spotter, national.data]);
   return { national, hazards, spotter, all, hazardsFailed: hazardsQ.data?.failed ?? [] };

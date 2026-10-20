@@ -1,4 +1,5 @@
 import { cached } from "./cache";
+import { archiveMaxAge, archiveTime } from "../radar/archive";
 import { lsrWindow, parseHours, parseLsrGeoJson } from "./storm-parse";
 import type { Feed } from "./types";
 import { badParams, upstreamJson } from "./upstream";
@@ -42,13 +43,18 @@ const IEM_LSR = "https://mesonet.agron.iastate.edu/geojson/lsr.geojson";
 /** `hours=1..24` (default 6): official NWS local storm reports, CONUS. */
 export const stormReportsFeed: Feed<StormReportsResponse> = {
   path: "/api/storm-reports",
-  maxAge: 120,
+  // Late reports keep coming in for a day.
+  maxAge: (sp) => archiveMaxAge(sp.get("end"), 120, 86_400_000),
   async load(sp) {
     const hours = parseHours(sp.get("hours"));
     if (hours == null) throw badParams("hours must be a number from 1 to 24");
+    // `end` (an ISO time): the reports of the hours before it, from the archive.
+    const past = sp.get("end");
+    const archive = past ? archiveTime(past) : null;
+    if (past && archive == null) throw badParams("end must be a time from 1995 to now");
     // The window rounds to 2 minutes, so clients polling together share one upstream request.
-    const { sts, ets } = lsrWindow(Date.now(), hours);
-    return cached(`lsr:${sts}:${ets}`, 120_000, async (): Promise<StormReportsResponse> => {
+    const { sts, ets } = lsrWindow(archive ?? Date.now(), hours);
+    return cached(`lsr:${sts}:${ets}`, archiveMaxAge(past, 120, 86_400_000) * 1000, async (): Promise<StormReportsResponse> => {
       const raw = await upstreamJson(`${IEM_LSR}?sts=${sts}&ets=${ets}`, {
         headers: { Accept: "application/geo+json, application/json" },
         timeoutMs: 20_000,
