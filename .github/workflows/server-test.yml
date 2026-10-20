@@ -2,12 +2,14 @@
 # (1) the live stream runs 4 minutes into a file instead of YouTube, with a demo tornado emergency
 #     (takeover, read-out, a clip rendered but not posted); frames, the sound and the clip are kept
 #     as the run's artifact;
-# (2) vps/setup.sh installs the web app and it answers through Caddy.
+# (2) vps/setup.sh installs the web app and it answers through Caddy;
+# (3) vps/setup.sh installs the stream and the local AI;
+# (4) the Pro data server starts and publishes its index.
 name: Server test
 on:
   workflow_dispatch:
   pull_request:
-    paths: ["stream/**", "vps/**", "pro-server/docker-compose*.yml", ".github/workflows/server-test.yml"]
+    paths: ["stream/**", "vps/**", "pro-server/**", ".github/workflows/server-test.yml"]
 concurrency:
   group: server-test-${{ github.ref }}
   cancel-in-progress: true
@@ -130,3 +132,23 @@ jobs:
           echo 'GEMINI_MODEL=gemini-flash-lite-latest' | sudo tee -a /etc/stormcentral/stream.env > /dev/null
           sudo STORMCENTRAL_BRANCH="$BRANCH" bash vps/setup.sh < /dev/null > /dev/null
           sudo grep -q '^GEMINI_MODEL=gemini-flash-lite-latest' /etc/stormcentral/stream.env
+  pro-server:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Start it the way vps/setup.sh does (plain HTTP here, no domain)
+        working-directory: pro-server
+        run: docker compose -f docker-compose.yml -f docker-compose.shared.yml up -d --build
+      - name: The processor can write its output, and Caddy serves it
+        working-directory: pro-server
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1/index.json > /tmp/index.json && break
+            sleep 5
+          done
+          docker compose ps
+          docker compose logs --tail 40 processor
+          head -c 400 /tmp/index.json; echo
+          test "$(docker compose ps processor --format '{{.State}}')" = running
+          ! docker compose logs processor | grep -q PermissionError
