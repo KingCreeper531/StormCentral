@@ -104,7 +104,13 @@ A plugin adds up to 8 layers to the Radar and Air maps.
   layers of a plugin to show under Settings → Add-ons.
 - **geojson**: an https URL that allows cross-origin requests. Polygons are
   filled and outlined, lines drawn, points shown as dots.
-- Raster layers sit above the radar and below warning polygons.
+- **position** (raster only): raster layers sit above the radar and below
+  warning polygons. Pictures of the ground (satellite or aerial imagery,
+  relief, city lights) would hide the radar there: give them
+  `"position": "below-radar"` and they go under the radar and the GOES
+  clouds instead.
+- **version**: bump it when you change the file. The app's bundled examples
+  replace older installed copies of themselves.
 
 The file must be under 64 KB. Users can turn each plugin on or off and set its
 opacity under Settings → Add-ons.

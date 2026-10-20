@@ -42,6 +42,9 @@ export const RADAR: Record<string, string> = {
   Visible: "Visible",
   "Visible imagery is dark at night; infrared works around the clock.":
     "Las imágenes visibles se ven oscuras de noche; el infrarrojo funciona a toda hora.",
+  "Satellite map (no clouds)": "Mapa satelital (sin nubes)",
+  "Cloud-free pictures of the ground in place of the plain map, under the radar. Borders, roads and place names stay on top.":
+    "Imágenes del terreno sin nubes en lugar del mapa simple, debajo del radar. Las fronteras, las carreteras y los nombres de lugares quedan encima.",
   Overlays: "Capas",
   "Projected storm tracks": "Trayectorias proyectadas de tormentas",
   "Lightning (last 15 min)": "Rayos (últimos 15 min)",

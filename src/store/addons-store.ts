@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { FEATURED_PLUGINS } from "@/lib/addons/featured";
 import { parseAddon, type Addon, type PluginAddon, type ThemeAddon } from "@/lib/addons/manifest";
 
 export interface InstalledPlugin extends PluginAddon {
@@ -51,6 +52,21 @@ function revalidate<T extends Addon>(list: unknown, type: T["type"]): T[] {
   return out;
 }
 
+/** "1.10.0" > "1.9.2"; a missing version is the oldest. */
+export function newerVersion(a: string | null, b: string | null): boolean {
+  const parts = (v: string | null) => (v ?? "").split(".").map((n) => parseInt(n, 10) || 0);
+  const x = parts(a);
+  const y = parts(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
+  return false;
+}
+
+/** A bundled plugin installed from an older version of the app: the bundled manifest replaces it (layers may have moved or changed). */
+export function withBundled(p: PluginAddon): PluginAddon {
+  const bundled = FEATURED_PLUGINS.find((f) => f.id === p.id);
+  return bundled && newerVersion(bundled.version, p.version) ? { ...p, ...bundled } : p;
+}
+
 export const useAddonsStore = create<AddonsState>()(
   persist(
     (set, get) => ({
@@ -94,8 +110,9 @@ export const useAddonsStore = create<AddonsState>()(
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<AddonsState>;
         const themes = revalidate<ThemeAddon>(p.themes, "theme");
-        const plugins = revalidate<PluginAddon>(p.plugins, "plugin").map((pl) => {
-          const stored = pl as Partial<InstalledPlugin>;
+        const plugins = revalidate<PluginAddon>(p.plugins, "plugin").map((saved) => {
+          const stored = saved as Partial<InstalledPlugin>;
+          const pl = withBundled(saved);
           const ids = new Set(pl.layers.map((l) => l.id));
           const hidden = Array.isArray(stored.hidden) ? stored.hidden.filter((h): h is string => typeof h === "string" && ids.has(h)) : [];
           return { ...pl, enabled: stored.enabled !== false, opacity: typeof stored.opacity === "number" ? Math.min(1, Math.max(0.1, stored.opacity)) : 1, hidden };

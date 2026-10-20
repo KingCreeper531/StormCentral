@@ -14,6 +14,7 @@ import { FAMILIES, legendGradient } from "@/lib/radar/products";
 import type { PaneConfig, ProTool } from "@/store/pro-store";
 import { cn } from "@/lib/utils";
 import { MapView } from "../map/map-view";
+import { SatelliteMapLayer } from "../map/layers/satellite-map-layer";
 import { StormCellsLayer } from "../map/layers/storm-cells-layer";
 import { UserMarker } from "../map/layers/user-marker";
 import { WarningsLayer } from "../map/layers/warnings-layer";
@@ -102,6 +103,7 @@ export const Pane = memo(function Pane({ config, n, site, frameCount, basis, too
     <div className="relative min-h-0 min-w-0 overflow-hidden bg-canvas">
       <FrameSource product={config.product} site={config.site ?? site} tilt={config.tilt} elev={config.elev} frameCount={frameCount} basis={basis} caps={caps} onFeed={onFeed} />
       <MapView center={home} zoom={6.2} follow={false} onReady={(m) => (map.current = m)}>
+        {config.satelliteMap && <SatelliteMapLayer />}
         <CameraSync paneId={config.id} />
         <CursorSync paneId={config.id} crosshair={crosshair} />
         <ProFrames frames={feed.frames} opacity={config.opacity} crisp={crisp} onStatus={basis ? onBasisStatus : undefined} />

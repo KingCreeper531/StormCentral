@@ -1,4 +1,4 @@
-# Temporary: checks cloud-free imagery tile services (not reachable from the dev sandbox).
+# Temporary: screenshots the radar with the satellite map on real tiles (not reachable from the dev sandbox).
 name: Probe (temporary)
 on:
   push:
@@ -9,60 +9,59 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
-      - run: pip install -q pillow
-      - shell: python
-        run: |
-          import io, json, math, urllib.request, urllib.error
-          from PIL import Image
-          def xy(lat, lon, z):
-              n = 2 ** z
-              r = math.radians(lat)
-              return int((lon + 180) / 360 * n), int((1 - math.log(math.tan(r) + 1 / math.cos(r)) / math.pi) / 2 * n)
-          def get(url):
-              req = urllib.request.Request(url, headers={"Origin": "https://stormcentralwx.com", "User-Agent": "Mozilla/5.0 StormCentral probe"})
-              try:
-                  with urllib.request.urlopen(req, timeout=40) as r:
-                      return r.status, r.read()
-              except urllib.error.HTTPError as e:
-                  return e.code, e.read()
-              except Exception as e:
-                  return 0, str(e).encode()
-          def describe(code, body):
-              if code == 200 and body[:2] in (b"\xff\xd8", b"\x89P"):
-                  im = Image.open(io.BytesIO(body)).convert("RGB")
-                  small = list(im.resize((16, 16)).getdata())
-                  spread = max(max(p) for p in small) - min(min(p) for p in small)
-                  return f"img {len(body)}B spread={spread} mean={tuple(sum(c)//len(small) for c in zip(*small))}"
-              return f"{code} {body[:100]!r}"
-          print("== USGS service info")
-          code, body = get("https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer?f=json")
-          if code == 200:
-              j = json.loads(body)
-              print("  fullExtent", j.get("fullExtent")); print("  LODs", [l["level"] for l in j.get("tileInfo", {}).get("lods", [])])
-              print("  copyright", j.get("copyrightText")); print("  desc", (j.get("serviceDescription") or j.get("description") or "")[:600])
-          else:
-              print(" ", code, body[:200])
-          USGS = "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}"
-          EOX = "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg"
-          PLACES = [("okc", 35.47, -97.52), ("berlin", 52.52, 13.40), ("toronto", 43.65, -79.38), ("montreal", 45.50, -73.57), ("vancouver", 49.28, -123.12),
-                    ("mexico-city", 19.43, -99.13), ("monterrey", 25.67, -100.31), ("halifax", 44.65, -63.57), ("san-juan", 18.47, -66.11), ("tokyo", 35.68, 139.69)]
-          for name, tpl in (("USGS", USGS), ("EOX", EOX)):
-              print(f"== {name}")
-              for place, lat, lon in PLACES:
-                  row = []
-                  for z in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17):
-                      x, y = xy(lat, lon, z)
-                      code, body = get(tpl.format(z=z, x=x, y=y))
-                      row.append(f"z{z}:{describe(code, body)}")
-                  print(f"  {place}: " + " | ".join(row))
-          print("== EOX capabilities (s2cloudless 2016 matrix set)")
-          code, body = get("https://tiles.maps.eox.at/wmts/1.0.0/WMTSCapabilities.xml")
-          t = body.decode("utf-8", "replace")
-          i = t.find("<ows:Identifier>s2cloudless_3857</ows:Identifier>")
-          print(" ", code, t[max(0, i - 600): i + 1400] if i >= 0 else t[:300])
-          code, body = get("https://s2maps.eu/")
-          t = body.decode("utf-8", "replace")
-          for key in ("2016", "CC BY", "licen", "Attribution", "commercial"):
-              j = t.find(key)
-              if j >= 0: print(f"  s2maps.eu [{key}]:", " ".join(t[max(0, j - 250): j + 250].split()))
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx next build > /tmp/build.log 2>&1 || (tail -50 /tmp/build.log; exit 1)
+      - run: |
+          nohup npx next start -p 3123 > /tmp/next.log 2>&1 &
+          for i in $(seq 60); do curl -sf -o /dev/null localhost:3123 && break; sleep 1; done
+      - run: |
+          cat > "$RUNNER_TEMP/shot.mjs" <<'JS'
+          import { chromium } from "playwright-core";
+          const browser = await chromium.launch({ executablePath: "/usr/bin/google-chrome", args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
+          const KEY = "stormcentral:v1";
+          async function shoot(scheme, name, edit, zoomSteps = 0) {
+            const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: scheme });
+            const page = await ctx.newPage();
+            const stats = { eox: 0, eoxOk: 0, failed: [] };
+            page.on("response", (r) => { if (r.url().includes("tiles.maps.eox.at")) { stats.eox++; if (r.ok()) stats.eoxOk++; } });
+            page.on("requestfailed", (r) => stats.failed.push(r.url().slice(0, 100)));
+            page.on("console", (m) => { if (m.type() === "error") console.log(`  [${name}] console:`, m.text().slice(0, 160)); });
+            await page.goto("http://localhost:3123/?mode=severe", { waitUntil: "load" });
+            await page.waitForTimeout(6000);
+            const raw = await page.evaluate((k) => localStorage.getItem(k), KEY);
+            if (!raw) throw new Error("no stored settings");
+            const s = JSON.parse(raw);
+            edit(s.state);
+            await page.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, JSON.stringify(s)]);
+            await page.reload({ waitUntil: "load" });
+            await page.waitForTimeout(12000);
+            for (let i = 0; i < zoomSteps; i++) {
+              await page.mouse.move(640, 400);
+              await page.mouse.wheel(0, -500);
+              await page.waitForTimeout(700);
+            }
+            if (zoomSteps) await page.waitForTimeout(8000);
+            const buf = await page.screenshot({ type: "jpeg", quality: 62 });
+            console.log(`== ${name}: eox tiles ${stats.eoxOk}/${stats.eox}, failed requests ${stats.failed.length}`, stats.failed.slice(0, 5));
+            console.log(`IMG_BEGIN ${name}`);
+            console.log(buf.toString("base64"));
+            console.log(`IMG_END ${name}`);
+            await ctx.close();
+          }
+          const sat = (on) => (st) => { st.radar.satelliteMap = on; st.mode = "severe"; };
+          await shoot("dark", "plain-dark", sat(false));
+          await shoot("dark", "sat-dark", sat(true));
+          await shoot("light", "sat-light", sat(true));
+          await shoot("dark", "sat-dark-zoomed", sat(true), 6);
+          await browser.close();
+          JS
+          cp "$RUNNER_TEMP/shot.mjs" ./.shot.mjs && node ./.shot.mjs
+      - if: always()
+        run: tail -20 /tmp/next.log

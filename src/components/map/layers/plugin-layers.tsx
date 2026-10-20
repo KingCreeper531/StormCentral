@@ -21,7 +21,12 @@ interface Entry {
 
 function layersFor({ key, layer: l, opacity }: Entry): { spec: LayerSpecification; before: string }[] {
   if (l.kind === "raster") {
-    return [{ spec: { id: key, type: "raster", source: key, paint: { "raster-opacity": l.opacity * opacity, "raster-fade-duration": 0 } }, before: SLOTS.tropical }];
+    return [
+      {
+        spec: { id: key, type: "raster", source: key, paint: { "raster-opacity": l.opacity * opacity, "raster-fade-duration": 0 } },
+        before: l.position === "below-radar" ? SLOTS.base : SLOTS.tropical,
+      },
+    ];
   }
   const a = l.opacity * opacity;
   const geom = (t: string[]) => ["in", ["geometry-type"], ["literal", t]] as never;
@@ -46,8 +51,9 @@ function layersFor({ key, layer: l, opacity }: Entry): { spec: LayerSpecificatio
 
 /**
  * Map layers from enabled GitHub plugins (tile services and GeoJSON). Rendered
- * by every interactive MapView. Raster and fills sit above the radar and below
- * warning polygons; lines and points above the basemap labels.
+ * by every interactive MapView. Rasters and fills sit above the radar and below
+ * warning polygons (imagery of the ground marked "below-radar" goes under the
+ * radar and the GOES clouds); lines and points above the basemap labels.
  */
 export function PluginLayers() {
   const { map } = useMapContext();
