@@ -6,6 +6,10 @@ keeps the last ``LIGHTNING_MINUTES`` of them, from both satellites, and
 rewrites ``lightning.json`` after each poll, so the apps can draw a bolt per
 flash, aged by colour.
 
+The files are read in a child process: netCDF/HDF5 isn't thread-safe, and the
+GOES step reads netCDF on dask threads in this one (together they corrupt the
+heap and crash the processor).
+
 Each satellite's view is used on its own side of ``LIGHTNING_SPLIT_LON``, so
 a flash in the overlap (which both see) is counted once. The rolling window is
 plain numpy arrays, pruned on every poll, and only the keys still inside it are
@@ -17,8 +21,11 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
+import multiprocessing
 import re
 import threading
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -65,6 +72,35 @@ def read_flashes(data: bytes) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.nd
     return lon[good], lat[good], epoch[good], energy[good]
 
 
+class IsolatedReader:
+    """``read_flashes`` in a child process of its own, restarted if it dies or hangs."""
+
+    def __init__(self, timeout: float = 60.0):
+        self.timeout = timeout
+        self._pool: ProcessPoolExecutor | None = None
+
+    def __call__(self, data: bytes):
+        for attempt in range(2):
+            if self._pool is None:
+                self._pool = ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn"))
+            try:
+                return self._pool.submit(read_flashes, data).result(timeout=self.timeout)
+            except BrokenProcessPool:
+                # The child died (out of memory, a crash in the HDF5 library): once more with a fresh one.
+                self._pool = None
+                if attempt:
+                    raise
+            except TimeoutError:
+                self.close()
+                raise
+        raise RuntimeError("unreachable")
+
+    def close(self) -> None:
+        if self._pool is not None:
+            self._pool.shutdown(wait=False, cancel_futures=True)
+            self._pool = None
+
+
 @dataclass
 class Window:
     """The flashes of the last ``minutes``, oldest first."""
@@ -108,8 +144,9 @@ class Satellite:
 class Lightning:
     """Polls both satellites and keeps ``lightning.json`` current."""
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, reader=read_flashes):
         self.settings = settings
+        self.read = reader
         self.window = Window(settings.lightning_minutes)
         self.sats = [Satellite(settings.goes_bucket, west=False), Satellite(settings.lightning_west_bucket, west=True)]
 
@@ -143,7 +180,7 @@ class Lightning:
                 continue
             for key in keys:
                 try:
-                    lon, lat, t, energy = read_flashes(s3.get_bytes(sat.bucket, key, self.settings.http_timeout))
+                    lon, lat, t, energy = self.read(s3.get_bytes(sat.bucket, key, self.settings.http_timeout))
                 except Exception as e:
                     # A damaged or half-written file: try it again next poll (it's only remembered once read).
                     log.warning("skipping GLM file %s: %s", key, e)
@@ -166,7 +203,15 @@ class Lightning:
 
 def run(settings: Settings, stop: threading.Event) -> None:
     """Poll until ``stop`` is set (its own thread: flashes are wanted far more often than imagery)."""
-    lightning = Lightning(settings)
+    reader = IsolatedReader()
+    lightning = Lightning(settings, reader)
+    try:
+        _loop(settings, lightning, stop)
+    finally:
+        reader.close()
+
+
+def _loop(settings: Settings, lightning: Lightning, stop: threading.Event) -> None:
     while not stop.is_set():
         t0 = dt.datetime.now().timestamp()
         try:

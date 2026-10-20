@@ -57,3 +57,14 @@ def test_each_satellite_covers_its_own_side():
     lat = np.array([40.0, 40.0, 40.0, 80.0])
     assert list(l._area(east, lon, lat)) == [False, True, False, False]
     assert list(l._area(west, lon, lat)) == [True, False, False, False]
+
+
+def test_reads_in_a_child_process():
+    from pro_server.glm import IsolatedReader
+
+    reader = IsolatedReader(timeout=60)
+    try:
+        lon, lat, _t, _e = reader(_lcfa([35.3], [-97.5], [1.0]))
+        assert list(np.round(lat, 1)) == [35.3] and list(np.round(lon, 1)) == [-97.5]
+    finally:
+        reader.close()
