@@ -277,3 +277,83 @@ select option {
     opacity: 1;
   }
 }
+
+/* ── Broadcast mode (components/broadcast) ────────────────────────────────
+   The map fills the screen with no app chrome, and on-air graphics in the
+   live stream's style (stream/overlay.ts). The graphics are always dark,
+   like a TV graphics package, whatever the app's theme. */
+:root[data-broadcast] {
+  --topbar-h: 0px;
+  --tabbar-h: 0px;
+}
+:root[data-broadcast] [data-chrome] {
+  display: none;
+}
+/* No zoom buttons on air; the map credit stays visible, above the lower third. */
+:root[data-broadcast] .maplibregl-ctrl-group {
+  display: none;
+}
+:root[data-broadcast] .maplibregl-ctrl-bottom-right {
+  top: auto;
+  bottom: 132px;
+}
+.bc {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 25;
+  color: #f4f6fb;
+  font-feature-settings: "tnum" 1;
+}
+.bc-glass {
+  background: linear-gradient(180deg, rgba(14, 20, 36, 0.86), rgba(7, 11, 22, 0.86));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
+}
+.bc-live-dot {
+  animation: bc-pulse 1.4s ease-in-out infinite;
+}
+.bc-rise {
+  animation: bc-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.bc-run {
+  will-change: transform;
+  animation: bc-tick var(--d, 60s) linear infinite;
+}
+@keyframes bc-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.7);
+  }
+}
+@keyframes bc-rise {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes bc-tick {
+  from {
+    transform: translateX(var(--from, 100vw));
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bc-live-dot,
+  .bc-rise,
+  .bc-run {
+    animation: none;
+  }
+}

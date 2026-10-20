@@ -12,6 +12,7 @@ import {
   canShareExport,
   EXPORT_WIDTHS,
   exportFrameDelays,
+  MAX_GIF_WIDTH,
   exportRadarLoop,
   formatBytes,
   outputSize,
@@ -20,6 +21,7 @@ import {
   shareExport,
   videoMimeType,
   type ExportFormat,
+  type ExportLoopOptions,
   type ExportProgress,
   type ExportWidth,
   type LoopExport,
@@ -42,6 +44,8 @@ export interface ExportLoopProps {
   timeZone?: string;
   /** Loop speed multiplier (1 = normal); the export's frame delay follows it. */
   speed?: number;
+  /** Broadcast mode's graphics, drawn over every frame in place of the caption bar. */
+  overlay?: ExportLoopOptions["overlay"];
 }
 
 type Status =
@@ -96,7 +100,7 @@ export function ExportLoopDialog({ open, onClose, ...props }: ExportLoopProps & 
 }
 
 /** Mounted only while the dialog is open, so every open starts fresh. */
-function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose }: ExportLoopProps & { onClose: () => void }) {
+function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, overlay, onClose }: ExportLoopProps & { onClose: () => void }) {
   const t = useT();
   const dialogRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -111,8 +115,9 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
     const c = map?.getCanvas();
     return c && c.width > 0 && c.height > 0 ? { w: c.width, h: c.height } : null;
   });
-  const [format, setFormat] = useState<ExportFormat>("gif");
-  const [width, setWidth] = useState<ExportWidth>(EXPORT_WIDTHS[0]);
+  // Broadcast clips default to HD video; everything else to a small GIF.
+  const [format, setFormat] = useState<ExportFormat>(overlay && videoType ? "video" : "gif");
+  const [width, setWidth] = useState<ExportWidth>(overlay && videoType ? 1280 : EXPORT_WIDTHS[0]);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const native = isNativeApp();
 
@@ -124,6 +129,14 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
 
   // Stop a running export when the dialog goes away.
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // Esc closes it even when the focus has left the dialog (its button can vanish mid-export).
+  const closeRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeRef.current();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Release the preview's object URL when it is replaced or the dialog closes.
   const doneUrl = status.kind === "done" ? status.url : null;
@@ -144,6 +157,9 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
     abortRef.current?.abort();
     onClose();
   };
+  useEffect(() => {
+    closeRef.current = close;
+  });
 
   const run = async () => {
     if (!map || !canExport) return;
@@ -163,6 +179,7 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
         speed,
         signal: ctrl.signal,
         onProgress: (progress) => setStatus({ kind: "busy", progress }),
+        overlay,
       });
       if (ctrl.signal.aborted) return;
       setStatus({ kind: "done", result, url: URL.createObjectURL(result.blob), shareable: canShareExport(result) });
@@ -293,7 +310,10 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
             stretch
             ariaLabel={t("Format")}
             value={format}
-            onChange={setFormat}
+            onChange={(f) => {
+              setFormat(f);
+              if (f === "gif" && width > MAX_GIF_WIDTH) setWidth(MAX_GIF_WIDTH);
+            }}
             options={[
               { value: "gif", label: "GIF" },
               { value: "video", label: t("Video"), disabled: !videoType, title: videoType ? undefined : t("Video recording isn't available in this browser") },
@@ -313,8 +333,14 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
             ariaLabel={t("Size")}
             value={width}
             onChange={setWidth}
-            options={EXPORT_WIDTHS.map((w) => ({ value: w, label: t("{n} px wide", { n: w }) }))}
+            options={EXPORT_WIDTHS.map((w) => ({
+              value: w,
+              label: t("{n} px wide", { n: w }),
+              disabled: format === "gif" && w > MAX_GIF_WIDTH,
+              title: format === "gif" && w > MAX_GIF_WIDTH ? t("Video only: a GIF this wide would be very large.") : undefined,
+            }))}
           />
+          {overlay && <p className="label mt-2">{t("With your broadcast graphics: station, radar time, lower third and ticker.")}</p>}
         </div>
 
         <div className="divide-y divide-line border-y border-line">
@@ -368,7 +394,6 @@ function ExportPanel({ map, loop, title, subtitle, timeZone, speed = 1, onClose 
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: 12, opacity: 0 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
-      onKeyDown={(e) => e.key === "Escape" && close()}
     >
       {header}
       <div className="min-h-0 flex-auto overflow-y-auto overscroll-contain px-4 pt-4 pb-5 md:px-5 md:pt-5">{body}</div>

@@ -62,12 +62,16 @@ export interface ExportLoopOptions {
   onProgress?: (p: ExportProgress) => void;
   /** How long to wait for unbuffered frames before leaving them out (ms). */
   bufferTimeoutMs?: number;
+  /** Draws over each frame in place of the caption bar (broadcast mode's graphics). */
+  overlay?: (ctx: CanvasRenderingContext2D, width: number, height: number, frame: { time: string; date: string; fontFamily: string }) => void;
 }
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-export const EXPORT_WIDTHS = [480, 720] as const;
+export const EXPORT_WIDTHS = [480, 720, 1280] as const;
 export type ExportWidth = (typeof EXPORT_WIDTHS)[number];
+/** GIFs stop here: wider ones get very large for 256 colours. */
+export const MAX_GIF_WIDTH = 720;
 
 export const EXPORT_CREDIT = "Storm Central · NEXRAD via Iowa Environmental Mesonet";
 
@@ -649,14 +653,10 @@ export async function exportRadarLoop(opts: ExportLoopOptions): Promise<LoopExpo
         ctx.drawImage(map.getCanvas(), size.sx, size.sy, size.sw, size.sh, 0, 0, size.width, size.height);
       });
       if (!painted) throw new Error("The map stopped drawing. Keep Storm Central on screen while the loop exports.");
-      drawCaption(ctx, size.width, size.height, {
-        time: `${frame.approximate ? "~" : ""}${clockIn(opts.timeZone, frame.time, opts.locale)}`,
-        date: dateLabel(frame.time, opts.timeZone, opts.locale),
-        title: opts.title,
-        subtitle: opts.subtitle,
-        position: (k + 1) / todo.length,
-        fontFamily,
-      });
+      const time = `${frame.approximate ? "~" : ""}${clockIn(opts.timeZone, frame.time, opts.locale)}`;
+      const date = dateLabel(frame.time, opts.timeZone, opts.locale);
+      if (opts.overlay) opts.overlay(ctx, size.width, size.height, { time, date, fontFamily });
+      else drawCaption(ctx, size.width, size.height, { time, date, title: opts.title, subtitle: opts.subtitle, position: (k + 1) / todo.length, fontFamily });
       captured.push({ image: ctx.getImageData(0, 0, size.width, size.height), frame });
     }
     emit({ phase: "capturing", done: todo.length, total: todo.length });
