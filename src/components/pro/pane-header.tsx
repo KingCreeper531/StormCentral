@@ -5,10 +5,12 @@ import { useEffect, useRef } from "react";
 import { useT } from "@/lib/i18n/use-t";
 import { PRO_PRODUCT_IDS, PRO_PRODUCTS, productUsable, SAT_LATENCY_MS, type ProProduct, type ProProductId } from "@/lib/pro/products";
 import { frameAt, syncTime } from "@/lib/pro/sync";
+import { PALETTE_SCALES } from "@/lib/pro/palettes";
 import { useProStore, type PaneConfig } from "@/store/pro-store";
 import { cn } from "@/lib/utils";
 import type { TiltPrefix } from "@/lib/radar/products";
 import { Toggle } from "../ui/misc";
+import { ColourTablePicker } from "./colour-table";
 import type { PaneFeed } from "./frame-sources";
 import { usePro } from "./pro-context";
 
@@ -163,6 +165,7 @@ export function PaneHeader({
               className="mt-1 w-full accent-[var(--color-accent)]"
             />
           </label>
+          {feed.decoded && feed.scaleId && PALETTE_SCALES.includes(feed.scaleId) && <ColourTablePicker scaleId={feed.scaleId} />}
           <Toggle label={t("Warnings")} checked={config.warnings} onChange={(v) => set({ warnings: v })} />
           <Toggle label={t("Storm cells")} checked={config.cells} onChange={(v) => set({ cells: v })} />
           <Toggle label={t("Satellite map (no clouds)")} checked={config.satelliteMap} onChange={(v) => set({ satelliteMap: v })} />
