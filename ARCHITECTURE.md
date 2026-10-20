@@ -103,6 +103,8 @@ IEM scan index ──► immutable frames ──► MapLibre frame pool ──�
 
 Overlays (warnings, storm tracks, SPC outlook, radar sites, spotter reports, AQI heat raster) are null-rendering React components that insert into named **z-order slots**: invisible marker layers created on map load. Stacking is therefore deterministic regardless of mount order, and radar renders beneath the basemap's place labels. Selections from map clicks go to React state and render in overlay panels (a bottom sheet on phones); user content is never injected into map popups as HTML.
 
+The **satellite map** (`satellite-map-layer.tsx`, a toggle in the radar's layers and each Pro panel's settings) puts cloud-free pictures of the ground in place of the plain basemap: EOX's Sentinel-2 cloudless 2016 mosaic (10 m, worldwide, CC BY 4.0; the USGS imagery is sharper over the US but serves solid white tiles just across the borders). MapView records the style's own layer ids when it loads; the imagery goes just above the basemap's background, and the basemap's area fills (land, water, parks, buildings), which would cover it, are hidden while it's on. Its borders, roads and labels stay above, and nothing of ours is touched. Plugin imagery marked `"position": "below-radar"` goes into the `base` slot, under the GOES clouds and the radar.
+
 ## 4. Science modules (all pure, all unit-tested)
 
 | Module | What it does |

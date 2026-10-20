@@ -34,6 +34,7 @@ import { OutlookLayer } from "../map/layers/outlook-layer";
 import { LightningLayer } from "../map/layers/lightning-layer";
 import { RadarLayer } from "../map/layers/radar-layer";
 import { SatelliteLayer, type SatelliteImage } from "../map/layers/satellite-layer";
+import { SatelliteMapLayer } from "../map/layers/satellite-map-layer";
 import { StormCellsLayer } from "../map/layers/storm-cells-layer";
 import { StormReportsLayer } from "../map/layers/storm-reports-layer";
 import { TropicalLayer } from "../map/layers/tropical-layer";
@@ -803,6 +804,7 @@ export function SevereMode() {
       )}
     >
       <MapView center={loc} zoom={isSite ? 7.5 : 6} onViewChange={(b) => setBbox(b)} onReady={setMap}>
+        {radar.satelliteMap && <SatelliteMapLayer />}
         {layers.satellite !== "off" && (
           <SatelliteLayer band={layers.satellite} times={loop.frames.map((f) => f.time)} current={loop.frames[loop.index]?.time ?? now} onImage={setSatImage} />
         )}

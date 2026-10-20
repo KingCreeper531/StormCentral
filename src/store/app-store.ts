@@ -42,6 +42,8 @@ export interface RadarSettings {
   showCells: boolean;
   /** GOES satellite imagery under the radar. */
   satellite: SatelliteBand;
+  /** Cloud-free satellite pictures of the ground in place of the plain basemap (lib/radar/satellite-map). */
+  satelliteMap: boolean;
   /** Active tropical cyclones: NHC cone, track and forecast points. */
   showTropical: boolean;
   showSites: boolean;
@@ -176,6 +178,7 @@ export const DEFAULT_RADAR: RadarSettings = {
   showStormReports: true,
   showCells: true,
   satellite: "off",
+  satelliteMap: false,
   showTropical: true,
   showSites: true,
   showTracks: true,
@@ -205,6 +208,7 @@ export function normalizeRadar(r: RadarSettings): RadarSettings {
     showSpotterWarnings: r.showSpotterWarnings !== false,
     showChasers: r.showChasers === true,
     showCams: r.showCams === true,
+    satelliteMap: r.satelliteMap === true,
     nowcast: r.nowcast !== false,
   };
 }

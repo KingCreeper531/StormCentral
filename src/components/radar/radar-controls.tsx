@@ -218,6 +218,10 @@ export function RadarControls({
           />
           {settings.satellite === "visible" && <p className="label mt-1.5">{t("Visible imagery is dark at night; infrared works around the clock.")}</p>}
         </Field>
+        <div>
+          <Toggle label={t("Satellite map (no clouds)")} checked={settings.satelliteMap} onChange={(satelliteMap) => onChange({ satelliteMap })} />
+          <p className="label">{t("Cloud-free pictures of the ground in place of the plain map, under the radar. Borders, roads and place names stay on top.")}</p>
+        </div>
       </Group>
 
       <Group title={t("Overlays")}>

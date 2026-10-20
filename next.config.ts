@@ -32,6 +32,8 @@ const CONNECT = [
   "https://mesonet.agron.iastate.edu",
   // GOES satellite imagery (NASA GIBS).
   "https://gibs.earthdata.nasa.gov",
+  // The cloud-free satellite map (EOX Sentinel-2 cloudless).
+  "https://tiles.maps.eox.at",
   "https://*.cartocdn.com",
   "https://api.maptiler.com",
   "https://api.bigdatacloud.net",

@@ -3,7 +3,7 @@
   "name": "Earth from space",
   "author": "Storm Central",
   "description": "NASA imagery: yesterday's true-colour Earth, city lights and sea temperatures.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "layers": [
     {
       "type": "raster",
@@ -14,6 +14,7 @@
       ],
       "maxzoom": 9,
       "opacity": 0.85,
+      "position": "below-radar",
       "attribution": "Imagery: NASA GIBS"
     },
     {
@@ -26,6 +27,7 @@
       "maxzoom": 8,
       "opacity": 0.8,
       "visible": false,
+      "position": "below-radar",
       "attribution": "Imagery: NASA GIBS"
     },
     {
@@ -38,6 +40,7 @@
       "maxzoom": 7,
       "opacity": 0.7,
       "visible": false,
+      "position": "below-radar",
       "attribution": "Sea temperature: NASA GIBS (GHRSST MUR)"
     }
   ]
