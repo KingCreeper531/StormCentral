@@ -219,9 +219,9 @@ fi
 if [ -n "$YT_STREAM_KEY" ]; then
   say "Live stream: Chromium, the director and the narrator's voice"
   mkdir -p "$RUNTIME"
-  npm install --prefix "$RUNTIME" --no-audit --no-fund --silent playwright-core@1.56.1
+  npm install --prefix "$RUNTIME" --no-audit --no-fund --silent playwright-core@1.56.1 @grpc/grpc-js@1.14.5 @grpc/proto-loader@0.8.1
   PLAYWRIGHT_BROWSERS_PATH=$BROWSERS "$RUNTIME/node_modules/.bin/playwright-core" install --with-deps chromium >/dev/null
-  (cd "$SRC" && npx --yes esbuild@0.28.2 stream/director.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNTIME/director.mjs" --log-level=warning)
+  (cd "$SRC" && npx --yes esbuild@0.28.2 stream/director.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --external:@grpc/grpc-js --external:@grpc/proto-loader --outfile="$RUNTIME/director.mjs" --log-level=warning)
   PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install --force edge-tts==7.3.1 >/dev/null
   # US towns of 5,000 people and more, for "6 miles west of Bristow" and arrival times (GeoNames, CC BY 4.0).
   if curl -fsSL -o /tmp/cities5000.zip https://download.geonames.org/export/dump/cities5000.zip; then

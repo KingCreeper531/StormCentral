@@ -180,6 +180,13 @@ export type Scene =
  * effect, the national radar and a Pro mode look around Oklahoma City take
  * turns, with the HRRR model's next hours when SPC has a severe risk out.
  */
+/**
+ * A tornado on the ground or about to be: an emergency, an observed tornado,
+ * or a considerable or catastrophic damage threat (PDS).
+ */
+export const isMajor = (w: StreamWarning) =>
+  w.level === "emergency" || (w.event === "Tornado Warning" && w.chips.some((c) => /^TORNADO OBSERVED|^DAMAGE THREAT (CONSIDERABLE|CATASTROPHIC)/.test(c)));
+
 export function cycle(ws: StreamWarning[], { perWarning = 35, maxWarnings = 5, outlook = null as Outlook | null } = {}): Scene[] {
   if (!ws.length)
     return [
@@ -187,7 +194,13 @@ export function cycle(ws: StreamWarning[], { perWarning = 35, maxWarnings = 5, o
       ...(outlook?.risk && outlook.risk !== "MARGINAL" ? [{ kind: "model" as const, seconds: 75 }] : []),
       { kind: "pro", warning: null, seconds: 90 },
     ];
-  return [{ kind: "national", seconds: 30 }, ...ws.slice(0, maxWarnings).map((warning): Scene => ({ kind: "warning", warning, seconds: perWarning })), { kind: "pro", warning: ws[0]!, seconds: 60 }];
+  const top = ws[0]!;
+  const warning = (w: StreamWarning, seconds = perWarning): Scene => ({ kind: "warning", warning: w, seconds });
+  const pro = (seconds: number): Scene => ({ kind: "pro", warning: top, seconds });
+  // A major tornado stays the story: its warning and Professional mode's velocity views take turns,
+  // with the other warnings and the national view in between.
+  if (isMajor(top)) return [warning(top, 40), pro(75), { kind: "national", seconds: 20 }, ...ws.slice(1, 4).map((w) => warning(w, 30)), pro(75)];
+  return [{ kind: "national", seconds: 30 }, ...ws.slice(0, maxWarnings).map((w) => warning(w)), pro(top.event === "Tornado Warning" ? 90 : 60)];
 }
 
 // ── The briefing ──────────────────────────────────────────────────────────
