@@ -1,0 +1,75 @@
+# Temporary: checks cloud-free imagery tile services (not reachable from the dev sandbox).
+name: Probe (temporary)
+on:
+  push:
+    branches: [claude/trusting-pasteur-qzc0fq]
+    paths: [.github/workflows/probe.yml]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: pip install -q pillow
+      - shell: python
+        run: |
+          import base64, io, json, math, urllib.request, urllib.error
+          from PIL import Image
+          def xy(lat, lon, z):
+              n = 2 ** z
+              x = int((lon + 180) / 360 * n)
+              r = math.radians(lat)
+              y = int((1 - math.log(math.tan(r) + 1 / math.cos(r)) / math.pi) / 2 * n)
+              return x, y
+          SRC = {
+            "usgs": "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}",
+            "eox2016": "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg",
+            "bmng": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/2004-08-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg",
+            "bmsrb": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/2004-08-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg",
+            "esri": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          }
+          PLACES = [("world", 20, 0, 1), ("okc", 35.47, -97.52, 4), ("okc", 35.47, -97.52, 6), ("okc", 35.47, -97.52, 8), ("okc", 35.47, -97.52, 10),
+                    ("okc", 35.47, -97.52, 13), ("okc", 35.47, -97.52, 16), ("toronto", 43.7, -79.4, 7), ("winnipeg", 49.9, -97.1, 6), ("berlin", 52.5, 13.4, 6),
+                    ("anchorage", 61.2, -149.9, 6), ("honolulu", 21.3, -157.8, 7), ("gulf", 26, -90, 6), ("monterrey", 25.7, -100.3, 7)]
+          tiles = {}
+          def get(url):
+              req = urllib.request.Request(url, headers={"Origin": "https://stormcentralwx.com", "User-Agent": "Mozilla/5.0 StormCentral probe"})
+              try:
+                  with urllib.request.urlopen(req, timeout=40) as r:
+                      return r.status, dict(r.headers), r.read()
+              except urllib.error.HTTPError as e:
+                  return e.code, dict(e.headers), e.read()
+              except Exception as e:
+                  return 0, {}, str(e).encode()
+          for name, tpl in SRC.items():
+              print(f"== {name}")
+              for place, lat, lon, z in PLACES:
+                  x, y = xy(lat, lon, z)
+                  code, h, body = get(tpl.format(z=z, x=x, y=y))
+                  h = {k.lower(): v for k, v in h.items()}
+                  note = ""
+                  if code == 200 and body[:2] in (b"\xff\xd8", b"\x89P"):
+                      im = Image.open(io.BytesIO(body)).convert("RGB")
+                      ex = im.getextrema(); px = list(im.resize((8, 8)).getdata())
+                      flat = all(abs(a[0] - b[0]) < 3 for a, b in zip(px, px[1:]))
+                      note = f"{im.size} extrema={ex} flat={flat}"
+                      tiles[(name, place, z)] = im
+                  else:
+                      note = body[:120]
+                  print(f"  {place} z{z}: {code} {h.get('content-type')} {len(body)}B acao={h.get('access-control-allow-origin')} cache={h.get('cache-control')} {note}")
+          # One contact sheet: rows = sources, columns = places.
+          cols = [("okc", 6), ("okc", 10), ("okc", 13), ("winnipeg", 6), ("toronto", 7), ("gulf", 6)]
+          sheet = Image.new("RGB", (len(cols) * 160, len(SRC) * 160), (255, 0, 255))
+          for r, name in enumerate(SRC):
+              for c, (p, z) in enumerate(cols):
+                  im = tiles.get((name, p, z))
+                  if im: sheet.paste(im.resize((160, 160)), (c * 160, r * 160))
+          buf = io.BytesIO(); sheet.save(buf, "JPEG", quality=72)
+          print("SHEET_B64_BEGIN"); print(base64.b64encode(buf.getvalue()).decode()); print("SHEET_B64_END")
+          # Basemap styles: layer order and types.
+          for st in ["https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json", "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"]:
+              code, h, body = get(st)
+              print("== style", st, code)
+              if code == 200:
+                  s = json.loads(body)
+                  print("  " + " | ".join(f"{l['id']}:{l['type']}" for l in s["layers"]))
