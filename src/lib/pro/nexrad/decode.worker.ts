@@ -37,6 +37,32 @@ function volume(url: string): Promise<Uint8Array> {
   return p;
 }
 
+/** Real-time chunks (they never change once published), shared by the volumes that use them. */
+const chunks = new Map<string, Promise<Uint8Array>>();
+const MAX_CHUNKS = 240;
+
+function chunk(url: string): Promise<Uint8Array> {
+  let p = chunks.get(url);
+  if (!p) {
+    p = fetchBytes(url);
+    p.catch(() => chunks.delete(url));
+    chunks.set(url, p);
+    while (chunks.size > MAX_CHUNKS) chunks.delete(chunks.keys().next().value!);
+  }
+  return p;
+}
+
+async function chunkedVolume(urls: readonly string[]): Promise<Uint8Array> {
+  const parts = await Promise.all(urls.map(chunk));
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
+}
+
 async function toImage(sweep: Sweep, scaleId: DecodeRequest["scale"], maxPx: number) {
   const scale = DECODED_SCALES[scaleId];
   const colors = levelColors(sweep.table, (v) => scaleColor(scale, v));
@@ -59,11 +85,14 @@ self.onmessage = async (e: MessageEvent<DecodeRequest>) => {
   try {
     let sweep: Sweep | null;
     let cuts: number[] = [];
+    let complete = true;
     if (req.kind === "l3") {
       sweep = parseLevel3(await fetchBytes(req.url));
     } else {
-      const r = parseLevel2(await volume(req.url), req.moment, req.angle, { site: req.site });
+      const file = req.kind === "l2chunks" ? await chunkedVolume(req.urls) : await volume(req.url);
+      const r = parseLevel2(file, req.moment, req.angle, { site: req.kind === "l2" ? req.site : undefined });
       sweep = r.sweep;
+      complete = r.complete;
       cuts = r.cuts.map((c) => c.angle);
       if (!sweep) {
         self.postMessage({ id: req.id, ok: false, error: "No such cut in this volume", empty: true, cuts } satisfies DecodeResponse);
@@ -71,7 +100,7 @@ self.onmessage = async (e: MessageEvent<DecodeRequest>) => {
       }
     }
     const { image, bounds } = await toImage(sweep, req.scale, req.maxPx);
-    const msg: DecodeResponse = { id: req.id, ok: true, image, bounds, sweep, cuts };
+    const msg: DecodeResponse = { id: req.id, ok: true, image, bounds, sweep, cuts, complete };
     self.postMessage(msg, [sweep.data.buffer, sweep.azStart.buffer, sweep.azWidth.buffer, sweep.table.buffer] as Transferable[]);
   } catch (err) {
     self.postMessage({ id: req.id, ok: false, error: String((err as Error)?.message ?? err) } satisfies DecodeResponse);
