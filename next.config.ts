@@ -35,6 +35,8 @@ const CONNECT = [
   "https://gibs.earthdata.nasa.gov",
   // The cloud-free satellite map (EOX Sentinel-2 cloudless).
   "https://tiles.maps.eox.at",
+  // Terrain shading and 3D terrain (Terrain Tiles on AWS Open Data).
+  "https://s3.amazonaws.com",
   "https://*.cartocdn.com",
   "https://api.maptiler.com",
   "https://api.bigdatacloud.net",

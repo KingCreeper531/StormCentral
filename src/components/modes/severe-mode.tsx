@@ -31,6 +31,7 @@ import { ChaserStreams } from "../radar/chaser-streams";
 import { WebcamDetail, WebcamList } from "../radar/webcam-detail";
 import { PostCard } from "../community/post-card";
 import { MapView } from "../map/map-view";
+import { MapStyleControls } from "../map/map-style-controls";
 import { OutlookLayer } from "../map/layers/outlook-layer";
 import { LightningLayer } from "../map/layers/lightning-layer";
 import { RadarLayer } from "../map/layers/radar-layer";
@@ -700,6 +701,10 @@ export function SevereMode() {
         )}
         <RadarControls settings={radar} onChange={setRadar} site={site} available={available} location={loc} />
         <section className="mt-5 space-y-4 border-t border-line pt-4">
+          <h3 className="text-[13px] font-semibold text-ink">{t("Map style")}</h3>
+          <MapStyleControls />
+        </section>
+        <section className="mt-5 space-y-4 border-t border-line pt-4">
           <h3 className="text-[13px] font-semibold text-ink">{t("Radar archive")}</h3>
           <ArchivePicker timeZone={timeZone} onEvent={showEvent} />
         </section>
@@ -819,7 +824,7 @@ export function SevereMode() {
         "max-md:[&_.maplibregl-ctrl-bottom-right]:top-3 max-md:[&_.maplibregl-ctrl-bottom-right]:bottom-auto",
       )}
     >
-      <MapView center={loc} zoom={isSite ? 7.5 : 6} onViewChange={(b) => setBbox(b)} onReady={setMap}>
+      <MapView center={loc} zoom={isSite ? 7.5 : 6} allow3d onViewChange={(b) => setBbox(b)} onReady={setMap}>
         {radar.satelliteMap && <SatelliteMapLayer />}
         {layers.satellite !== "off" && (
           <SatelliteLayer band={layers.satellite} times={loop.frames.map((f) => f.time)} current={loop.frames[loop.index]?.time ?? now} onImage={setSatImage} />

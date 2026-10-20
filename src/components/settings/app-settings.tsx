@@ -22,6 +22,7 @@ import { Skeleton, Toggle } from "../ui/misc";
 import { Panel } from "../ui/panel";
 import { Segmented } from "../ui/segmented";
 import { Tabs } from "../ui/tabs";
+import { MapStyleControls } from "../map/map-style-controls";
 import { AccountSection } from "./account-panel";
 import { ChaserPanel } from "./chaser-panel";
 import { AddonsSection, ThemePicker } from "./addons-panel";
@@ -557,6 +558,9 @@ export function AppSettings() {
         {current === "general" && (
           <>
             <AppearancePanel onBrowse={() => openSection("addons")} />
+            <Panel title={t("Map style")} subtitle={t("Basemap, terrain, borders, roads and labels on every map")}>
+              <MapStyleControls />
+            </Panel>
             <UnitsPanel />
             <TimePanel />
             <LocationPanel />
