@@ -98,6 +98,7 @@ Every colour slot and layer option, plus ready-made examples to copy (Nord, Drac
 | Model soundings and cross-sections (Pro mode) | [Open-Meteo](https://open-meteo.com) pressure-level forecasts |
 | GOES-East/West satellite imagery | [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api) |
 | Satellite map (cloud-free imagery of the ground) | [Sentinel-2 cloudless 2016](https://s2maps.eu) by EOX IT Services (contains modified Copernicus Sentinel data 2016, CC BY 4.0) |
+| Suggested custom layers: spotter positions, storm attributes, warning motion (placefiles) | [Spotter Network](https://www.spotternetwork.org), [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/request/grx/) |
 | Planetary Kp | [NOAA SWPC](https://www.swpc.noaa.gov) |
 | River discharge, stage, water temperature | [USGS Water Services](https://waterservices.usgs.gov) (OGC API fallback) |
 | River forecast points, flood stages and forecast crests | [NOAA National Water Prediction Service](https://water.noaa.gov) |
