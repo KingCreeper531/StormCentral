@@ -3,16 +3,18 @@
  * 16:9 and several minutes long, in chapters. The examples are real storms
  * from NOAA's NEXRAD archive (radar-archive.ts) where one shows the feature,
  * and simulated ones (radar-sim.js, labelled, a new storm each episode) for
- * the rest. The scripts are written and checked by hand (lessons below); the
- * narrator reads them as written.
+ * the rest. Lessons that tour the app show Storm Central's Professional mode,
+ * recorded on live data as the lesson renders (app-capture.ts). The scripts
+ * are written and checked by hand (lessons below) or drafted and checked
+ * automatically (lesson-draft.ts); the narrator reads them as written.
  *
- * Each week posts the next lesson in LESSONS, counted from SERIES_START;
- * once they're all out, no video until more are added. SHORTS_LESSON picks
- * one by number or id (manual runs).
+ * Each lesson posts in its own series week, counted from SERIES_START; a week
+ * without one posts nothing. SHORTS_LESSON picks one by number or id (manual runs).
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DISCLAIMER, DISCLAIMER_ES, LINK_LINE, LINK_LINE_ES, SITE } from "../meta";
+import type { Screens } from "../app-capture";
 import { loadCase, type CaseData, type CaseSpec } from "../radar-archive";
 import type { Kind, Video } from "../video";
 
@@ -51,8 +53,27 @@ export interface StormSpec {
   extra?: "clutter" | "brightband" | "bugs";
   notes?: { at?: number; target: string; text?: string; r?: number; color?: string; side?: "left" | "right" }[];
 }
+/**
+ * A screen of Storm Central's Professional mode, recorded on live data when
+ * the lesson renders (app-capture.ts): `shot` is the screen, `focus` the box
+ * to zoom onto and frame, `boxes` more boxes to frame, `points` clicked
+ * points to ring. A screen that couldn't be recorded (no storm to track, say)
+ * is swapped for `fallback`, else the overview, else a text card.
+ */
+export interface ScreenVisual {
+  type: "screen";
+  shot: string;
+  focus?: string;
+  boxes?: string[];
+  points?: string[];
+  label?: string;
+  menu?: "products";
+  zoom?: boolean;
+  fallback?: ScreenVisual;
+}
 export type Visual =
   | { type: "title" }
+  | ScreenVisual
   | { type: "radar"; storm: StormSpec; highlight?: [number, number] }
   | { type: "split"; storm: StormSpec; left?: Product; right?: Product }
   | { type: "works"; phase: 0 | 1 | 2 | 3 }
@@ -85,7 +106,8 @@ export interface Lesson {
   es: { title: string; summary: string };
   summary: string;
   next?: string;
-  thumb: { lines: string[]; visual: { storm: StormSpec } };
+  /** The thumbnail: a radar picture, or (`shot`) a screen of the app with `storm` as the stand-in. */
+  thumb: { lines: string[]; visual: { storm: StormSpec; shot?: string; focus?: string } };
   chapters: Chapter[];
   tags: string[];
   /** Drafted lessons (shorts/lessons/*.json) only go out once a person has checked them and set this. */
@@ -373,6 +395,368 @@ const reflectivity: Lesson = {
   ],
 };
 
+/** A screen of Professional mode (see ScreenVisual), falling back to the overview zoomed on `fb`. */
+const screen = (shot: string, focus?: string, more: Partial<ScreenVisual> = {}, fb = "tools"): ScreenVisual => ({
+  type: "screen",
+  shot,
+  ...(focus ? { focus } : {}),
+  ...more,
+  ...(shot === "overview" ? {} : { fallback: { type: "screen", shot: "overview", focus: fb } }),
+});
+
+const professional: Lesson = {
+  id: "professional-mode",
+  // Wednesday, Oct 28, 2026 (the week after lesson 1).
+  week: 1,
+  approved: true,
+  title: "Using a pro radar workstation",
+  youtube: "How to Use a Pro Weather Radar Workstation (AWIPS-Style) | Radar School 2",
+  summary:
+    "A tour of Storm Central's Professional mode, a radar workstation in the style of the NWS's AWIPS: linked panels, products and tilts, the loop, sampling every panel at once, model soundings and cross-sections, tracking a storm and its time of arrival, the warning inspector, and spotter WarnGen. Recorded on live data.",
+  es: {
+    title: "Cómo usar una estación de radar profesional (estilo AWIPS) | Escuela de Radar 2",
+    summary:
+      "Un recorrido por el modo Profesional de Storm Central, una estación de radar al estilo de AWIPS del NWS: paneles enlazados, productos e inclinaciones, el bucle, la lectura de todos los paneles a la vez, sondeos y cortes verticales del modelo, el seguimiento de una tormenta y su hora de llegada, el inspector de avisos y WarnGen para observadores. Grabado con datos en vivo.",
+  },
+  next: "Radar velocity: seeing the wind",
+  thumb: {
+    lines: ["PRO RADAR", "WORKSTATION"],
+    visual: { shot: "overview", focus: "panes", storm: { kind: "supercell", p: { hook: 1, notch: 1 }, zoom: 1.2, focus: "core" } },
+  },
+  tags: ["AWIPS", "weather radar", "how to read weather radar", "radar workstation", "NEXRAD", "Skew-T", "hodograph", "storm tracking", "WarnGen", "storm spotting", "meteorology", "Radar School", "Storm Central"],
+  chapters: [
+    {
+      title: "Introduction",
+      beats: [
+        { visual: { type: "title" }, say: "Last time, you learned how radar works and what the colors mean. Today, you'll learn to use a radar workstation the way forecasters do.", min: 7 },
+        {
+          visual: screen("overview", "panes"),
+          caption: "Storm Central's Professional mode",
+          say: "This is Professional mode in Storm Central. It's laid out like AWIPS, the system National Weather Service forecasters use to watch storms and issue warnings.",
+        },
+        {
+          visual: screen("overview"),
+          caption: "Live data, recorded for this video",
+          say: "Everything you'll see is live data, recorded when this video was made. You can follow along for free at stormcentralwx.com.",
+        },
+        {
+          visual: screen("overview", "tools"),
+          caption: "Panels, products, the loop and the tools",
+          say: "We'll cover the panels, products and tilts, the loop, sampling with the cursor, soundings, cross-sections, tracking a storm, and warnings.",
+        },
+      ],
+    },
+    {
+      title: "Getting set up",
+      beats: [
+        {
+          visual: screen("settings", "toggle", { label: "Settings → General" }),
+          caption: "Settings, General: switch on Professional mode",
+          bullet: "Turn it on in Settings",
+          say: "Professional mode is off at first. Open Settings, and on the General tab, switch on Professional mode.",
+        },
+        {
+          visual: screen("overview", "navPro", {}, "tools"),
+          caption: "Then pick it in the top bar, or press 6",
+          bullet: "Top bar, or the 6 key",
+          say: "Then choose Professional Mode in the top bar, or press 6 on your keyboard.",
+        },
+        {
+          visual: screen("overview", "panes"),
+          caption: "Best on a computer; phones get 1 or 2 panels",
+          say: "It works best on a computer with a mouse. On a phone, you get 1 or 2 panels, stacked, with the tools in a sheet at the bottom.",
+        },
+      ],
+    },
+    {
+      title: "Panels and layouts",
+      beats: [
+        {
+          visual: screen("overview", undefined, { boxes: ["p1", "p2", "p3", "p4"] }),
+          caption: "Each panel is its own radar display",
+          bullet: "Every panel is its own display",
+          say: "The screen is split into panels. Each one is its own radar display, showing whatever product you choose.",
+        },
+        {
+          visual: screen("overview", undefined, { boxes: ["p1", "p2", "p3", "p4"] }),
+          caption: "Pan or zoom one, and they all follow",
+          bullet: "Pan and zoom are linked",
+          say: "They're linked. Pan or zoom any panel, and every other one follows, so you're always comparing the same spot.",
+        },
+        {
+          visual: screen("overview", "layout", { label: "Layout" }),
+          caption: "Layouts: 1 panel, 1 by 2, 2 by 2, 3 by 3",
+          bullet: "Pick the layout up top",
+          say: "Up here, you pick the layout: 1 panel, 1 by 2 side by side, a 2 by 2 grid, or 3 by 3.",
+        },
+        {
+          visual: screen("layout-1x1", undefined, {}, "layout"),
+          caption: "One panel: the most detail",
+          say: "A single panel gives you the most detail on one product, which is great for studying one storm closely.",
+        },
+        {
+          visual: screen("layout-3x3", undefined, {}, "layout"),
+          caption: "Nine panels, looping up to 8 frames",
+          say: "Nine panels let you watch reflectivity, velocity, dual-pol and satellite all at once. With nine, the loop keeps up to 8 frames.",
+        },
+        {
+          visual: screen("overview", "site", { label: "Radar site" }),
+          caption: "Nearest radar, or pick any site",
+          bullet: "Choose the radar site",
+          say: "Next to the layout is the radar site. It starts on the radar nearest you, and you can pick any other site from the list.",
+        },
+      ],
+    },
+    {
+      title: "Products and tilts",
+      beats: [
+        {
+          visual: screen("overview", "product1", { label: "Panel 1's product" }),
+          caption: "Each panel has a product menu",
+          bullet: "Product menu on each panel",
+          say: "Each panel has a product menu in its top corner. P 1 means panel 1.",
+        },
+        {
+          visual: screen("overview", "p1", { menu: "products", zoom: false, boxes: ["product1"] }),
+          caption: "Site radar, national, other countries, satellite",
+          say: "The products come in groups: from a single radar site, national mosaics, radars from other countries, and satellite.",
+        },
+        {
+          visual: screen("overview", "p1", { menu: "products", zoom: false, boxes: ["product1"] }),
+          caption: "Reflectivity, velocity and dual-pol",
+          bullet: "Reflectivity, velocity, dual-pol",
+          say: "From a radar site, you get base reflectivity, base velocity, storm-relative velocity, and dual-pol products like correlation coefficient and differential reflectivity.",
+        },
+        {
+          visual: screen("overview", "tilt1", { label: "Tilt" }),
+          caption: "Tilts from 0.5° to 3.4°",
+          bullet: "Tilt: how high the beam looks",
+          say: "Next to the product is the tilt. Reflectivity and velocity have 6 tilts, from 0.5 to 3.4 degrees above the horizon.",
+        },
+        {
+          visual: screen("overview", "tilt1"),
+          caption: "Step up the tilts to see the storm in 3D",
+          say: "Higher tilts look higher into the storm. Stepping up through them is how forecasters see a storm's structure in 3D, like where hail is growing aloft.",
+        },
+        {
+          visual: screen("overview", "settings1", { label: "Panel settings" }),
+          caption: "Opacity, warnings and storm cells",
+          say: "The settings button on each panel sets how see-through it is, and whether it draws warnings and storm cells.",
+        },
+        {
+          visual: screen("overview", undefined, { boxes: ["p1", "p2", "p3", "p4"] }),
+          caption: "The classic 2 by 2",
+          bullet: "Classic 2 by 2: REF, VEL, SRV, CREF",
+          say: "The default 2 by 2 is a classic setup: reflectivity, velocity, storm-relative velocity, and composite reflectivity, the strongest echo in the whole column.",
+        },
+      ],
+    },
+    {
+      title: "The loop",
+      beats: [
+        {
+          visual: screen("overview", "loop", { label: "Loop controls" }),
+          caption: "Step back, play or pause, step forward",
+          bullet: "Loop to see how storms move",
+          say: "On the right are the loop controls: step back, play or pause, and step forward. Looping is how you see where storms are going.",
+        },
+        {
+          visual: screen("overview", "loop"),
+          caption: "Scan time in UTC, called Zulu time",
+          bullet: "Times are in UTC (Zulu)",
+          say: "The clock shows each frame's scan time in UTC, which forecasters call Zulu time, and which frame you're on.",
+        },
+        {
+          visual: screen("overview", "frames", { label: "Frames and speed" }),
+          caption: "6 to 20 frames, half to double speed",
+          say: "You can loop 6 to 20 frames, at half, normal or double speed. On a keyboard, the space bar plays and pauses, and the arrow keys step.",
+        },
+        {
+          visual: screen("overview", "tb", { label: "TB: time basis" }, "loop"),
+          caption: "The TB panel sets the clock",
+          say: "Every panel stays in step. The panel marked T B, for time basis, sets the clock, and the others show their latest scan up to that time.",
+        },
+      ],
+    },
+    {
+      title: "Sampling with the cursor",
+      beats: [
+        {
+          visual: screen("readout", "readout", { points: ["cursor"] }, "readout"),
+          caption: "The bottom bar reads every panel",
+          bullet: "Readout: every panel at once",
+          say: "Move the pointer over any panel, and the bar at the bottom reads out every panel at that exact spot.",
+        },
+        {
+          visual: screen("readout", "readout", {}, "readout"),
+          caption: "Distance and direction from the radar",
+          say: "It shows the location, its distance and direction from the radar, and each panel's value, like reflectivity in D B Z.",
+        },
+        {
+          visual: screen("readout", "panes", { points: ["cursor", "cursor2", "cursor3", "cursor4"] }, "panes"),
+          caption: "A crosshair marks the spot on every panel",
+          bullet: "Crosshair on every panel",
+          say: "A crosshair marks the same spot on the other panels, so you can check reflectivity and velocity at the same point.",
+        },
+        {
+          visual: screen("readout", "readout", {}, "readout"),
+          caption: "Rest it: model temperature, CAPE and shear",
+          say: "Rest the pointer for a moment, and it adds the model's temperature, dew point, CAPE, wind shear and precipitable water there.",
+        },
+      ],
+    },
+    {
+      title: "Soundings",
+      beats: [
+        {
+          visual: screen("sounding", "side", {}, "tools"),
+          caption: "Sounding: the air above a point",
+          bullet: "Skew-T from the model",
+          say: "The Sounding tool shows the atmosphere above a point. Pick it, then click anywhere on a panel.",
+        },
+        {
+          visual: screen("sounding", "skewt", {}, "tools"),
+          caption: "Red: temperature. Green: dew point",
+          say: "This is a Skew-T. The red line is temperature, and the green line is dew point. It comes from a computer model for the current hour, not a weather balloon.",
+        },
+        {
+          visual: screen("sounding", "parcel", { label: "Parcel" }, "tools"),
+          caption: "Surface, mixed layer or most unstable",
+          say: "You can choose which parcel of air to lift: from the surface, a mixed layer near the ground, or the most unstable level.",
+        },
+        {
+          visual: screen("sounding-indices", "indices", {}, "tools"),
+          caption: "CAPE, shear and helicity",
+          bullet: "CAPE, shear, helicity",
+          say: "Below it are the numbers forecasters check first: instability, called CAPE, wind shear, and storm-relative helicity, a measure of the spin a storm can draw on.",
+        },
+        {
+          visual: screen("sounding-indices", "hodograph", { label: "Hodograph" }, "tools"),
+          caption: "Hodograph: how the wind changes with height",
+          say: "The hodograph plots how the wind changes with height. A long, curving trace means strong shear, which can help storms rotate.",
+        },
+      ],
+    },
+    {
+      title: "Cross-sections",
+      beats: [
+        {
+          visual: screen("xsect", "p1", { points: ["A", "A′"] }, "tools"),
+          caption: "Click A, then A prime",
+          bullet: "Cross-section: A to A′",
+          say: "The cross-section tool slices through the atmosphere. Click a start point, A, then an end point, A prime.",
+        },
+        {
+          visual: screen("xsect", "xsect", {}, "tools"),
+          caption: "A vertical slice along the line",
+          say: "The panel shows a vertical slice along that line, from the ground up, using the model for the current hour.",
+        },
+        {
+          visual: screen("xsect", "xsect", {}, "tools"),
+          caption: "0 °C and −20 °C: the hail growth zone",
+          bullet: "Hail grows between 0 °C and −20 °C",
+          say: "The dashed lines mark 0 degrees and minus 20 degrees Celsius. Hail grows in the layer between them, so it's worth knowing how high that layer sits.",
+        },
+      ],
+    },
+    {
+      title: "Tracking a storm",
+      beats: [
+        {
+          visual: screen("vector", "p1", { points: ["1", "2"] }, "tools"),
+          caption: "Click the core, step the loop, click again",
+          bullet: "Storm vector: two clicks",
+          say: "To track a storm, pick Storm vector. Click the storm's core, step the loop a few frames, and click the same core again.",
+        },
+        {
+          visual: screen("vector", "motion", {}, "tools"),
+          caption: "Direction and speed",
+          say: "From those two clicks, you get the direction the storm is coming from, and its speed in knots.",
+        },
+        {
+          visual: screen("vector", "arrivals", {}, "tools"),
+          caption: "When it reaches your places",
+          bullet: "Arrival times for your places",
+          say: "You also get a list of when it should reach your home and your saved places, if they're in its path.",
+        },
+        {
+          visual: screen("toa", "p1", { points: ["Point 1"] }, "tools"),
+          caption: "TOA: a ±20° fan shows the likely path",
+          bullet: "TOA: time of arrival",
+          say: "The T O A tool, for time of arrival, adds your own points. A fan of 20 degrees either side shows the storm's likely path.",
+        },
+        {
+          visual: screen("toa", "arrivals", {}, "tools"),
+          caption: "Arrival times are estimates",
+          say: "Storms speed up, slow down and turn, so treat these times as estimates, and track the storm again as it moves.",
+        },
+      ],
+    },
+    {
+      title: "Warnings and WarnGen",
+      beats: [
+        {
+          visual: screen("inspector", "side", {}, "tools"),
+          caption: "Inspect: click a warning",
+          bullet: "Click a warning to inspect it",
+          say: "Back in Inspect, click a warning polygon to open the warning inspector.",
+        },
+        {
+          visual: screen("inspector", "side", {}, "tools"),
+          caption: "Damage threat, hail, wind and expiry",
+          say: "It shows the damage threat, what the warning was based on, the hail size and wind gusts it warns of, and when it expires.",
+        },
+        {
+          visual: screen("warngen", "side", {}, "tools"),
+          caption: "WarnGen, for Trusted Spotters",
+          bullet: "Warn Gen: spotter warnings",
+          say: "Warn Gen is named after the forecasters' own warning tool. Here, Trusted Spotters can draw warnings for the Storm Central spotter network.",
+        },
+        {
+          visual: screen("warngen", "side", {}, "tools"),
+          caption: "Unofficial: only signed-in spotters see them",
+          say: "These warnings are unofficial. They only go to signed-in spotters, never to the public or the National Weather Service.",
+        },
+        {
+          visual: screen("warngen", "product", {}, "tools"),
+          caption: "Product, duration, storm and motion",
+          say: "You choose the product and how long it lasts, click the storm and set its motion, and the polygon follows the storm's path.",
+        },
+        {
+          visual: screen("warngen-text", "text", { boxes: ["text", "issue"] }, "tools"),
+          caption: "Review the text, then confirm",
+          say: "Then you set the hail, wind and damage threat, review the product text, and confirm before anything is sent.",
+        },
+      ],
+    },
+    {
+      title: "Recap",
+      beats: [
+        {
+          visual: {
+            type: "bullets",
+            heading: "Recap",
+            items: ["Linked panels and layouts", "Products and tilts on each panel", "Loop in Zulu time", "Readout, sounding, cross-section", "Storm vector and time of arrival", "Warning inspector and Warn Gen"],
+          },
+          say: "Let's recap. The panels are linked, each with its own product and tilt. Loop to see motion, sample every panel at once, check soundings and cross-sections, track storms, and inspect warnings.",
+          min: 12,
+        },
+        {
+          visual: screen("overview"),
+          caption: "Free at stormcentralwx.com",
+          say: "Try it yourself, free, at stormcentralwx.com. And remember, for official warnings, always follow the National Weather Service.",
+        },
+        {
+          visual: { type: "bullets", heading: "Next week", items: ["Radar velocity: seeing the wind"] },
+          caption: "Next week: radar velocity",
+          say: "Next week: radar velocity, and how to see the wind inside a storm. Subscribe so you don't miss it.",
+          min: 6,
+        },
+      ],
+    },
+  ],
+};
+
 // ── Drafted lessons (lesson-draft.ts) ───────────────────────────────────────
 
 const TARGETS: Record<string, string[]> = {
@@ -476,7 +860,7 @@ export function draftedLessons(dir = "shorts/lessons", all = false): Lesson[] {
 }
 
 /** The series in order of the weeks they post: the hand-written lessons and approved drafts. */
-export const LESSONS: Lesson[] = [reflectivity, ...draftedLessons()].sort((a, b) => (a.week ?? 1e9) - (b.week ?? 1e9));
+export const LESSONS: Lesson[] = [reflectivity, professional, ...draftedLessons()].sort((a, b) => (a.week ?? 1e9) - (b.week ?? 1e9));
 
 /** The series week of `now` (0 = the week of SERIES_START, from Wednesday 00:00 UTC). */
 export const seriesWeek = (now: number) => Math.floor((now - SERIES_START) / WEEK);
@@ -527,6 +911,35 @@ function resolveCases<T>(x: T, have: Record<string, unknown>): T {
   return x;
 }
 
+/** The app screens a lesson shows (its own and its fallbacks'), thumbnail included. */
+export function screensIn(lesson: Lesson): string[] {
+  const out = new Set<string>();
+  JSON.stringify(lesson, (_k, v) => (v && typeof v === "object" && v.type === "screen" && typeof v.shot === "string" ? (out.add(v.shot), v) : v));
+  if (lesson.thumb.visual.shot) out.add(lesson.thumb.visual.shot);
+  return [...out];
+}
+
+/**
+ * Screens that were recorded stay; one that wasn't becomes its fallback, else
+ * the whole overview, else (nothing recorded, as in the tests) a text card
+ * with the beat's caption.
+ */
+function resolveScreens(lesson: Lesson, screens?: Screens): Lesson {
+  const have = (shot: string) => !!screens?.shots[shot];
+  const visual = (v: Visual, caption?: string): Visual => {
+    if (v.type !== "screen") return v;
+    for (let x: ScreenVisual | undefined = v; x; x = x.fallback) if (have(x.shot)) return { ...x, fallback: undefined };
+    if (have("overview")) return { type: "screen", shot: "overview" };
+    return { type: "bullets", heading: caption || "Professional mode", items: caption ? [caption] : [] };
+  };
+  const { shot, focus, ...thumbRest } = lesson.thumb.visual;
+  return {
+    ...lesson,
+    thumb: { ...lesson.thumb, visual: shot && have(shot) ? { ...thumbRest, shot, focus } : thumbRest },
+    chapters: lesson.chapters.map((c) => ({ ...c, beats: c.beats.map((b) => ({ ...b, visual: visual(b.visual, b.caption) })) })),
+  };
+}
+
 /** Seeds every storm in the lesson from the episode's seed, so each episode's examples are new. */
 function seeded<T>(x: T, seed: number): T {
   if (Array.isArray(x)) return x.map((y) => seeded(y, seed)) as T;
@@ -538,16 +951,25 @@ function seeded<T>(x: T, seed: number): T {
   return x;
 }
 
-export function lessonVideo(lesson: Lesson, n: number, seed: number, cases: Record<string, CaseData> = {}): Video {
-  const shown = seeded(resolveCases(lesson, cases), seed);
+export function lessonVideo(lesson: Lesson, n: number, seed: number, cases: Record<string, CaseData> = {}, screens?: Screens): Video {
+  const shown = seeded(resolveScreens(resolveCases(lesson, cases), screens), seed);
   const tl = timeline(shown);
   const used = Object.fromEntries(casesIn(shown).map((id) => [id, cases[id]!]));
   const anyReal = Object.keys(used).length > 0;
-  const realLine = anyReal
+  const anyRadar = tl.beats.some((b) => ["radar", "split", "sweep"].includes(b.visual.type));
+  const shots = screensIn(shown);
+  const recorded = shots.length && screens ? new Date(screens.at) : null;
+  const day = (locale: string) => recorded!.toLocaleDateString(locale, { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+  const screenLine = recorded ? `The screens in this video are Storm Central's Professional mode on live radar and model data, recorded ${day("en-US")}.` : "";
+  const screenLineEs = recorded ? `Las pantallas de este video son el modo Profesional de Storm Central con datos de radar y de modelo en vivo, grabadas el ${day("es-ES")}.` : "";
+  const realLine = !anyRadar
+    ? screenLine
+    : anyReal
     ? `Real radar in this video, from NOAA's NEXRAD Level II archive: ${Object.values(used)
         .map((c) => `${c.place} (${c.site}, ${c.label})`)
         .join("; ")}. Examples marked "simulated example" are drawn for the lesson.`
     : "The radar images in this video are simulated examples, drawn for the lesson so each feature is easy to see; real radar works the same way.";
+  const realLineAll = anyRadar && screenLine ? `${realLine} ${screenLine}` : realLine;
   const chapterLines = tl.chapters.map((c) => `${stamp(c.start)} ${c.title}`).concat(`${stamp(tl.end)} End`);
   const chapterLinesEs = chapterLines; // the chapter names stay as on screen
   return {
@@ -556,7 +978,7 @@ export function lessonVideo(lesson: Lesson, n: number, seed: number, cases: Reco
     title: lesson.youtube,
     description: [
       `${lesson.summary}`,
-      `Radar School is a free weekly series on reading weather radar. ${realLine}`,
+      `Radar School is a free weekly series on reading weather radar. ${realLineAll}`.trim(),
       `Chapters:\n${chapterLines.join("\n")}`,
       ...(lesson.sources?.length ? [`Sources:\n${lesson.sources.map((s) => `${s.title}: ${s.url}`).join("\n")}`] : []),
       ...(lesson.sources?.length ? ["Spot a mistake? Tell us in the comments."] : []),
@@ -570,9 +992,17 @@ export function lessonVideo(lesson: Lesson, n: number, seed: number, cases: Reco
       title: lesson.es.title,
       description: [
         lesson.es.summary,
-        anyReal
-          ? "La Escuela de Radar es una serie semanal y gratuita sobre cómo leer el radar meteorológico. El radar real viene del archivo NEXRAD Nivel II de la NOAA; los ejemplos marcados como simulados se dibujaron para la lección."
-          : "La Escuela de Radar es una serie semanal y gratuita sobre cómo leer el radar meteorológico. Las imágenes de radar de este video son ejemplos simulados, dibujados para la lección; el radar real funciona igual.",
+        [
+          "La Escuela de Radar es una serie semanal y gratuita sobre cómo leer el radar meteorológico.",
+          !anyRadar
+            ? ""
+            : anyReal
+              ? "El radar real viene del archivo NEXRAD Nivel II de la NOAA; los ejemplos marcados como simulados se dibujaron para la lección."
+              : "Las imágenes de radar de este video son ejemplos simulados, dibujados para la lección; el radar real funciona igual.",
+          screenLineEs,
+        ]
+          .filter(Boolean)
+          .join(" "),
         `Capítulos:\n${chapterLinesEs.join("\n")}`,
         LINK_LINE_ES,
         DISCLAIMER_ES,
@@ -592,6 +1022,8 @@ export function lessonVideo(lesson: Lesson, n: number, seed: number, cases: Reco
       thumb: shown.thumb,
       cases: used,
       anyReal,
+      // Only the screens this lesson shows (each is a few hundred kilobytes).
+      ...(recorded ? { screens: { ...screens!, shots: Object.fromEntries(shots.map((id) => [id, screens!.shots[id]!])) } } : {}),
     },
   };
 }
@@ -632,5 +1064,12 @@ export const lessonKind: Kind = async (ctx) => {
       console.warn(`::warning::Couldn't load the ${id} radar; using a simulated example instead: ${err instanceof Error ? err.message : err}`);
     }
   }
-  return [lessonVideo(lesson, i + 1, seed, cases)];
+  // The app tour lessons record Professional mode on live data (the live site, or SHORTS_APP_URL).
+  // No screens, no video: the run fails, and the backup run tries again.
+  let screens: Screens | undefined;
+  if (screensIn(lesson).length) {
+    const { captureProScreens } = await import("../app-capture");
+    screens = await captureProScreens(ctx.env.SHORTS_APP_URL || SITE);
+  }
+  return [lessonVideo(lesson, i + 1, seed, cases, screens)];
 };

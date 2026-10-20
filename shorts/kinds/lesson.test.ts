@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { narration } from "../narration";
-import { draftedLessons, LESSONS, lessonVideo, nextFreeWeek, pickLesson, SERIES_START, seriesWeek, stamp, timeline, validLesson, type StormSpec } from "./lesson";
+import type { Screens } from "../app-capture";
+import { draftedLessons, LESSONS, lessonVideo, nextFreeWeek, pickLesson, screensIn, SERIES_START, seriesWeek, stamp, timeline, validLesson, type StormSpec } from "./lesson";
 
 const WEEK = 7 * 86_400_000;
 const numbers = (s: string) => (s.match(/\d+(?:[.,]\d+)*/g) ?? []).map((n) => n.replace(/,/g, ""));
@@ -77,6 +78,7 @@ describe("pickLesson", () => {
     // Lesson 1 went out by hand the week before the schedule began, so week 0 has nothing of its own.
     expect(pickLesson(SERIES_START - 1)).toBe(0);
     expect(pickLesson(SERIES_START + 3600_000)).toBeNull();
+    expect(LESSONS[pickLesson(SERIES_START + WEEK + 3600_000)!]!.id).toBe("professional-mode");
     expect(pickLesson(SERIES_START + 500 * WEEK)).toBeNull();
   });
 
@@ -157,5 +159,51 @@ describe("drafted lessons", () => {
   it("lists a drafted lesson's sources in its description", () => {
     const v = lessonVideo(validLesson({ ...draft, approved: true }), 2, 1);
     expect(v.description).toContain("Sources:\nJetStream: https://www.weather.gov/jetstream/vel");
+  });
+});
+
+describe("app screens (the Professional mode lesson)", () => {
+  const pro = LESSONS.find((l) => l.id === "professional-mode")!;
+  const shot = (boxes: Record<string, [number, number, number, number]> = {}) => ({ img: "data:image/jpeg;base64,AA==", w: 1600, h: 900, boxes, points: {} });
+  const screens: Screens = {
+    at: "2026-10-28T16:40:00Z",
+    where: { lat: 35.47, lon: -97.52, name: "Oklahoma City" },
+    shots: { overview: shot({ tools: [460, 64, 520, 30], panes: [0, 100, 1220, 760] }), sounding: shot({ side: [1220, 100, 380, 760] }) },
+    products: [{ group: "Radar (site)", items: ["REF · Base Reflectivity"] }],
+  };
+
+  it("lists every screen the lesson can show", () => {
+    expect(screensIn(pro)).toEqual(expect.arrayContaining(["overview", "sounding", "xsect", "vector", "toa", "inspector", "warngen", "settings"]));
+    expect(screensIn(LESSONS[0]!)).toEqual([]);
+  });
+
+  it("shows only screens that were recorded, falling back to the overview", () => {
+    const v = lessonVideo(pro, 2, 1, {}, screens);
+    const beats = (v.data as { beats: { visual: { type: string; shot?: string; focus?: string; fallback?: unknown } }[] }).beats;
+    const shown = beats.filter((b) => b.visual.type === "screen");
+    expect(shown.length).toBeGreaterThan(30);
+    for (const b of shown) {
+      expect(["overview", "sounding"]).toContain(b.visual.shot);
+      expect(b.visual.fallback).toBeUndefined();
+    }
+    // The storm vector wasn't recorded (no storm): its beats show the overview's tool bar instead.
+    const vectorBeat = beats[timeline(pro).beats.findIndex((b) => b.visual.type === "screen" && b.visual.shot === "vector")]!;
+    expect(vectorBeat.visual).toMatchObject({ shot: "overview", focus: "tools" });
+    const data = v.data as { screens: Screens; thumb: { visual: { shot?: string } } };
+    expect(Object.keys(data.screens.shots).sort()).toEqual(["overview", "sounding"]);
+    expect(data.thumb.visual.shot).toBe("overview");
+  });
+
+  it("says in the description when the screens were recorded, with no line about simulated radar", () => {
+    const v = lessonVideo(pro, 2, 1, {}, screens);
+    expect(v.description).toContain("Professional mode on live radar and model data, recorded October 28, 2026.");
+    expect(v.description).not.toMatch(/simulated/);
+    expect(v.es.description).toContain("grabadas el 28 de octubre de 2026");
+  });
+
+  it("turns screens into text cards when nothing was recorded", () => {
+    const beats = (lessonVideo(pro, 2, 1).data as { beats: { visual: { type: string } }[]; screens?: unknown }).beats;
+    expect(beats.some((b) => b.visual.type === "screen")).toBe(false);
+    expect((lessonVideo(pro, 2, 1).data as { screens?: unknown }).screens).toBeUndefined();
   });
 });
