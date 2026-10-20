@@ -74,6 +74,7 @@ export function PaneHeader({
       <div className="pointer-events-auto flex min-w-0 items-center gap-1.5 rounded-[var(--radius-control)] border border-line bg-canvas/85 py-0.5 pr-1 pl-1.5 text-[11px] backdrop-blur-sm">
         <span className="shrink-0 font-semibold text-ink-3">P{n}</span>
         <select
+          data-tour="pane-product"
           aria-label={t("Product for panel {n}", { n })}
           value={config.product}
           onChange={(e) => set({ product: e.target.value as ProProductId })}
@@ -91,6 +92,7 @@ export function PaneHeader({
         </select>
         {feed.tilts.length > 1 && (
           <select
+            data-tour="pane-tilt"
             aria-label={t("Elevation tilt")}
             value={feed.tilt?.prefix ?? config.tilt}
             onChange={(e) => set({ tilt: e.target.value as TiltPrefix })}
@@ -105,6 +107,7 @@ export function PaneHeader({
         )}
         {def.kind === "l2" && (
           <select
+            data-tour="pane-tilt"
             aria-label={t("Elevation tilt")}
             value={String(nearest(feed.elevations ?? [], config.elev))}
             onChange={(e) => set({ elev: Number(e.target.value) })}
@@ -121,7 +124,7 @@ export function PaneHeader({
           <FrameClock feed={feed} satellite={def.kind === "gibs" || def.kind === "nowcoast"} />
         </span>
         {basis && (
-          <span title={t("Time basis: the loop steps through this panel's scan times")} className="shrink-0 rounded-sm bg-surface-3 px-1 font-mono text-[10px] text-ink-2">
+          <span data-tour="pane-basis" title={t("Time basis: the loop steps through this panel's scan times")} className="shrink-0 rounded-sm bg-surface-3 px-1 font-mono text-[10px] text-ink-2">
             TB
           </span>
         )}
@@ -129,6 +132,7 @@ export function PaneHeader({
       {onPopOut && (
         <button
           type="button"
+          data-tour="pane-popout"
           onClick={onPopOut}
           aria-label={t("Open panel {n} in a new window", { n })}
           title={t("Open panel {n} in a new window", { n })}
@@ -139,6 +143,7 @@ export function PaneHeader({
       )}
       <details className={cn("group pointer-events-auto relative shrink-0", !onPopOut && "ml-auto")}>
         <summary
+          data-tour="pane-settings"
           aria-label={t("Panel {n} settings", { n })}
           title={t("Panel {n} settings", { n })}
           className="grid size-7 cursor-pointer list-none place-items-center rounded-[var(--radius-control)] border border-line bg-canvas/85 text-ink-2 backdrop-blur-sm hover:text-ink [&::-webkit-details-marker]:hidden"

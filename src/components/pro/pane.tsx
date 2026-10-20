@@ -121,7 +121,7 @@ export const Pane = memo(function Pane({ config, n, site, frameCount, basis, too
       </div>
       <PaneHeader config={config} n={n} feed={feed} basis={basis} compact={compact} volume={caps.volume} onPopOut={onPopOut} />
       {scale && scale.stops.length > 1 && (
-        <div className="pointer-events-none absolute bottom-1.5 left-1.5 z-[5] w-36 rounded-[4px] bg-canvas/80 px-1.5 py-1 font-mono text-[9px] text-ink-2 backdrop-blur-sm">
+        <div data-tour="pane-legend" className="pointer-events-none absolute bottom-1.5 left-1.5 z-[5] w-36 rounded-[4px] bg-canvas/80 px-1.5 py-1 font-mono text-[9px] text-ink-2 backdrop-blur-sm">
           <div className="h-1.5 rounded-[2px]" style={{ background: legendGradient(scale.stops) }} />
           <div className="mt-0.5 flex justify-between">
             <span>{scale.stops[0]!.value.toFixed(scale.decimals)}</span>

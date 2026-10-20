@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { selectActiveTheme, useAddonsStore } from "@/store/addons-store";
 import { UNIT_PRESETS, type DistanceUnit, type HeightUnit, type PrecipUnit, type PressureUnit, type TempUnit, type UnitPrefs, type WindUnit } from "@/lib/weather/units";
 import { MAX_GAUGE_RADIUS_KM, RADIUS_KM, RADIUS_MI, useAppStore } from "@/store/app-store";
+import { useProStore } from "@/store/pro-store";
 import { useForecast, useSession } from "@/hooks/queries";
 import { Button, buttonClass } from "../ui/button";
 import { Skeleton, Toggle } from "../ui/misc";
@@ -436,6 +437,8 @@ function ProfessionalPanel() {
   const on = useAppStore((s) => s.professional);
   const setOn = useAppStore((s) => s.setProfessional);
   const setMode = useAppStore((s) => s.setMode);
+  const guideButton = useProStore((s) => s.guideButton);
+  const setGuideButton = useProStore((s) => s.setGuideButton);
   const t = useT();
   return (
     <Panel title={t("Professional mode")}>
@@ -446,9 +449,17 @@ function ProfessionalPanel() {
         )}
       </p>
       {on && (
-        <Button size="sm" className="mt-3" onClick={() => setMode("professional")}>
-          {t("Open Pro")}
-        </Button>
+        <>
+          <div className="mt-3">
+            <Toggle label={t("Guide button")} checked={guideButton} onChange={setGuideButton} />
+            <p className="label">
+              {t("Shows a Guide button in Pro's toolbar: an optional tour of the workspace and what every product, tool and term means. Nothing opens unless you press it.")}
+            </p>
+          </div>
+          <Button size="sm" className="mt-3" onClick={() => setMode("professional")}>
+            {t("Open Pro")}
+          </Button>
+        </>
       )}
     </Panel>
   );
