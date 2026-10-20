@@ -99,7 +99,7 @@
               <span class="btn-icon"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
             </a>
           </div>
-          <p class="hero-meta" id="hero-meta">Version 0.4.8 for Windows 10 and 11, Android 7 and newer, and any modern browser.</p>
+          <p class="hero-meta" id="hero-meta">Version 0.4.9 for Windows 10 and 11, Android 7 and newer, and any modern browser.</p>
         </div>
         <a class="scroll-cue" href="#showcase" aria-label="Scroll to the tour"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></a>
       </section>
@@ -151,13 +151,16 @@
               <h3>Radar that keeps up with storms</h3>
               <p>
                 The national mosaic or any single NEXRAD site, with velocity, correlation coefficient and the rest. Every watch, warning and advisory in
-                official colors, projected storm tracks with the arrival time at your location, and six hours of future radar after the live loop.
+                official colors, projected storm tracks with the arrival time at your location, and future radar: the next hour from how the storms are moving, then
+                six hours of model forecast.
               </p>
               <ul class="ticks">
                 <li>SPC mesoscale discussions and watch boxes, and WPC heavy-rain discussions</li>
                 <li>Radar from Canada, Germany, Finland, the Netherlands and Japan, looping in step with NEXRAD</li>
                 <li>Lightning, storm reports, hail cores and rotation from NEXRAD storm cells</li>
                 <li>Hurricane cones and tracks, and GOES satellite that loops with the radar</li>
+                <li>Live cameras: thousands of traffic, wildfire, river and volcano cameras, with the latest picture a tap away</li>
+                <li>Storm chasers live: who's streaming on YouTube right now, and spotters sharing their position on the map</li>
                 <li>Export the loop as a GIF or video</li>
               </ul>
               <img class="step-shot" src="assets/shots/radar-900.webp" width="900" height="506" loading="lazy" alt="" />
@@ -336,6 +339,16 @@
         </div>
         <div class="feature-grid">
           <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"/><circle cx="12" cy="13" r="3"/></svg>
+            <h3>Live cameras</h3>
+            <p>About 5,700 cameras on the radar map: California traffic, wildfire cameras across the West, and river and volcano cameras from USGS. Tap one for its latest picture.</p>
+          </article>
+          <article class="feature reveal">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>
+            <h3>Storm chasers live</h3>
+            <p>See which storm chasers are streaming on YouTube and watch in the app. Chasing yourself? Share your position with other spotters for a few hours.</p>
+          </article>
+          <article class="feature reveal">
             <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
             <h3>Storm arrival times</h3>
             <p>The storm motion in each NWS warning becomes a projected track and a live arrival estimate for where you are.</p>
@@ -343,7 +356,7 @@
           <article class="feature reveal">
             <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>
             <h3>Spotter network</h3>
-            <p>Post geotagged reports with photos, verify each other's, and see them on the radar. Locations are rounded for privacy.</p>
+            <p>Post geotagged reports with photos, verify each other's, and see them on the radar. Reports that match an official NWS storm report are marked Confirmed by NWS.</p>
           </article>
           <article class="feature reveal">
             <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
@@ -468,7 +481,7 @@
         </div>
 
         <p class="dl-foot reveal">
-          <span id="dl-version">Latest version: 0.4.8.</span>
+          <span id="dl-version">Latest version: 0.4.9.</span>
           <a href="https://github.com/KingCreeper531/StormCentral/releases">Release notes and older versions</a>.
         </p>
       </section>
