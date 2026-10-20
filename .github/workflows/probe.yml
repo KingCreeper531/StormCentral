@@ -1,4 +1,4 @@
-# Temporary: checks Open-Meteo's model names and ensemble format (not reachable from the dev sandbox).
+# Temporary: runs the meteogram's and the Daily page's exact Open-Meteo requests (not reachable from the dev sandbox).
 name: Probe (temporary)
 on:
   push:
@@ -11,7 +11,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          for u in "https://ensemble-api.open-meteo.com/v1/ensemble?latitude=35.2&longitude=-97.4&models=ncep_gefs025&hourly=precipitation&past_hours=12&forecast_days=15&timeformat=unixtime&timezone=GMT&wind_speed_unit=ms" "https://api.open-meteo.com/v1/forecast?latitude=35.2&longitude=-97.4&models=ecmwf_ifs025,ncep_hrrr_conus&hourly=temperature_2m,cape&past_hours=12&forecast_days=10&timeformat=unixtime&timezone=GMT&wind_speed_unit=ms"; do
-            echo "== $u"; curl -s -m 60 -o /tmp/b -w "%{http_code} %{size_download}B\n" "$u"
-            python3 -c "import json,time; d=json.load(open('/tmp/b')); h=d.get('hourly',{}); t=h.get('time',[]); print('reason', d.get('reason')); print('hours', len(t), 'first', (t[0]-time.time())/3600 if t else None, 'h from now; keys', len(h))"
-          done
+          cat > /tmp/p.py <<'PY'
+          import json, sys, time, urllib.request
+          for u in ['https://api.open-meteo.com/v1/forecast?models=ncep_aigfs025&latitude=35.2200&longitude=-97.4400&timezone=auto&timeformat=unixtime&wind_speed_unit=ms&past_days=1&forecast_days=10&current=temperature_2m%2Crelative_humidity_2m%2Capparent_temperature%2Cis_day%2Cprecipitation%2Cweather_code%2Ccloud_cover%2Cpressure_msl%2Csurface_pressure%2Cwind_speed_10m%2Cwind_direction_10m%2Cwind_gusts_10m&daily=weather_code%2Ctemperature_2m_max%2Ctemperature_2m_min%2Csunrise%2Csunset%2Cuv_index_max%2Cprecipitation_sum%2Cprecipitation_probability_max%2Cwind_speed_10m_max%2Cwind_gusts_10m_max%2Cwind_direction_10m_dominant%2Cdaylight_duration&hourly=temperature_2m%2Crelative_humidity_2m%2Cdew_point_2m%2Capparent_temperature%2Cprecipitation_probability%2Cprecipitation%2Csnowfall%2Cweather_code%2Cpressure_msl%2Csurface_pressure%2Ccloud_cover%2Ccloud_cover_low%2Ccloud_cover_mid%2Ccloud_cover_high%2Cvisibility%2Cwind_speed_10m%2Cwind_speed_80m%2Cwind_speed_120m%2Cwind_speed_180m%2Cwind_direction_10m%2Cwind_direction_80m%2Cwind_direction_120m%2Cwind_direction_180m%2Cwind_gusts_10m%2Cuv_index%2Cis_day%2Ccape&minutely_15=precipitation&forecast_minutely_15=12&past_minutely_15=0', 'https://api.open-meteo.com/v1/forecast?latitude=35.22&longitude=-97.44&models=ecmwf_ifs025%2Cgfs_seamless%2Cecmwf_aifs025_single%2Cncep_hrrr_conus%2Cicon_seamless%2Cgem_seamless%2Cncep_aigfs025%2Cncep_nam_conus&hourly=temperature_2m%2Cdew_point_2m%2Cprecipitation%2Cwind_gusts_10m%2Ccape%2Cpressure_msl&wind_speed_unit=ms&past_hours=12&forecast_hours=360&timeformat=unixtime&timezone=GMT', 'https://ensemble-api.open-meteo.com/v1/ensemble?latitude=35.22&longitude=-97.44&models=ecmwf_ifs025&hourly=temperature_2m&wind_speed_unit=ms&past_hours=12&forecast_hours=360&timeformat=unixtime&timezone=GMT', 'https://ensemble-api.open-meteo.com/v1/ensemble?latitude=35.22&longitude=-97.44&models=ukmo_global_ensemble_20km&hourly=precipitation&wind_speed_unit=ms&past_hours=12&forecast_hours=360&timeformat=unixtime&timezone=GMT']:
+              try:
+                  with urllib.request.urlopen(u, timeout=60) as r:
+                      b = r.read(); d = json.loads(b); s = r.status
+              except urllib.error.HTTPError as e:
+                  print("HTTP", e.code, e.read()[:200]); continue
+              print("==", u[:90], "...", s, len(b), "bytes")
+              for block in ("current", "hourly", "daily", "minutely_15"):
+                  h = d.get(block)
+                  if not isinstance(h, dict): continue
+                  t = h.get("time"); n = len(t) if isinstance(t, list) else 1
+                  keys = [k for k in h if k != "time"]
+                  if len(keys) > 20 and block == "hourly" and "ensemble" in u:
+                      print(" ", block, n, "h;", len(keys), "series; first", (t[0] - time.time()) / 3600, "h from now; last", (t[-1] - time.time()) / 3600)
+                      continue
+                  empty = [k for k in keys if (h[k] is None) or (isinstance(h[k], list) and not any(x is not None for x in h[k]))]
+                  print(" ", block, n, "steps;", len(keys), "vars; EMPTY:", empty)
+                  if block == "hourly" and isinstance(t, list): print("   first", round((t[0] - time.time()) / 3600, 1), "h; last", round((t[-1] - time.time()) / 3600, 1), "h")
+          PY
+          python3 /tmp/p.py
