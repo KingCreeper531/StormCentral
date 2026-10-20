@@ -44,16 +44,41 @@ export function slantRange(groundKm: number, elevDeg: number): number {
   return c <= 0 ? Infinity : (KA * Math.sin(phi)) / c;
 }
 
-/** Azimuth (0.1° bins) → radial index, so every pixel's lookup is one array read. */
+/** Gaps between radials up to this many 0.1° bins (rounding, a dropped radial or two) are filled from their neighbours. */
+const MAX_GAP_BINS = 15;
+
+/**
+ * Azimuth (0.1° bins) → radial index (-1: no data), so every pixel's lookup is
+ * one array read. Narrow gaps are filled half from each side; wider ones (a
+ * sweep still being scanned, a dropout) stay empty rather than smear the
+ * nearest radial across them.
+ */
 export function azimuthIndex(s: Pick<Sweep, "nRadials" | "azStart" | "azWidth">): Int32Array {
   const lut = new Int32Array(3600).fill(-1);
   for (let i = 0; i < s.nRadials; i++) {
     const start = Math.round(s.azStart[i]! * 10);
-    const width = Math.max(1, Math.round(s.azWidth[i]! * 10));
+    const width = Math.max(1, Math.min(MAX_GAP_BINS, Math.round(s.azWidth[i]! * 10)));
+    if (!Number.isFinite(start)) continue;
     for (let k = 0; k < width; k++) lut[(((start + k) % 3600) + 3600) % 3600] = i;
   }
-  // Fill single-bin gaps between radials (rounding) with the neighbour.
-  for (let k = 0; k < 3600; k++) if (lut[k] === -1) lut[k] = lut[(k + 3599) % 3600]!;
+  // Walk the circle from a filled bin, so no gap wraps past the start.
+  const first = lut.findIndex((v) => v >= 0);
+  if (first < 0) return lut;
+  for (let k = 0; k < 3600; ) {
+    const i = (first + k) % 3600;
+    if (lut[i] !== -1) {
+      k++;
+      continue;
+    }
+    let len = 0;
+    while (len < 3600 && lut[(i + len) % 3600] === -1) len++;
+    if (len <= MAX_GAP_BINS) {
+      const before = lut[(i + 3599) % 3600]!;
+      const after = lut[(i + len) % 3600]!;
+      for (let j = 0; j < len; j++) lut[(i + j) % 3600] = j < len / 2 ? before : after;
+    }
+    k += len;
+  }
   return lut;
 }
 

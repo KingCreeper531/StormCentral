@@ -152,3 +152,18 @@ jobs:
           head -c 400 /tmp/index.json; echo
           test "$(docker compose ps processor --format '{{.State}}')" = running
           ! docker compose logs processor | grep -q PermissionError
+      - name: Lightning flashes from GOES GLM are served
+        working-directory: pro-server
+        run: |
+          for i in $(seq 1 36); do
+            curl -sf -D /tmp/l.h http://127.0.0.1/lightning.json > /tmp/lightning.json && break
+            sleep 5
+          done
+          grep -i '^cache-control: no-cache' /tmp/l.h
+          python3 -c "import json; d = json.load(open('/tmp/lightning.json')); print(d['generated'], len(d['flashes']), 'flashes'); assert d['minutes'] == 15 and isinstance(d['flashes'], list)"
+          # Lightning and imagery together, still one process (a crash would have restarted it).
+          test "$(docker inspect -f '{{.RestartCount}}' "$(docker compose ps -q processor)")" = 0
+      - name: Processor logs
+        if: failure()
+        working-directory: pro-server
+        run: docker compose logs --tail 120 processor

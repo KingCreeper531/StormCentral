@@ -18,8 +18,9 @@
 		-Server
 	}
 
-	@index path /index.json
-	header @index Cache-Control "no-cache"
+	# index.json and lightning.json are rewritten in place.
+	@json path *.json
+	header @json Cache-Control "no-cache"
 
 	@png path *.png
 	header @png Cache-Control "public, max-age=86400, immutable"

@@ -12,7 +12,7 @@ import time
 import warnings
 from pathlib import Path
 
-from . import s3
+from . import memory, s3
 from .config import Settings
 from .mercator import area_definition, km_per_pixel
 from .output import Manifest, save_png
@@ -170,6 +170,7 @@ def process(settings: Settings, manifest: Manifest, products: list[Product], onc
             log.exception("goes: scan %s failed", t)
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
-            gc.collect()
+            images = None
+            memory.release()
         manifest.write()
     return added
