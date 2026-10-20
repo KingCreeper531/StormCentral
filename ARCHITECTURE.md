@@ -190,7 +190,7 @@ ProfessionalWorkspace          sync bus (zustand/vanilla) + pane registry + tool
 │  ├─ CameraSync, CursorSync   imperative subscriptions: jumpTo / crosshair transform
 │  ├─ WarningsLayer (all hazards + spotter warnings), StormCellsLayer, ToolOverlay (A–A′, vector, TOA fan), WarnGenOverlay, ToolClicks
 │  └─ PaneHeader               product, tilt, opacity, overlays; frame time written to the DOM
-├─ side panel                  SoundingPanel (SkewT + Hodograph) · CrossSectionPanel · StormToolsPanel · WarnGenPanel · IbwInspector / AlertDetail
+├─ side panel                  SoundingPanel (SkewT + Hodograph) · MeteogramPanel · CrossSectionPanel · StormToolsPanel · WarnGenPanel · IbwInspector / AlertDetail
 └─ ReadoutHud                  lat/lon, ground height, range/bearing, every pane's value, model fields
 ```
 
@@ -205,6 +205,13 @@ ProfessionalWorkspace          sync bus (zustand/vanilla) + pane registry + tool
 In the desktop app, a pop-out opens on a monitor other than the workspace's, filling it the first time and where it was left after that. Pop-outs hide, show and close with the main window. In a browser it's an ordinary window to drag across.
 
 **The guide (optional).** The toolbar's Guide button opens a reference in the side panel (`guide-panel.tsx`): the basics, every product and tool (what it shows, how to read it, what to look for), how-tos and a glossary, all searchable. From there an optional tour (`pro-tour.tsx`) walks through the workspace, highlighting each part by its `data-tour` attribute and skipping any that aren't on screen. Nothing opens by itself, and Settings → Professional mode can hide the button. The content lives in `lib/pro/guide.ts` as translation keys; its tests check that every product and tool has an entry, that every string has Spanish, and that each tour stop names an element the workspace marks.
+
+**Meteograms** (`lib/weather/meteogram.ts`, `charts/meteogram.tsx`, the Meteogram tool). For the Sounding tool's spot: every model side by side, or one ensemble as a plume. Both come from Open-Meteo, called from the browser:
+- **Models**: one forecast request carries all eight models (ECMWF IFS, GFS, ECMWF's AIFS, HRRR, ICON, GEM, NOAA's AI GFS, NAM 3 km), so showing or hiding one is instant.
+- **Ensembles**: the ensemble API, one ensemble and one variable at a time (ECMWF ENS, GEFS, ECMWF's AI ensemble, ICON EPS, GEM, MOGREPS-G). The chart draws every run faintly, the 10th–90th percentile band and the mean.
+- **Variables and coverage**: precipitation is drawn as the total from now. A model or ensemble that doesn't carry a variable at that spot is greyed out or says so. The model names, run lengths and variables were checked against the live API; GraphCast no longer returns data there, so the AI models are AIFS and NOAA's AI GFS.
+- **Requests**: `past_hours` is paired with `forecast_hours`, because Open-Meteo ignores `forecast_days` alongside it.
+- **Display**: colours are the validated `--color-series-1…8`, a fixed one per model, and the table under the chart lists the same numbers every six hours.
 
 **Spatial sync.** A move event that carries user input (`originalEvent`) is published with the pane's id; the other panes `jumpTo` it. Programmatic jumps carry no input event, so they're never re-published, and there's no echo loop or "who leads" logic.
 

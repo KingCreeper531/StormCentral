@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Crosshair, History, Layers, MousePointer2, Pause, Play, Route, Scissors, Siren, SkipBack, SkipForward, Square, Columns2, Grid2x2, Grid3x3, Waves } from "lucide-react";
+import { BookOpen, ChartSpline, Crosshair, History, Layers, MousePointer2, Pause, Play, Route, Scissors, Siren, SkipBack, SkipForward, Square, Columns2, Grid2x2, Grid3x3, Waves } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { useT } from "@/lib/i18n/use-t";
 import { syncTime, useProSync } from "@/lib/pro/sync";
@@ -18,6 +18,7 @@ const LAYOUT_ICON: Record<Layout, typeof Square> = { "1x1": Square, "1x2": Colum
 export const TOOLS: { id: ProTool; label: string; Icon: typeof Square; hint: string }[] = [
   { id: "inspect", label: "Inspect", Icon: MousePointer2, hint: "Sample panels; click a warning to inspect it" },
   { id: "sounding", label: "Sounding", Icon: Waves, hint: "Click for a model Skew-T and hodograph" },
+  { id: "meteogram", label: "Meteogram", Icon: ChartSpline, hint: "Click for every model's forecast and ensemble plumes" },
   { id: "xsect", label: "Cross-section", Icon: Scissors, hint: "Click A, then A′" },
   { id: "vector", label: "Storm vector", Icon: Route, hint: "Click a storm at two loop times" },
   { id: "toa", label: "TOA", Icon: Crosshair, hint: "Click to add arrival points" },

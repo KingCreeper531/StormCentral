@@ -428,4 +428,25 @@ export const GUIDE: Record<string, string> = {
   "That's the tour": "Eso es todo el recorrido",
   "The guide is here whenever you want it, with what every product and tool shows, step-by-step how-tos and a glossary. If you don't need it, you can hide this button.":
     "La guía está aquí cuando la quieras, con lo que muestra cada producto y herramienta, guías paso a paso y un glosario. Si no la necesitas, puedes ocultar este botón.",
+  "Every model's forecast for one spot over the coming days, side by side, or one ensemble's spread as a plume.":
+    "El pronóstico de cada modelo para un punto en los próximos días, uno al lado del otro, o la dispersión de un ensamble como una pluma.",
+  "Pick Meteogram, then click a spot on any panel. Click again anywhere to move it (Sounding uses the same spot).":
+    "Elige Meteograma y haz clic en un punto de cualquier panel. Haz clic de nuevo en otro lugar para moverlo (Sondeo usa el mismo punto).",
+  "Choose what to plot: temperature, dew point, total rain and snow, gusts, CAPE or pressure, and how many days to show.":
+    "Elige qué graficar: temperatura, punto de rocío, lluvia y nieve totales, ráfagas, CAPE o presión, y cuántos días mostrar.",
+  "Models: tap a model's name to show or hide its line. Ensemble: pick an ensemble to see all of its runs.":
+    "Modelos: toca el nombre de un modelo para mostrar u ocultar su línea. Ensamble: elige un ensamble para ver todas sus corridas.",
+  "Models: one line per model. Where the lines agree the forecast is more certain; where they split, it isn't. AI marks the machine-learning models (ECMWF's AIFS and NOAA's AI GFS). Ensemble: each faint line is one run of the same model started from slightly different conditions, the band holds the middle 80% of runs and the bold line is their average. A narrow plume is a confident forecast; a wide one means anything inside it can happen.":
+    "Modelos: una línea por modelo. Donde las líneas coinciden, el pronóstico es más seguro; donde se separan, no lo es. IA marca los modelos de aprendizaje automático (AIFS del ECMWF y el GFS con IA de la NOAA). Ensamble: cada línea tenue es una corrida del mismo modelo iniciada con condiciones ligeramente distintas, la banda contiene el 80 % central de las corridas y la línea gruesa es su promedio. Una pluma estrecha es un pronóstico seguro; una ancha significa que puede pasar cualquier cosa dentro de ella.",
+  "Before a severe weather day, compare CAPE and dew points: models that bring the moisture back sooner mean an earlier, bigger threat.":
+    "Antes de un día de tiempo severo, compara el CAPE y los puntos de rocío: los modelos que traen la humedad antes indican una amenaza más temprana y mayor.",
+  "For rain totals, the top of the plume is a realistic worst case, not the forecast.":
+    "En los totales de lluvia, la parte alta de la pluma es el peor caso realista, no el pronóstico.",
+  "Short-range models (HRRR, NAM 3 km) only run two or three days ahead.": "Los modelos de corto plazo (HRRR, NAM 3 km) solo pronostican dos o tres días.",
+  Ensemble: "Ensamble",
+  "The same model run many times from slightly different starting conditions. How far the runs spread shows how certain the forecast is.":
+    "El mismo modelo corrido muchas veces con condiciones iniciales ligeramente distintas. Cuánto se separan las corridas muestra qué tan seguro es el pronóstico.",
+  Meteogram: "Meteograma",
+  "A chart of one place's forecast over time, here for several models or an ensemble at once.":
+    "Un gráfico del pronóstico de un lugar a lo largo del tiempo, aquí para varios modelos o un ensamble a la vez.",
 };
