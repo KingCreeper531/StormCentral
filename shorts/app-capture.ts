@@ -52,8 +52,13 @@ export async function pickWhere(fetchImpl: Fetch = fetch): Promise<Screens["wher
       signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) throw new Error(`NWS alerts ${res.status}`);
-    const fc = (await res.json()) as { features?: { geometry?: { type: string; coordinates: number[][][] } | null; properties: { event: string; areaDesc?: string; sent?: string } }[] };
-    const withShape = (fc.features ?? []).filter((f) => f.geometry?.type === "Polygon" && f.geometry.coordinates[0]?.length);
+    const fc = (await res.json()) as {
+      features?: { geometry?: { type: string; coordinates: number[][][] } | null; properties: { event: string; areaDesc?: string; sent?: string; headline?: string; description?: string } }[];
+    };
+    const withShape = (fc.features ?? []).filter(
+      // Special Weather Statements also cover dust, fire weather and fog: only the ones about a storm.
+      (f) => f.geometry?.type === "Polygon" && f.geometry.coordinates[0]?.length && (f.properties.event !== "Special Weather Statement" || /thunderstorm/i.test(`${f.properties.headline} ${f.properties.description}`)),
+    );
     for (const kind of WARNINGS) {
       const pick = withShape.filter((f) => f.properties.event === kind).sort((a, b) => (b.properties.sent ?? "").localeCompare(a.properties.sent ?? ""))[0];
       if (!pick) continue;
@@ -193,7 +198,10 @@ export async function captureProScreens(appUrl: string, { log = console.log, fet
     await page.bringToFront();
 
     const tools = page.getByRole("radiogroup", { name: "Tool" });
-    if (!(await visible(tools, 60_000))) throw new Error(`Professional mode didn't open${errors.length ? `: ${errors.join("; ")}` : ""}`);
+    if (!(await visible(tools, 60_000))) {
+      const seen = (await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 600);
+      throw new Error(`Professional mode didn't open at ${page.url()} ("${await page.title().catch(() => "")}"). On the page: ${seen || "nothing"}${errors.length ? `. Errors: ${errors.join("; ")}` : ""}`);
+    }
     const clock = page.getByText(/\d\d:\d\dZ\s+\d+\/\d+/);
     if (!(await visible(clock, 90_000))) log("::warning::The radar loop didn't load in 90 s; capturing anyway.");
     // Let every panel draw its frames.

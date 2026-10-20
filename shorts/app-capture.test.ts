@@ -52,6 +52,14 @@ describe("pickWhere", () => {
     expect(await pickWhere(alerts([svr, tor]))).toEqual({ lat: 35.3, lon: -97.4, name: "Cleveland, OK", warning: "Tornado Warning" });
   });
 
+  it("only counts a Special Weather Statement about a storm", async () => {
+    const ring = [[-108, 32], [-107, 32], [-107, 33], [-108, 33], [-108, 32]];
+    const dust = { ...poly("Special Weather Statement", ring), properties: { event: "Special Weather Statement", areaDesc: "Mimbres Basin", description: "Areas of blowing dust." } };
+    expect((await pickWhere(alerts([dust]))).name).toBe("Oklahoma City");
+    const storm = { ...dust, properties: { ...dust.properties, description: "A strong thunderstorm was near Deming." } };
+    expect(await pickWhere(alerts([storm]))).toMatchObject({ name: "Mimbres Basin", warning: "Special Weather Statement" });
+  });
+
   it("falls back to Oklahoma City with no warnings, or when the NWS can't be reached", async () => {
     expect((await pickWhere(alerts([]))).name).toBe("Oklahoma City");
     const down = (async () => {
