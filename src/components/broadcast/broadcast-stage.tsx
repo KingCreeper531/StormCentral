@@ -12,6 +12,7 @@ import { broadcastWarnings, tickerItems, warningLowerThird, type LowerThird } fr
 import { useT } from "@/lib/i18n/use-t";
 import type { ExportLoopOptions } from "@/lib/radar/export-loop";
 import { useBroadcastStore } from "@/store/broadcast-store";
+import { useDrawStore } from "@/store/draw-store";
 import { ExportLoopButton } from "../radar/export-loop-dialog";
 import { IconButton } from "../ui/button";
 import { BroadcastControls, useSceneTour } from "./broadcast-controls";
@@ -64,6 +65,7 @@ export function BroadcastStage({
   placeName,
   timeZone,
   onExit,
+  extra,
 }: {
   map: MlMap | null;
   loop: RadarLoop;
@@ -76,6 +78,8 @@ export function BroadcastStage({
   placeName: string;
   timeZone?: string;
   onExit: () => void;
+  /** More buttons for the control bar (drawing). */
+  extra?: React.ReactNode;
 }) {
   const t = useT();
   const now = useNow(30_000);
@@ -91,10 +95,10 @@ export function BroadcastStage({
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     };
   }, []);
-  // Esc leaves, unless it's closing a dialog (settings, the export) first.
+  // Esc leaves, unless it's closing a dialog (settings, the export) or the drawing tools first.
   useHotkeys({
     Escape: () => {
-      if (!document.querySelector('[role="dialog"][aria-modal="true"]')) onExit();
+      if (!document.querySelector('[role="dialog"][aria-modal="true"]') && !useDrawStore.getState().open) onExit();
     },
   });
 
@@ -161,7 +165,12 @@ export function BroadcastStage({
         tour={tour}
         onSettings={() => setSettings(true)}
         onExit={onExit}
-        extra={<ExportLoopButton size="sm" map={map} loop={loop} speed={speed} title={title} subtitle={placeName} timeZone={timeZone} overlay={overlay} />}
+        extra={
+          <>
+            {extra}
+            <ExportLoopButton size="sm" map={map} loop={loop} speed={speed} title={title} subtitle={placeName} timeZone={timeZone} overlay={overlay} />
+          </>
+        }
       />
       <BroadcastDialog open={settings} onClose={() => setSettings(false)} currentView={() => viewOf(map, t("Scene {n}", { n: s.scenes.length + 1 }))} />
     </>

@@ -49,6 +49,7 @@ import { startControl } from "./control";
 import { writeChecked, writersFromEnv } from "./llm";
 import { drawOverlay, type OverlayState } from "./overlay";
 import {
+  annotateWarning,
   activeWarnings,
   announcement,
   briefingFacts,
@@ -179,7 +180,8 @@ const urlFor = (s: Scene) => {
           : HOME;
   const mode = s.kind === "pro" || (s.kind === "custom" && s.mode === "professional") ? "professional" : "severe";
   // scl_future: our own flag, read by the init script below to switch on the HRRR frames.
-  return `${CONFIG.app}/?mode=${mode}&lat=${at.lat.toFixed(4)}&lon=${at.lon.toFixed(4)}&name=${encodeURIComponent(at.name)}${s.kind === "model" ? "&scl_future=1" : ""}`;
+  // scl_draw: the app shows the presenter's drawing and the director's own (components/draw/live-drawing).
+  return `${CONFIG.app}/?mode=${mode}&lat=${at.lat.toFixed(4)}&lon=${at.lon.toFixed(4)}&name=${encodeURIComponent(at.name)}${s.kind === "model" ? "&scl_future=1" : ""}&scl_draw=1`;
 };
 
 interface SavedState {
@@ -540,6 +542,9 @@ class Director {
       const camera = scene.kind === "warning" ? this.cameraFor(scene.warning) : null;
       this.overlay = { ...this.overlay, scene: this.sceneOverlay(scene), banner, camera };
       await page.evaluate(drawOverlay, this.overlay);
+      // On a warning, mark the storm and where it's heading, like a presenter would.
+      const marks = scene.kind === "warning" ? annotateWarning(scene.warning, Date.now()) : [];
+      await page.evaluate((s) => (window as unknown as { stormcentralDraw?: (shapes: unknown) => void }).stormcentralDraw?.(s), marks).catch(() => {});
       await page.bringToFront();
       [this.front, this.back] = [page, this.front];
       this.onAir = scene;

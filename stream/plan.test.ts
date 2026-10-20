@@ -2,8 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { RawAlertFeature } from "../src/lib/alerts";
 import { checkAgainst } from "./analysis";
+import { haversineKm } from "../src/lib/geo";
 import {
   activeWarnings,
+  annotateWarning,
   announcement,
   briefingFacts,
   clipText,
@@ -22,6 +24,27 @@ import {
 
 const NOW = Date.parse("2026-05-21T00:55:00Z");
 const features = (JSON.parse(readFileSync("shorts/fixtures/breaking/tornado-emergency/nws-active.json", "utf8")) as { features: RawAlertFeature[] }).features;
+
+describe("the stream's own drawing", () => {
+  const motion = { headingDeg: 45, speedKt: 30, positions: [[-97.5, 35.2]] as [number, number][], time: "2026-05-21T00:45:00Z" };
+
+  it("rings the storm where it is now and points to where it'll be in 30 minutes", () => {
+    const [ring, arrow, label] = annotateWarning({ motion }, NOW);
+    expect(ring!.kind).toBe("circle");
+    expect(arrow!.kind).toBe("arrow");
+    const [a, b] = arrow!.points;
+    const at = (p: [number, number]) => ({ lon: p[0], lat: p[1] });
+    // 10 minutes on from the warning's position at 30 kt, then 30 minutes ahead.
+    expect(haversineKm({ lat: 35.2, lon: -97.5 }, at(a!))).toBeCloseTo(30 * 1.852 / 6, 1);
+    expect(haversineKm(at(a!), at(b!))).toBeCloseTo(30 * 1.852 / 2, 1);
+    expect(label).toMatchObject({ kind: "text", text: "35 MPH" });
+  });
+
+  it("draws nothing without a motion", () => {
+    expect(annotateWarning({ motion: null }, NOW)).toEqual([]);
+    expect(annotateWarning({ motion: { ...motion, speedKt: 0 } }, NOW)).toEqual([]);
+  });
+});
 
 describe("activeWarnings", () => {
   const ws = activeWarnings(features, NOW);

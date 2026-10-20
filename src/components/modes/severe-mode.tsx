@@ -1,7 +1,7 @@
 "use client";
 
 import type { Map as MlMap } from "maplibre-gl";
-import { ChevronLeft, CircleAlert, History, Layers, PanelLeftClose, Pause, Play, X } from "lucide-react";
+import { ChevronLeft, CircleAlert, History, Layers, PanelLeftClose, Pause, PenLine, Play, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { WeatherAlert } from "@/lib/api/types";
@@ -25,6 +25,7 @@ import { liveFor, liveIndex, type LiveChaserStream } from "@/lib/chaser-streams"
 import { COMMUNITY_ENABLED, IS_STATIC_BUNDLE } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
+import { useDrawStore } from "@/store/draw-store";
 import { ChaserDetail } from "../community/chaser-detail";
 import { ChaserStreams } from "../radar/chaser-streams";
 import { WebcamDetail, WebcamList } from "../radar/webcam-detail";
@@ -54,6 +55,9 @@ import { WarningSquares } from "../radar/warning-squares";
 import { reportsInAlert, type AlertReports } from "@/lib/alert-reports";
 import { Segmented } from "../ui/segmented";
 import { BroadcastButton, BroadcastStage } from "../broadcast/broadcast-stage";
+import { DrawCanvas, DrawToolbar } from "../draw/draw-tools";
+import { DrawingLayer } from "../draw/drawing-layer";
+import { LiveDrawingLayer, useLiveDrawingPublisher, usePresenter } from "../draw/live-drawing";
 import { ExportLoopButton } from "../radar/export-loop-dialog";
 import { OutlookLegend } from "../radar/outlook-legend";
 import { RadarControls } from "../radar/radar-controls";
@@ -187,6 +191,17 @@ export function SevereMode() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   // Broadcast mode: the map full screen with on-air graphics (components/broadcast).
   const [broadcasting, setBroadcasting] = useState(false);
+  // Drawing on the map (a telestrator), optionally on the live stream.
+  const drawOpen = useDrawStore((s) => s.open);
+  const setDrawOpen = useDrawStore((s) => s.setOpen);
+  const drawShapes = useDrawStore((s) => s.shapes);
+  const presenter = usePresenter();
+  const airStatus = useLiveDrawingPublisher(presenter);
+  const drawButton = (
+    <IconButton size="sm" label={t("Draw on the map")} aria-pressed={drawOpen} onClick={() => setDrawOpen(!drawOpen)}>
+      <PenLine className="size-4" aria-hidden />
+    </IconButton>
+  );
   const panelW = short ? 280 : wide ? 340 : 300;
 
   // ── Radar product resolution (driven by what IEM actually has) ────────────
@@ -781,6 +796,7 @@ export function SevereMode() {
               <IconButton size="sm" label={t("Radar archive")} onClick={() => setArchiveOpen((o) => !o)} aria-pressed={archiveOpen}>
                 <History className="size-4" aria-hidden />
               </IconButton>
+              {drawButton}
               <BroadcastButton size="sm" map={map} onStart={() => setBroadcasting(true)} />
               <ExportLoopButton size="sm" map={map} loop={loop} speed={radar.speed} title={loopTitle} subtitle={placeName} timeZone={timeZone} />
             </>
@@ -834,6 +850,8 @@ export function SevereMode() {
           <ChasersLayer chasers={chaserList} isLive={(c) => !!liveOf(c)} fetchedAt={chasers.dataUpdatedAt} now={now} onSelect={(u) => select("chaser", u)} />
         )}
         <UserMarker lat={loc.lat} lon={loc.lon} />
+        <DrawingLayer id="mine" shapes={drawShapes} />
+        <LiveDrawingLayer />
       </MapView>
 
       {broadcasting && (
@@ -847,8 +865,11 @@ export function SevereMode() {
           placeName={placeName}
           timeZone={timeZone}
           onExit={() => setBroadcasting(false)}
+          extra={drawButton}
         />
       )}
+      {drawOpen && <DrawCanvas map={map} />}
+      {drawOpen && <DrawToolbar presenter={presenter} airStatus={airStatus} side={broadcasting ? "left" : "right"} />}
 
       {/* Warnings + layers: side panel on desktop, bottom sheet on phones. Hidden on air. */}
       {!broadcasting && (!desktop || panelOpen) && (
