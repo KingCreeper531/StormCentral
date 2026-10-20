@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { destination, parseEventMotion, projectTrack, stormEta } from "./storm-motion";
+import { destination } from "../geo";
+import { parseEventMotion, projectTrack, stormEta } from "./storm-motion";
 
 describe("storm motion", () => {
   const text = "2024-05-21T21:47:00-00:00...storm...240DEG...30KT...4153 9178";

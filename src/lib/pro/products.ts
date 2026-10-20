@@ -15,13 +15,13 @@
  *  - other countries' national radar composites (Canada, Germany, Finland,
  *    the Netherlands, Japan) from their weather services (lib/radar/intl).
  */
-import { FAMILIES, type LegendStop, type ProductFamily } from "../radar/products";
+import { FAMILIES, type ProductFamily } from "../radar/products";
 import type { NoaaLayer } from "../radar/noaa";
 import { INTL_RADARS, type IntlRadarId } from "../radar/intl";
 import { DEFAULT_LATENCY_MIN, GIBS_WMS, gibsTime, SATELLITE_ATTRIBUTION, SLOT_MS, satelliteSlot, type GoesSat } from "../radar/satellite";
 import type { RadarFrame } from "../radar/frames";
 import { PRO_SERVER } from "./server";
-import { DECODED_SCALES, type DecodedScaleId } from "./scales";
+import type { DecodedScaleId } from "./scales";
 import type { Moment } from "./nexrad/level2";
 
 export const PRO_PRODUCT_IDS = [
@@ -161,17 +161,7 @@ export function l3CodeFor(id: ProProductId, tilt: string): string | null {
 /** GIBS only carries the RGB composites for GOES-East (which still covers the CONUS). */
 const EAST_ONLY = new Set(["ABI_Air_Mass", "ABI_GeoColor", "ABI_Dust", "ABI_FireTemp"]);
 
-/** The colour scale a product's tiles use, for the legend and for cursor sampling; null when it has none we know. */
-export function productLegend(id: ProProductId): { stops: LegendStop[]; unit: string } | null {
-  const p = PRO_PRODUCTS[id];
-  if (p.kind === "site") return { stops: FAMILIES[p.family].legend, unit: FAMILIES[p.family].unit };
-  if (p.kind === "l3" || p.kind === "l2") return { stops: DECODED_SCALES[p.scale].stops, unit: DECODED_SCALES[p.scale].unit };
-  if (p.kind === "mosaic" || id === "cref") return { stops: FAMILIES.reflectivity.legend, unit: "dBZ" };
-  return null;
-}
-
 export const isSatellite = (id: ProProductId) => PRO_PRODUCTS[id].group === "Satellite";
-export const needsSite = (id: ProProductId) => ["site", "l3", "l2"].includes(PRO_PRODUCTS[id].kind);
 
 /** The NOAA layer behind an MRMS product (frames via noaaFrames). */
 export function mrmsLayer(id: ProProductId): NoaaLayer | null {

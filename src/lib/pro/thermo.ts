@@ -38,13 +38,6 @@ const K = 273.15;
 /** Saturation vapour pressure over water, hPa (Bolton 1980). */
 export const satVapPres = (tc: number) => 6.112 * Math.exp((17.67 * tc) / (tc + 243.5));
 
-/** Dew point from temperature and relative humidity (%). */
-export function dewpointFromRh(tc: number, rh: number): number {
-  const e = (Math.max(1, Math.min(100, rh)) / 100) * satVapPres(tc);
-  const l = Math.log(e / 6.112);
-  return (243.5 * l) / (17.67 - l);
-}
-
 /** Mixing ratio (kg/kg) of air at `p` hPa with dew point `tdc`. */
 export function mixingRatio(p: number, tdc: number): number {
   const e = satVapPres(tdc);

@@ -10,9 +10,15 @@ import { useT } from "@/lib/i18n/use-t";
 import { Button } from "../ui/button";
 import { errorText } from "./moderation";
 
-/** Only same-site relative paths are allowed as post-login redirects. */
+/** Only same-site paths are allowed as post-login redirects (control characters and backslashes can turn a path into another host). */
 function safeNext(next: string | null) {
-  return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/";
+  if (!next || !next.startsWith("/") || /[\u0000-\u001f\\]/.test(next)) return "/";
+  try {
+    const url = new URL(next, window.location.origin);
+    return url.origin === window.location.origin ? `${url.pathname}${url.search}${url.hash}` : "/";
+  } catch {
+    return "/";
+  }
 }
 
 /** DESIGN.md input recipe; 16 px text on touch devices so iOS doesn't zoom on focus. */
@@ -63,8 +69,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const t = useT();
   const router = useRouter();
   const params = useSearchParams();
+  // Passed on to the other form as is; checked when it is used.
+  const next = params.get("next") ?? "/";
   const qc = useQueryClient();
-  const next = safeNext(params.get("next"));
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const uid = useId();
@@ -85,7 +92,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
       await qc.invalidateQueries({ queryKey: qk.session });
       await qc.invalidateQueries({ queryKey: ["posts"] });
-      router.push(next);
+      router.push(safeNext(next));
       router.refresh();
     } catch (err) {
       setError((err as Error).message);

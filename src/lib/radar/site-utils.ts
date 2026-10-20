@@ -28,9 +28,6 @@ export function nearestSites(p: LatLon, n = 1): (RadarSite & { distanceKm: numbe
     .slice(0, n);
 }
 
-/** WSR-88D effective range for Level-III products (~230 km reflectivity). */
-export const RADAR_RANGE_KM = 230;
-
 export function sitesGeoJson(): FeatureCollection<Point, { icao: string; label: string }> {
   return {
     type: "FeatureCollection",

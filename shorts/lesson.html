@@ -14,8 +14,11 @@
  * caption while its line is read (kinds/lesson.ts builds DATA and the times).
  * render(t, true) draws the thumbnail instead. DATA:
  *   { logo, lesson: { n, title, short }, chapters: [{ title, start, end }],
- *     beats: [{ start, dur, chapter, caption, bullet?, visual }], end, thumb: { lines, visual } }
- * Everything radar-like comes from radar-sim.js and is labelled as simulated.
+ *     beats: [{ start, dur, chapter, caption, bullet?, visual }], end, thumb: { lines, visual },
+ *     cases?, screens? }
+ * Radar is real (DATA.cases, from NOAA's archive, labelled with the site and
+ * time) or simulated by radar-sim.js (labelled as such); "screen" beats show
+ * Storm Central itself, recorded on live data (DATA.screens).
  */
 const W = 1920, H = 1080;
 const ctx = document.getElementById("c").getContext("2d");
@@ -590,7 +593,105 @@ function outroVisual(v, u) {
   ctx.restore();
 }
 
-const VISUALS = { radar: radarVisual, split: splitVisual, works: worksVisual, drops: dropsVisual, sweep: sweepVisual, tilts: tiltsVisual, beam: beamVisual, bullets: bulletsVisual };
+// ── app screens (kinds/lesson.ts records them from the live site) ───────
+// DATA.screens: { at, where: { name }, shots: { id: { img, w, h, boxes, points } }, products }.
+const SCR = D.screens || { shots: {}, products: [] };
+const shotImg = new Map(Object.entries(SCR.shots).map(([id, s]) => { const im = new Image(); im.src = s.img; return [id, im]; }));
+// The renderer waits for these before the first frame.
+window.READY = Promise.all([...shotImg.values()].map((im) => im.decode().catch(() => {})));
+const SCREEN_ASPECT = VIEW.w / VIEW.h;
+
+/** The part of the screen to show for a beat: all of it, or its focus box with room around it. */
+function screenCam(v) {
+  const s = SCR.shots[v.shot];
+  const full = { x: 0, y: 0, w: s.w, h: s.h };
+  const b = v.zoom === false ? null : s.boxes[v.focus];
+  if (!b) return full;
+  let w = Math.max(b[2] * 1.5, b[2] + 160, 420), h = Math.max(b[3] * 1.5, b[3] + 120, 280);
+  if (w / h < SCREEN_ASPECT) w = h * SCREEN_ASPECT; else h = w / SCREEN_ASPECT;
+  if (w >= s.w || h >= s.h) return full;
+  const cx = clamp(b[0] + b[2] / 2, w / 2, s.w - w / 2), cy = clamp(b[1] + b[3] / 2, h / 2, s.h - h / 2);
+  return { x: cx - w / 2, y: cy - h / 2, w, h };
+}
+const lerpCam = (a, b, x) => ({ x: lerp(a.x, b.x, x), y: lerp(a.y, b.y, x), w: lerp(a.w, b.w, x), h: lerp(a.h, b.h, x) });
+
+function screenVisual(v, u, dur) {
+  const s = SCR.shots[v.shot], im = shotImg.get(v.shot);
+  const i = D.beats.findIndex((x) => x.visual === v);
+  const prev = i > 0 ? D.beats[i - 1].visual : null;
+  // Carry on from the last beat's view of the same screen; otherwise start from the whole screen.
+  const from = prev && prev.type === "screen" && prev.shot === v.shot ? screenCam(prev) : { x: 0, y: 0, w: s.w, h: s.h };
+  const cam = lerpCam(from, screenCam(v), easeInOut(seg(u, 0.2, 1.7)));
+  const k = Math.min(VIEW.w / cam.w, VIEW.h / cam.h);
+  const ox = VIEW.x + VIEW.w / 2 - (cam.x + cam.w / 2) * k, oy = VIEW.y + VIEW.h / 2 - (cam.y + cam.h / 2) * k;
+  const map = (x, y) => [ox + x * k, oy + y * k];
+  ctx.save();
+  rr(VIEW.x, VIEW.y, VIEW.w, VIEW.h, 24); ctx.fillStyle = "#000"; ctx.fill(); ctx.clip();
+  if (im.complete) ctx.drawImage(im, ox, oy, s.w * k, s.h * k);
+  // The boxes being talked about: the rest of the screen dims, each box gets a yellow frame.
+  const boxes = (v.boxes || (v.focus ? [v.focus] : [])).map((n) => s.boxes[n]).filter(Boolean);
+  const ha = easeOut(seg(u, 1.2, 1.8));
+  if (boxes.length && ha > 0) {
+    ctx.save();
+    ctx.beginPath(); ctx.rect(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
+    for (const b of boxes) { const [x, y] = map(b[0] - 6, b[1] - 6); rr(x, y, (b[2] + 12) * k, (b[3] + 12) * k, 10); }
+    ctx.fillStyle = `rgba(0,0,0,${0.45 * ha})`; ctx.fill("evenodd");
+    const pulse = 0.75 + 0.25 * Math.sin(u * 4);
+    for (const b of boxes) {
+      const [x, y] = map(b[0] - 6, b[1] - 6);
+      rr(x, y, (b[2] + 12) * k, (b[3] + 12) * k, 10);
+      ctx.lineWidth = 5; ctx.strokeStyle = C.warn; ctx.globalAlpha = ha * pulse; ctx.stroke();
+    }
+    ctx.restore();
+    if (v.label) {
+      const b = boxes[0], [x, y] = map(b[0], b[1] + b[3] + 6);
+      const below = y + 60 < VIEW.y + VIEW.h;
+      const [, top] = map(0, b[1] - 6);
+      pill(v.label, clamp(x, VIEW.x + 20, VIEW.x + VIEW.w - 420), below ? y + 34 : top - 34, { size: 28, alpha: ha });
+    }
+  }
+  // Clicked points (A and A′, the storm-vector clicks, a crosshair).
+  (v.points || []).forEach((n, j) => {
+    const p = s.points[n];
+    if (!p) return;
+    const a = easeOut(seg(u, 1.0 + j * 0.5, 1.4 + j * 0.5));
+    if (a <= 0) return;
+    const [x, y] = map(p[0], p[1]);
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.beginPath(); ctx.arc(x, y, 22, 0, Math.PI * 2); ctx.lineWidth = 5; ctx.strokeStyle = C.warn; ctx.stroke();
+    ctx.restore();
+    if (!/^cursor/.test(n)) pill(n, x + 28, y - 28, { size: 26, alpha: a });
+  });
+  if (v.menu === "products") productMenu(u);
+  ctx.restore();
+  // What this is, and when.
+  const when = SCR.at ? new Date(SCR.at) : null;
+  const stamp = when ? `${when.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })} · ${String(when.getUTCHours()).padStart(2, "0")}:${String(when.getUTCMinutes()).padStart(2, "0")}Z` : "";
+  pill("STORM CENTRAL · PROFESSIONAL MODE", VIEW.x + 20, VIEW.y + 34, { size: 22, fill: "rgba(3,6,13,0.82)", color: C.ink });
+  if (stamp) pill(`LIVE DATA · ${stamp}`, VIEW.x + VIEW.w - 20, VIEW.y + 34, { size: 22, fill: "rgba(3,6,13,0.82)", color: C.ink2, align: "right" });
+}
+
+/** The product menu's groups (a native menu doesn't show in a screenshot), drawn beside the panel. */
+function productMenu(u) {
+  const groups = (SCR.products || []).filter((g) => g.items.length);
+  if (!groups.length) return;
+  const a = easeOut(seg(u, 0.8, 1.4));
+  const x = VIEW.x + VIEW.w - 600, y = VIEW.y + 80, w = 570;
+  const rows = groups.map((g) => ({ head: g.group, line: g.items.map((s) => s.split(" · ")[0]).join(" · ") }));
+  const lines = rows.map((r) => wrap(r.line, w - 48, 24, 600));
+  const h = 40 + lines.reduce((n, l) => n + 44 + l.length * 32, 0);
+  ctx.save(); ctx.globalAlpha = a;
+  rr(x, y, w, h, 18); ctx.fillStyle = "rgba(11,17,32,0.94)"; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.warn; ctx.stroke();
+  let yy = y + 30;
+  rows.forEach((r, i) => {
+    text(r.head.toUpperCase(), x + 24, yy + 22, { size: 20, weight: 800, color: C.accent, spacing: 2 });
+    yy += 44;
+    for (const l of lines[i]) { text(l, x + 24, yy + 4, { size: 24, weight: 600 }); yy += 32; }
+  });
+  ctx.restore();
+}
+
+const VISUALS = { radar: radarVisual, split: splitVisual, works: worksVisual, drops: dropsVisual, sweep: sweepVisual, tilts: tiltsVisual, beam: beamVisual, bullets: bulletsVisual, screen: screenVisual };
 
 // ── side panel ───────────────────────────────────────────────────────────
 function sidePanel(t, b) {
@@ -633,16 +734,28 @@ function thumbnail() {
   background();
   const th = D.thumb;
   const rect = { x: 760, y: 60, w: 1100, h: 960 };
-  const s = stormFor(th.visual.storm, 0, 1);
-  const view = viewFor(th.visual.storm, s, rect, 0, 1);
-  scopeFrame(rect, view, s, th.visual.storm.product || "ref", { label: false, legend: false });
-  ctx.save(); rr(rect.x, rect.y, rect.w, rect.h, 24); ctx.clip();
-  notes({ notes: (th.visual.storm.notes || []).map((n) => ({ ...n, at: -1 })) }, s, view, 10);
-  ctx.restore();
+  const shot = th.visual.shot && SCR.shots[th.visual.shot];
+  if (shot) {
+    // A screen of the app, cropped to its focus box (or the middle), filling the frame.
+    const im = shotImg.get(th.visual.shot), b = shot.boxes[th.visual.focus] || [0, 0, shot.w, shot.h];
+    const k = Math.max(rect.w / Math.min(shot.w, Math.max(b[2], rect.w / 3)), rect.h / Math.min(shot.h, Math.max(b[3], rect.h / 3)));
+    const cx = clamp(b[0] + b[2] / 2, rect.w / k / 2, shot.w - rect.w / k / 2), cy = clamp(b[1] + b[3] / 2, rect.h / k / 2, shot.h - rect.h / k / 2);
+    ctx.save(); rr(rect.x, rect.y, rect.w, rect.h, 24); ctx.clip();
+    ctx.drawImage(im, rect.x + rect.w / 2 - cx * k, rect.y + rect.h / 2 - cy * k, shot.w * k, shot.h * k);
+    ctx.restore();
+    rr(rect.x, rect.y, rect.w, rect.h, 24); ctx.lineWidth = 6; ctx.strokeStyle = C.warn; ctx.stroke();
+  } else {
+    const s = stormFor(th.visual.storm, 0, 1);
+    const view = viewFor(th.visual.storm, s, rect, 0, 1);
+    scopeFrame(rect, view, s, th.visual.storm.product || "ref", { label: false, legend: false });
+    ctx.save(); rr(rect.x, rect.y, rect.w, rect.h, 24); ctx.clip();
+    notes({ notes: (th.visual.storm.notes || []).map((n) => ({ ...n, at: -1 })) }, s, view, 10);
+    ctx.restore();
+  }
   if (logo.complete) { ctx.save(); rr(70, 80, 110, 110, 24); ctx.clip(); ctx.drawImage(logo, 70, 80, 110, 110); ctx.restore(); }
   text("RADAR SCHOOL", 200, 152, { size: 44, weight: 900, color: C.accent, spacing: 6 });
   th.lines.forEach((l, i) => {
-    const size = fitSize(l, 700, 150, 900);
+    const size = fitSize(l, th.visual.shot && SCR.shots[th.visual.shot] ? 650 : 700, 150, 900);
     ctx.save();
     ctx.font = `900 ${size}px "${FONT}"`;
     ctx.lineWidth = 16; ctx.strokeStyle = "#03060d"; ctx.lineJoin = "round";

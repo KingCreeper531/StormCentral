@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Forecast } from "@/lib/api/open-meteo";
 import { CATEGORIES, CATEGORY_IDS, SEVERITY_LABELS, type Category, isGenericPlace } from "@/lib/community";
 import { getFreshPosition } from "@/lib/device-position";
+import { haversineKm } from "@/lib/geo";
 import { useT } from "@/lib/i18n/use-t";
 import { preparePhoto } from "@/lib/image-client";
 import { MPING_OPTIONS } from "@/lib/mping";
@@ -102,6 +103,8 @@ export function Composer() {
         lat = pos.coords.latitude;
         lon = pos.coords.longitude;
       }
+      // Reporting from somewhere else than the place on screen: its name and forecast don't describe the report.
+      const elsewhere = haversineKm(loc, { lat, lon }) > 10;
       const fd = new FormData();
       fd.set("body", body);
       fd.set("category", category);
@@ -109,11 +112,11 @@ export function Composer() {
       fd.set("lat", String(lat));
       fd.set("lon", String(lon));
       // "My location" (GPS without a town name) is left out; the server names the town from the coordinates.
-      if (!isGenericPlace(loc.name)) fd.set("place", loc.name.slice(0, 80));
+      if (!elsewhere && !isGenericPlace(loc.name)) fd.set("place", loc.name.slice(0, 80));
       fd.set("precise", String(precise));
       if (sendToMping && mpingKey) fd.set("mping", mpingKey);
       // Ground truth vs. model: snapshot what the forecast said right now.
-      const f = qc.getQueryData<Forecast>(qk.forecast(loc));
+      const f = elsewhere ? undefined : qc.getQueryData<Forecast>(qk.forecast(loc));
       if (f) {
         const i = currentHourIndex(f, Date.now());
         fd.set(

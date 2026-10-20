@@ -112,12 +112,14 @@ jobs:
           SHORTS_VOICE_NAME: ${{ vars.SHORTS_VOICE_NAME || 'en-US-AndrewNeural' }}
         run: node "$RUNNER_TEMP/shorts/shorts.mjs"
       - name: Mark it as posted
-        if: steps.make.outputs.uploaded == 'true'
+        # always(): a run where one of two videos failed still records the one it posted.
+        if: always() && steps.make.outputs.uploaded == 'true'
         env:
           KEYS: ${{ steps.make.outputs.breaking_keys }}
         run: node "$RUNNER_TEMP/shorts/check.mjs" mark "$KEYS"
       - uses: actions/cache/save@v4
-        if: steps.make.outputs.uploaded == 'true'
+        # always(): a run where one of two videos failed still records the one it posted.
+        if: always() && steps.make.outputs.uploaded == 'true'
         with:
           path: shorts/.state
           key: shorts-breaking-state-${{ github.run_id }}

@@ -170,7 +170,7 @@ export const moderationActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("keep"), type: z.enum(FLAG_TARGETS), id: z.string().min(1).max(64) }),
   /** Delete the report or comment and close its flags. */
   z.object({ action: z.literal("remove"), type: z.enum(["post", "comment"]), id: z.string().min(1).max(64) }),
-  z.object({ action: z.literal("suspend"), username, days: z.union([z.literal(1), z.literal(7), z.literal(30), z.literal(0)]) }),
+  z.object({ action: z.literal("suspend"), username, days: z.literal(SUSPENSION_DAYS) }),
   z.object({ action: z.literal("unsuspend"), username }),
 ]);
 export type ModerationAction = z.infer<typeof moderationActionSchema>;

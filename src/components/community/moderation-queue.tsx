@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, EyeOff, Loader2, ShieldX, UserX } from "lucide-react";
 import Link from "next/link";
 import { getJson } from "@/lib/api/http";
-import { FLAG_REASONS, suspensionText, type ModerationAction, type QueueItemDto } from "@/lib/community";
+import { FLAG_REASONS, SUSPENSION_DAYS, suspensionText, type ModerationAction, type QueueItemDto } from "@/lib/community";
 import { useT } from "@/lib/i18n/use-t";
 import { timeAgo } from "@/lib/time";
 import { useNow } from "@/hooks/use-now";
@@ -15,7 +15,6 @@ import { errorText, sendJson } from "./moderation";
 
 /** "Weather report", not "Report": that key is the verb (Reportar). */
 const KIND = { post: "Weather report", comment: "Comment", user: "Account" } as const;
-const SUSPEND_DAYS = [1, 7, 30, 0] as const;
 
 function QueueItem({ item, now }: { item: QueueItemDto; now: number }) {
   const t = useT();
@@ -132,7 +131,7 @@ function QueueItem({ item, now }: { item: QueueItemDto; now: number }) {
               <option value="" disabled>
                 {t("Choose…")}
               </option>
-              {SUSPEND_DAYS.map((d) => (
+              {SUSPENSION_DAYS.map((d) => (
                 <option key={d} value={d}>
                   {d === 0 ? t("Permanently") : t.plural(d, "{n} day", "{n} days")}
                 </option>

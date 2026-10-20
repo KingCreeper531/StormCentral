@@ -32,6 +32,8 @@ async function withPage<T>(template: string, data: Record<string, unknown>, opts
     await page.evaluate(async () => {
       await document.fonts.load('700 40px "SC Inter"');
       await document.fonts.ready;
+      // Pages with images to decode first (lesson.html's app screens) set READY.
+      await (window as unknown as { READY?: Promise<unknown> }).READY;
     });
     if (errors.length) throw new Error(`${template}: ${errors.join("; ")}`);
     return await draw(page, errors);

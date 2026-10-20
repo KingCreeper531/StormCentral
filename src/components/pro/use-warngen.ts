@@ -2,8 +2,8 @@
 
 import { useMemo } from "react";
 import { useNow } from "@/hooks/use-now";
-import type { LatLon } from "@/lib/geo";
-import { destination, stormMotion } from "@/lib/pro/storm-tools";
+import { destination, type LatLon } from "@/lib/geo";
+import { stormMotion } from "@/lib/pro/storm-tools";
 import { trackPolygon, type Ring } from "@/lib/warngen/geometry";
 import { useProStore } from "@/store/pro-store";
 

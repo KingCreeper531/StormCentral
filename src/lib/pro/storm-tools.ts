@@ -7,23 +7,11 @@
  * flat-earth frame around the storm, which is accurate to well under 1% over
  * the 100–200 km a one-hour fan covers.
  */
-import { bearingDeg, haversineKm, type LatLon } from "../geo";
+import { bearingDeg, destination, haversineKm, type LatLon } from "../geo";
 
-const R_EARTH_KM = 6371.0088;
 const KM_PER_NM = 1.852;
 const toRad = (d: number) => (d * Math.PI) / 180;
 const toDeg = (r: number) => (r * 180) / Math.PI;
-
-/** Point `km` from `p` along initial bearing `deg`. */
-export function destination(p: LatLon, deg: number, km: number): LatLon {
-  const δ = km / R_EARTH_KM;
-  const θ = toRad(deg);
-  const φ1 = toRad(p.lat);
-  const λ1 = toRad(p.lon);
-  const φ2 = Math.asin(Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(θ));
-  const λ2 = λ1 + Math.atan2(Math.sin(θ) * Math.sin(δ) * Math.cos(φ1), Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2));
-  return { lat: toDeg(φ2), lon: ((toDeg(λ2) + 540) % 360) - 180 };
-}
 
 export interface TimedPoint extends LatLon {
   /** Epoch ms of the loop frame the point was picked on. */

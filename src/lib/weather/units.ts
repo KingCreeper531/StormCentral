@@ -75,7 +75,6 @@ export function convertHeight(m: number, unit: HeightUnit) {
 }
 
 export const WIND_LABEL: Record<WindUnit, string> = { mph: "mph", kmh: "km/h", ms: "m/s", kn: "kn" };
-export const PRESSURE_LABEL: Record<PressureUnit, string> = { inHg: "inHg", hPa: "hPa" };
 
 const nf = (digits: number) =>
   new Intl.NumberFormat(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits });

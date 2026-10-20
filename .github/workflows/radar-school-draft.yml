@@ -53,6 +53,11 @@ jobs:
         timeout-minutes: 20
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
+          # The installer starts Ollama as a systemd service; some runners have no systemd, so start it here if it isn't up.
+          if ! curl -sf http://127.0.0.1:11434/api/version >/dev/null; then
+            nohup ollama serve >"$RUNNER_TEMP/ollama.log" 2>&1 &
+            for _ in $(seq 30); do curl -sf http://127.0.0.1:11434/api/version >/dev/null && break; sleep 1; done
+          fi
           ollama pull "$SHORTS_AI_MODEL"
           ollama pull "$REVIEW_MODEL"
       - name: Research, draft and check

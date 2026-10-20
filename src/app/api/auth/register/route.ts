@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, or } from "drizzle-orm";
 import { hashPassword } from "@/lib/auth/password";
-import { createSession } from "@/lib/auth/session";
+import { createSession, isReservedUsername } from "@/lib/auth/session";
 import { firstIssue, registerSchema } from "@/lib/community";
 import { getDb } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
@@ -16,6 +16,7 @@ export async function POST(req: Request) {
   const parsed = registerSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: firstIssue(parsed.error) }, { status: 400 });
   const { username, email, password, displayName } = parsed.data;
+  if (isReservedUsername(username)) return Response.json({ error: "That username is reserved" }, { status: 409 });
 
   const db = await getDb();
   const clash = await db
@@ -39,8 +40,9 @@ export async function POST(req: Request) {
       avatarHue: Math.floor(Math.random() * 360),
       createdAt: Date.now(),
     });
-  } catch {
-    // Unique-constraint race with a concurrent registration.
+  } catch (err) {
+    // A unique-constraint race with a concurrent registration; anything else is a real failure.
+    if (!/unique/i.test(`${err} ${(err as { cause?: unknown })?.cause}`)) throw err;
     return Response.json({ error: "That username or email is already registered" }, { status: 409 });
   }
   await createSession(id);

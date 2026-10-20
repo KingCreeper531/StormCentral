@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { haversineKm } from "../geo";
+import { destination, haversineKm } from "../geo";
 import { FAMILIES } from "../radar/products";
 import { ibwDetails, ibwSection } from "./ibw";
 import { parseProfile, PROFILE_LEVELS, transect, type OpenMeteoProfile } from "./model";
-import { isProProductId, PRO_PRODUCT_IDS, PRO_PRODUCTS, productLegend, productUsable, satelliteFrames, shownProduct } from "./products";
+import { isProProductId, PRO_PRODUCT_IDS, PRO_PRODUCTS, productUsable, satelliteFrames, shownProduct } from "./products";
 import { fillTileUrl, pixelAt, tileBbox, tileZoom, valueFromColor } from "./sample";
-import { arrivals, destination, motionFrom, stormMotion, toaFan } from "./storm-tools";
+import { arrivals, motionFrom, stormMotion, toaFan } from "./storm-tools";
 import { frameAt, syncTime } from "./sync";
 
 describe("sync clock", () => {
@@ -20,12 +20,10 @@ describe("sync clock", () => {
 });
 
 describe("products", () => {
-  it("validates ids and gives legends to the radar products", () => {
+  it("validates ids", () => {
     expect(isProProductId("ref")).toBe(true);
     expect(isProProductId("nope")).toBe(false);
     for (const id of PRO_PRODUCT_IDS) expect(PRO_PRODUCTS[id].id).toBe(id);
-    expect(productLegend("vel")?.unit).toBe("kt");
-    expect(productLegend("sat-ir")).toBeNull();
   });
 
   it("pairs one satellite image with each 10-minute slot of the loop", () => {

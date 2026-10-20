@@ -72,7 +72,3 @@ export function iconName(code: number | null | undefined, isDay: boolean, opts?:
 export function iconUrl(name: string, animated = true) {
   return `/icons/weather/${animated ? "animated" : "static"}/${name}.svg`;
 }
-
-export function isPrecipCode(code: number | null | undefined) {
-  return code != null && code >= 51;
-}

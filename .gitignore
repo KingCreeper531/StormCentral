@@ -25,6 +25,7 @@ next-env.d.ts
 !.env.example
 
 # misc
+/.claude/worktrees/
 .DS_Store
 *.pem
 npm-debug.log*

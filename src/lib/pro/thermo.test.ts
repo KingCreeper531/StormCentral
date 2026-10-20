@@ -3,7 +3,6 @@ import {
   analyze,
   bunkers,
   dewpointFromMixingRatio,
-  dewpointFromRh,
   helicity,
   lcl,
   liftParcel,
@@ -42,8 +41,6 @@ function springSounding(): Sounding {
 describe("thermodynamics", () => {
   it("vapour pressure, dew point and mixing ratio", () => {
     expect(satVapPres(0)).toBeCloseTo(6.112, 3);
-    expect(dewpointFromRh(20, 100)).toBeCloseTo(20, 1);
-    expect(dewpointFromRh(30, 50)).toBeCloseTo(18.4, 0);
     const w = mixingRatio(1000, 20);
     expect(w * 1000).toBeGreaterThan(14);
     expect(w * 1000).toBeLessThan(15.5);

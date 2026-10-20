@@ -37,15 +37,6 @@ export async function syncRunner(config: WatchConfig, widget: WidgetSnapshot | n
   if (a.status === "rejected" && b.status === "rejected") throw a.reason;
 }
 
-/** Run a check now (the app is open, so don't wait for the next scheduled run). */
-export async function runnerCheck() {
-  await (await runner()).dispatchEvent({ label: RUNNER_LABEL, event: "check", details: {} });
-}
-
-export async function runnerTestNotification() {
-  await (await runner()).dispatchEvent({ label: RUNNER_LABEL, event: "test", details: {} });
-}
-
 export async function runnerPermission(request: boolean): Promise<string> {
   const r = await runner();
   const status = request ? await r.requestPermissions({ apis: ["notifications"] }) : await r.checkPermissions();

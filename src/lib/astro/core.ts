@@ -11,7 +11,6 @@ const J2000 = 2451545;
 const OBLIQUITY = RAD * 23.4397;
 
 export const toJulian = (date: Date) => date.valueOf() / DAY_MS - 0.5 + J1970;
-export const fromJulian = (j: number) => new Date((j + 0.5 - J1970) * DAY_MS);
 export const toDays = (date: Date) => toJulian(date) - J2000;
 
 export const rightAscension = (l: number, b: number) =>
