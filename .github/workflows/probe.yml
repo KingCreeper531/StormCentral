@@ -1,0 +1,56 @@
+# Temporary: checks Open-Meteo's model names and ensemble format (not reachable from the dev sandbox).
+name: Probe (temporary)
+on:
+  push:
+    branches: [claude/trusting-pasteur-qzc0fq]
+    paths: [.github/workflows/probe.yml]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          set +e
+          cat > /tmp/p.py <<'PY'
+          import json, sys, urllib.request, urllib.error
+          LAT, LON = 35.22, -97.44
+          def get(url):
+              req = urllib.request.Request(url, headers={"Origin": "https://stormcentralwx.com"})
+              try:
+                  with urllib.request.urlopen(req, timeout=40) as r:
+                      return r.status, dict(r.headers), json.load(r)
+              except urllib.error.HTTPError as e:
+                  try: body = json.load(e)
+                  except Exception: body = {}
+                  return e.code, dict(e.headers), body
+              except Exception as e:
+                  return 0, {}, {"reason": str(e)}
+          VARS = "temperature_2m,dew_point_2m,precipitation,wind_gusts_10m,wind_speed_10m,cape,pressure_msl,snowfall"
+          print("=== forecast API, one model at a time")
+          for m in ["gfs_seamless","gfs_global","gfs_graphcast025","ncep_hrrr_conus","ncep_nam_conus","ncep_nbm_conus","ncep_aigfs025","ncep_hgefs025","ecmwf_ifs025","ecmwf_ifs","ecmwf_aifs025_single","ecmwf_aifs025","icon_seamless","gem_seamless","ukmo_seamless","meteofrance_seamless","jma_seamless","kma_seamless","cma_grapes_global","bom_access_global","knmi_seamless"]:
+              s, h, b = get(f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}&models={m}&hourly={VARS}&forecast_days=16&timeformat=unixtime")
+              if s != 200:
+                  print(f"{m}: HTTP {s} {b.get('reason','')[:140]}"); continue
+              hr = b.get("hourly", {})
+              t = hr.get("time", [])
+              cov = {k: sum(v is not None for v in vals) for k, vals in hr.items() if k != "time"}
+              print(f"{m}: {len(t)} h; non-null per var: " + ", ".join(f"{k.replace('_'+m,'')}={n}" for k, n in cov.items()))
+          print("=== forecast API, several models in one call")
+          s, h, b = get(f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}&models=gfs_seamless,ecmwf_ifs025,ecmwf_aifs025_single,ncep_hrrr_conus&hourly=temperature_2m,cape&forecast_days=3&timeformat=unixtime")
+          print("status", s, "keys", sorted(b.get("hourly", {}).keys()) if s == 200 else b)
+          print("=== ensemble API")
+          for m in ["gfs025","gfs05","ncep_gefs025","ncep_gefs05","ecmwf_ifs025","ecmwf_aifs025","icon_seamless","icon_global","gem_global","bom_access_global_ensemble","ukmo_global_ensemble_20km"]:
+              s, h, b = get(f"https://ensemble-api.open-meteo.com/v1/ensemble?latitude={LAT}&longitude={LON}&models={m}&hourly={VARS}&forecast_days=16&timeformat=unixtime")
+              if s != 200:
+                  print(f"{m}: HTTP {s} {b.get('reason','')[:140]}"); continue
+              hr = b.get("hourly", {})
+              keys = [k for k in hr if k != "time"]
+              members = [k for k in keys if k.startswith("temperature_2m")]
+              filled = {v: sum(1 for k in keys if k.startswith(v) and any(x is not None for x in hr[k])) for v in VARS.split(",")}
+              print(f"{m}: {len(hr.get('time', []))} h; temperature keys {len(members)} e.g. {members[:3]}; series with data per var: {filled}; CORS={h.get('Access-Control-Allow-Origin')}")
+          print("=== ensemble, two models in one call")
+          s, h, b = get(f"https://ensemble-api.open-meteo.com/v1/ensemble?latitude={LAT}&longitude={LON}&models=gfs025,ecmwf_ifs025&hourly=temperature_2m&forecast_days=2&timeformat=unixtime")
+          print("status", s, "sample keys", sorted(b.get("hourly", {}).keys())[:6] if s == 200 else b)
+          PY
+          python3 /tmp/p.py
