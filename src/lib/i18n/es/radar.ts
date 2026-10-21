@@ -154,6 +154,8 @@ export const RADAR: Record<string, string> = {
   "Issued {issued}, until {until}": "Emitido a las {issued}, hasta las {until}",
   "Close alert": "Cerrar alerta",
   "Projected arrival at {place}": "Llegada estimada a {place}",
+  "In the path": "En la trayectoria",
+  "in {min} min": "en {min} min",
   "Max hail": "Granizo máximo",
   "Max wind": "Viento máximo",
   "Storm motion": "Movimiento de la tormenta",

@@ -1,0 +1,74 @@
+# TEMP: the storm path on the real app, with a made-up tornado warning near Oklahoma City. Removed before the PR.
+name: Probe storm path
+on:
+  push:
+    branches: [claude/trusting-pasteur-qzc0fq]
+    paths: [.github/workflows/probe-storm-path.yml]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Start the app
+        run: |
+          (npx next dev -p 3100 > /tmp/next.log 2>&1 &)
+          for i in $(seq 90); do curl -fsS -o /dev/null http://localhost:3100/ && break; sleep 2; done
+          # Compile the radar page and the alerts route once before the browser loads them.
+          curl -fsS -o /dev/null "http://localhost:3100/?mode=severe" || true
+          curl -fsS -o /dev/null "http://localhost:3100/api/alerts?scope=national" || true
+          tail -5 /tmp/next.log
+      - name: A tornado warning, its path and the towns in it
+        run: |
+          npx --yes playwright@1.63.0 install --with-deps chromium > /dev/null
+          cat > probe.mjs <<'JS'
+          import { chromium } from "playwright";
+          const now = Date.now();
+          const iso = (ms) => new Date(ms).toISOString();
+          // A storm southwest of Oklahoma City, moving east-northeast at 35 kt.
+          const fake = {
+            id: "demo-tor", event: "Tornado Warning", headline: "Tornado Warning (test)", severity: "Extreme", urgency: "Immediate", certainty: "Observed",
+            sent: iso(now - 300000), effective: iso(now - 300000), expires: iso(now + 2700000), ends: iso(now + 2700000),
+            areaDesc: "Oklahoma, OK; Cleveland, OK", sender: "NWS Norman OK", description: "A test warning for the storm path probe.", instruction: null,
+            hazards: { tornado: "OBSERVED", maxHail: "1.50" }, tags: ["OBSERVED"], color: "#ff0000", rank: 90,
+            motion: { time: iso(now), headingDeg: 65, speedKt: 35, positions: [[-97.66, 35.33]] },
+            geometry: { type: "Polygon", coordinates: [[[-97.75, 35.25], [-97.75, 35.42], [-97.05, 35.62], [-97.0, 35.4], [-97.75, 35.25]]] },
+            category: "warning", source: "nws",
+          };
+          const browser = await chromium.launch({ args: ["--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
+          const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, locale: "en-US", timezoneId: "America/Chicago" });
+          await ctx.addInitScript(() => {
+            localStorage.setItem("stormcentral:v1", JSON.stringify({ state: { theme: "dark", units: "imperial" }, version: 1 }));
+          });
+          await ctx.route("**/api/alerts?**", async (route) => {
+            const url = route.request().url();
+            if (url.includes("id=") || url.includes("product=")) return route.continue();
+            let body = { alerts: [], updated: iso(now) };
+            try { const res = await route.fetch(); body = await res.json(); } catch {}
+            body.alerts = [fake, ...(body.alerts ?? [])];
+            await route.fulfill({ json: body });
+          });
+          const page = await ctx.newPage();
+          const errors = [];
+          page.on("pageerror", (e) => errors.push(e.message));
+          page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+          await page.goto("http://localhost:3100/?mode=severe&lat=35.47&lon=-97.52&name=Oklahoma%20City", { waitUntil: "domcontentloaded", timeout: 120000 });
+          await page.waitForTimeout(15000);
+          await page.getByText("Tornado Warning", { exact: false }).first().click({ timeout: 20000 }).catch((e) => console.log("click:", e.message));
+          await page.waitForTimeout(8000);
+          const panel = await page.locator("text=In the path").first().locator("xpath=..").innerText({ timeout: 10000 }).catch((e) => `no "In the path" section: ${e.message}`);
+          console.log("── In the path:\n" + panel);
+          await page.screenshot({ path: "storm-path.png" });
+          // Zoomed in: the callouts and clock times show from zoom 6-6.5.
+          console.log("── errors:", errors.filter((e) => !/Failed to load resource|404|net::/.test(e)).slice(0, 10));
+          await browser.close();
+          JS
+          cp probe.mjs /tmp/ && cd /tmp && npm init -y > /dev/null && npm install --silent --no-audit --no-fund playwright@1.63.0 && node probe.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: storm-path, path: /tmp/storm-path.png }
