@@ -26,10 +26,6 @@ jobs:
           git worktree add -q "$RUNNER_TEMP/main-src" origin/main
           b() { npx --yes esbuild@0.28.2 "$1/stream/director.ts" --bundle --platform=node --format=esm --target=node22 --external:playwright-core --external:@grpc/grpc-js --external:@grpc/proto-loader --outfile="$2/director.mjs" --log-level=warning; }
           b . "$RUNNER_TEMP/new" && b "$RUNNER_TEMP/main-src" "$RUNNER_TEMP/main"
-          # The same, with the radar loop's crossfade off (the map redraws all through each fade).
-          mkdir -p "$RUNNER_TEMP/nofade" && ln -s "$RUNNER_TEMP/new/node_modules" "$RUNNER_TEMP/nofade/node_modules"
-          sed 's/radar: { future, nowcast: false }/radar: { future, nowcast: false, crossfade: false }/' "$RUNNER_TEMP/new/director.mjs" > "$RUNNER_TEMP/nofade/director.mjs"
-          grep -c "crossfade: false" "$RUNNER_TEMP/nofade/director.mjs"
           pipx install edge-tts==7.3.1
           curl -fsSL -o /tmp/c.zip https://download.geonames.org/export/dump/cities5000.zip && unzip -p /tmp/c.zip cities5000.txt | awk -F'\t' '$9 == "US" && $11 ~ /^[A-Z][A-Z]$/ {print $3 "\t" $11 "\t" $5 "\t" $6 "\t" $15}' > "$RUNNER_TEMP/places.tsv"
           nproc; lscpu | grep -E "Model name|^CPU\(s\)"
@@ -92,9 +88,9 @@ jobs:
           }
           probe main-30fps "$RUNNER_TEMP/main" "$RUNNER_TEMP/main-src" STREAM_FPS=30
           probe new-30fps "$RUNNER_TEMP/new" . STREAM_FPS=30
-          probe new-30fps-nofade "$RUNNER_TEMP/nofade" . STREAM_FPS=30
           probe main-20fps "$RUNNER_TEMP/main" "$RUNNER_TEMP/main-src" STREAM_FPS=20
           probe new-20fps "$RUNNER_TEMP/new" . STREAM_FPS=20
+          probe new-24fps "$RUNNER_TEMP/new" . STREAM_FPS=24
           echo "──────── summary"; cat "$RUNNER_TEMP/summary.txt"
       - uses: actions/upload-artifact@v4
         if: always()
