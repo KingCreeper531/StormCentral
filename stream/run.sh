@@ -10,6 +10,8 @@
 #   STREAM_SECONDS       stop after this long (tests); empty = forever
 #   STREAM_FPS           frames per second (30)
 #   STREAM_VIDEO_KBPS    video bitrate (3500, YouTube's range for 720p)
+#   STREAM_X264_PRESET   the encoder's speed: superfast on a server with 2 CPUs or fewer (about half the CPU,
+#                        a little less sharp at the same bitrate), veryfast otherwise
 #   STREAM_RUNTIME       where director.mjs and playwright-core live (/opt/stormcentral/stream)
 #   STREAM_EXTRA_OUTPUTS other platforms too, space-separated RTMP URLs with their keys (Twitch, Kick, Facebook…)
 #   ANTHROPIC_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY + OPENAI_MODEL, OLLAMA_MODEL
@@ -25,6 +27,7 @@ W=${STREAM_WIDTH:-1280}
 H=${STREAM_HEIGHT:-720}
 FPS=${STREAM_FPS:-30}
 KBPS=${STREAM_VIDEO_KBPS:-3500}
+PRESET=${STREAM_X264_PRESET:-$([ "$(nproc)" -le 2 ] && echo superfast || echo veryfast)}
 RUNTIME=${STREAM_RUNTIME:-/opt/stormcentral/stream}
 DISPLAY_NUM=${STREAM_DISPLAY:-99}
 export DISPLAY=":$DISPLAY_NUM"
@@ -73,8 +76,9 @@ pids+=($!)
 sleep "${STREAM_WARMUP:-25}"
 
 # Out to YouTube: H.264 at a constant bitrate, a keyframe every 2 seconds, AAC stereo (YouTube's live settings),
-# the sound kept in sync with the picture and limited so alerts never clip. The same encode also goes to a
-# rolling 4-minute recording in 6-second pieces, for the clips.
+# the sound kept in sync with the picture and limited so alerts never clip. Under it, noise at -90 dB (far below
+# hearing): silence encodes to almost nothing, and YouTube Studio then warns the audio bitrate is 0. The same encode
+# also goes to a rolling 4-minute recording in 6-second pieces, for the clips.
 limit=()
 [ -n "${STREAM_SECONDS:-}" ] && limit=(-t "$STREAM_SECONDS")
 fmt=flv
@@ -91,8 +95,8 @@ fi
 ffmpeg -hide_banner -loglevel warning -nostdin \
   -thread_queue_size 1024 -f x11grab -draw_mouse 0 -framerate "$FPS" -video_size "${W}x${H}" -i "$DISPLAY.0+0,0" \
   -thread_queue_size 1024 -f pulse -i stream.monitor \
-  -map 0:v -map 1:a -af "aresample=async=1000,alimiter=limit=0.89:level=disabled" \
-  -c:v libx264 -preset veryfast -b:v "${KBPS}k" -maxrate "${KBPS}k" -bufsize "$((KBPS * 2))k" \
+  -map 0:v -map 1:a -af "aresample=async=1000,aeval=val(ch)+0.00003*(random(0)*2-1):c=same,alimiter=limit=0.89:level=disabled" \
+  -c:v libx264 -preset "$PRESET" -b:v "${KBPS}k" -maxrate "${KBPS}k" -bufsize "$((KBPS * 2))k" \
   -g "$((FPS * 2))" -keyint_min "$((FPS * 2))" -sc_threshold 0 -pix_fmt yuv420p \
   -c:a aac -b:a 160k -ar 48000 -ac 2 -flags +global_header \
   "${limit[@]}" -f tee "[f=$fmt:onfail=abort]$OUT$segs$extra" \
