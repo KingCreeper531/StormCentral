@@ -1,64 +1,81 @@
 "use client";
 
 import type { FeatureCollection } from "geojson";
-import type { ExpressionSpecification } from "maplibre-gl";
-import { useMemo } from "react";
-import { WEBCAM_SOURCES, WEBCAM_SOURCE_IDS, type Webcam } from "@/lib/webcams";
-import { SLOTS } from "../map-view";
+import type { GeoJSONSource, MapStyleImageMissingEvent } from "maplibre-gl";
+import { useEffect, useMemo } from "react";
+import type { Webcam } from "@/lib/webcams";
+import { mapAlive, SLOTS, useMapContext } from "../map-view";
 import { useLayerClick } from "./use-layer-click";
 import { useGeoJsonLayers } from "./use-geojson-source";
-
-const SRC = "webcams";
-
-/** Marker colour by source (lib/webcams WEBCAM_SOURCES). */
-const COLOR = ["match", ["get", "source"], ...WEBCAM_SOURCE_IDS.flatMap((s) => [s, WEBCAM_SOURCES[s].color]), "#9aa0a6"] as unknown as ExpressionSpecification;
+import { webcamIcon } from "./webcam-icon";
+import {
+  WEBCAM_CLUSTER_MAX_ZOOM,
+  WEBCAM_CLUSTERING,
+  WEBCAM_ICONS,
+  WEBCAM_SELECTED_SRC,
+  webcamFeature,
+  webcamLayers,
+  WEBCAMS_SRC,
+  webcamSelectedLayers,
+} from "./webcams-style";
 
 /**
- * Live cameras: a small dot per camera, coloured by kind (traffic, wildfire,
- * river, volcano), with its name once zoomed in. Thousands of them, so dots
- * stay tiny at country scale and grow as you zoom.
+ * Live cameras: a round camera badge per camera, coloured by kind (traffic,
+ * wildfire, river, volcano). Thousands of them, so cameras that would pile up
+ * merge into a bubble with their count until you zoom in (tapping one zooms
+ * to it). The open camera always shows on top, ringed in white, even inside
+ * a bubble.
  */
 export function WebcamsLayer({ cams, selectedId, onSelect }: { cams: Webcam[]; selectedId: string | null; onSelect: (id: string) => void }) {
-  const data = useMemo<FeatureCollection>(
-    () => ({
-      type: "FeatureCollection",
-      features: cams.map((c) => ({
-        type: "Feature",
-        geometry: { type: "Point", coordinates: [c.lon, c.lat] },
-        properties: { id: c.id, source: c.source, name: c.name, selected: c.id === selectedId ? 1 : 0 },
-      })),
-    }),
-    [cams, selectedId],
-  );
+  const { map } = useMapContext();
 
-  useGeoJsonLayers(
-    SRC,
-    data,
-    (font) => [
-      {
-        id: "webcam-dot",
-        type: "circle",
-        source: SRC,
-        paint: {
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 2, 7, 3.5, 11, 6],
-          "circle-color": COLOR,
-          "circle-stroke-color": ["case", ["==", ["get", "selected"], 1], "#ffffff", "#000000"],
-          "circle-stroke-width": ["case", ["==", ["get", "selected"], 1], 2.5, ["interpolate", ["linear"], ["zoom"], 3, 0.5, 9, 1.5]],
-        },
-      },
-      {
-        id: "webcam-label",
-        type: "symbol",
-        source: SRC,
-        minzoom: 10,
-        layout: { "text-field": ["get", "name"], "text-font": font, "text-size": 11, "text-anchor": "left", "text-offset": [0.9, 0], "text-max-width": 14, "text-optional": true },
-        paint: { "text-color": COLOR, "text-halo-color": "#000000", "text-halo-width": 1.2 },
-      },
-    ],
-    SLOTS.reports,
-  );
+  // Register the badges before the layers below are added (effects run in order).
+  useEffect(() => {
+    if (!mapAlive(map)) return;
+    const add = () => {
+      for (const [id, color] of WEBCAM_ICONS) {
+        if (!mapAlive(map) || map.hasImage(id)) continue;
+        const img = webcamIcon(color);
+        if (img) map.addImage(id, img, { pixelRatio: 2 });
+      }
+    };
+    add();
+    // A style reload drops runtime images: put them back once the new style is in.
+    const onMissing = (e: MapStyleImageMissingEvent) => {
+      if (WEBCAM_ICONS.has(e.id)) add();
+    };
+    map.on("styledata", add);
+    map.on("styleimagemissing", onMissing);
+    return () => {
+      map.off("styledata", add);
+      map.off("styleimagemissing", onMissing);
+    };
+  }, [map]);
 
-  useLayerClick(["webcam-dot"], (e) => {
+  // Selection lives in its own source, so opening a camera doesn't re-cluster thousands.
+  const data = useMemo<FeatureCollection>(() => ({ type: "FeatureCollection", features: cams.map(webcamFeature) }), [cams]);
+  const selected = useMemo<FeatureCollection>(() => {
+    const cam = selectedId ? cams.find((c) => c.id === selectedId) : undefined;
+    return { type: "FeatureCollection", features: cam ? [webcamFeature(cam)] : [] };
+  }, [cams, selectedId]);
+
+  useGeoJsonLayers(WEBCAMS_SRC, data, webcamLayers, SLOTS.reports, WEBCAM_CLUSTERING);
+  // Added second, so it draws above the bubbles and badges.
+  useGeoJsonLayers(WEBCAM_SELECTED_SRC, selected, webcamSelectedLayers, SLOTS.reports);
+
+  // A bubble zooms in until its cameras come apart.
+  useLayerClick(["webcam-cluster"], (e) => {
+    const f = e.features?.[0];
+    const clusterId = f?.properties?.cluster_id;
+    if (!mapAlive(map) || typeof clusterId !== "number" || f?.geometry.type !== "Point") return;
+    const [lon, lat] = f.geometry.coordinates;
+    void (map.getSource(WEBCAMS_SRC) as GeoJSONSource | undefined)
+      ?.getClusterExpansionZoom(clusterId)
+      .then((zoom) => mapAlive(map) && map.easeTo({ center: [lon!, lat!], zoom: Math.min(zoom, WEBCAM_CLUSTER_MAX_ZOOM + 1) }))
+      .catch(() => {});
+  });
+
+  useLayerClick(["webcam-icon", "webcam-selected-icon"], (e) => {
     const id = e.features?.[0]?.properties?.id;
     if (typeof id === "string") onSelect(id);
   });
