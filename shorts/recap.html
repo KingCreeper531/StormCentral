@@ -122,9 +122,10 @@ function highlightPanel(t) {
 function camera(t) {
   let cam = map.mix(map.home, zoomed, easeInOut(seg(t, 3.6, 5.0)));
   const i = highlightIndex(t);
-  if (i >= 0 && highlights[i].lat != null) {
-    const h = highlights[i], s = HL0 + i * HL_EACH;
-    const p = map.projection([h.lon, h.lat]);
+  // A highlight off the map (Puerto Rico, say) gets no zoom.
+  const p = i >= 0 && highlights[i].lat != null ? map.projection([highlights[i].lon, highlights[i].lat]) : null;
+  if (p) {
+    const s = HL0 + i * HL_EACH;
     const target = { k: Math.max(zoomed.k * 1.5, 2.6), c: p };
     cam = map.mix(cam, target, easeInOut(seg(t, s, s + 0.9)) * (1 - easeInOut(seg(t, s + HL_EACH - 0.7, s + HL_EACH + 0.2))));
   }
