@@ -5,7 +5,7 @@ import { createClient } from "@libsql/client";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { afterAll, describe, expect, it } from "vitest";
-import { blocks, chaserPositions, comments, flags, liveDrawing, media, passwordResets, posts, SCHEMA_SQL, schema, sessions, spotterWarnings, users, verifications } from "./schema";
+import { blocks, chaserPositions, comments, flags, liveDrawing, media, passwordResets, posts, SCHEMA_SQL, schema, sessions, spotterWarnings, users, userSettings, verifications } from "./schema";
 
 const dir = mkdtempSync(path.join(tmpdir(), "sc-db-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -27,6 +27,9 @@ describe("schema drift", () => {
     await db.insert(liveDrawing).values({ id: "live", shapes: "[]", userId: "u1", updatedAt: now });
     await db.insert(liveDrawing).values({ id: "live", shapes: "[1]", userId: "u1", updatedAt: now + 1 }).onConflictDoUpdate({ target: liveDrawing.id, set: { shapes: "[1]", updatedAt: now + 1 } });
     expect((await db.select().from(liveDrawing))[0]?.shapes).toBe("[1]");
+    await db.insert(userSettings).values({ userId: "u1", data: "{}", changedAt: now, updatedAt: now });
+    await db.insert(userSettings).values({ userId: "u1", data: '{"v":1}', changedAt: now + 1, updatedAt: now + 1 }).onConflictDoUpdate({ target: userSettings.userId, set: { data: '{"v":1}', changedAt: now + 1, updatedAt: now + 1 } });
+    expect((await db.select().from(userSettings)).map((r) => r.data)).toEqual(['{"v":1}']);
     await db.insert(passwordResets).values({ id: "r1", userId: "u1", expiresAt: now + 1000, createdAt: now });
     await db.insert(media).values({ id: "m1", userId: "u1", mime: "image/webp", width: 10, height: 10, size: 3, bytes: Buffer.from([1, 2, 3]), createdAt: now });
     await db.insert(posts).values({ id: "p1", userId: "u1", body: "Hail!", category: "hail", severity: 2, lat: 35.2, lon: -97.4, mediaId: "m1", createdAt: now });
