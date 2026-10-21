@@ -82,4 +82,33 @@ describe("liveVolumes", () => {
     // No volume listing again, and finished volumes aren't listed again.
     expect(requests).toEqual(["KTEST/2/", "KTEST/3/", "KTEST/1/"]);
   });
+
+  it("finds the newest volume again when the radar skips a number", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const keys = (vol: number, time: string, n: number, done: boolean) =>
+        Array.from({ length: n }, (_, i) => `KSKIP/${vol}/${time}-${String(i + 1).padStart(3, "0")}-${i === 0 ? "S" : done && i === n - 1 ? "E" : "I"}`);
+      const bucket: Record<number, string[]> = {
+        9: keys(9, "20261020-175500", 55, true),
+        10: keys(10, "20261020-180000", 20, false),
+      };
+      vi.stubGlobal("fetch", async (url: string) => {
+        const u = new URL(url);
+        const prefix = u.searchParams.get("prefix")!;
+        if (u.searchParams.get("delimiter")) return new Response(Object.keys(bucket).map((v) => `<Prefix>KSKIP/${v}/</Prefix>`).join(""));
+        return new Response((bucket[Number(prefix.split("/")[1])] ?? []).map((k) => `<Key>${k}</Key>`).join(""));
+      });
+      vi.setSystemTime(Date.UTC(2026, 9, 20, 18, 2));
+      expect((await liveVolumes("KSKIP", 3)).map((v) => v.volume)).toEqual([9, 10]);
+
+      // Volume 11 never comes: the radar went on at 12.
+      bucket[10] = keys(10, "20261020-180000", 55, true);
+      bucket[12] = keys(12, "20261020-180600", 55, true);
+      bucket[13] = keys(13, "20261020-181200", 8, false);
+      vi.setSystemTime(Date.UTC(2026, 9, 20, 18, 14));
+      expect((await liveVolumes("KSKIP", 3)).map((v) => v.volume)).toEqual([12, 13]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

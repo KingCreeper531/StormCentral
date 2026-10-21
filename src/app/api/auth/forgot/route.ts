@@ -3,8 +3,9 @@ import { createResetToken, RESET_MINUTES } from "@/lib/auth/reset";
 import { firstIssue, forgotSchema } from "@/lib/community";
 import { getDb } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
+import { readJson } from "@/lib/server/body";
 import { forbidden, sameOrigin, tooMany } from "@/lib/server/guard";
-import { mailConfigured, sendMail } from "@/lib/server/mailer";
+import { mailConfigured, mailError, sendMail } from "@/lib/server/mailer";
 import { clientIp, rateLimit } from "@/lib/server/rate-limit";
 
 const NO_STORE = { "Cache-Control": "no-store" };
@@ -18,13 +19,15 @@ export async function POST(req: Request) {
   if (!mailConfigured()) {
     return Response.json({ error: "Password reset by email isn't set up on this server yet." }, { status: 503, headers: NO_STORE });
   }
-  const parsed = forgotSchema.safeParse(await req.json().catch(() => null));
+  // Per IP before the body is read; a refused IP never reaches the per-address counters.
+  const ip = rateLimit(`forgot-ip:${clientIp(req)}`, 5, 15 * 60_000);
+  if (!ip.ok) return tooMany(ip.retryAfterSec);
+  const body = await readJson(req);
+  if (body instanceof Response) return body;
+  const parsed = forgotSchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: firstIssue(parsed.error) }, { status: 400, headers: NO_STORE });
   const { email } = parsed.data;
-
-  const ip = rateLimit(`forgot-ip:${clientIp(req)}`, 5, 15 * 60_000);
   const acct = rateLimit(`forgot-acct:${email}`, 3, 60 * 60_000);
-  if (!ip.ok) return tooMany(ip.retryAfterSec);
   if (!acct.ok) return tooMany(acct.retryAfterSec);
 
   const db = await getDb();
@@ -42,7 +45,7 @@ export async function POST(req: Request) {
       });
     } catch (err) {
       // Not reported to the client: that would reveal the address has an account.
-      console.error("[forgot] sending the reset email failed:", err);
+      console.error("[forgot] sending the reset email failed:", mailError(err));
     }
   }
   return Response.json({ ok: true }, { headers: NO_STORE });

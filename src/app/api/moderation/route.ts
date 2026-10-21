@@ -1,25 +1,29 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { firstIssue, moderationActionSchema } from "@/lib/community";
 import { findUserId, keepContent, moderationQueue, removeContent, suspendUser, unsuspendUser } from "@/lib/server/moderation-repo";
-import { forbidden, sameOrigin, unauthorized } from "@/lib/server/guard";
+import { forbidden, sameOrigin, suspended, unauthorized } from "@/lib/server/guard";
 import { badRequest } from "@/lib/server/respond";
 
 const noStore = { "Cache-Control": "private, no-store" };
 const notFound = () => Response.json({ error: "That no longer exists" }, { status: 404, headers: noStore });
 
-/** The moderation queue: everything with open flags. Moderators only. */
+/** The moderation queue: everything with open flags. Moderators only, and not while suspended. */
 export async function GET() {
   const user = await getSessionUser();
   if (!user) return unauthorized();
+  const blocked = suspended(user);
+  if (blocked) return blocked;
   if (!user.moderator) return forbidden("Moderators only");
   return Response.json({ items: await moderationQueue() }, { headers: noStore });
 }
 
-/** Act on the queue: keep, remove, suspend or unsuspend. */
+/** Act on the queue: keep, remove, suspend or unsuspend (a suspended moderator can't lift their own). */
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return forbidden();
   const user = await getSessionUser();
   if (!user) return unauthorized();
+  const blocked = suspended(user);
+  if (blocked) return blocked;
   if (!user.moderator) return forbidden("Moderators only");
   const parsed = moderationActionSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return badRequest(firstIssue(parsed.error));

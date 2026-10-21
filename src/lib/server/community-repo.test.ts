@@ -83,4 +83,50 @@ describe("NWS confirmations", () => {
     expect(items.map((i) => i.kind).sort()).toEqual(["confirm", "nws"]);
     expect(items.find((i) => i.kind === "nws")).toMatchObject({ id: "n:hail", postId: "hail" });
   });
+
+  it("only returns activity after `since`, so the newest item the app saw doesn't come back", async () => {
+    // Bob's confirmation and the NWS match are both stamped NOW; apps then ask for what came after NOW.
+    expect((await r.listActivity("alice", NOW - 1)).map((i) => i.kind).sort()).toEqual(["confirm", "nws"]);
+    expect(await r.listActivity("alice", NOW)).toEqual([]);
+  });
+});
+
+describe("threads", () => {
+  beforeAll(async () => {
+    const { getDb } = await import("../db/client");
+    const { blocks, comments, posts, users } = await import("../db/schema");
+    const db = await getDb();
+    for (const [id, suspendedUntil] of [["carl", null], ["sam", NOW + 86_400_000]] as const)
+      await db.insert(users).values({ id, username: id, email: `${id}@x.io`, passwordHash: "h", displayName: id, avatarHue: 1, createdAt: NOW, suspendedUntil });
+    const base = { body: "Wall cloud", category: "sky", severity: 1, lat: 36.4, lon: -97.9, createdAt: NOW - 60 * 60_000 };
+    await db.insert(posts).values([
+      { ...base, id: "thread", userId: "bob" },
+      { ...base, id: "sam-post", userId: "sam" },
+    ]);
+    await db.insert(comments).values(Array.from({ length: 205 }, (_, i) => ({ id: `c${String(i).padStart(3, "0")}`, postId: "thread", userId: "alice", body: `#${i}`, createdAt: NOW - 50 * 60_000 + i })));
+    await db.insert(blocks).values({ blockerId: "carl", blockedId: "bob", createdAt: NOW });
+  });
+
+  it("shows a long thread's newest 200 comments, oldest first", async () => {
+    const list = await r.listComments("thread", null);
+    expect(list).toHaveLength(200);
+    expect(list[0]!.body).toBe("#5");
+    expect(list.at(-1)!.body).toBe("#204");
+  });
+
+  it("finds a report only for people the feeds would show it to", async () => {
+    expect(await r.getVisiblePost("hail", null)).toEqual({ userId: "alice" });
+    expect(await r.getVisiblePost("nope", null)).toBeNull();
+    // Hidden for review: only its author.
+    expect(await r.getVisiblePost("hidden", null)).toBeNull();
+    expect(await r.getVisiblePost("hidden", "bob", true)).toBeNull();
+    expect(await r.getVisiblePost("hidden", "alice")).toEqual({ userId: "alice" });
+    // A suspended account's: its owner and moderators.
+    expect(await r.getVisiblePost("sam-post", "bob")).toBeNull();
+    expect(await r.getVisiblePost("sam-post", "sam")).toEqual({ userId: "sam" });
+    expect(await r.getVisiblePost("sam-post", "bob", true)).toEqual({ userId: "sam" });
+    // Blocked either way.
+    expect(await r.getVisiblePost("thread", "carl")).toBeNull();
+    expect(await r.getVisiblePost("thread", "alice")).toEqual({ userId: "bob" });
+  });
 });

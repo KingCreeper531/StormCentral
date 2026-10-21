@@ -9,7 +9,7 @@ export type DecodeRequest =
   /** A volume still being scanned: its real-time chunks, concatenated in order. */
   | { id: number; kind: "l2chunks"; urls: string[]; moment: Moment; angle: number; scale: DecodedScaleId }
   /** Every cut of one moment in a volume (the 3D view). */
-  | { id: number; kind: "l2volume"; url: string; moment: Moment; site?: { lat: number; lon: number } };
+  | { id: number; kind: "l2volume"; url: string; moment: Moment; site?: { lat: number; lon: number; heightM?: number } };
 
 export type DecodeResponse =
   | {

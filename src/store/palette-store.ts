@@ -66,6 +66,14 @@ export const usePaletteStore = create<PaletteState>()(
   ),
 );
 
+// Another window (a popped-out Pro panel, say) picked or imported a colour table: use it here too, so this
+// window's next save doesn't put the old ones back. Rehydrating doesn't save.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === usePaletteStore.persist.getOptions().name) void usePaletteStore.persist.rehydrate();
+  });
+}
+
 /** Every palette for a scale: built-in ones, then imported. */
 export function palettesFor(scale: DecodedScaleId, imported: readonly Palette[]): Palette[] {
   return [...BUILTIN_PALETTES, ...imported].filter((p) => p.scale === scale);

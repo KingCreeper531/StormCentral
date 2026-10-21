@@ -29,8 +29,18 @@ export function msTimes(f: Forecast, idx: readonly number[]) {
 export function todayIndex(f: Forecast, nowMs: number) {
   const t = nowMs / 1000;
   const d = f.daily.time;
-  for (let i = 0; i < d.length; i++) if (d[i]! + 86400 > t) return i;
+  // A day ends where the next one starts: DST change days are 23 or 25 hours long.
+  for (let i = 0; i < d.length; i++) if ((d[i + 1] ?? d[i]! + 86400) > t) return i;
   return 0;
+}
+
+/**
+ * Lowest low and highest high over the daily slots `idx`, skipping days with
+ * no value (regional models return nulls past their range); null when none has one.
+ */
+export function dailyTempRange(f: Forecast, idx: readonly number[]): { min: number; max: number } | null {
+  const temps = idx.flatMap((i) => [f.daily.tMin[i], f.daily.tMax[i]]).filter((v): v is number => v != null);
+  return temps.length ? { min: Math.min(...temps), max: Math.max(...temps) } : null;
 }
 
 /**
@@ -39,6 +49,20 @@ export function todayIndex(f: Forecast, nowMs: number) {
  */
 export const fmtIn = (tz: string | undefined, opts: Intl.DateTimeFormatOptions, locale?: string) =>
   new Intl.DateTimeFormat(locale, withClock({ ...opts, timeZone: zoneFor(tz) }));
+
+/**
+ * A date formatter for the place's days (daily rows, "today" there). Daily
+ * times are the place's local midnights, so they are read in its zone even
+ * with "This device" chosen: in the device's zone, a place to the east would
+ * show the day before.
+ */
+export function dayFmtIn(tz: string | undefined, opts: Intl.DateTimeFormatOptions, locale?: string) {
+  try {
+    return new Intl.DateTimeFormat(locale, { ...opts, timeZone: tz });
+  } catch {
+    return new Intl.DateTimeFormat(locale, opts); // unknown zone name: the device's
+  }
+}
 
 /** Clock formatters by zone and locale (`""` = the device's); lists render many rows per tick. */
 const clocks = new Map<string, Intl.DateTimeFormat>();

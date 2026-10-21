@@ -13,6 +13,7 @@ import { modelPoint } from "@/lib/pro/model";
 import { paletteScale } from "@/lib/pro/palettes";
 import { formatHeight, freezingLevels, heightTicks, MAX_FILL_KM, topOf, volumePoints } from "@/lib/pro/volume3d";
 import type { RadarSite } from "@/lib/radar/site-utils";
+import { NEXRAD_SITES } from "@/lib/radar/sites";
 import { cn } from "@/lib/utils";
 import { usePalette } from "@/store/palette-store";
 import { useProStore, VOLUME_RADII } from "@/store/pro-store";
@@ -69,9 +70,11 @@ export function VolumePanel({ point, site, until, onPoint }: { point: LatLon | n
     retry: 1,
   });
   const file = list.data?.at(-1);
+  // Volumes from before 2008 don't say where the radar is, or how high: the site table's ground height stands in.
+  const heightM = NEXRAD_SITES.find((s) => s[0] === site.icao)?.[5];
   const volume = useQuery({
     queryKey: ["vol3d", file?.url],
-    queryFn: () => decodeVolume(file!.url, "REF", { lat: site.lat, lon: site.lon }),
+    queryFn: () => decodeVolume(file!.url, "REF", { lat: site.lat, lon: site.lon, heightM }),
     enabled: !!file,
     staleTime: Infinity,
     // Tens of megabytes: let go soon after the panel closes (the decoder keeps the last two).

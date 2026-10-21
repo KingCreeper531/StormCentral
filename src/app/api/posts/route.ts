@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { conditionsSchema, firstIssue, isGenericPlace, MAX_IMAGE_BYTES, postSchema } from "@/lib/community";
 import { placeNameAt } from "@/lib/server/reverse-geocode";
+import { readForm } from "@/lib/server/body";
 import { createPost, listPosts, storedPosition, type FeedQuery } from "@/lib/server/community-repo";
 import { forbidden, sameOrigin, suspended, tooMany, unauthorized } from "@/lib/server/guard";
 import { imageSize, sniffImage, stripMetadata } from "@/lib/server/image";
@@ -11,6 +12,8 @@ import { rateLimit } from "@/lib/server/rate-limit";
 import { badRequest } from "@/lib/server/respond";
 
 const noStore = { "Cache-Control": "private, no-store" };
+/** The photo plus room for the text fields and the weather snapshot. */
+const MAX_POST_BYTES = MAX_IMAGE_BYTES + 64 * 1024;
 
 /**
  * GET /api/posts?sort=latest|nearby|top|bbox&lat&lon&radiusKm&bbox=w,s,e,n&hours&cursor&user
@@ -51,7 +54,8 @@ export async function POST(req: Request) {
   const rl = rateLimit(`post:${user.id}`, 10, 15 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
 
-  const form = await req.formData().catch(() => null);
+  const form = await readForm(req, MAX_POST_BYTES, "Image is too large (max 2.5 MB)");
+  if (form instanceof Response) return form;
   if (!form) return badRequest("Expected multipart form data");
   const parsed = postSchema.safeParse(Object.fromEntries([...form.entries()].filter(([, v]) => typeof v === "string")));
   if (!parsed.success) return badRequest(firstIssue(parsed.error));

@@ -1,4 +1,7 @@
+import type { Translator } from "../i18n/core";
 import type { SweepImageData } from "../pro/nexrad/sweep-layer";
+import { clockIn } from "../weather/view";
+import { nowcastLabel } from "./nowcast";
 
 /**
  * Radar frame descriptors. A frame is one immutable raster tile pyramid for a
@@ -38,6 +41,17 @@ export interface RadarFrame {
 }
 
 export const MOSAIC_SITE = "USCOMP";
+
+/**
+ * A frame's time as the timeline shows it, in `timeZone` and `t`'s language:
+ * "4:12 PM" ("~4:12 PM" when the scan time is estimated), "Forecast 6:00 PM"
+ * for the model, "+30 min · Future" for future radar.
+ */
+export function frameLabel(frame: RadarFrame, timeZone: string | undefined, t: Translator): string {
+  if (frame.nowcast) return nowcastLabel(frame.leadMinutes ?? 0, t);
+  const time = clockIn(timeZone, frame.time, t.locale);
+  return frame.forecast ? t("Forecast {time}", { time }) : `${frame.approximate ? "~" : ""}${time}`;
+}
 
 /** `2026-10-07T14:23:00Z` → `202610071423` (UTC). */
 export function compactUtc(d: Date): string {

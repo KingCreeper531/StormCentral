@@ -23,10 +23,12 @@ export function frameDelayMs(index: number, total: number, speed: number): numbe
  */
 export function nextPlayableIndex(current: number, ready: readonly boolean[]): number {
   const n = ready.length;
-  if (n === 0) return current;
+  const newestReady = ready.lastIndexOf(true);
   for (let step = 1; step <= n; step++) {
     const i = (current + step) % n;
     if (ready[i]) return i;
+    // Newer than everything buffered (a scan that just arrived): wait for it rather than wrap past it.
+    if (i > newestReady) return current;
   }
   return current;
 }

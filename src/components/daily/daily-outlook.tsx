@@ -2,7 +2,7 @@
 
 import type { Forecast } from "@/lib/api/open-meteo";
 import { convertTemp } from "@/lib/weather/units";
-import { fmtIn, todayIndex } from "@/lib/weather/view";
+import { dailyTempRange, dayFmtIn, todayIndex } from "@/lib/weather/view";
 import { describeCode, iconName } from "@/lib/weather/wmo";
 import { useFormat } from "@/hooks/use-format";
 import { useT } from "@/lib/i18n/use-t";
@@ -30,12 +30,12 @@ export function DailyOutlook({ f, now, className }: { f: Forecast; now: number; 
   const fmt = useFormat();
   const start = todayIndex(f, now);
   const days = f.daily.time.map((_, i) => i).slice(start, start + 10);
-  const lows = days.map((i) => f.daily.tMin[i] ?? 0);
-  const highs = days.map((i) => f.daily.tMax[i] ?? 0);
-  const min = Math.min(...lows);
-  const max = Math.max(...highs);
+  // Days past a regional model's range have no temperatures: "—", and no part in the scale.
+  const range = dailyTempRange(f, days);
+  const min = range?.min ?? 0;
+  const max = range?.max ?? 0;
   const span = max - min || 1;
-  const dayFmt = fmtIn(f.timezone, { weekday: "short" }, t.locale);
+  const dayFmt = dayFmtIn(f.timezone, { weekday: "short" }, t.locale);
   const current = f.current.temp;
 
   return (
@@ -48,10 +48,11 @@ export function DailyOutlook({ f, now, className }: { f: Forecast; now: number; 
       */}
       <ul className="@container grid grid-cols-1 divide-y divide-line lg:flex-1 lg:auto-rows-fr">
         {days.map((i, k) => {
-          const lo = f.daily.tMin[i] ?? 0;
-          const hi = f.daily.tMax[i] ?? 0;
-          const left = ((lo - min) / span) * 100;
-          const width = Math.max(4, ((hi - lo) / span) * 100);
+          const lo = f.daily.tMin[i] ?? null;
+          const hi = f.daily.tMax[i] ?? null;
+          const known = lo != null && hi != null;
+          const left = known ? ((lo - min) / span) * 100 : 0;
+          const width = known ? Math.max(4, ((hi - lo) / span) * 100) : 0;
           const pop = f.daily.precipProbMax[i] ?? 0;
           const wet = pop >= 20;
           const popText = wet ? (
@@ -75,16 +76,18 @@ export function DailyOutlook({ f, now, className }: { f: Forecast; now: number; 
                 {fmt.temp(lo)}
               </span>
               <span className="relative h-1.5 rounded-[2px] bg-surface-3" aria-hidden>
-                <span
-                  className="absolute inset-y-0 rounded-[2px]"
-                  style={{
-                    left: `${left}%`,
-                    width: `${width}%`,
-                    // Data colouring (temperature scale), not decoration.
-                    background: `linear-gradient(90deg, ${tempColor(convertTemp(lo, "C"))}, ${tempColor(convertTemp(hi, "C"))})`,
-                  }}
-                />
-                {k === 0 && current != null && (
+                {known && (
+                  <span
+                    className="absolute inset-y-0 rounded-[2px]"
+                    style={{
+                      left: `${left}%`,
+                      width: `${width}%`,
+                      // Data colouring (temperature scale), not decoration.
+                      background: `linear-gradient(90deg, ${tempColor(convertTemp(lo, "C"))}, ${tempColor(convertTemp(hi, "C"))})`,
+                    }}
+                  />
+                )}
+                {k === 0 && current != null && range && (
                   <span
                     className="absolute top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink ring-2 ring-canvas"
                     style={{ left: `${clampPct(((current - min) / span) * 100)}%` }}

@@ -258,7 +258,7 @@ export function DroneMode() {
           thresholds={[{ value: convertWind(profile.maxWindMs, fmt.units.wind), label: t("Limit {wind}", { wind: fmt.wind(profile.maxWindMs) }) }]}
           series={[
             { key: "w", label: t("Wind at altitude"), color: "var(--color-series-1)", values: hours.map((h) => (h.atAlt ? convertWind(h.atAlt.speedMs, fmt.units.wind) : null)), kind: "area", format: (v) => `${Math.round(v)}` },
-            { key: "g", label: t("Gust"), color: "var(--color-series-2)", values: hours.map((h) => convertWind(h.gustAtAlt, fmt.units.wind)), dashed: true, format: (v) => `${Math.round(v)}` },
+            { key: "g", label: t("Gust"), color: "var(--color-series-2)", values: hours.map((h) => (h.gustAtAlt != null ? convertWind(h.gustAtAlt, fmt.units.wind) : null)), dashed: true, format: (v) => `${Math.round(v)}` },
           ]}
         />
       </Panel>

@@ -1,7 +1,7 @@
 "use client";
 
 import "maplibre-gl/dist/maplibre-gl.css";
-import { AttributionControl, getVersion, Map as MlMap, NavigationControl, setWorkerUrl, type StyleSpecification } from "maplibre-gl";
+import { AttributionControl, getVersion, Map as MlMap, NavigationControl, setWorkerUrl, type PaddingOptions, type StyleSpecification } from "maplibre-gl";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { BBox } from "@/lib/geo";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
@@ -108,15 +108,21 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
   const [satellite, setSatellite] = useState(false);
   const ctx = useMemo<MapCtx>(() => ({ ...loaded, satellite, setSatellite }), [loaded, satellite]);
   const supported = useSyncExternalStore(noSubscribe, hasWebGL2, () => true);
-  // A theme or basemap switch rebuilds the map on the new style; layers re-add themselves.
+  // A theme or basemap switch rebuilds the map on the new style, keeping the view; layers re-add themselves.
   const theme = useResolvedTheme();
   const basemapId = resolveBasemap(useMapStyleStore((s) => s.style.basemap), theme);
   const viewCb = useRef(onViewChange);
   const readyCb = useRef(onReady);
+  const zoomRef = useRef(zoom);
   useEffect(() => {
     viewCb.current = onViewChange;
     readyCb.current = onReady;
+    zoomRef.current = zoom;
   });
+  /** The previous map's camera: a rebuilt map picks up where it was, not at the starting view. */
+  const lastView = useRef<{ center: [number, number]; zoom: number; bearing: number; pitch: number; padding: PaddingOptions } | null>(null);
+  /** The centre last flown to. Only a new one moves the map (not a zoom change, nor a rebuilt map). */
+  const followed = useRef(center);
 
   useEffect(() => {
     if (!container.current || !supported) return;
@@ -127,20 +133,22 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
       workerConfigured = true;
     }
     const tilted = allow3d && interactive && useMapStyleStore.getState().style.terrain3d;
+    const view = lastView.current;
     let map: MlMap;
     try {
       map = new MlMap({
         container: container.current,
         style: basemapUrl(basemapId, MAPTILER_KEY),
-        center: [center.lon, center.lat],
-        zoom,
+        center: view?.center ?? [center.lon, center.lat],
+        zoom: view?.zoom ?? zoom,
+        bearing: view?.bearing ?? 0,
         interactive,
         attributionControl: false,
         dragRotate: false,
         touchPitch: false,
         // Flat unless 3D terrain is on (BasemapStyle unlocks tilting); starting tilted means
         // the first fly to the location keeps the tilt instead of cutting it short.
-        ...(tilted ? { pitch: START_PITCH, maxPitch: MAX_PITCH } : { maxPitch: 0 }),
+        ...(tilted ? { pitch: view?.pitch ?? START_PITCH, maxPitch: MAX_PITCH } : { maxPitch: 0 }),
         // Bounded per-source tile cache: with one source per radar frame this is
         // what keeps GPU memory flat during long loops.
         maxTileCacheSize: 48,
@@ -152,6 +160,8 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
       console.error("[map] could not start:", err);
       return;
     }
+    // The same padding as before keeps that centre at the same place on screen.
+    if (view) map.setPadding(view.padding);
     // Attribution is always the compact (i) button. A non-interactive preview
     // runs its own transport along the bottom edge, so its button sits top-right.
     // Added before the zoom buttons so those stack above it.
@@ -204,21 +214,23 @@ export function MapView({ center, zoom = 6.5, interactive = true, follow = true,
 
     return () => {
       attribWatch?.disconnect();
+      const c = map.getCenter();
+      lastView.current = { center: [c.lng, c.lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch(), padding: map.getPadding() };
       setLoaded(UNLOADED);
       setSatellite(false);
       map.remove();
     };
-    // The map is created once; centre/zoom changes are applied imperatively below.
+    // The map is created once per style; centre changes are applied imperatively below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interactive, supported, basemapId]);
 
   useEffect(() => {
     const map = ctx.map;
     if (!map || !follow) return;
-    const c = map.getCenter();
-    if (Math.abs(c.lat - center.lat) < 1e-4 && Math.abs(c.lng - center.lon) < 1e-4) return;
-    map.flyTo({ center: [center.lon, center.lat], zoom: Math.max(map.getZoom(), zoom), speed: 1.4, essential: true });
-  }, [ctx.map, center.lat, center.lon, follow, zoom]);
+    if (followed.current.lat === center.lat && followed.current.lon === center.lon) return;
+    followed.current = { lat: center.lat, lon: center.lon };
+    map.flyTo({ center: [center.lon, center.lat], zoom: Math.max(map.getZoom(), zoomRef.current), speed: 1.4, essential: true });
+  }, [ctx.map, center.lat, center.lon, follow]);
 
   return (
     <Ctx.Provider value={ctx}>

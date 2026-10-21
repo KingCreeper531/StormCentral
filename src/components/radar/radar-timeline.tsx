@@ -4,10 +4,10 @@ import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import type { RadarLoop } from "@/hooks/use-radar-loop";
 import { translator, type Translator } from "@/lib/i18n/core";
 import { useT } from "@/lib/i18n/use-t";
-import { nowcastLabel } from "@/lib/radar/nowcast";
+import { frameLabel } from "@/lib/radar/frames";
 import { SPEEDS, type Speed } from "@/lib/radar/playback";
 import { cn } from "@/lib/utils";
-import { clockIn, fmtIn } from "@/lib/weather/view";
+import { fmtIn } from "@/lib/weather/view";
 import { IconButton } from "../ui/button";
 import { Segmented } from "../ui/segmented";
 
@@ -25,15 +25,12 @@ const clock = (timeZone: string | undefined, locale: string) => fmtIn(timeZone, 
 
 /**
  * Clock time of the current frame in the location's zone ("~4:12 PM" when the
- * scan time is estimated; the zone is named when it differs from the device's),
- * or null without frames.
+ * scan time is estimated; the zone is named when it differs from the device's;
+ * forecast and future frames say so, see `frameLabel`), or null without frames.
  */
 export function frameTimeLabel(loop: RadarLoop, timeZone?: string, t: Translator = translator("en")): string | null {
   const frame = loop.frames[loop.index];
-  if (!frame) return null;
-  if (frame.nowcast) return nowcastLabel(frame.leadMinutes ?? 0, t);
-  const time = clockIn(timeZone, frame.time, t.locale);
-  return frame.forecast ? t("Forecast {time}", { time }) : `${frame.approximate ? "~" : ""}${time}`;
+  return frame ? frameLabel(frame, timeZone, t) : null;
 }
 
 /**

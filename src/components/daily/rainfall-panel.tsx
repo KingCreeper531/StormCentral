@@ -12,7 +12,7 @@ import { eventName } from "@/lib/i18n/nws-events";
 import { useT } from "@/lib/i18n/use-t";
 import { dailyBars, rainTotals } from "@/lib/rainfall";
 import { cn } from "@/lib/utils";
-import { clockIn, fmtIn } from "@/lib/weather/view";
+import { clockIn, dayFmtIn } from "@/lib/weather/view";
 import { Skeleton } from "../ui/misc";
 import { Panel } from "../ui/panel";
 
@@ -120,8 +120,8 @@ export function RainfallPanel({ f, now, className }: { f: Forecast; now: number;
   const totals = r ? rainTotals(r, now) : null;
   const bars = r ? dailyBars(r, now, 13, 3) : [];
   const maxBar = Math.max(2, ...bars.map((b) => b.mm));
-  const dayFmt = fmtIn(f.timezone, { weekday: "narrow" }, t.locale);
-  const dateFmt = fmtIn(f.timezone, { weekday: "short", month: "short", day: "numeric" }, t.locale);
+  const dayFmt = dayFmtIn(f.timezone, { weekday: "narrow" }, t.locale);
+  const dateFmt = dayFmtIn(f.timezone, { weekday: "short", month: "short", day: "numeric" }, t.locale);
   const barText = (time: number, mm: number, future: boolean) =>
     t(future ? "{date}: {amount} (forecast)" : "{date}: {amount}", { date: dateFmt.format(time), amount: fmt.precip(mm) });
   const g = gauges.data;

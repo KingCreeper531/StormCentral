@@ -1,16 +1,21 @@
 import "server-only";
+import { lookup as dnsLookup } from "node:dns";
 import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
+import { request as httpRequest, type IncomingMessage } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { isIP, type LookupFunction } from "node:net";
+import { pipeline, type Readable } from "node:stream";
+import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
 import { HttpError } from "../api/http";
 import { MAX_GIS_BYTES } from "../gis";
 
 /**
  * Fetches a custom map layer (placefile, KML, GeoJSON) or one of a
  * placefile's icon sheets for the browser: many are plain http, or don't
- * send CORS headers. Only public internet addresses (checked after DNS, and
- * again on every redirect), the default ports, a size cap and a timeout; and
- * the result is only ever served back as plain text or an image, never as a
- * page.
+ * send CORS headers. Only public internet addresses (checked after DNS, again
+ * as the connection is made, and on every redirect), the default ports, a
+ * size cap and a timeout; and the result is only ever served back as plain
+ * text or an image, never as a page.
  */
 
 const TEXT = /^(text\/|application\/(json|geo\+json|vnd\.google-earth\.kml\+xml|xml|octet-stream|x-[\w.+-]*)\b)/i;
@@ -63,20 +68,53 @@ export async function checkUrl(raw: string): Promise<URL> {
   return u;
 }
 
-async function readCapped(res: Response): Promise<Uint8Array> {
-  const reader = res.body?.getReader();
-  if (!reader) return new Uint8Array();
-  const parts: Uint8Array[] = [];
+/**
+ * dns.lookup for the connection itself. checkUrl's answer isn't reused, so a
+ * name that resolves to a public address for the check and to a private one
+ * a moment later (DNS rebinding) is refused here instead of connected to.
+ */
+export const publicLookup: LookupFunction = (hostname, options, callback) => {
+  dnsLookup(hostname, { ...options, all: true }, (err, addresses) => {
+    if (err) return callback(err, []);
+    if (!addresses.length || addresses.some((a) => isPrivateAddress(a.address))) return callback(new HttpError("Only public addresses", 400, hostname), []);
+    if (options.all) callback(null, addresses);
+    else callback(null, addresses[0]!.address, addresses[0]!.family);
+  });
+};
+
+/** One request, on a connection of its own: never a pooled one that was opened without publicLookup. */
+function get(url: URL): Promise<IncomingMessage> {
+  return new Promise((resolve, reject) => {
+    const req = (url.protocol === "https:" ? httpsRequest : httpRequest)(
+      url,
+      {
+        lookup: publicLookup,
+        agent: false,
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+        headers: { "User-Agent": "StormCentral (custom map layers; github.com/KingCreeper531/StormCentral)", Accept: "*/*", "Accept-Encoding": "gzip, br" },
+      },
+      resolve,
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+/** The body, decompressed, up to MAX_GIS_BYTES of it. */
+async function readCapped(res: IncomingMessage, raw: string): Promise<Uint8Array> {
+  const encoding = String(res.headers["content-encoding"] ?? "").trim().toLowerCase();
+  const unzip = /^(x-)?gzip$/.test(encoding) ? createGunzip() : encoding === "br" ? createBrotliDecompress() : encoding === "deflate" ? createInflate() : null;
+  const body: Readable = unzip ? pipeline(res, unzip, () => {}) : res;
+  const parts: Buffer[] = [];
   let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > MAX_GIS_BYTES) {
-      await reader.cancel();
-      throw new HttpError(`Bigger than ${MAX_GIS_BYTES / 1024 / 1024} MB`, 413, res.url);
+  try {
+    for await (const chunk of body as AsyncIterable<Buffer>) {
+      size += chunk.byteLength;
+      if (size > MAX_GIS_BYTES) throw new HttpError(`Bigger than ${MAX_GIS_BYTES / 1024 / 1024} MB`, 413, raw);
+      parts.push(chunk);
     }
-    parts.push(value);
+  } finally {
+    res.destroy();
   }
   const out = new Uint8Array(size);
   let at = 0;
@@ -90,21 +128,25 @@ async function readCapped(res: Response): Promise<Uint8Array> {
 export async function fetchGis(raw: string): Promise<{ body: Uint8Array; type: string }> {
   let url = await checkUrl(raw);
   for (let hop = 0; ; hop++) {
-    const res = await fetch(url, {
-      redirect: "manual",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { "User-Agent": "StormCentral (custom map layers; github.com/KingCreeper531/StormCentral)", Accept: "*/*" },
-    });
-    if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
+    const res = await get(url);
+    const status = res.statusCode ?? 0;
+    if (status >= 300 && status < 400 && res.headers.location) {
+      res.destroy();
       if (hop >= MAX_REDIRECTS) throw new HttpError("Too many redirects", 502, raw);
-      url = await checkUrl(new URL(res.headers.get("location")!, url).toString());
+      url = await checkUrl(new URL(res.headers.location, url).toString());
       continue;
     }
-    if (!res.ok) throw new HttpError(`The link answered ${res.status}`, res.status === 404 ? 404 : 502, raw);
-    const type = (res.headers.get("content-type") ?? "application/octet-stream").trim();
-    if (IMAGE.test(type)) return { body: await readCapped(res), type: type.split(";")[0]!.toLowerCase() };
-    if (!TEXT.test(type) && !/^text\/html/i.test(type)) throw new HttpError(`Not a map layer (${type.split(";")[0]})`, 415, raw);
+    if (status < 200 || status >= 300) {
+      res.destroy();
+      throw new HttpError(`The link answered ${status}`, status === 404 ? 404 : 502, raw);
+    }
+    const type = (res.headers["content-type"] ?? "application/octet-stream").trim();
+    if (IMAGE.test(type)) return { body: await readCapped(res, raw), type: type.split(";")[0]!.toLowerCase() };
+    if (!TEXT.test(type) && !/^text\/html/i.test(type)) {
+      res.destroy();
+      throw new HttpError(`Not a map layer (${type.split(";")[0]})`, 415, raw);
+    }
     // HTML too (some servers label everything text/html); it's served back as plain text either way.
-    return { body: await readCapped(res), type: "text/plain; charset=utf-8" };
+    return { body: await readCapped(res, raw), type: "text/plain; charset=utf-8" };
   }
 }

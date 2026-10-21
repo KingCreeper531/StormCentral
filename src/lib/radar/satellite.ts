@@ -98,6 +98,22 @@ export function slotsFor(times: readonly number[], latencyMin = DEFAULT_LATENCY_
   return [...set].sort((a, b) => a - b).slice(-max);
 }
 
+/**
+ * What the satellite loop follows in a radar loop: only its observed scans
+ * (GIBS has no imagery of model forecast or future radar times, and those
+ * would crowd the real images out of the `MAX_SLOTS`), and while a future
+ * frame is on screen, the newest scan. `fallback` stands in without frames.
+ */
+export function satelliteTimes(
+  frames: readonly { time: number; forecast?: boolean; nowcast?: boolean }[],
+  index: number,
+  fallback: number,
+): { times: number[]; current: number } {
+  const times = frames.filter((f) => !f.forecast && !f.nowcast).map((f) => f.time);
+  const newest = times.length ? Math.max(...times) : fallback;
+  return { times, current: Math.min(frames[index]?.time ?? fallback, newest) };
+}
+
 /** The held slot closest to `slotMs` (ties go to the older one), or null when none are held. */
 export function nearestSlot(slots: readonly number[], slotMs: number): number | null {
   let best: number | null = null;

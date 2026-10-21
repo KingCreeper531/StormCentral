@@ -22,7 +22,7 @@ flock -n 9 || exit 0
 mkdir -p "$APP/releases"
 chown "$SVC_USER:" "$APP/releases"
 
-sha=$(git ls-remote "$REPO" "refs/heads/$BRANCH" | cut -f1)
+sha=$(git ls-remote "$REPO" "refs/heads/$BRANCH" | cut -f1) || sha=""
 [ -n "$sha" ] || { echo "Couldn't reach GitHub; trying again next time."; exit 0; }
 force=${1:-}
 [ "$force" != --force ] && [ "$sha" = "$(cat "$APP/deployed" 2>/dev/null)" ] && exit 0
@@ -48,6 +48,8 @@ if [ ! -f "$rel/.built" ]; then
   if ! (cd "$rel" && nice -n 10 runuser -u "$SVC_USER" -- env "${settings[@]}" SHA="$sha" bash -c '
       export NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 ELECTRON_SKIP_BINARY_DOWNLOAD=1 NEXT_DEPLOYMENT_ID="$SHA"
       npm ci --include=dev --no-audit --no-fund --loglevel=error && npx next build'); then
+    # Not kept: a failed build is a whole checkout with its node_modules.
+    rm -rf "$rel"
     echo "$sha" >"$APP/failed"
     echo "Build of $sha failed; still running $(cat "$APP/deployed" 2>/dev/null || echo nothing)."
     exit 1
@@ -83,7 +85,13 @@ echo "$sha" >"$APP/deployed"
 rm -f "$APP/failed"
 echo "Now running $sha."
 
-# Keep the newest three releases (the running one is always among them).
-find "$APP/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | tail -n +4 | cut -d' ' -f2- | while read -r old; do
-  if [ "$old" != "$(readlink -f "$APP/current")" ]; then rm -rf "$old"; fi
+# Keep the newest three releases that finished building (the running one is always among them), so failed builds
+# never push out one to roll back to; whatever is left of a build that didn't finish goes.
+cur=$(readlink -f "$APP/current")
+for old in "$APP"/releases/*/; do
+  old=${old%/}
+  if [ ! -f "$old/.built" ] && [ "$old" != "$cur" ]; then rm -rf "$old"; fi
+done
+find "$APP/releases" -mindepth 2 -maxdepth 2 -name .built -printf '%T@ %h\n' | sort -rn | tail -n +4 | cut -d' ' -f2- | while read -r old; do
+  if [ "$old" != "$cur" ]; then rm -rf "$old"; fi
 done

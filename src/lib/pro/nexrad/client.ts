@@ -18,8 +18,6 @@ export interface DecodedFrame {
   cuts: number[];
   /** The sweep ran to its end (a volume still arriving can hold part of one). */
   complete: boolean;
-  /** Lazily built azimuth lookup for sampling. */
-  azLut?: Int32Array;
 }
 
 export type DecodeJob =
@@ -52,6 +50,8 @@ const JOB_TIMEOUT_MS = 120_000;
 
 const MAX_ENTRIES = 90;
 const entries = new Map<string, Entry>();
+/** How many panes show each key: those frames are never evicted. */
+const held = new Map<string, number>();
 const listeners = new Set<() => void>();
 let version = 0;
 
@@ -118,8 +118,16 @@ function post<R>(req: DecodeRequest): Promise<R> {
 
 const run = (job: DecodeJob) => post<DecodeResponse>({ ...job, id: nextId++ } as DecodeRequest);
 
+/**
+ * Past MAX_ENTRIES, drop the least recently used frames no pane shows. Not
+ * one on screen (it would vanish for good), nor a decode in flight (its
+ * result would be thrown away).
+ */
 function evict() {
-  while (entries.size > MAX_ENTRIES) entries.delete(entries.keys().next().value!);
+  for (const [key, e] of entries) {
+    if (entries.size <= MAX_ENTRIES) return;
+    if (e.state !== "pending" && !held.has(key)) entries.delete(key);
+  }
 }
 
 /** Decode (once) and cache; listeners are notified when it lands. */
@@ -152,6 +160,26 @@ export function requestDecode(job: DecodeJob): void {
 }
 
 /**
+ * Decode these jobs and keep them while a pane shows them; returns the
+ * release. The cache stays bounded: the panes' frames, plus up to
+ * MAX_ENTRIES in all.
+ */
+export function holdDecodes(jobs: readonly DecodeJob[]): () => void {
+  const keys = jobs.map(jobKey);
+  for (const k of keys) held.set(k, (held.get(k) ?? 0) + 1);
+  for (const j of jobs) requestDecode(j);
+  // Released frames go at the next decode, not now: a pane lets go of its old list just before holding the new one,
+  // which mostly has the same frames.
+  return () => {
+    for (const k of keys) {
+      const n = (held.get(k) ?? 1) - 1;
+      if (n > 0) held.set(k, n);
+      else held.delete(k);
+    }
+  };
+}
+
+/**
  * A live sweep is decoded again as chunks arrive; the earlier, partial
  * decodes are dropped once the map has had time to swap in the new one.
  */
@@ -166,17 +194,18 @@ function retire(job: ChunkJob) {
   }, 20_000);
 }
 
-/** Exact raw value under a point for a decoded frame, or null outside it / no data. */
-export function decodedValueAt(key: string, lat: number, lon: number): { value: number | null; special: string | null } | null {
-  const e = entries.get(key);
-  if (e?.state !== "done") return null;
-  const f = e.frame;
-  f.azLut ??= azimuthIndex(f.sweep);
-  const lvl = levelAt(f.sweep, lat, lon, f.azLut);
+/** Azimuth lookups for sampling, built once per sweep (whatever colour table shows it). */
+const azLuts = new WeakMap<Sweep, Int32Array>();
+
+/** Exact raw value under a point of a decoded frame's sweep, or null outside it / no data. */
+export function decodedValueAt(sweep: Sweep, lat: number, lon: number): { value: number | null; special: string | null } | null {
+  let lut = azLuts.get(sweep);
+  if (!lut) azLuts.set(sweep, (lut = azimuthIndex(sweep)));
+  const lvl = levelAt(sweep, lat, lon, lut);
   if (lvl < 0) return null;
-  const sp = f.sweep.special.find((s) => s.level === lvl);
+  const sp = sweep.special.find((s) => s.level === lvl);
   if (sp) return { value: null, special: sp.label };
-  const v = f.sweep.table[lvl];
+  const v = sweep.table[lvl];
   return { value: v == null || Number.isNaN(v) ? null : v, special: null };
 }
 
@@ -194,7 +223,7 @@ const volumes = new Map<string, Promise<DecodedVolume>>();
 const MAX_VOLUMES = 2;
 
 /** Every cut of `moment` in a Level II volume, decoded once (failures aren't kept, so a retry decodes again). */
-export function decodeVolume(url: string, moment: Moment, site?: { lat: number; lon: number }): Promise<DecodedVolume> {
+export function decodeVolume(url: string, moment: Moment, site?: { lat: number; lon: number; heightM?: number }): Promise<DecodedVolume> {
   const key = `${url}|${moment}`;
   let p = volumes.get(key);
   if (p) {

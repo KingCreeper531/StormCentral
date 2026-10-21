@@ -138,7 +138,8 @@ export function applyGoogle(base: Forecast, current: any, hours: any[], days: an
   }
 
   // Daily rows are the place's local midnights; Google labels days by local date.
-  const dayIndex = new Map(f.daily.time.map((t, i) => [new Date((t + f.utcOffsetSeconds) * 1000).toISOString().slice(0, 10), i]));
+  // Dated at midday with today's UTC offset, so a DST change within the 10 days can't shift a day.
+  const dayIndex = new Map(f.daily.time.map((t, i) => [new Date((t + f.utcOffsetSeconds + 43_200) * 1000).toISOString().slice(0, 10), i]));
   for (const d of days) {
     const date = dateOf(d?.displayDate);
     const i = date ? dayIndex.get(date) : undefined;

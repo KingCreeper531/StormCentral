@@ -77,6 +77,7 @@ case "$OUT" in *.mp4) fmt=mp4 ;; esac
 # Other platforms: one more output each, which may drop without taking YouTube down.
 extra=""
 for url in ${STREAM_EXTRA_OUTPUTS:-}; do extra="$extra|[f=flv:onfail=ignore]$url"; done
+# ffmpeg names an output that fails (YouTube turning the stream away), key and all: the keys are hidden from the log.
 ffmpeg -hide_banner -loglevel warning -nostdin \
   -thread_queue_size 1024 -f x11grab -draw_mouse 0 -framerate "$FPS" -video_size "${W}x${H}" -i "$DISPLAY.0+0,0" \
   -thread_queue_size 1024 -f pulse -i stream.monitor \
@@ -84,7 +85,8 @@ ffmpeg -hide_banner -loglevel warning -nostdin \
   -c:v libx264 -preset veryfast -b:v "${KBPS}k" -maxrate "${KBPS}k" -bufsize "$((KBPS * 2))k" \
   -g "$((FPS * 2))" -keyint_min "$((FPS * 2))" -sc_threshold 0 -pix_fmt yuv420p \
   -c:a aac -b:a 160k -ar 48000 -ac 2 -flags +global_header \
-  "${limit[@]}" -f tee "[f=$fmt:onfail=abort]$OUT|[f=segment:segment_time=6:segment_wrap=40:reset_timestamps=1:onfail=ignore]$STREAM_SEGMENTS/seg%02d.ts$extra" &
+  "${limit[@]}" -f tee "[f=$fmt:onfail=abort]$OUT|[f=segment:segment_time=6:segment_wrap=40:reset_timestamps=1:onfail=ignore]$STREAM_SEGMENTS/seg%02d.ts$extra" \
+  2> >(sed -Eu "s#(rtmps?://[^/ |']+/[^/ |']+/)[^ |']+#\1<key>#g" >&2) &
 pids+=($!)
 
 # Whichever stops first (ffmpeg losing YouTube, Chromium crashing) ends the stream; systemd restarts it.

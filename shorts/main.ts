@@ -108,7 +108,14 @@ async function main() {
     saveMeta();
     console.log(`\n── ${v.key} ──\nTitle: ${v.title}\nTítulo: ${v.es.title}\n\n${v.description}\n`);
     const started = Date.now();
-    await renderShort(v.template, v.data, out, v.size ?? {});
+    // One video failing to render doesn't stop the others either; the run still fails at the end.
+    try {
+      await renderShort(v.template, v.data, out, v.size ?? {});
+    } catch (err) {
+      console.error(`Rendering ${v.key} failed: ${err instanceof Error ? err.message : err}`);
+      failed = err;
+      continue;
+    }
     console.log(`Rendered ${out} in ${Math.round((Date.now() - started) / 1000)} s.`);
     // Full-length videos get their own thumbnail (kept with the video, so a test run shows it too).
     const thumb = v.thumbnailAt != null ? join(outDir, `${v.key}-thumbnail.jpg`) : null;
@@ -144,7 +151,8 @@ async function main() {
     // One video failing to upload doesn't stop the others (two storms, say); the run still fails at the end.
     try {
       const id = await uploadVideo(out, meta, token);
-      uploaded++;
+      // Recorded at once for the posted marker: whatever goes wrong later in the run, a backup run mustn't post it again.
+      if (!uploaded++) setOutput("uploaded", "true");
       console.log(v.size ? `Uploaded → https://youtu.be/${id}` : `Uploaded → https://youtube.com/shorts/${id}`);
       if (thumb && existsSync(thumb)) {
         await setThumbnail(id, thumb, token).then(
@@ -174,7 +182,6 @@ async function main() {
     }
   }
 
-  if (uploaded) setOutput("uploaded", "true");
   if (!token) console.log(creds ? "\nNot uploading (SHORTS_UPLOAD isn't 1)." : "\nNo YouTube credentials; rendered only.");
   if (failed) throw failed;
 }

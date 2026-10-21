@@ -37,4 +37,15 @@ describe("alerts", () => {
     expect(out[1]!.tags).toEqual(["DESTRUCTIVE"]);
     expect(out[1]!.hazards.maxHail).toBe("2.75");
   });
+
+  it("keeps the messages an update replaces, and never shows a cancellation as a warning", () => {
+    const out = normalizeAlerts([
+      feature("Tornado Warning", {}, { id: "urn:2", messageType: "Update", references: [{ identifier: "urn:1" }, {}] }),
+      feature("Tornado Warning", {}, { id: "urn:3", messageType: "Cancel", references: [{ identifier: "urn:2" }] }),
+      feature("Flood Warning", {}, { id: "urn:4", messageType: "Alert", references: null }),
+    ]);
+    expect(out.map((a) => a.id)).toEqual(["urn:2", "urn:4"]);
+    expect(out[0]!.references).toEqual(["urn:1"]);
+    expect(out[1]!.references).toBeUndefined();
+  });
 });

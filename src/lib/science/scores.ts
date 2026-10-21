@@ -56,8 +56,9 @@ export const DRONE_PROFILES: readonly DroneProfile[] = [
 
 export interface DroneConditions {
   windAtAltitudeMs: number;
-  gustMs: number;
-  precipProbPct: number;
+  /** Gusts and rain chance are null when the model has none: a caution, never calm. */
+  gustMs: number | null;
+  precipProbPct: number | null;
   precipMm: number;
   visibilityM: number | null;
   ceilingM: number | null;
@@ -77,19 +78,20 @@ export function droneFlyability(c: DroneConditions, p: DroneProfile, t: Translat
     status: wRatio >= 1 ? "no-go" : wRatio >= 0.7 ? "caution" : "go",
     detail: t("{pct}% of airframe limit", { pct: Math.round(wRatio * 100) }),
   });
-  const gRatio = c.gustMs / p.maxWindMs;
+  const gRatio = c.gustMs == null ? null : c.gustMs / p.maxWindMs;
   f.push({
     key: "gust",
     label: t("Gusts"),
-    status: gRatio >= 1.1 ? "no-go" : gRatio >= 0.8 ? "caution" : "go",
-    detail: t("{pct}% of airframe limit", { pct: Math.round(gRatio * 100) }),
+    status: gRatio == null ? "caution" : gRatio >= 1.1 ? "no-go" : gRatio >= 0.8 ? "caution" : "go",
+    detail: gRatio == null ? t("No data") : t("{pct}% of airframe limit", { pct: Math.round(gRatio * 100) }),
   });
-  const wet = c.precipMm >= 0.3 || c.precipProbPct >= 60;
+  const prob = c.precipProbPct;
+  const wet = c.precipMm >= 0.3 || (prob ?? 0) >= 60;
   f.push({
     key: "precip",
     label: t("Precipitation"),
-    status: wet ? (p.waterResistant ? "caution" : "no-go") : c.precipProbPct >= 30 ? "caution" : "go",
-    detail: t("{pct}% chance", { pct: Math.round(c.precipProbPct) }),
+    status: wet ? (p.waterResistant ? "caution" : "no-go") : prob == null || prob >= 30 ? "caution" : "go",
+    detail: prob == null ? t("No data") : t("{pct}% chance", { pct: Math.round(prob) }),
   });
   if (c.visibilityM != null) {
     f.push({

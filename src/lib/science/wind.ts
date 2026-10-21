@@ -65,12 +65,13 @@ export function windAtHeight(profile: readonly WindSample[], heightM: number): W
   if (!p.length) return null;
   const first = p[0]!;
   const last = p[p.length - 1]!;
-  if (heightM <= first.heightM) {
-    // Power-law (α = 1/7) extrapolation below the lowest level.
-    const factor = (Math.max(heightM, 1) / first.heightM) ** (1 / 7);
-    return { heightM, speedMs: first.speedMs * factor, dirDeg: first.dirDeg };
+  if (heightM <= first.heightM || heightM >= last.heightM) {
+    // Power-law (α = 1/7) extrapolation below the lowest level or above the highest
+    // (from a model with only 10 m wind, 120 m would otherwise get the 10 m speed).
+    const ref = heightM <= first.heightM ? first : last;
+    const factor = (Math.max(heightM, 1) / ref.heightM) ** (1 / 7);
+    return { heightM, speedMs: ref.speedMs * factor, dirDeg: ref.dirDeg };
   }
-  if (heightM >= last.heightM) return { ...last, heightM };
   for (let i = 0; i < p.length - 1; i++) {
     const lo = p[i]!;
     const hi = p[i + 1]!;

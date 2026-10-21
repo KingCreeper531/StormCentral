@@ -5,6 +5,7 @@ import { createSession } from "@/lib/auth/session";
 import { firstIssue, resetSchema } from "@/lib/community";
 import { getDb } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
+import { readJson } from "@/lib/server/body";
 import { forbidden, sameOrigin, tooMany } from "@/lib/server/guard";
 import { clientIp, rateLimit } from "@/lib/server/rate-limit";
 
@@ -13,7 +14,9 @@ export async function POST(req: Request) {
   if (!sameOrigin(req)) return forbidden();
   const ip = rateLimit(`reset-ip:${clientIp(req)}`, 10, 15 * 60_000);
   if (!ip.ok) return tooMany(ip.retryAfterSec);
-  const parsed = resetSchema.safeParse(await req.json().catch(() => null));
+  const body = await readJson(req);
+  if (body instanceof Response) return body;
+  const parsed = resetSchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: firstIssue(parsed.error) }, { status: 400 });
 
   const userId = await consumeResetToken(parsed.data.token);

@@ -2,7 +2,7 @@
 
 import { useFormat } from "@/hooks/use-format";
 import { useT } from "@/lib/i18n/use-t";
-import { arrivals, motionFrom, type Motion } from "@/lib/pro/storm-tools";
+import { arrivals, minutesUntil, motionFrom, type Motion } from "@/lib/pro/storm-tools";
 import type { LatLon } from "@/lib/geo";
 import { clockIn } from "@/lib/weather/view";
 import { Button } from "../ui/button";
@@ -16,6 +16,7 @@ export function StormToolsPanel({
   motion,
   picking,
   points,
+  now,
   timeZone,
   onReset,
   onClearPoints,
@@ -24,6 +25,8 @@ export function StormToolsPanel({
   /** 0: pick the storm, 1: step the loop and pick it again. */
   picking: 0 | 1 | 2;
   points: (LatLon & { name: string })[];
+  /** What "N min" and "passed" count from (the archive's moment when looking back). */
+  now: number;
   timeZone?: string;
   onReset: () => void;
   onClearPoints: () => void;
@@ -60,16 +63,19 @@ export function StormToolsPanel({
           <div className="label mb-1">{t("Time of arrival")}</div>
           {list.length ? (
             <ul className="divide-y divide-line rounded-[4px] border border-line">
-              {list.map((r) => (
-                <li key={`${r.name}-${r.point.lat}-${r.point.lon}`} className="flex items-center gap-2 px-2 py-1.5">
-                  <span className={`size-2 shrink-0 rounded-full ${r.inPath ? "bg-caution" : "bg-surface-3"}`} aria-hidden />
-                  <span className="min-w-0 flex-1 truncate">{r.name}</span>
-                  <span className="font-mono text-ink-2">
-                    {r.minutes < 0 ? t("passed") : r.inPath ? clockIn(timeZone, r.at, t.locale) : `${f.distanceKm(r.offTrackKm)} ${t("off track")}`}
-                  </span>
-                  {r.inPath && r.minutes >= 0 && <span className="w-12 text-right font-mono text-ink">{Math.round(r.minutes)} min</span>}
-                </li>
-              ))}
+              {list.map((r) => {
+                const left = minutesUntil(r, now);
+                return (
+                  <li key={`${r.name}-${r.point.lat}-${r.point.lon}`} className="flex items-center gap-2 px-2 py-1.5">
+                    <span className={`size-2 shrink-0 rounded-full ${r.inPath ? "bg-caution" : "bg-surface-3"}`} aria-hidden />
+                    <span className="min-w-0 flex-1 truncate">{r.name}</span>
+                    <span className="font-mono text-ink-2">
+                      {left < 0 ? t("passed") : r.inPath ? clockIn(timeZone, r.at, t.locale) : `${f.distanceKm(r.offTrackKm)} ${t("off track")}`}
+                    </span>
+                    {r.inPath && left >= 0 && <span className="w-12 text-right font-mono text-ink">{Math.round(left)} min</span>}
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p className="text-ink-3">{t("Nothing within two hours of the track.")}</p>

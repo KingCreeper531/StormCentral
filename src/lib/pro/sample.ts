@@ -14,11 +14,14 @@ import type { LegendStop } from "../radar/products";
 
 const ORIGIN_SHIFT = 20037508.342789244;
 
+/** A longitude moved by whole turns into [from, from + 360): MapLibre reports points on the world's copies (−215 is 145). */
+export const wrapLon = (lon: number, from = -180) => from + ((((lon - from) % 360) + 360) % 360);
+
 /** Web-Mercator pixel position of a point in a `tileSize` pyramid at zoom `z`. */
 export function pixelAt(lon: number, lat: number, z: number, tileSize: number) {
   const world = tileSize * 2 ** z;
   const φ = (Math.max(-85.0511, Math.min(85.0511, lat)) * Math.PI) / 180;
-  const x = ((lon + 180) / 360) * world;
+  const x = ((wrapLon(lon) + 180) / 360) * world;
   const y = ((1 - Math.log(Math.tan(φ) + 1 / Math.cos(φ)) / Math.PI) / 2) * world;
   const tx = Math.floor(x / tileSize);
   const ty = Math.floor(y / tileSize);
@@ -154,8 +157,9 @@ export async function samplePixel(src: PixelSource, lon: number, lat: number, ma
 }
 
 /** RGBA under a point in a single Web Mercator image covering `bounds` ([w, s, e, n]). */
-export async function sampleImagePixel(url: string, bounds: readonly [number, number, number, number], lon: number, lat: number): Promise<[number, number, number, number] | null> {
+export async function sampleImagePixel(url: string, bounds: readonly [number, number, number, number], pointLon: number, lat: number): Promise<[number, number, number, number] | null> {
   const [w, s, e, n] = bounds;
+  const lon = wrapLon(pointLon, w);
   if (lon < w || lon > e || lat < s || lat > n) return null;
   const data = await tileData(url);
   if (!data) return null;

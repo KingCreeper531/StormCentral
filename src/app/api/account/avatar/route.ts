@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/client";
 import { media, users } from "@/lib/db/schema";
+import { readForm } from "@/lib/server/body";
 import { forbidden, sameOrigin, suspended, tooMany, unauthorized } from "@/lib/server/guard";
 import { imageSize, sniffImage, stripMetadata } from "@/lib/server/image";
 import { rateLimit } from "@/lib/server/rate-limit";
@@ -34,7 +35,9 @@ export async function POST(req: Request) {
   const rl = rateLimit(`avatar:${user.id}`, 10, 15 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
 
-  const form = await req.formData().catch(() => null);
+  // The form around the picture is a few hundred bytes.
+  const form = await readForm(req, MAX_AVATAR_BYTES + 16 * 1024, "Picture is too large");
+  if (form instanceof Response) return form;
   const file = form?.get("image");
   if (!(file instanceof File) || file.size === 0) return bad("Choose a picture");
   if (file.size > MAX_AVATAR_BYTES) return bad("Picture is too large");

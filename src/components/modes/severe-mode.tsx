@@ -12,7 +12,7 @@ import { eventName } from "@/lib/i18n/nws-events";
 import { useT } from "@/lib/i18n/use-t";
 import { FAMILIES, familiesAvailable, resolveTilts, siteProducts } from "@/lib/radar/products";
 import { iemSiteId } from "@/lib/radar/frames";
-import { satelliteLabel } from "@/lib/radar/satellite";
+import { satelliteLabel, satelliteTimes } from "@/lib/radar/satellite";
 import { getSite, nearestSites } from "@/lib/radar/site-utils";
 import { useChasers, useChaserStreams, useForecast, useWebcams, useLocalAlerts, useOutlook, useRadarProducts, useReportsInView, useStormCells, useStormReports, useTropical } from "@/hooks/queries";
 import { useFormat } from "@/hooks/use-format";
@@ -236,6 +236,8 @@ export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {})
   const showingNowcast = !!loop.frames[loop.index]?.nowcast;
   // Other countries' radar is matched to the loop's observed scans (forecast frames get none).
   const loopTimes = useMemo(() => loop.frames.map((f) => (f.forecast ? Number.NaN : f.time)), [loop.frames]);
+  // So is the satellite loop (there's no imagery of the future): it holds the newest scan's image while forecast frames play.
+  const satLoop = satelliteTimes(loop.frames, loop.index, now);
 
   // ── Overlays ──────────────────────────────────────────────────────────────
   // Storm-based warnings plus the watches, advisories, discussions… picked in the layer settings.
@@ -827,7 +829,7 @@ export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {})
       <MapView center={loc} zoom={isSite ? 7.5 : 6} allow3d onViewChange={(b) => setBbox(b)} onReady={setMap}>
         {radar.satelliteMap && <SatelliteMapLayer />}
         {layers.satellite !== "off" && (
-          <SatelliteLayer band={layers.satellite} times={loop.frames.map((f) => f.time)} current={loop.frames[loop.index]?.time ?? now} onImage={setSatImage} />
+          <SatelliteLayer band={layers.satellite} times={satLoop.times} current={satLoop.current} onImage={setSatImage} />
         )}
         {layers.showOutlook && <OutlookLayer features={outlook.data?.features ?? []} kind={outlook.data?.kind ?? radar.outlookKind} />}
         {layers.showTropical && <TropicalLayer storms={storms} selectedId={selectedId("storm")} onSelect={(id) => select("storm", id)} />}

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { compactUtc, framesFromScans, frameBudget, iemSiteId, mosaicOffsetFrames, MOSAIC_SITE } from "./frames";
+import { translator } from "../i18n/core";
+import { compactUtc, frameLabel, framesFromScans, frameBudget, iemSiteId, mosaicOffsetFrames, MOSAIC_SITE } from "./frames";
 import { RadarLayerManager, type RadarMap } from "./layer-manager";
 import { crossfadeFor, frameDelayMs, nextPlayableIndex, stepIndex } from "./playback";
 import { familiesAvailable, resolveTilts, siteProducts } from "./products";
@@ -12,6 +13,17 @@ describe("frames", () => {
     expect(iemSiteId("KLOT")).toBe("LOT");
     expect(iemSiteId("tjua")).toBe("JUA");
     expect(iemSiteId("USCOMP")).toBe("USCOMP");
+  });
+
+  it("labels frames as the timeline does", () => {
+    const time = Date.parse("2026-10-07T19:20:00Z");
+    const frame = { id: "a", time, tileUrl: "", maxzoom: 8 };
+    const en = translator("en");
+    expect(frameLabel(frame, "UTC", en)).toMatch(/^7:20\sPM/);
+    expect(frameLabel({ ...frame, approximate: true }, "UTC", en)).toMatch(/^~7:20\sPM/);
+    expect(frameLabel({ ...frame, forecast: true }, "UTC", en)).toMatch(/^Forecast 7:20\sPM/);
+    expect(frameLabel({ ...frame, forecast: true, nowcast: true, leadMinutes: 30 }, "UTC", en)).toBe("+30 min · Future");
+    expect(frameLabel({ ...frame, forecast: true }, "UTC", translator("es"))).toMatch(/^Pronóstico 7:20/);
   });
 
   it("dedupes, sorts and trims scans", () => {
@@ -70,6 +82,16 @@ describe("playback", () => {
     expect(nextPlayableIndex(0, [true, false, true])).toBe(2);
     expect(nextPlayableIndex(1, [false, true, false])).toBe(1);
     expect(stepIndex(0, -1, 5)).toBe(4);
+  });
+
+  it("waits for a new scan at the tail instead of wrapping past it", () => {
+    expect(nextPlayableIndex(2, [true, true, true, false])).toBe(2);
+    expect(nextPlayableIndex(1, [true, true, true, false])).toBe(2);
+    // Gaps older than the newest buffered frame are still skipped.
+    expect(nextPlayableIndex(0, [true, false, true, false])).toBe(2);
+    expect(nextPlayableIndex(3, [true, false, true, true])).toBe(0);
+    expect(nextPlayableIndex(0, [false, false])).toBe(0);
+    expect(nextPlayableIndex(0, [])).toBe(0);
   });
 
   it("dwells on the newest frame and caps crossfades", () => {

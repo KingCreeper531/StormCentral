@@ -23,6 +23,32 @@ import { useAppStore } from "@/store/app-store";
 /** Only small, location-scoped feeds are persisted for instant cold starts. */
 const PERSISTED = new Set(["forecast", "air", "kp", "climate"]);
 
+/** The browser's local storage; undefined on the server and when site data is blocked (reading it throws then). */
+export function browserStorage(): Storage | undefined {
+  try {
+    return typeof window === "undefined" ? undefined : window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+interface RestorableStore {
+  persist?: { rehydrate: () => unknown };
+  setState: (partial: { hydrated: boolean }) => unknown;
+}
+
+/**
+ * Restores the stores' saved settings. With no storage, zustand gives a store
+ * no persist API: it keeps its defaults and counts as restored, so the app
+ * still renders.
+ */
+export function restoreStores(stores: readonly RestorableStore[] = [useAppStore, useAlertsStore, useAddonsStore, useChaserStore]) {
+  for (const store of stores) {
+    if (store.persist) void store.persist.rehydrate();
+    else store.setState({ hydrated: true });
+  }
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
@@ -42,17 +68,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
   // With no storage (SSR) this is a no-op persister, so the tree is identical on both sides.
   const [persister] = useState(() =>
     createSyncStoragePersister({
-      storage: typeof window === "undefined" ? undefined : window.localStorage,
+      storage: browserStorage(),
       key: "stormcentral:queries",
       throttleTime: 2000,
     }),
   );
 
   useEffect(() => {
-    void useAppStore.persist.rehydrate();
-    void useAlertsStore.persist.rehydrate();
-    void useAddonsStore.persist.rehydrate();
-    void useChaserStore.persist.rehydrate();
+    restoreStores();
     // Not in the Android bundle: its assets come from the app's local file server.
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production" && !IS_STATIC_BUNDLE) {
       navigator.serviceWorker.register("/sw.js").catch(() => {

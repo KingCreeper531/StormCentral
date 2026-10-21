@@ -58,6 +58,17 @@ describe("Google Weather", () => {
     expect(b.current.temp).toBe(10);
   });
 
+  it("puts each day on its date across a DST change", () => {
+    // Fetched in PST (UTC-8); the clocks go forward on Mar 14 2027, so Mar 15 starts at 07:00 UTC.
+    const b = base();
+    b.timezone = "America/Los_Angeles";
+    b.utcOffsetSeconds = -8 * 3600;
+    b.daily = { ...b.daily, time: [Date.UTC(2027, 2, 13, 8), Date.UTC(2027, 2, 14, 8), Date.UTC(2027, 2, 15, 7)].map((ms) => ms / 1000), tMax: [10, 11, 12] };
+    const day = (d: number, tMax: number) => ({ displayDate: { year: 2027, month: 3, day: d }, maxTemperature: { degrees: tMax } });
+    const f = applyGoogle(b, null, [], [day(13, 20), day(14, 21), day(15, 22)]);
+    expect(f.daily.tMax).toEqual([20, 21, 22]);
+  });
+
   it("copes with empty responses", () => {
     const f = applyGoogle(base(), null, [], []);
     expect(f.current.temp).toBe(10);

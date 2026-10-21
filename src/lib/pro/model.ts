@@ -112,14 +112,27 @@ const key = (p: LatLon) => `${Math.round(p.lat * 50) / 50},${Math.round(p.lon * 
 
 export function modelPoint(p: LatLon, signal?: AbortSignal): Promise<ModelPoint> {
   const k = key(p);
-  const hit = cache.get(k);
-  if (hit && Date.now() - hit.at < TTL_MS) return hit.p;
-  const [lat, lon] = k.split(",").map(Number) as [number, number];
-  const req = getJson<OpenMeteoProfile>(profileUrl([{ lat, lon }]), { signal, timeoutMs: 12_000 }).then((d) => parseProfile(d));
-  cache.set(k, { at: Date.now(), p: req });
-  req.catch(() => cache.delete(k));
-  while (cache.size > CACHE_SIZE) cache.delete(cache.keys().next().value!);
-  return req;
+  let hit = cache.get(k);
+  if (!hit || Date.now() - hit.at >= TTL_MS) {
+    const [lat, lon] = k.split(",").map(Number) as [number, number];
+    // Shared by every caller, so no one caller's abort fails it for the others: each gives up on its own below.
+    const req = getJson<OpenMeteoProfile>(profileUrl([{ lat, lon }]), { timeoutMs: 12_000 }).then((d) => parseProfile(d));
+    hit = { at: Date.now(), p: req };
+    cache.set(k, hit);
+    req.catch(() => cache.delete(k));
+    while (cache.size > CACHE_SIZE) cache.delete(cache.keys().next().value!);
+  }
+  return signal ? untilAborted(hit.p, signal) : hit.p;
+}
+
+/** `p`, or a rejection as soon as `signal` aborts. */
+function untilAborted<T>(p: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    p.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+  });
 }
 
 /** The cursor readout's NWP fields. */
