@@ -245,6 +245,15 @@ export const liveDrawing = sqliteTable("live_drawing", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+/** A person's settings, synced between their devices (lib/sync/settings.ts): one row per account. */
+export const userSettings = sqliteTable("user_settings", {
+  userId: text("user_id").primaryKey(),
+  data: text("data").notNull(),
+  /** When the device that sent them last changed them (epoch ms): the newest change wins. */
+  changedAt: integer("changed_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
@@ -386,9 +395,15 @@ CREATE TABLE IF NOT EXISTS live_drawing (
   user_id TEXT,
   updated_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS user_settings (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  data TEXT NOT NULL,
+  changed_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 `;
 
-export const schema = { users, sessions, passwordResets, media, posts, verifications, comments, blocks, flags, spotterWarnings, chaserPositions, liveDrawing };
+export const schema = { users, sessions, passwordResets, media, posts, verifications, comments, blocks, flags, spotterWarnings, chaserPositions, liveDrawing, userSettings };
 
 /**
  * Columns added after a table first shipped. CREATE TABLE IF NOT EXISTS

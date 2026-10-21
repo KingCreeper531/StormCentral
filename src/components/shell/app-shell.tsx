@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useForecast, useLocalAlerts, useNationalAlerts } from "@/hooks/queries";
 import { useNow } from "@/hooks/use-now";
 import { useMapStyleLink } from "@/hooks/use-map-style-link";
+import { useSettingsSync } from "@/hooks/use-settings-sync";
 import { useUrlSync } from "@/hooks/use-url-sync";
 import { useT } from "@/lib/i18n/use-t";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
@@ -54,6 +55,7 @@ const MODE_COMPONENTS: Record<ModeId, React.ComponentType> = {
 export function AppShell() {
   useUrlSync();
   useMapStyleLink();
+  useSettingsSync();
   const hydrated = useAppStore((s) => s.hydrated);
   const storeMode = useAppStore((s) => s.mode);
   const professional = useAppStore((s) => s.professional);
