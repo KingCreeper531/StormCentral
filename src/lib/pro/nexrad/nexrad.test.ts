@@ -278,6 +278,13 @@ describe("Level II before 2008 (Message 1)", () => {
     const heightOf = (icao: string) => NEXRAD_SITES.find((s) => s[0] === icao)![5];
     expect(heightOf("KFTG")).toBe(1675);
     expect(parseLevel2Volume(file, "REF", { site: { ...site, heightM: heightOf("KTLX") } }).sweeps[0]!.heightM).toBe(370);
+    // Read from each radar's own Level II files (the source table had -99999 ft for these).
+    expect(["KDGX", "KFSX", "KLWX", "KRTX", "KSRX", "KVWX"].map(heightOf)).toEqual([151, 2261, 89, 492, 200, 156]);
+    // Every US radar sits between sea level and 3.5 km (KMSX, the highest, is 2394 m).
+    for (const [icao, , , , , elevM] of NEXRAD_SITES) {
+      expect(elevM, icao).toBeGreaterThanOrEqual(-5);
+      expect(elevM, icao).toBeLessThan(3500);
+    }
   });
 
   it("reads the oldest archive files (ARCHIVE2 header), even partial ones", async () => {
