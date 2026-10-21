@@ -113,6 +113,10 @@ The **satellite map** (`satellite-map-layer.tsx`, a toggle in the radar's layers
   - each kind of label, and label size;
   - water and land colours;
   - parks and buildings.
+- **Presets** (`lib/map/presets.ts`, `map-presets.tsx`): built-in ones (Standard, Chaser, Broadcast, Terrain, Minimal, Light) and up to 20 of the person's own. Saving under an existing name replaces that preset. Your own preset is shown as picked over a built-in one with the same style.
+  - **Sharing**: a style travels as a share code holding only what differs from the default, as base64url JSON. A link to the hosted app (`NEXT_PUBLIC_APP_URL`, so links from the apps work) carries it as `?mapstyle=`.
+  - **Opening a link** (`hooks/use-map-style-link.ts`) applies the style, saves it as a preset, and removes the parameter from the address. Pasting a link or code works too.
+  - Everything read from a code goes through `normalizeMapStyle`, and names are plain text.
 - **County lines when zoomed out**: the basemap's tiles only carry them from zoom 9. On "always", lines for the whole US are drawn below that zoom: the borders between counties of the same state, from the Census Bureau's 1:10M boundaries via us-atlas, built into `public/vendor/us-county-lines.json` on install (`scripts/vendor-county-lines.mjs`, ~150 kB gzipped, fetched only when needed).
 - **Terrain**: AWS's open Terrarium elevation tiles (to zoom 12) feed a hillshade (the soft "igor" method, so radar colours stay true) under the water, borders and roads, and, on the radar map only (`allow3d`), MapLibre 3D terrain:
   - Turning it on unlocks tilting up to 60° (right-drag, two fingers, the compass) and adds a sky.
