@@ -118,6 +118,8 @@ if [ -n "$APP_DOMAIN" ]; then
   grep -qE '^DATABASE_URL="?(libsql|https)://' "$APP_ENV" || warn "DATABASE_URL isn't a Turso (libsql://) address: Vercel and this server would keep separate data."
   # Links in emails (password reset) always point here, whatever headers a request carries.
   grep -q '^PUBLIC_SITE_URL=' "$APP_ENV" || echo "PUBLIC_SITE_URL=https://$APP_DOMAIN" >>"$APP_ENV"
+  # The Pro data server on this server: Professional mode's products and the radar's lightning bolts (GOES flashes).
+  [ -n "$DOMAIN" ] && ! grep -q '^NEXT_PUBLIC_PRO_SERVER=' "$APP_ENV" && echo "NEXT_PUBLIC_PRO_SERVER=https://$DOMAIN" >>"$APP_ENV"
 fi
 
 # ── Packages ────────────────────────────────────────────────────────────────
@@ -464,7 +466,7 @@ say "Done"
 if [ -n "$DOMAIN" ]; then
   cat <<EOF
 Pro data server:  https://$DOMAIN/index.json   (products appear within a few minutes)
-  Then add it to the app:
+  The web app on this server already uses it. Add it to the others too:
     • Vercel → Settings → Environment Variables: NEXT_PUBLIC_PRO_SERVER = https://$DOMAIN (Production), then Redeploy
     • GitHub → Settings → Secrets and variables → Actions → Variables: PRO_SERVER_URL = https://$DOMAIN
   Logs:  cd $SRC/pro-server && docker compose logs -f processor
