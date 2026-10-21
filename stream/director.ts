@@ -79,6 +79,9 @@ const CONFIG = {
   height: Number(env.STREAM_HEIGHT) || 720,
   // What run.sh captures; pace.ts keeps Chromium from drawing more than that.
   fps: Number(env.STREAM_FPS) || 30,
+  // The radar map's resolution: below 1 it's drawn smaller and scaled up to the screen, the graphics over it
+  // stay sharp. Without a GPU, the map's pixels are most of what Chromium does each frame.
+  mapScale: Math.min(1, Math.max(0.5, Number(env.STREAM_MAP_SCALE) || 1)),
   // A public camera beside a warned storm: off unless asked for (one more picture to fetch and draw).
   cameras: env.STREAM_CAMERAS === "on",
   voice: env.STREAM_VOICE || "en-US-AndrewNeural",
@@ -771,6 +774,9 @@ async function main() {
     localStorage.setItem("stormcentral:pro", JSON.stringify({ state: { layout: "1x2", frames: 6, speed: 1 }, version: 1 }));
   });
   await context.addInitScript(paceFrames, CONFIG.fps);
+  // MapLibre sizes its drawing to devicePixelRatio; the page's own text and graphics don't read it.
+  if (CONFIG.mapScale < 1)
+    await context.addInitScript((scale) => Object.defineProperty(window, "devicePixelRatio", { get: () => scale, configurable: true }), CONFIG.mapScale);
   const director = new Director(context);
   context.on("close", () => {
     director.closed = true;
