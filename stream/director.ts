@@ -68,6 +68,7 @@ import {
   type Strengthening,
   type StreamWarning,
 } from "./plan";
+import { paceFrames } from "./pace";
 import { Budget, YouTubeLive, type BudgetState } from "./youtube-live";
 
 const run = promisify(execFile);
@@ -76,6 +77,8 @@ const CONFIG = {
   app: (env.STREAM_APP_URL || "https://app.stormcentralwx.com").replace(/\/$/, ""),
   width: Number(env.STREAM_WIDTH) || 1280,
   height: Number(env.STREAM_HEIGHT) || 720,
+  // What run.sh captures; pace.ts keeps Chromium from drawing more than that.
+  fps: Number(env.STREAM_FPS) || 30,
   voice: env.STREAM_VOICE || "en-US-AndrewNeural",
   sink: env.STREAM_SINK || "stream",
   tmp: env.STREAM_TMP || "/tmp/stormcentral-stream",
@@ -732,6 +735,7 @@ async function main() {
     localStorage.setItem("stormcentral:v1", JSON.stringify({ state: { professional: true, theme: "dark", units: "imperial", radar: { future, nowcast: false } }, version: 1 }));
     localStorage.setItem("stormcentral:pro", JSON.stringify({ state: { layout: "2x2", frames: 10, speed: 1 }, version: 1 }));
   });
+  await context.addInitScript(paceFrames, CONFIG.fps);
   const director = new Director(context);
   context.on("close", () => {
     director.closed = true;

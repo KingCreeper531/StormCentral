@@ -40,10 +40,15 @@ export function drawOverlay(s: OverlayState) {
     css.textContent = `
 :root{--topbar-h:0px!important}
 header.fixed.top-0{display:none!important}
+/* The dot on the scene's place (components/map/layers/user-marker): the stream names the place instead. */
+.maplibregl-marker[aria-label="Selected location"]{display:none!important}
+/* No frosted glass: every blurred panel is redone on the CPU each time the radar under it changes, and that halved
+   the map's frame rate on a 2-core server. The panels are nearly opaque, so the blur hardly showed. */
+*,*::before,*::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 #scl-live{position:fixed;inset:0;pointer-events:none;z-index:2147483647;color:#f4f6fb;
   font-family:var(--font-geist-sans,Inter),Inter,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-feature-settings:"tnum" 1;-webkit-font-smoothing:antialiased}
 #scl-live .glass{background:linear-gradient(180deg,rgba(14,20,36,.86),rgba(7,11,22,.86));border:1px solid rgba(255,255,255,.09);
-  box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.06);backdrop-filter:blur(10px)}
+  box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.06)}
 /* station bug */
 #scl-live .bug{position:absolute;left:18px;top:16px;display:flex;align-items:center;gap:12px;padding:8px 14px 8px 8px;border-radius:14px}
 #scl-live .bug img{width:40px;height:40px;border-radius:10px}
