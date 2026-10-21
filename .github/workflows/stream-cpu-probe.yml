@@ -1,0 +1,106 @@
+# TEMP: the live stream on 2 cores, main vs this branch (lean map, Chromium switches, encoder). Removed before the PR.
+name: Stream CPU probe
+on:
+  push:
+    branches: [claude/trusting-pasteur-qzc0fq]
+    paths: [".github/workflows/stream-cpu-probe.yml"]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
+      - name: Install what the stream needs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb ffmpeg pulseaudio pulseaudio-utils fonts-inter fonts-noto-color-emoji > /dev/null
+          mkdir -p "$RUNNER_TEMP/new" "$RUNNER_TEMP/main"
+          npm install --prefix "$RUNNER_TEMP/new" --no-audit --no-fund --silent playwright-core@1.63.0 @grpc/grpc-js@1.14.5 @grpc/proto-loader@0.8.1
+          "$RUNNER_TEMP/new/node_modules/.bin/playwright-core" install --with-deps chromium > /dev/null
+          ln -s "$RUNNER_TEMP/new/node_modules" "$RUNNER_TEMP/main/node_modules"
+          git worktree add -q "$RUNNER_TEMP/main-src" origin/main
+          b() { npx --yes esbuild@0.28.2 "$1/stream/director.ts" --bundle --platform=node --format=esm --target=node22 --external:playwright-core --external:@grpc/grpc-js --external:@grpc/proto-loader --outfile="$2/director.mjs" --log-level=warning; }
+          b . "$RUNNER_TEMP/new" && b "$RUNNER_TEMP/main-src" "$RUNNER_TEMP/main"
+          # Variants of this branch's director with one more Chromium switch.
+          v() { mkdir -p "$RUNNER_TEMP/$1" && ln -s "$RUNNER_TEMP/new/node_modules" "$RUNNER_TEMP/$1/node_modules"
+                sed "s/\"--ignore-gpu-blocklist\"/\"--ignore-gpu-blocklist\", \"$2\"/" "$RUNNER_TEMP/new/director.mjs" > "$RUNNER_TEMP/$1/director.mjs"
+                grep -c -- "$2" "$RUNNER_TEMP/$1/director.mjs"; }
+          v noraster --disable-gpu-rasterization
+          v swiftshader --use-angle=swiftshader
+          pipx install edge-tts==7.3.1
+          curl -fsSL -o /tmp/c.zip https://download.geonames.org/export/dump/cities5000.zip && unzip -p /tmp/c.zip cities5000.txt | awk -F'\t' '$9 == "US" && $11 ~ /^[A-Z][A-Z]$/ {print $3 "\t" $11 "\t" $5 "\t" $6 "\t" $15}' > "$RUNNER_TEMP/places.tsv"
+          nproc; lscpu | grep -E "Model name|^CPU\(s\)"
+      - name: Runs on 2 cores
+        env:
+          STREAM_SECONDS: "170"
+          STREAM_DEMO_ALERT: "1"
+          STREAM_BRIEFING_MINUTES: "2"
+          STREAM_DEMO_FIXTURE: shorts/fixtures/breaking/tornado-emergency/nws-active.json
+          STREAM_DEMO_NOW: "2026-05-21T00:55:00Z"
+          STREAM_PLACES: ${{ runner.temp }}/places.tsv
+          STREAM_CLIPS_DAILY_MAX: "0"
+          STREAM_TITLE_DAILY_MAX: "0"
+          STREAM_CHAT: "off"
+        run: |
+          busy() { awk '/^cpu[01] /{b+=$2+$3+$4+$7+$8} END{print b}' /proc/stat; }
+          # CPU ticks by kind of process, summed over 1 s samples (scene tabs come and go).
+          sample() {
+            declare -A last tot
+            local secs=$1 end=$(( $(date +%s) + $1 ))
+            while [ "$(date +%s)" -lt "$end" ]; do
+              for d in /proc/[0-9]*; do
+                read -r st 2>/dev/null < "$d/stat" || continue
+                pid=${d#/proc/}; rest=${st#*) }; comm=${st#*(}; comm=${comm%%)*}
+                set -- $rest; t=$(( ${12} + ${13} ))
+                case "$comm" in
+                  chrome*|headless*)
+                    ty=$(grep -aoP -- '--type=\K[a-z-]+' "$d/cmdline" 2>/dev/null | head -1)
+                    k=chrome-${ty:-browser} ;;
+                  ffmpeg) k=ffmpeg ;; node|MainThread) k=node ;; Xvfb) k=Xvfb ;; pulseaudio) k=pulseaudio ;; python*|edge-tts|paplay) k=voice ;; *) continue ;;
+                esac
+                p=${last[$pid]:-$t}; tot[$k]=$(( ${tot[$k]:-0} + t - p )); last[$pid]=$t
+              done
+              sleep 1
+            done
+            for k in "${!tot[@]}"; do printf '%s=%d%% ' "$k" $(( tot[$k] / secs )); done; echo
+          }
+          probe() {
+            local name=$1 rt=$2 src=$3; shift 3
+            local dir="$RUNNER_TEMP/run-$name"; mkdir -p "$dir"
+            (
+              export "$@" STREAM_RUNTIME="$rt" STREAM_OUTPUT="$dir/out.mp4" STREAM_STATE="$dir/state.json" XDG_RUNTIME_DIR="$dir/xdg" \
+                STREAM_PROFILE="$dir/chromium" STREAM_SEGMENTS="$dir/segments"
+              taskset -c 0,1 timeout 260 bash "$src/stream/run.sh" > "$dir/log" 2>&1 || true
+            ) &
+            local runner=$!
+            sleep 50
+            local b0=$(busy) t0=$(date +%s)
+            local kinds=$(sample 100)
+            local b1=$(busy) t1=$(date +%s)
+            wait $runner
+            # Frames that actually changed in the ticker strip (it always moves): how smooth the stream really is.
+            local fps=$(grep -oP '^STREAM_FPS=\K.*' <<<"$(printf '%s\n' "$@")"); fps=${fps:-30}
+            local tick=$(ffmpeg -v error -ss 50 -t 100 -i "$dir/out.mp4" -an -vf "crop=1280:28:0:690,mpdecimate=hi=200:lo=50:frac=0.01" -f framemd5 - 2>/dev/null | grep -vc '^#')
+            local full=$(ffmpeg -v error -ss 50 -t 100 -i "$dir/out.mp4" -an -vf "mpdecimate=hi=200:lo=50:frac=0.001" -f framemd5 - 2>/dev/null | grep -vc '^#')
+            local gfx=$(grep -oP 'graphics: \K.*' "$dir/log" | head -1)
+            echo "$name | ${gfx:-?} | busy $(( (b1 - b0) / (t1 - t0) ))/200 | $kinds| new pictures $(awk -v u=$full 'BEGIN{printf "%.1f", u/100}')/s, ticker moved $(awk -v u=$tick 'BEGIN{printf "%.1f", u/100}')/s of $fps" | tee -a "$RUNNER_TEMP/summary.txt"
+            grep -iE "duplicat|error|warn" "$dir/log" | tail -n 5 || true
+            mkdir -p "$RUNNER_TEMP/frames"
+            ffmpeg -v error -ss 120 -i "$dir/out.mp4" -frames:v 1 -q:v 3 "$RUNNER_TEMP/frames/$name.jpg" || true
+          }
+          probe main-30fps "$RUNNER_TEMP/main" "$RUNNER_TEMP/main-src" STREAM_FPS=30
+          probe new-30fps "$RUNNER_TEMP/new" . STREAM_FPS=30
+          probe new-30fps-noraster "$RUNNER_TEMP/noraster" . STREAM_FPS=30
+          probe new-30fps-swiftshader "$RUNNER_TEMP/swiftshader" . STREAM_FPS=30
+          probe new-30fps-ultrafast "$RUNNER_TEMP/new" . STREAM_FPS=30 STREAM_X264_PRESET=ultrafast
+          echo "──────── summary"; cat "$RUNNER_TEMP/summary.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stream-cpu-probe
+          path: ${{ runner.temp }}/frames
