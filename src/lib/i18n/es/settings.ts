@@ -244,4 +244,22 @@ export const SETTINGS: Record<string, string> = {
   "Waiting for a GPS fix.": "Esperando la señal del GPS.",
   "To see other chasers, turn on Storm chasers in the radar's layers.": "Para ver a otros cazadores, activa Cazadores de tormentas en las capas del radar.",
   "Turn on now": "Activar ahora",
+
+  // sync-panel.tsx, lib/sync/client.ts
+  "Sync settings": "Sincronizar ajustes",
+  "Between your computer, phone and the web, through your account": "Entre tu ordenador, tu teléfono y la web, a través de tu cuenta",
+  "Sync settings on this device": "Sincronizar los ajustes en este dispositivo",
+  "Your account already has settings from another device. Which should this device use?": "Tu cuenta ya tiene ajustes de otro dispositivo. ¿Cuáles debe usar este?",
+  "The account's settings": "Los de la cuenta",
+  "This device's (replace the account's)": "Los de este dispositivo (reemplazar los de la cuenta)",
+  "Syncing…": "Sincronizando…",
+  "Couldn't sync: {why}": "No se pudo sincronizar: {why}",
+  "no connection": "sin conexión",
+  "Up to date ({ago})": "Al día ({ago})",
+  "Up to date": "Al día",
+  "Sync now": "Sincronizar ahora",
+  "Syncs units, theme and language, radar and map style settings, map presets, colour tables, the Professional workspace, saved places and custom alerts, themes and plugins, custom layers from links, and broadcast graphics. Your location, the notifications switch, files you loaded, the broadcast logo and chaser sharing stay on each device.":
+    "Sincroniza unidades, tema e idioma, los ajustes del radar y del estilo del mapa, los ajustes predefinidos del mapa, las tablas de colores, el espacio de trabajo Profesional, los lugares guardados y las alertas personalizadas, temas y complementos, las capas propias desde enlaces y los gráficos de transmisión. Tu ubicación, el interruptor de notificaciones, los archivos que cargaste, el logotipo de transmisión y compartir como cazador se quedan en cada dispositivo.",
+  "Remove the settings kept on your account": "Quitar los ajustes guardados en tu cuenta",
+  "Removed the settings kept on your account. Each device keeps its own.": "Se quitaron los ajustes guardados en tu cuenta. Cada dispositivo conserva los suyos.",
 };

@@ -15,6 +15,7 @@ import { ChangePasswordPanel } from "../community/password-forms";
 import { Button } from "../ui/button";
 import { Avatar } from "../ui/misc";
 import { Panel } from "../ui/panel";
+import { SyncPanel } from "./sync-panel";
 
 interface Profile {
   username: string;
@@ -298,6 +299,7 @@ export function AccountSection() {
       )}
       {session.data.moderator && <ModerationLink />}
       <ProfilePanel key={`${profile.data.displayName}|${profile.data.bio ?? ""}`} profile={profile.data} hue={session.data.avatarHue} />
+      <SyncPanel />
       <ChangePasswordPanel />
       <BlockedAccountsPanel />
       <DeleteAccountPanel />
