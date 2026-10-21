@@ -30,8 +30,6 @@ jobs:
           v() { mkdir -p "$RUNNER_TEMP/$1" && ln -s "$RUNNER_TEMP/new/node_modules" "$RUNNER_TEMP/$1/node_modules"
                 sed "s/\"--ignore-gpu-blocklist\"/\"--ignore-gpu-blocklist\", \"$2\"/" "$RUNNER_TEMP/new/director.mjs" > "$RUNNER_TEMP/$1/director.mjs"
                 grep -c -- "$2" "$RUNNER_TEMP/$1/director.mjs"; }
-          v noraster --disable-gpu-rasterization
-          v swiftshader --use-angle=swiftshader
           pipx install edge-tts==7.3.1
           curl -fsSL -o /tmp/c.zip https://download.geonames.org/export/dump/cities5000.zip && unzip -p /tmp/c.zip cities5000.txt | awk -F'\t' '$9 == "US" && $11 ~ /^[A-Z][A-Z]$/ {print $3 "\t" $11 "\t" $5 "\t" $6 "\t" $15}' > "$RUNNER_TEMP/places.tsv"
           nproc; lscpu | grep -E "Model name|^CPU\(s\)"
@@ -91,13 +89,13 @@ jobs:
             echo "$name | ${gfx:-?} | busy $(( (b1 - b0) / (t1 - t0) ))/200 | $kinds| new pictures $(awk -v u=$full 'BEGIN{printf "%.1f", u/100}')/s, ticker moved $(awk -v u=$tick 'BEGIN{printf "%.1f", u/100}')/s of $fps" | tee -a "$RUNNER_TEMP/summary.txt"
             grep -iE "duplicat|error|warn" "$dir/log" | tail -n 5 || true
             mkdir -p "$RUNNER_TEMP/frames"
-            ffmpeg -v error -ss 120 -i "$dir/out.mp4" -frames:v 1 -q:v 3 "$RUNNER_TEMP/frames/$name.jpg" || true
+            for t in 40 80 120; do ffmpeg -v error -ss $t -i "$dir/out.mp4" -frames:v 1 -q:v 2 "$RUNNER_TEMP/frames/$name-$t.jpg" || true; done
           }
           probe main-30fps "$RUNNER_TEMP/main" "$RUNNER_TEMP/main-src" STREAM_FPS=30
           probe new-30fps "$RUNNER_TEMP/new" . STREAM_FPS=30
-          probe new-30fps-noraster "$RUNNER_TEMP/noraster" . STREAM_FPS=30
-          probe new-30fps-swiftshader "$RUNNER_TEMP/swiftshader" . STREAM_FPS=30
-          probe new-30fps-ultrafast "$RUNNER_TEMP/new" . STREAM_FPS=30 STREAM_X264_PRESET=ultrafast
+          probe new-30fps-scale75 "$RUNNER_TEMP/new" . STREAM_FPS=30 STREAM_MAP_SCALE=0.75
+          probe new-30fps-scale60 "$RUNNER_TEMP/new" . STREAM_FPS=30 STREAM_MAP_SCALE=0.6
+          probe new-30fps-scale50 "$RUNNER_TEMP/new" . STREAM_FPS=30 STREAM_MAP_SCALE=0.5
           echo "──────── summary"; cat "$RUNNER_TEMP/summary.txt"
       - uses: actions/upload-artifact@v4
         if: always()
