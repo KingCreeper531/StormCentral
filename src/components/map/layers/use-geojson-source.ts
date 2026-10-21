@@ -1,25 +1,27 @@
 "use client";
 
-import type { AddLayerObject, GeoJSONSource } from "maplibre-gl";
+import type { AddLayerObject, GeoJSONSource, GeoJSONSourceSpecification } from "maplibre-gl";
 import { useEffect } from "react";
 import type { FeatureCollection } from "geojson";
 import { mapAlive, useMapContext } from "../map-view";
 
 /**
  * Creates a GeoJSON source + layers once, then streams data updates through
- * setData (no layer teardown → no flicker).
+ * setData (no layer teardown → no flicker). `source` adds options such as
+ * clustering; like the layers, it's read once per mount.
  */
 export function useGeoJsonLayers(
   sourceId: string,
   data: FeatureCollection,
   layers: (font: string[]) => AddLayerObject[],
   beforeId: string,
+  source?: Omit<GeoJSONSourceSpecification, "type" | "data">,
 ) {
   const { map, font } = useMapContext();
 
   useEffect(() => {
     if (!map) return;
-    map.addSource(sourceId, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addSource(sourceId, { ...source, type: "geojson", data: { type: "FeatureCollection", features: [] } });
     const specs = layers(font);
     for (const l of specs) map.addLayer(l, beforeId);
     return () => {
