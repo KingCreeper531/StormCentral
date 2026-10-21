@@ -354,3 +354,38 @@ export function clipText(w: StreamWarning, liveUrl: string | null) {
     tags: ["live weather radar", w.name.toLowerCase(), "severe weather", "Storm Central", ...new Set(w.areas.map((a) => STATE_NAMES[a.state] ?? a.state))],
   };
 }
+
+/**
+ * What's being read, cut into captions of at most `maxChars` (two short lines on screen): by sentence, then
+ * at commas, then between words. Shown one after another as the voice goes, like TV captions, instead of
+ * the whole paragraph in a box over the radar.
+ */
+export function captionChunks(text: string, maxChars = 84): string[] {
+  const out: string[] = [];
+  const fit = (piece: string) => {
+    let line = "";
+    for (const word of piece.split(/\s+/).filter(Boolean)) {
+      if (line && line.length + 1 + word.length > maxChars) {
+        out.push(line);
+        line = word;
+      } else line = line ? `${line} ${word}` : word;
+    }
+    if (line) out.push(line);
+  };
+  for (const sentence of text.trim().split(/(?<=[.!?])\s+/)) {
+    if (sentence.length <= maxChars) {
+      if (sentence) out.push(sentence);
+      continue;
+    }
+    // A long sentence: whole clauses together while they fit, then word by word.
+    let acc = "";
+    for (const clause of sentence.split(/(?<=,)\s+/)) {
+      if (acc && acc.length + 1 + clause.length > maxChars) {
+        fit(acc);
+        acc = clause;
+      } else acc = acc ? `${acc} ${clause}` : clause;
+    }
+    if (acc) fit(acc);
+  }
+  return out;
+}
