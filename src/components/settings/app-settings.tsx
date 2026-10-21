@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, ChevronDown, ChevronRight, Download, Monitor, Moon, RefreshCw, Sun, UserRound } from "lucide-react";
+import { Bell, ChevronDown, ChevronRight, Download, Monitor, Moon, Radio, RefreshCw, Sun, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { checkForUpdate, installedVersion, type AvailableUpdate } from "@/lib/native/app-update";
@@ -566,6 +566,8 @@ export function AppSettings() {
             <LocationPanel />
             <RadiusPanel />
             <ProfessionalPanel />
+            {/* Broadcast mode has a page of its own, off the radar. */}
+            <LinkRow href="/broadcast" icon={<Radio className="size-4" aria-hidden />} title={t("Broadcast mode")} sub={t("On-air graphics for streaming the radar")} />
           </>
         )}
         {current === "alerts" && (

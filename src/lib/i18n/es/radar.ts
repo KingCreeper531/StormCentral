@@ -401,7 +401,6 @@ export const RADAR: Record<string, string> = {
   "Each scene on a tour": "Cada escena en un recorrido",
   "Seconds on each scene": "Segundos en cada escena",
   "{n} s": "{n} s",
-  "Start broadcast mode": "Iniciar el modo transmisión",
   "Broadcast controls": "Controles de transmisión",
   "Previous scene": "Escena anterior",
   "Next scene": "Escena siguiente",
