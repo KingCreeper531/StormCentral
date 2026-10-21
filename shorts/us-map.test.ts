@@ -31,7 +31,7 @@ interface Conic {
   fitExtent(e: Box, o: unknown): Conic;
   (p: Pt): Pt;
 }
-const d3 = sandbox.d3 as { geoConicConformal(): Conic; geoContains(f: Feature, p: Pt): boolean };
+const d3 = sandbox.d3 as { geoConicConformal(): Conic; geoContains(f: Feature, p: Pt): boolean; geoBounds(f: Feature): Box };
 
 const us = SC.usProjection();
 const [, AK, HI] = us.parts;
@@ -44,15 +44,17 @@ const vertices = (f: Feature): Pt[] => {
 };
 
 describe("the Shorts' US map", () => {
+  // Hundreds of thousands of vertices: mismatches are collected and checked once (an expect each is too slow for CI).
   it("puts every point of Alaska and Hawaii in its inset", () => {
+    const wrong: string[] = [];
     for (const [id, part, box] of [["02", 1, AK!.box!], ["15", 2, HI!.box!]] as const) {
       const f = SC.usa.features.find((s) => s.id === id)!;
       for (const v of vertices(f)) {
         const at = us.locate(v);
-        expect(at?.part, `${id} ${v}`).toBe(part);
-        expect(within(at!.xy, [[box[0][0] - 1, box[0][1] - 1], [box[1][0] + 1, box[1][1] + 1]])).toBe(true);
+        if (at?.part !== part || !within(at.xy, [[box[0][0] - 1, box[0][1] - 1], [box[1][0] + 1, box[1][1] + 1]])) wrong.push(`${id} ${v}`);
       }
     }
+    expect(wrong.slice(0, 5)).toEqual([]);
     expect(us.locate([-149.9, 61.22])?.part).toBe(1); // Anchorage
     expect(us.locate([-157.86, 21.31])?.part).toBe(2); // Honolulu
   });
@@ -65,17 +67,25 @@ describe("the Shorts' US map", () => {
       expect(us(p)).toEqual(before(p));
     }
     // Every lower-48 vertex goes to the lower 48, never into an inset.
-    for (const f of SC.conus.features) for (const v of vertices(f)) expect(us.locate(v)?.part, `${f.id} ${v}`).toBe(0);
-    // Nothing of the lower 48 lies under an inset's box (a grid of points through each).
+    const wrong: string[] = [];
+    for (const f of SC.conus.features) for (const v of vertices(f)) if (us.locate(v)?.part !== 0) wrong.push(`${f.id} ${v}`);
+    expect(wrong.slice(0, 5)).toEqual([]);
+    // Nothing of the lower 48 lies under an inset's box (a grid of points through each; only states whose bounds hold the point are tested).
     const lower48 = us.parts[0]!.projection;
+    const bounds = SC.conus.features.map((f) => ({ f, b: d3.geoBounds(f) }));
+    const covered: string[] = [];
     for (const [[x0, y0], [x1, y1]] of [AK!.box!, HI!.box!]) {
       for (let i = 0; i <= 12; i++) {
         for (let j = 0; j <= 12; j++) {
           const ll = lower48.invert([x0 - 8 + ((x1 - x0 + 16) * i) / 12, y0 - 8 + ((y1 - y0 + 16) * j) / 12]);
-          expect(ll && SC.conus.features.some((f) => d3.geoContains(f, ll))).toBeFalsy();
+          if (!ll) continue;
+          const [lon, lat] = ll;
+          const hit = bounds.find(({ f, b: [[w, s], [e, n]] }) => lon >= w && lon <= e && lat >= s && lat <= n && d3.geoContains(f, ll));
+          if (hit) covered.push(`${hit.f.id} ${ll}`);
         }
       }
     }
+    expect(covered).toEqual([]);
   });
 
   it("returns null off every part (Puerto Rico isn't drawn)", () => {
