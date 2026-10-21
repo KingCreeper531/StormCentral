@@ -452,4 +452,18 @@ export const GUIDE: Record<string, string> = {
   "Colour tables": "Tablas de colores",
   "Radar decoded in the app (Level II and Level III) can be drawn in other colours: open a panel's settings and pick a colour table, or import a GRLevelX palette (.pal). The pick applies to every panel showing that product, and the values you read don't change.":
     "El radar decodificado en la app (Nivel II y Nivel III) puede dibujarse con otros colores: abre los ajustes de un panel y elige una tabla de colores, o importa una paleta de GRLevelX (.pal). La elección se aplica a todos los paneles que muestran ese producto, y los valores que lees no cambian.",
+  // TOOL_GUIDE.volume
+  "A storm in 3D: every tilt of the radar's newest Level II scan around a spot, at the height the beam really reaches.":
+    "Una tormenta en 3D: todas las elevaciones del barrido de Nivel II más reciente del radar alrededor de un punto, a la altura que alcanza de verdad el haz.",
+  "Pick 3D volume and click a storm on any panel. Click again to move the view.": "Elige Volumen 3D y haz clic en una tormenta en cualquier panel. Haz clic de nuevo para mover la vista.",
+  "Drag to turn it, scroll or pinch to zoom, right-drag or Shift-drag to move it, double-click to start over.":
+    "Arrastra para girarla, usa la rueda o pellizca para acercar, arrastra con el botón derecho o con Mayús para moverla y haz doble clic para empezar de nuevo.",
+  "Set the lowest reflectivity shown, how far around the spot, and how much taller than life heights are drawn.":
+    "Ajusta la reflectividad mínima que se muestra, cuánto alrededor del punto y cuánto se exageran las alturas.",
+  "The height scale is above sea level. The blue sheet is the model's freezing level (0 °C) and the violet one −20 °C, where hail grows fastest. The panel lists the highest echo shown and the top of the 50 dBZ core.":
+    "La escala de altura es sobre el nivel del mar. La lámina azul es el nivel de congelación del modelo (0 °C) y la violeta, −20 °C, donde el granizo crece más rápido. El panel indica el eco más alto mostrado y la cima del núcleo de 50 dBZ.",
+  "A 50 dBZ core reaching well above the −20 °C level: the storm can grow large hail.": "Un núcleo de 50 dBZ que llega bien por encima del nivel de −20 °C: la tormenta puede producir granizo grande.",
+  "A tall core leaning over a hole of weak echo near the ground (a bounded weak echo region): a very strong updraft, typical of supercells.":
+    "Un núcleo alto inclinado sobre un hueco de eco débil cerca del suelo (una región de eco débil acotada): una corriente ascendente muy fuerte, típica de las supercélulas.",
+  "Raise the lowest reflectivity to 45–50 dBZ to see just the core.": "Sube la reflectividad mínima a 45–50 dBZ para ver solo el núcleo.",
 };

@@ -7,7 +7,7 @@
  */
 import type { DecodedScaleId } from "../scales";
 import type { Moment } from "./level2";
-import type { DecodeRequest, DecodeResponse } from "./protocol";
+import type { DecodeRequest, DecodeResponse, VolumeResponse } from "./protocol";
 import { azimuthIndex, levelAt, type Sweep } from "./sweep";
 
 export interface DecodedFrame {
@@ -72,7 +72,7 @@ export const peekDecoded = (key: string) => entries.get(key);
 let pool: Worker[] | null = null;
 let rr = 0;
 let nextId = 1;
-const waiting = new Map<number, (r: DecodeResponse) => void>();
+const waiting = new Map<number, (r: DecodeResponse | VolumeResponse) => void>();
 
 /** Fail everything in flight and drop the workers; the next request starts a fresh pool. */
 function resetPool(error: string) {
@@ -89,7 +89,7 @@ function workers(): Worker[] {
   pool = Array.from({ length: size }, () => {
     // A classic worker: Turbopack's worker bootstrap loads its chunks with importScripts.
     const w = new Worker(new URL("./decode.worker.ts", import.meta.url));
-    w.onmessage = (e: MessageEvent<DecodeResponse>) => {
+    w.onmessage = (e: MessageEvent<DecodeResponse | VolumeResponse>) => {
       waiting.get(e.data.id)?.(e.data);
       waiting.delete(e.data.id);
     };
@@ -103,19 +103,20 @@ function workers(): Worker[] {
   return pool;
 }
 
-function run(job: DecodeJob): Promise<DecodeResponse> {
-  const id = nextId++;
-  const req = { ...job, id } as DecodeRequest;
+function post<R>(req: DecodeRequest): Promise<R> {
+  const id = req.id;
   return new Promise((resolve) => {
     const timer = setTimeout(() => waiting.has(id) && resetPool("Decoder timed out"), JOB_TIMEOUT_MS);
     waiting.set(id, (r) => {
       clearTimeout(timer);
-      resolve(r);
+      resolve(r as R);
     });
     const ws = workers();
     ws[rr++ % ws.length]!.postMessage(req);
   });
 }
+
+const run = (job: DecodeJob) => post<DecodeResponse>({ ...job, id: nextId++ } as DecodeRequest);
 
 function evict() {
   while (entries.size > MAX_ENTRIES) entries.delete(entries.keys().next().value!);
@@ -177,4 +178,36 @@ export function decodedValueAt(key: string, lat: number, lon: number): { value: 
   if (sp) return { value: null, special: sp.label };
   const v = f.sweep.table[lvl];
   return { value: v == null || Number.isNaN(v) ? null : v, special: null };
+}
+
+// ── Whole volumes (the 3D view) ─────────────────────────────────────────────
+
+export interface DecodedVolume {
+  url: string;
+  /** One sweep per elevation angle, lowest first. */
+  sweeps: Sweep[];
+  complete: boolean;
+}
+
+/** The last couple of volumes decoded whole: tens of megabytes each, so only a few. */
+const volumes = new Map<string, Promise<DecodedVolume>>();
+const MAX_VOLUMES = 2;
+
+/** Every cut of `moment` in a Level II volume, decoded once (failures aren't kept, so a retry decodes again). */
+export function decodeVolume(url: string, moment: Moment, site?: { lat: number; lon: number }): Promise<DecodedVolume> {
+  const key = `${url}|${moment}`;
+  let p = volumes.get(key);
+  if (p) {
+    volumes.delete(key);
+    volumes.set(key, p);
+    return p;
+  }
+  p = post<VolumeResponse>({ id: nextId++, kind: "l2volume", url, moment, site }).then((r) => {
+    if (!r.ok) throw new Error(r.error);
+    return { url, sweeps: r.sweeps, complete: r.complete };
+  });
+  p.catch(() => volumes.delete(key));
+  volumes.set(key, p);
+  while (volumes.size > MAX_VOLUMES) volumes.delete(volumes.keys().next().value!);
+  return p;
 }

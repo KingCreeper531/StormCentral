@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, ChartSpline, Crosshair, History, Layers, MousePointer2, Pause, Play, Route, Scissors, Siren, SkipBack, SkipForward, Square, Columns2, Grid2x2, Grid3x3, Waves } from "lucide-react";
+import { BookOpen, Box, ChartSpline, Crosshair, History, Layers, MousePointer2, Pause, Play, Route, Scissors, Siren, SkipBack, SkipForward, Square, Columns2, Grid2x2, Grid3x3, Waves } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { useT } from "@/lib/i18n/use-t";
 import { syncTime, useProSync } from "@/lib/pro/sync";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { ArchiveStrip } from "../radar/archive-picker";
 import { IconButton } from "../ui/button";
 import { usePro } from "./pro-context";
+import { useProCaps } from "./use-pro-caps";
 
 const LAYOUT_ICON: Record<Layout, typeof Square> = { "1x1": Square, "1x2": Columns2, "2x2": Grid2x2, "3x3": Grid3x3 };
 
@@ -20,6 +21,7 @@ export const TOOLS: { id: ProTool; label: string; Icon: typeof Square; hint: str
   { id: "sounding", label: "Sounding", Icon: Waves, hint: "Click for a model Skew-T and hodograph" },
   { id: "meteogram", label: "Meteogram", Icon: ChartSpline, hint: "Click for every model's forecast and ensemble plumes" },
   { id: "xsect", label: "Cross-section", Icon: Scissors, hint: "Click A, then A′" },
+  { id: "volume", label: "3D volume", Icon: Box, hint: "Click a storm to see every tilt of the radar in 3D" },
   { id: "vector", label: "Storm vector", Icon: Route, hint: "Click a storm at two loop times" },
   { id: "toa", label: "TOA", Icon: Crosshair, hint: "Click to add arrival points" },
   // Issues to the spotter network's database: needs the server (not in the Android app).
@@ -69,6 +71,7 @@ export function ProToolbar({
   onGuide: () => void;
 }) {
   const t = useT();
+  const caps = useProCaps();
   const { sync } = usePro();
   const playing = useProSync(sync, (s) => s.playing);
   const layout = useProStore((s) => s.layout);
@@ -125,7 +128,7 @@ export function ProToolbar({
       </label>
 
       <div data-tour="tools" role="radiogroup" aria-label={t("Tool")} className="flex items-center rounded-[var(--radius-control)] border border-line bg-surface-2 p-0.5">
-        {TOOLS.map(({ id, label, Icon, hint }) => (
+        {TOOLS.filter((x) => x.id !== "volume" || caps.volume).map(({ id, label, Icon, hint }) => (
           <button
             key={id}
             type="button"

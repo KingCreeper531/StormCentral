@@ -28,6 +28,8 @@ export interface ToolActions {
   toa: (p: LatLon) => void;
   /** WarnGen: place the storm (first click), then track it (a second click on another frame). */
   warngen: (p: LatLon) => void;
+  /** The 3D volume view's spot. */
+  volume: (p: LatLon) => void;
   selectAlert: (id: string) => void;
 }
 
