@@ -156,7 +156,7 @@ describe("the live title", () => {
   it("leads with an emergency, named where the warning says the storm is", () => {
     expect(placeOf(ws[0]!)).toBe("Moore, OK");
     expect(placeOf(tor)).toMatch(/^[A-Z][a-z]+, OK$/);
-    expect(liveTitle(ws, null)).toBe("🔴 TORNADO EMERGENCY: Moore, OK • Live Radar | Storm Central");
+    expect(liveTitle(ws, null)).toBe("TORNADO EMERGENCY: Moore, OK • Live Radar | Storm Central");
   });
 
   it("says when a storm strengthened: a tornado warning where a severe storm warning was", () => {
@@ -180,6 +180,21 @@ describe("the live title", () => {
     expect(liveTitle([], { risk: "MODERATE", region: "Southern Plains" })).toBe("Moderate Risk of Severe Storms Today for the Southern Plains • 24/7 Live Radar | Storm Central");
     expect(liveTitle([], { risk: "MARGINAL", region: "" })).toMatch(/^24\/7 Live Weather Radar/);
     for (const t of [liveTitle(ws, null), liveTitle([svr], null), liveTitle([], null)]) expect(t.length).toBeLessThanOrEqual(100);
+  });
+
+  it("never puts an emoji in a title (the owner asked for none)", () => {
+    const svr = { ...tor, event: "Severe Thunderstorm Warning" as const, name: "Severe Thunderstorm Warning", level: "severe" as const };
+    const up = strengthened([svr], [tor], NOW);
+    const titles = [
+      liveTitle(ws, null),
+      liveTitle([tor], null, up, NOW),
+      liveTitle([tor], null),
+      liveTitle([svr], null),
+      liveTitle([], { risk: "HIGH", region: "Southern Plains" }),
+      liveTitle([], null),
+      ...ws.map((w) => clipText(w, "https://youtu.be/abc").title),
+    ];
+    for (const t of titles) expect(t, t).not.toMatch(/\p{Extended_Pictographic}/u);
   });
 
   it("writes a clip's title and description from the warning", () => {
