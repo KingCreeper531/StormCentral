@@ -143,6 +143,28 @@ describe("parseIowa", () => {
     expect(parseIowa([feature({}, [null, null])])).toEqual([]);
     expect(parseIowa(null)).toEqual([]);
   });
+
+  it("leaves out cameras the layer's last refresh didn't reach (their pictures 404)", () => {
+    const at = (UpdateDate: number, UpdateTime: number, ImageName: string) =>
+      feature({ UpdateDate, UpdateTime, UTCoffset: -500, ImageName, ImageURL: `https://atmsqf.iowadot.gov/SNAPSHOTS/PUBLIC/RWIS/${ImageName}.jpg` });
+    const rows = parseIowa([
+      at(20261021, 64210, "live"),
+      at(20261021, 64239, "same-batch"),
+      at(20261021, 20000, "hours-behind"), // 02:00, 4h42m before the newest
+      at(20261020, 72846, "yesterday"),
+      feature({ ImageName: "unstamped", ImageURL: "https://atmsqf.iowadot.gov/SNAPSHOTS/PUBLIC/RWIS/unstamped.jpg" }),
+    ]);
+    expect(rows.map((r) => r[4])).toEqual(["live", "same-batch", "unstamped"]);
+  });
+
+  it("measures staleness against the newest camera, not the clock, and across midnight", () => {
+    // Last refresh ran days ago: everything from that batch still shows.
+    expect(parseIowa([feature({ UpdateDate: 20260101, UpdateTime: 64210, UTCoffset: -500 })])).toHaveLength(1);
+    // 23:30 and 00:15 the next day are 45 minutes apart.
+    const late = feature({ UpdateDate: 20261020, UpdateTime: 233000, UTCoffset: -500, ImageURL: "https://atmsqf.iowadot.gov/SNAPSHOTS/PUBLIC/Metro/a.jpg" });
+    const early = feature({ UpdateDate: 20261021, UpdateTime: 1500, UTCoffset: -500, ImageURL: "https://atmsqf.iowadot.gov/SNAPSHOTS/PUBLIC/Metro/b.jpg" });
+    expect(parseIowa([late, early])).toHaveLength(2);
+  });
 });
 
 describe("parseWsdot", () => {
@@ -176,5 +198,11 @@ describe("cameras waiting for permission", () => {
     expect(asked.length).toBeGreaterThan(0);
     expect(asked.filter((u) => /iowadot|wsdot/.test(u))).toEqual([]);
     expect(res.cams.filter(([source]) => source === "iowa" || source === "wsdot")).toEqual([]);
+  });
+
+  it("never reach the live stream without being allowed in the app first", () => {
+    for (const info of Object.values(WEBCAM_SOURCES)) if (info.onStream) expect(info.approved).toBe(true);
+    expect(WEBCAM_SOURCES.iowa.onStream).toBe(false);
+    expect(WEBCAM_SOURCES.wsdot.onStream).toBe(false);
   });
 });

@@ -174,19 +174,51 @@ async function arcgisFeatures<F>(query: string, pick: (page: unknown) => F[], pa
 
 interface IowaFeature {
   geometry?: { coordinates?: unknown[] };
-  properties?: { ImageName?: string; Desc_?: string; ImageURL?: string; ORG?: string; latitude?: unknown; longitude?: unknown };
+  properties?: {
+    ImageName?: string;
+    Desc_?: string;
+    ImageURL?: string;
+    ORG?: string;
+    UpdateDate?: unknown;
+    UpdateTime?: unknown;
+    UTCoffset?: unknown;
+    latitude?: unknown;
+    longitude?: unknown;
+  };
 }
 
 const IOWA_IMAGE = /^https:\/\/atmsqf\.iowadot\.gov\/SNAPSHOTS\/PUBLIC\/([A-Za-z]+\/[\w.-]+\.jpe?g)$/i;
+/** How far behind the layer's latest refresh a camera may be before it counts as offline. */
+const IOWA_STALE_MS = 3 * 3_600_000;
 
-/** Iowa DOT's "Traffic Cameras" layer (GeoJSON): one feature per camera view, Iowa DOT's own cameras only. */
+/** When Iowa DOT last saw the camera working: UpdateDate 20261021, UpdateTime 64210 (06:42:10), UTCoffset -500 (UTC-5). */
+function iowaSeen(p: NonNullable<IowaFeature["properties"]>): number | null {
+  const date = String(p.UpdateDate ?? "").match(/^(\d{4})(\d{2})(\d{2})$/);
+  const time = String(p.UpdateTime ?? "").match(/^\d{1,6}$/) ? String(p.UpdateTime).padStart(6, "0").match(/^(\d{2})(\d{2})(\d{2})$/) : null;
+  if (!date || !time) return null;
+  const offset = Number(p.UTCoffset);
+  const offsetMin = Number.isFinite(offset) ? Math.trunc(offset / 100) * 60 + (offset % 100) : 0;
+  const local = Date.UTC(+date[1]!, +date[2]! - 1, +date[3]!, +time[1]!, +time[2]!, +time[3]!);
+  return Number.isFinite(local) ? local - offsetMin * 60_000 : null;
+}
+
+/**
+ * Iowa DOT's "Traffic Cameras" layer (GeoJSON): one feature per camera view, Iowa DOT's own cameras only.
+ * The layer is rewritten in one batch, and a camera that stopped sending pictures keeps its old UpdateDate/UpdateTime
+ * (its picture then 404s), so cameras well behind the newest one are left out. Measured against the layer's own
+ * newest time, not the clock, so a late batch never empties the map.
+ */
 export function parseIowa(features: unknown): WebcamRow[] {
+  const list = (Array.isArray(features) ? (features as IowaFeature[]) : []).filter((f) => f.properties?.ORG === "IADOT");
+  const seenAt = list.map((f) => iowaSeen(f.properties!));
+  const newest = Math.max(...seenAt.filter((t): t is number => t !== null));
   const out: WebcamRow[] = [];
   const seen = new Set<string>();
-  for (const f of Array.isArray(features) ? (features as IowaFeature[]) : []) {
-    const p = f.properties;
-    const m = p?.ImageURL?.trim().match(IOWA_IMAGE);
-    if (!p || p.ORG !== "IADOT" || !m || seen.has(m[1]!)) continue;
+  for (const [i, f] of list.entries()) {
+    const p = f.properties!;
+    const m = p.ImageURL?.trim().match(IOWA_IMAGE);
+    if (!m || seen.has(m[1]!)) continue;
+    if (seenAt[i] !== null && seenAt[i]! < newest - IOWA_STALE_MS) continue;
     const [lon, lat] = f.geometry?.coordinates ?? [p.longitude, p.latitude];
     const at = point(lat, lon);
     if (!at) continue;
@@ -219,7 +251,7 @@ export function parseWsdot(features: unknown): WebcamRow[] {
 }
 
 const IOWA_LAYER =
-  "https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Traffic_Cameras_View/FeatureServer/0/query?where=1%3D1&outFields=ImageName,Desc_,ImageURL,ORG&outSR=4326&f=geojson";
+  "https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Traffic_Cameras_View/FeatureServer/0/query?where=1%3D1&outFields=ImageName,Desc_,ImageURL,ORG,UpdateDate,UpdateTime,UTCoffset&outSR=4326&f=geojson";
 const WSDOT_LAYER =
   "https://data.wsdot.wa.gov/arcgis/rest/services/TravelInformation/TravelInfoCamerasWeather/FeatureServer/0/query?where=1%3D1&outFields=CameraTitle,ImageURL&outSR=4326&f=json";
 

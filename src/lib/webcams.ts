@@ -33,17 +33,22 @@ export interface WebcamSourceInfo {
    * means naming it in the layer's note in radar-controls.)
    */
   approved: boolean;
+  /**
+   * Its pictures may also appear on the YouTube live stream. Kept apart from
+   * `approved`: the state DOTs were only asked about pictures opened in the app.
+   */
+  onStream: boolean;
 }
 
 export const WEBCAM_SOURCES: Record<WebcamSource, WebcamSourceInfo> = {
-  caltrans: { label: "Traffic camera", credit: "Caltrans", site: "https://quickmap.dot.ca.gov/", color: "#f5b942", refreshMin: 2, approved: true },
-  alertca: { label: "Wildfire camera", credit: "ALERTCalifornia | UC San Diego", site: "https://cameras.alertcalifornia.org/", color: "#f97362", refreshMin: 2, approved: true },
-  "usgs-river": { label: "River camera", credit: "USGS", site: "https://apps.usgs.gov/hivis/", color: "#4fb3ff", refreshMin: 15, approved: true },
-  "usgs-volcano": { label: "Volcano camera", credit: "USGS Volcano Hazards Program", site: "https://volcanoes.usgs.gov/", color: "#c084fc", refreshMin: 10, approved: true },
+  caltrans: { label: "Traffic camera", credit: "Caltrans", site: "https://quickmap.dot.ca.gov/", color: "#f5b942", refreshMin: 2, approved: true, onStream: true },
+  alertca: { label: "Wildfire camera", credit: "ALERTCalifornia | UC San Diego", site: "https://cameras.alertcalifornia.org/", color: "#f97362", refreshMin: 2, approved: true, onStream: true },
+  "usgs-river": { label: "River camera", credit: "USGS", site: "https://apps.usgs.gov/hivis/", color: "#4fb3ff", refreshMin: 15, approved: true, onStream: true },
+  "usgs-volcano": { label: "Volcano camera", credit: "USGS Volcano Hazards Program", site: "https://volcanoes.usgs.gov/", color: "#c084fc", refreshMin: 10, approved: true, onStream: true },
   // Asked 2026-10-21 (Outreach & Development Bureau): at most one picture per 5 minutes, credited "Iowa DOT".
-  iowa: { label: "Traffic camera", credit: "Iowa DOT", site: "https://511ia.org/", color: "#f5b942", refreshMin: 5, approved: false },
+  iowa: { label: "Traffic camera", credit: "Iowa DOT", site: "https://511ia.org/", color: "#f5b942", refreshMin: 5, approved: false, onStream: false },
   // Asked 2026-10-21 (the camera layer's data contact): WSDOT's own cameras only, images refresh about every 5 minutes.
-  wsdot: { label: "Traffic camera", credit: "WSDOT", site: "https://wsdot.com/travel/real-time/map/", color: "#f5b942", refreshMin: 5, approved: false },
+  wsdot: { label: "Traffic camera", credit: "WSDOT", site: "https://wsdot.com/travel/real-time/map/", color: "#f5b942", refreshMin: 5, approved: false, onStream: false },
 };
 
 export const WEBCAM_SOURCE_IDS = Object.keys(WEBCAM_SOURCES) as WebcamSource[];
