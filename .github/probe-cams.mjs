@@ -1,68 +1,40 @@
-// Temporary: checks camera sources and their terms from a CI runner. Removed after use.
+// Temporary: checks camera sources' terms from a CI runner. Removed after use.
 const UA = { "User-Agent": "StormCentral-probe (github.com/KingCreeper531/StormCentral)" };
-const get = async (url, init = {}) => {
-  try {
-    const r = await fetch(url, { ...init, headers: { ...UA, ...(init.headers ?? {}) }, signal: AbortSignal.timeout(30_000), redirect: "follow" });
-    return r;
-  } catch (e) { return { ok: false, status: `ERR ${e.cause?.code ?? e.message}`, headers: new Headers(), text: async () => "", arrayBuffer: async () => new ArrayBuffer(0) }; }
-};
-async function image(url) {
-  const r = await get(url);
-  const b = r.ok ? (await r.arrayBuffer()).byteLength : 0;
-  return `${r.status} ${r.headers.get("content-type")} ${b}B ${url}`;
-}
-async function list(name, url, pick, init) {
-  console.log(`\n=== ${name}\n${url}`);
-  const r = await get(url, init);
-  console.log(`status ${r.status}`);
-  if (!r.ok) return;
-  let j; try { j = JSON.parse(await r.text()); } catch { return console.log("not JSON"); }
-  const { rows, sample, images } = pick(j);
-  console.log(`cameras: ${rows}`);
-  console.log(`sample: ${JSON.stringify(sample).slice(0, 700)}`);
-  for (const u of images.slice(0, 3)) console.log(`image: ${await image(u)}`);
-}
-const KEYWORDS = /(licen[cs]e|reuse|re-use|redistribut|commercial|permission|courtesy|attribution|public domain|personal use|consent|copyright|third[- ]party|embed|camera images|images (may|are))/i;
-async function terms(name, url) {
-  console.log(`\n--- TERMS ${name}\n${url}`);
+const get = async (url) => { try { return await fetch(url, { headers: UA, signal: AbortSignal.timeout(30_000), redirect: "follow" }); } catch (e) { return { ok: false, status: `ERR ${e.cause?.code ?? e.message}`, text: async () => "", json: async () => null }; } };
+const plain = (html) => html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;|&#160;/g, " ").replace(/&amp;/g, "&").replace(/&quot;|&#34;/g, '"').replace(/&#39;|&rsquo;/g, "'").replace(/\s+/g, " ");
+async function around(name, url, re, width = 700, max = 4) {
+  console.log(`\n--- ${name}\n${url}`);
   const r = await get(url);
   console.log(`status ${r.status}`);
   if (!r.ok) return;
-  const text = (await r.text()).replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;|&#160;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ");
-  const hits = text.split(/(?<=[.!?])\s+/).filter((s) => KEYWORDS.test(s)).map((s) => s.trim().slice(0, 320));
-  for (const s of [...new Set(hits)].slice(0, 14)) console.log(`> ${s}`);
-  if (!hits.length) console.log("(no matching sentences)");
+  const t = plain(await r.text());
+  console.log(`text length ${t.length}`);
+  let n = 0;
+  for (const m of t.matchAll(new RegExp(re.source, "gi"))) {
+    console.log(`> …${t.slice(Math.max(0, m.index - 80), m.index + width)}…`);
+    if (++n >= max) break;
+  }
+  if (!n) console.log(`(no match for ${re}) start: ${t.slice(0, 400)}`);
 }
-const feats = (j) => j.features ?? [];
+// Iowa: the camera layer's ArcGIS item (licence) and the state open data catalogue.
+const svc = await (await get("https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Traffic_Cameras_View/FeatureServer?f=json")).json?.().catch(() => null);
+console.log(`Iowa service: serviceItemId=${svc?.serviceItemId} copyrightText=${JSON.stringify(svc?.copyrightText)}`);
+if (svc?.serviceItemId) {
+  const item = await (await get(`https://www.arcgis.com/sharing/rest/content/items/${svc.serviceItemId}?f=json`)).json?.().catch(() => null);
+  console.log(`Iowa item: title=${item?.title} owner=${item?.owner} access=${item?.access}`);
+  console.log(`  licenseInfo: ${plain(item?.licenseInfo ?? "").slice(0, 900)}`);
+  console.log(`  accessInformation: ${plain(item?.accessInformation ?? "").slice(0, 300)}`);
+}
+const cat = await (await get("https://data.iowa.gov/api/catalog/v1?q=traffic%20cameras&limit=5")).json?.().catch(() => null);
+for (const r of cat?.results ?? []) console.log(`data.iowa.gov: ${r.resource?.name} id=${r.resource?.id} license=${r.metadata?.license} attribution=${r.resource?.attribution}`);
+const hub = await (await get("https://hub.arcgis.com/api/v3/datasets?q=iowa%20traffic%20cameras&page%5Bsize%5D=5")).json?.().catch(() => null);
+for (const d of hub?.data ?? []) console.log(`hub: ${d.attributes?.name} | ${d.attributes?.source} | license: ${plain(d.attributes?.licenseInfo ?? "").slice(0, 300)}`);
 
-await list("Iowa DOT (ArcGIS)", "https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Traffic_Cameras_View/FeatureServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=geojson&resultRecordCount=2000",
-  (j) => ({ rows: feats(j).length, sample: feats(j)[0], images: feats(j).map((f) => f.properties?.ImageURL).filter(Boolean) }));
-const ia = await get("https://data.iowa.gov/api/views/4bfg-n52x.json");
-if (ia.ok) { const m = await ia.json(); console.log(`data.iowa.gov 4bfg-n52x: name=${m.name} license=${JSON.stringify(m.license)} attribution=${m.attribution} updated=${m.rowsUpdatedAt}`); } else console.log(`data.iowa.gov meta: ${ia.status}`);
-
-await list("WSDOT (ArcGIS)", "https://data.wsdot.wa.gov/arcgis/rest/services/TravelInformation/TravelInfoCamerasWeather/FeatureServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=json",
-  (j) => ({ rows: feats(j).length, sample: feats(j)[0], images: feats(j).map((f) => f.attributes?.ImageURL).filter(Boolean) }));
-const ws = await get("https://data.wsdot.wa.gov/arcgis/rest/services/TravelInformation/TravelInfoCamerasWeather/FeatureServer?f=json");
-if (ws.ok) { const m = await ws.json(); console.log(`WSDOT service: copyrightText=${JSON.stringify(m.copyrightText)} licenseInfo=${JSON.stringify(m.documentInfo ?? m.licenseInfo ?? null).slice(0, 600)}`); }
-const wsl = await get("https://data.wsdot.wa.gov/arcgis/rest/services/TravelInformation/TravelInfoCamerasWeather/FeatureServer/0?f=json");
-if (wsl.ok) { const m = await wsl.json(); console.log(`WSDOT layer: copyrightText=${JSON.stringify(m.copyrightText)} description=${JSON.stringify(m.description).slice(0, 600)}`); }
-
-await list("Nebraska NDOT (ArcGIS)", "https://giscat.ne.gov/dot/rest/services/HighwayCamerasDOT/MapServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=json",
-  (j) => ({ rows: feats(j).length, sample: feats(j)[0], images: feats(j).map((f) => f.attributes?.PhotoURL).filter(Boolean) }));
-await list("Kentucky KYTC (ArcGIS)", "https://services2.arcgis.com/CcI36Pduqd0OR4W9/arcgis/rest/services/trafficCamerasCur_Prd/FeatureServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=json",
-  (j) => ({ rows: feats(j).length, sample: feats(j)[0], images: feats(j).map((f) => String(f.attributes?.snapshot ?? "").replace(/^http:/, "https:")).filter(Boolean) }));
-await list("Alabama ALGO", "https://api.algotraffic.com/v4.0/Cameras",
-  (j) => ({ rows: Array.isArray(j) ? j.length : 0, sample: Array.isArray(j) ? j[0] : j, images: Array.isArray(j) ? j.map((c) => c.snapshotImageUrl).filter(Boolean) : [] }));
-await list("South Dakota (Iteris)", "https://sd.cdn.iteris-atis.com/geojson/icons/metadata/icons.cameras.geojson",
-  (j) => ({ rows: feats(j).length, sample: feats(j)[0], images: feats(j).flatMap((f) => (f.properties?.cameras ?? []).map((c) => c.image)).filter(Boolean) }));
-
-await terms("Iowa DOT site", "https://iowadot.gov/disclaimer");
-await terms("WSDOT traffic API", "https://wsdot.wa.gov/traffic/api/");
-await terms("WSDOT web policies", "https://wsdot.wa.gov/about/policies/web-policies");
-await terms("Nebraska DOT policies", "https://dot.nebraska.gov/policies-and-disclaimers/");
-await terms("Ohio OHGO terms", "https://publicapi.ohgo.com/docs/terms-of-use");
-await terms("Ohio OHGO intro", "https://publicapi.ohgo.com/docs/v1/introduction");
-await terms("Oregon TripCheck FAQ", "https://tripcheck.com/pages/frequently-asked-questions");
-await terms("Illinois IDOT reuse policy", "https://travelmidwest.com/About/InfoReusePolicy");
-await terms("Kentucky KYTC disclaimer", "https://transportation.ky.gov/Pages/Disclaimer.aspx");
-await terms("Alabama ALGO", "https://algotraffic.com/terms");
+await around("Oregon TripCheck FAQ", "https://tripcheck.com/pages/frequently-asked-questions", /available for private use/, 900, 1);
+await around("Nebraska DOT policies", "https://dot.nebraska.gov/policies-and-disclaimers/", /camera/, 500, 4);
+await around("Ohio OHGO terms", "https://publicapi.ohgo.com/docs/terms-of-use", /Terms of Use/, 2500, 1);
+await around("Illinois IDOT reuse policy", "https://travelmidwest.com/About/InfoReusePolicy", /(reuse|policy)/, 1500, 2);
+await around("WSDOT camera page", "https://wsdot.wa.gov/travel/traffic-cameras", /(camera|use)/, 500, 3);
+await around("WSDOT disclaimer", "https://wsdot.wa.gov/about/policies/disclaimer", /(camera|disclaim|use)/, 500, 3);
+await around("Alabama ALGO terms", "https://algotraffic.com/terms", /(terms|use)/, 800, 2);
+await around("SD511 terms", "https://www.sd511.org/terms", /(terms|use|camera)/, 600, 2);
