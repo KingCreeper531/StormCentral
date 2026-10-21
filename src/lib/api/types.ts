@@ -48,6 +48,8 @@ export interface WeatherAlert {
   lean?: boolean;
   /** The full product on the issuer's site. */
   url?: string | null;
+  /** Earlier messages this one updates (NWS gives each update of a warning a new id). */
+  references?: string[];
 }
 
 /** Spotter: an unofficial warning from the spotter network (Professional mode's WarnGen). */
