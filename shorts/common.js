@@ -145,15 +145,66 @@
   const PANEL = { x: 40, y: 1060, w: 1000, h: 400 };
   const mapCenter = [MAP.x + MAP.w / 2, MAP.y + MAP.h / 2];
 
-  const states = D.states ? topojson.feature(D.states, D.states.objects.states).features.filter((f) => !["02", "15", "72", "78", "60", "66", "69"].includes(f.id)) : [];
-  const conus = { type: "FeatureCollection", features: states };
+  // The 50 states (Puerto Rico and the territories aren't on the map), the lower 48, Alaska and Hawaii.
+  const allStates = D.states ? topojson.feature(D.states, D.states.objects.states).features.filter((f) => !["72", "78", "60", "66", "69"].includes(f.id)) : [];
+  const usa = { type: "FeatureCollection", features: allStates };
+  const conus = { type: "FeatureCollection", features: allStates.filter((f) => f.id !== "02" && f.id !== "15") };
+  const alaska = allStates.find((f) => f.id === "02");
+  const hawaii = allStates.find((f) => f.id === "15");
   const stateMesh = D.states ? topojson.mesh(D.states, D.states.objects.states, (a, b) => a !== b) : null;
   const world = D.world ? topojson.feature(D.world, D.world.objects.countries) : null;
   const worldMesh = D.world ? topojson.mesh(D.world, D.world.objects.countries, (a, b) => a !== b) : null;
 
-  /** The contiguous US in the map box. */
-  const usProjection = () =>
-    d3.geoConicConformal().parallels([33, 45]).rotate([96, 0]).fitExtent([[MAP.x + 30, MAP.y + 40], [MAP.x + MAP.w - 30, MAP.y + MAP.h - 40]], conus);
+  /** Insets in the free corner under California and Arizona, clear of Texas (projected px; see usProjection). */
+  const INSETS = { alaska: [[58, 846], [330, 1002]], hawaii: [[346, 928], [440, 1002]] };
+  const pad = ([[x0, y0], [x1, y1]], d) => [[x0 - d, y0 - d], [x1 + d, y1 + d]];
+  const inside = ([x, y], [[x0, y0], [x1, y1]]) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
+
+  /**
+   * The US in the map box: the lower 48 (Lambert conformal, fitted to the box)
+   * with Alaska and Hawaii as insets in the lower-left corner, like most US maps.
+   * It works like d3.geoAlbersUsa: geometry goes to every part and each part
+   * draws only inside its own box; a point goes to the first part whose box
+   * holds it. The lower 48's box reaches 100 px past the coasts and borders
+   * (radar backdrops near them), and Alaska and Hawaii project far outside it.
+   * `parts` lets the map draw and fade each part on its own.
+   */
+  function usProjection() {
+    const lower48 = d3.geoConicConformal().parallels([33, 45]).rotate([96, 0]).fitExtent([[MAP.x + 30, MAP.y + 40], [MAP.x + MAP.w - 30, MAP.y + MAP.h - 40]], conus);
+    if (!alaska || !hawaii) return lower48;
+    lower48.clipExtent(pad(d3.geoPath(lower48).bounds(conus), 100));
+    const ak = d3.geoConicConformal().rotate([154, 0]).parallels([55, 65]).fitExtent(INSETS.alaska, alaska).clipExtent(pad(INSETS.alaska, 6));
+    const hi = d3.geoConicConformal().rotate([157, 0]).parallels([8, 18]).fitExtent(INSETS.hawaii, hawaii).clipExtent(pad(INSETS.hawaii, 6));
+    const parts = [
+      { projection: lower48, land: conus, box: null },
+      { projection: ak, land: alaska, box: INSETS.alaska },
+      { projection: hi, land: hawaii, box: INSETS.hawaii },
+    ];
+    let found = null;
+    const sink = { point: (x, y) => { found = [x, y]; } };
+    const pointStreams = parts.map((p) => p.projection.stream(sink));
+    /** [x, y] and which part (0 lower 48, 1 Alaska, 2 Hawaii) for a [lon, lat]; null off every part. */
+    function locate([lon, lat]) {
+      for (const [i, s] of pointStreams.entries()) {
+        found = null;
+        s.point(lon, lat);
+        if (found) return { xy: found, part: i };
+      }
+      return null;
+    }
+    const us = (lonlat) => locate(lonlat)?.xy ?? null;
+    let cache = null, cacheStream = null;
+    us.stream = (stream) => {
+      if (cache && cacheStream === stream) return cache;
+      const streams = parts.map((p) => p.projection.stream(stream));
+      const all = (m) => (...a) => { for (const s of streams) s[m](...a); };
+      cacheStream = stream;
+      return (cache = { point: all("point"), sphere: all("sphere"), lineStart: all("lineStart"), lineEnd: all("lineEnd"), polygonStart: all("polygonStart"), polygonEnd: all("polygonEnd") });
+    };
+    us.locate = locate;
+    us.parts = parts;
+    return us;
+  }
 
   /**
    * A map: `projection`, then draw(cam, layers, overlay) with cam = { k, c }
@@ -162,18 +213,29 @@
   function makeMap(projection, { base = "us", source = "Source: NOAA" } = {}) {
     const path = d3.geoPath(projection, ctx);
     const home = { k: 1, c: mapCenter };
+    const parts = base === "us" && projection.parts ? projection.parts.map((p) => ({ ...p, path: d3.geoPath(p.projection, ctx) })) : null;
+    /** The part the camera is on: an inset once its centre is over one, else the lower 48. */
+    const focus = (cam) => (parts ? Math.max(0, parts.findIndex((p) => p.box && inside(cam.c, pad(p.box, 20)))) : 0);
+    /** How visible a part is: all of them on the whole-US view; zooming in fades out the ones the camera isn't on. */
+    const partAlpha = (i, cam) => (i === focus(cam) ? 1 : clamp(1 - (cam.k - 1.15) / 0.5));
     /** The camera that fits `geo` in `frac` of the box, at most `maxK`. */
     function fit(geo, { frac = 0.62, maxK = 2.6 } = {}) {
       const [[x0, y0], [x1, y1]] = d3.geoPath(projection).bounds(geo);
       if (![x0, y0, x1, y1].every(Number.isFinite)) return home;
+      // Insets are drawn smaller than the lower 48: let the camera zoom that much further into them.
+      const at = parts && projection.locate(d3.geoCentroid(geo));
+      if (at && at.part > 0) maxK *= parts[0].projection.scale() / parts[at.part].projection.scale();
       const k = clamp(Math.min((MAP.w * frac) / Math.max(x1 - x0, 1), (MAP.h * frac) / Math.max(y1 - y0, 1)), 1, maxK);
       return { k, c: [(x0 + x1) / 2, (y0 + y1) / 2] };
     }
     const mix = (a, b, z) => ({ k: lerp(a.k, b.k, z), c: [lerp(a.c[0], b.c[0], z), lerp(a.c[1], b.c[1], z)] });
     /** Projected [x, y] on screen under `cam`. */
     function screen(lonlat, cam) {
-      const p = projection(lonlat);
-      return p ? [(p[0] - cam.c[0]) * cam.k + mapCenter[0], (p[1] - cam.c[1]) * cam.k + mapCenter[1]] : null;
+      const at = projection.locate ? projection.locate(lonlat) : { xy: projection(lonlat), part: 0 };
+      // A place in a part that has faded out (Alaska while zoomed on Texas) isn't on screen.
+      if (!at?.xy || (parts && partAlpha(at.part, cam) <= 0)) return null;
+      const p = at.xy;
+      return [(p[0] - cam.c[0]) * cam.k + mapCenter[0], (p[1] - cam.c[1]) * cam.k + mapCenter[1]];
     }
     /**
      * layers: [{ features, alpha, fill(f), stroke(f), featureAlpha?(f), lineWidth? }];
@@ -188,6 +250,21 @@
       ctx.save();
       ctx.translate(mapCenter[0], mapCenter[1]); ctx.scale(k, k); ctx.translate(-cam.c[0], -cam.c[1]);
       if (base === "world" && world) { ctx.beginPath(); path(world); ctx.fillStyle = C.land; ctx.fill(); }
+      else if (parts) {
+        for (const [i, p] of parts.entries()) {
+          const a = partAlpha(i, cam);
+          if (a <= 0) continue;
+          ctx.globalAlpha = a;
+          ctx.beginPath(); p.path(p.land); ctx.fillStyle = C.land; ctx.fill();
+          // A faint frame around each inset on the whole-US view (gone once zoomed in).
+          if (p.box && k < 1.65) {
+            ctx.globalAlpha = Math.min(a, clamp(1 - (k - 1.15) / 0.5));
+            const [[x0, y0], [x1, y1]] = pad(p.box, 6);
+            rr(x0, y0, x1 - x0, y1 - y0, 10); ctx.lineWidth = 1.5 / k; ctx.strokeStyle = "rgba(200,215,240,0.18)"; ctx.stroke();
+          }
+        }
+        ctx.globalAlpha = 1;
+      }
       else { ctx.beginPath(); path(conus); ctx.fillStyle = C.land; ctx.fill(); }
       if (underlay) underlay(cam);
       for (const L of layers) {
@@ -203,8 +280,21 @@
       }
       ctx.globalAlpha = 1;
       if (base === "world" && worldMesh) { ctx.beginPath(); path(worldMesh); ctx.lineWidth = 1.4 / k; ctx.strokeStyle = C.state; ctx.stroke(); }
-      if (stateMesh) { ctx.beginPath(); path(stateMesh); ctx.lineWidth = 1.2 / k; ctx.strokeStyle = C.state; ctx.stroke(); }
-      if (base !== "world") { ctx.beginPath(); path(conus); ctx.lineWidth = 2 / k; ctx.strokeStyle = "rgba(200,215,240,0.35)"; ctx.stroke(); }
+      if (stateMesh) {
+        // Only the lower 48 have borders between states.
+        ctx.globalAlpha = parts ? partAlpha(0, cam) : 1;
+        ctx.beginPath(); (parts ? parts[0].path : path)(stateMesh); ctx.lineWidth = 1.2 / k; ctx.strokeStyle = C.state; ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      if (parts) {
+        for (const [i, p] of parts.entries()) {
+          const a = partAlpha(i, cam);
+          if (a <= 0) continue;
+          ctx.globalAlpha = a;
+          ctx.beginPath(); p.path(p.land); ctx.lineWidth = 2 / k; ctx.strokeStyle = "rgba(200,215,240,0.35)"; ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      } else if (base !== "world") { ctx.beginPath(); path(conus); ctx.lineWidth = 2 / k; ctx.strokeStyle = "rgba(200,215,240,0.35)"; ctx.stroke(); }
       ctx.restore();
       if (overlay) overlay(cam);
       ctx.restore();
@@ -248,6 +338,8 @@
     ["Charlotte", -80.84, 35.23], ["Philadelphia", -75.17, 39.95], ["New York", -74.01, 40.71], ["Phoenix", -112.07, 33.45], ["Salt Lake City", -111.89, 40.76],
     ["Des Moines", -93.61, 41.59], ["Sioux Falls", -96.73, 43.55], ["Fargo", -96.79, 46.88], ["Billings", -108.5, 45.78], ["Milwaukee", -87.91, 43.04],
     ["Jacksonville", -81.66, 30.33], ["Tampa", -82.46, 27.95], ["Miami", -80.19, 25.76], ["Raleigh", -78.64, 35.78], ["Boston", -71.06, 42.36],
+    ["Anchorage", -149.9, 61.22], ["Fairbanks", -147.72, 64.84], ["Juneau", -134.42, 58.3], ["Nome", -165.41, 64.5], ["Bethel", -161.76, 60.79],
+    ["Honolulu", -157.86, 21.31], ["Hilo", -155.09, 19.72],
   ];
   /** Places around the Gulf, the Caribbean and the Atlantic, for hurricane maps. */
   const TROPICAL_CITIES = [
@@ -261,6 +353,6 @@
   window.SC = {
     W, H, ctx, D, logo, C, RISK_COLORS, MAP, PANEL, mapCenter, CITIES, TROPICAL_CITIES,
     clamp, seg, easeOut, easeInOut, lerp, fade: window_, rr, text, wrap, fitText, fitSize,
-    background, introRadar, header, endCard, makeMap, usProjection, conus,
+    background, introRadar, header, endCard, makeMap, usProjection, conus, usa,
   };
 })();

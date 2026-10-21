@@ -40,7 +40,7 @@ function d3Wound(geom) {
 for (const fc of [E.shapes, E.context]) fc.features = fc.features.filter((f) => f.geometry).map((f) => ({ ...f, geometry: d3Wound(f.geometry) }));
 
 // Where the camera ends up: close on a warning's polygon, the whole box or area for a watch or High Risk.
-const stateShapes = { type: "FeatureCollection", features: SC.conus.features.filter((f) => E.stateNames.includes(f.properties.name)) };
+const stateShapes = { type: "FeatureCollection", features: SC.usa.features.filter((f) => E.stateNames.includes(f.properties.name)) };
 const target = E.shapes.features.length ? E.shapes : stateShapes.features.length ? stateShapes : null;
 const close = target ? map.fit(target, E.zoomed ? { frac: 0.45, maxK: 120 } : { frac: 0.7, maxK: 4 }) : map.home;
 const ZOOM0 = T.situation - 1.4, ZOOM1 = T.situation + 0.6;
