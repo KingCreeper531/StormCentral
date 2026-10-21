@@ -95,10 +95,29 @@ export function BroadcastStage({
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     };
   }, []);
+  // The back button or gesture leaves broadcast mode, not the page: going on air adds a history entry
+  // (same address), and leaving any other way goes back over it.
+  const exitRef = useRef(onExit);
+  useEffect(() => {
+    exitRef.current = onExit;
+  });
+  const entry = useRef("");
+  useEffect(() => {
+    const id = Math.random().toString(36).slice(2);
+    entry.current = id;
+    window.history.pushState({ broadcast: id }, "");
+    const onPop = () => exitRef.current();
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  const exit = useCallback(() => {
+    if ((window.history.state as { broadcast?: string } | null)?.broadcast === entry.current) window.history.back();
+    else exitRef.current();
+  }, []);
   // Esc leaves, unless it's closing a dialog (settings, the export) or the drawing tools first.
   useHotkeys({
     Escape: () => {
-      if (!document.querySelector('[role="dialog"][aria-modal="true"]') && !useDrawStore.getState().open) onExit();
+      if (!document.querySelector('[role="dialog"][aria-modal="true"]') && !useDrawStore.getState().open) exit();
     },
   });
 
@@ -164,7 +183,7 @@ export function BroadcastStage({
       <BroadcastControls
         tour={tour}
         onSettings={() => setSettings(true)}
-        onExit={onExit}
+        onExit={exit}
         extra={
           <>
             {extra}
