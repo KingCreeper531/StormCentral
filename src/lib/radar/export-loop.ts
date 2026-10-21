@@ -14,7 +14,7 @@ import type { RadarLoop } from "@/hooks/use-radar-loop";
 import { translator, type Translator } from "@/lib/i18n/core";
 import { isNativeApp } from "@/lib/platform";
 import { clockIn } from "@/lib/weather/view";
-import type { RadarFrame } from "./frames";
+import { frameLabel, type RadarFrame } from "./frames";
 import { zoneFor } from "@/lib/clock";
 
 // ── Public types ────────────────────────────────────────────────────────────
@@ -54,16 +54,24 @@ export interface ExportLoopOptions {
   subtitle?: string;
   /** IANA zone the caption times read in (the selected location's). */
   timeZone?: string;
-  /** Locale of the caption's time and date (`t.locale`); the device's when omitted. */
-  locale?: string;
+  /** Language of the caption: its forecast labels, time and date (`t.locale`). English when omitted. */
+  t?: Translator;
   /** Loop speed multiplier (1 = normal); sets the frame delay. */
   speed?: number;
   signal?: AbortSignal;
   onProgress?: (p: ExportProgress) => void;
   /** How long to wait for unbuffered frames before leaving them out (ms). */
   bufferTimeoutMs?: number;
-  /** Draws over each frame in place of the caption bar (broadcast mode's graphics). */
-  overlay?: (ctx: CanvasRenderingContext2D, width: number, height: number, frame: { time: string; date: string; fontFamily: string }) => void;
+  /**
+   * Draws over each frame in place of the caption bar (broadcast mode's graphics).
+   * `time` is the clock time alone; `forecast` and `nowcast` say when the frame isn't an observed scan.
+   */
+  overlay?: (
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    frame: { time: string; date: string; fontFamily: string } & Pick<RadarFrame, "forecast" | "nowcast">,
+  ) => void;
 }
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -180,11 +188,18 @@ function dateParts(at: Date, timeZone: string | undefined) {
 
 /**
  * `stormcentral-radar-2026-10-07-1912.gif`: the newest frame's local time in
- * `timeZone` (the device's when omitted).
+ * `timeZone`, like the caption (the device's when omitted, or when the time
+ * zone setting asks for it).
  */
 export function exportFilename(time: number | Date, extension: string, timeZone?: string): string {
-  const p = dateParts(time instanceof Date ? time : new Date(time), timeZone);
+  const p = dateParts(time instanceof Date ? time : new Date(time), zoneFor(timeZone));
   return `stormcentral-radar-${p.year}-${p.month}-${p.day}-${p.hour}${p.minute}.${extension}`;
+}
+
+/** The time a loop's file is named after: its newest observed scan, not hours of forecast past it. */
+export function exportFileTime(frames: readonly Pick<RadarFrame, "time" | "forecast">[]): number {
+  const observed = frames.filter((f) => !f.forecast);
+  return Math.max(...(observed.length ? observed : frames).map((f) => f.time));
 }
 
 /** Overall 0–1 progress: buffering 0–5 %, capture 5–60 %, encoding 60–100 %. */
@@ -608,7 +623,7 @@ async function encodeVideo(
  * `bufferTimeoutMs`) and left out if they never arrive, never exported blank.
  */
 export async function exportRadarLoop(opts: ExportLoopOptions): Promise<LoopExport> {
-  const { map, getLoop, signal } = opts;
+  const { map, getLoop, signal, t = translator("en") } = opts;
   const emit = (p: ExportProgress) => {
     if (!signal?.aborted) opts.onProgress?.(p);
   };
@@ -653,10 +668,15 @@ export async function exportRadarLoop(opts: ExportLoopOptions): Promise<LoopExpo
         ctx.drawImage(map.getCanvas(), size.sx, size.sy, size.sw, size.sh, 0, 0, size.width, size.height);
       });
       if (!painted) throw new Error("The map stopped drawing. Keep Storm Central on screen while the loop exports.");
-      const time = `${frame.approximate ? "~" : ""}${clockIn(opts.timeZone, frame.time, opts.locale)}`;
-      const date = dateLabel(frame.time, opts.timeZone, opts.locale);
-      if (opts.overlay) opts.overlay(ctx, size.width, size.height, { time, date, fontFamily });
-      else drawCaption(ctx, size.width, size.height, { time, date, title: opts.title, subtitle: opts.subtitle, position: (k + 1) / todo.length, fontFamily });
+      const date = dateLabel(frame.time, opts.timeZone, t.locale);
+      if (opts.overlay) {
+        const time = `${frame.approximate ? "~" : ""}${clockIn(opts.timeZone, frame.time, t.locale)}`;
+        opts.overlay(ctx, size.width, size.height, { time, date, fontFamily, forecast: frame.forecast, nowcast: frame.nowcast });
+      } else {
+        // Forecast and future frames say so, as on the timeline.
+        const time = frameLabel(frame, opts.timeZone, t);
+        drawCaption(ctx, size.width, size.height, { time, date, title: opts.title, subtitle: opts.subtitle, position: (k + 1) / todo.length, fontFamily });
+      }
       captured.push({ image: ctx.getImageData(0, 0, size.width, size.height), frame });
     }
     emit({ phase: "capturing", done: todo.length, total: todo.length });
@@ -667,7 +687,7 @@ export async function exportRadarLoop(opts: ExportLoopOptions): Promise<LoopExpo
   if (!captured.length) throw new Error("No frames could be captured.");
   const images = captured.map((c) => c.image);
   const delays = exportFrameDelays(images.length, opts.speed);
-  const newest = captured[captured.length - 1]!.frame.time;
+  const newest = exportFileTime(captured.map((c) => c.frame));
   const { width, height } = images[0]!;
 
   const videoType = opts.format === "video" ? videoMimeType() : null;

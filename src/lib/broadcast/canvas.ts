@@ -17,7 +17,7 @@ export interface BroadcastFrame {
   parts: { bug: boolean; clock: boolean; lower: boolean; ticker: boolean };
   lower: LowerThird;
   ticker: readonly TickerItem[];
-  /** Small caps label over the frame time ("RADAR"). */
+  /** Small caps label over the frame time ("RADAR", or "HRRR FORECAST" for a forecast frame). */
   timeLabel: string;
   tickerLabel: string;
   liveLabel: string;

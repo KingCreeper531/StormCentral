@@ -114,7 +114,8 @@ export function BroadcastStage({
           parts: { bug: s.parts.bug, clock: s.parts.clock, lower: s.parts.lower, ticker: s.parts.ticker },
           lower,
           ticker: tickerItems(warnings, timeZone, t),
-          timeLabel: t("RADAR"),
+          // Frames that aren't observed say what they are, like the radar legend.
+          timeLabel: frame.nowcast ? t("Extrapolated").toLocaleUpperCase(t.locale) : frame.forecast ? t("HRRR forecast").toLocaleUpperCase(t.locale) : t("RADAR"),
           tickerLabel: t("WARNINGS"),
           liveLabel: t("LIVE"),
         },

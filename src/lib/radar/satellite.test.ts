@@ -7,6 +7,7 @@ import {
   satelliteLayerName,
   satelliteSlot,
   satelliteTileUrl,
+  satelliteTimes,
   slotsFor,
 } from "./satellite";
 
@@ -45,6 +46,34 @@ describe("slotsFor", () => {
     expect(slots).toHaveLength(MAX_SLOTS);
     expect(slots.at(-1)).toBe(satelliteSlot(end));
     expect(slotsFor([])).toEqual([]);
+  });
+});
+
+describe("satelliteTimes", () => {
+  // 12 scans every 5 minutes, an hour of future radar, then 6 hours of HRRR every 15 minutes.
+  const last = at("2026-10-07T14:57:00Z");
+  const observed = Array.from({ length: 12 }, (_, i) => ({ time: last - (11 - i) * 300_000 }));
+  const nowcast = Array.from({ length: 6 }, (_, i) => ({ time: last + (i + 1) * 600_000, forecast: true, nowcast: true }));
+  const hrrr = Array.from({ length: 24 }, (_, i) => ({ time: last + 3_600_000 + (i + 1) * 900_000, forecast: true }));
+  const frames = [...observed, ...nowcast, ...hrrr];
+
+  it("keeps the real images when forecast frames are in the loop", () => {
+    const { times, current } = satelliteTimes(frames, 11, 0);
+    expect(times).toEqual(observed.map((f) => f.time));
+    const slots = slotsFor([...times, current]);
+    expect(slots).toEqual(slotsFor(observed.map((f) => f.time)));
+    expect(slots.every((s) => s <= satelliteSlot(last))).toBe(true);
+    expect(current).toBe(last);
+  });
+
+  it("holds the newest scan's image while the future plays", () => {
+    expect(satelliteTimes(frames, 14, 0).current).toBe(last);
+    expect(satelliteTimes(frames, frames.length - 1, 0).current).toBe(last);
+    expect(satelliteTimes(frames, 3, 0).current).toBe(observed[3]!.time);
+  });
+
+  it("falls back without frames", () => {
+    expect(satelliteTimes([], 0, 123)).toEqual({ times: [], current: 123 });
   });
 });
 
