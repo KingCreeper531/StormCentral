@@ -1,4 +1,5 @@
 import { getSessionUser } from "@/lib/auth/session";
+import { readBody } from "@/lib/server/body";
 import { deleteSettings, getSettings, putSettings } from "@/lib/server/settings-repo";
 import { forbidden, sameOrigin, tooMany, unauthorized } from "@/lib/server/guard";
 import { rateLimit } from "@/lib/server/rate-limit";
@@ -6,6 +7,8 @@ import { badRequest } from "@/lib/server/respond";
 import { MAX_SETTINGS_CHARS, validateSettings } from "@/lib/sync/settings";
 
 const noStore = { "Cache-Control": "no-store" };
+const MAX_BODY_CHARS = MAX_SETTINGS_CHARS + 1024;
+const TOO_BIG = "Those settings are too big to keep";
 
 /** Changes stamped further ahead than this are taken as now: a device's clock running fast can't win every conflict. */
 const MAX_CLOCK_AHEAD_MS = 5 * 60_000;
@@ -28,8 +31,11 @@ export async function PUT(req: Request) {
   if (!user) return unauthorized();
   const rl = rateLimit(`settings:${user.id}`, 30, 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
-  const text = await req.text();
-  if (text.length > MAX_SETTINGS_CHARS + 1024) return Response.json({ error: "Those settings are too big to keep" }, { status: 413, headers: noStore });
+  // UTF-8 takes at most 3 bytes for each character JavaScript counts.
+  const body = await readBody(req, MAX_BODY_CHARS * 3, TOO_BIG);
+  if (body instanceof Response) return body;
+  const text = new TextDecoder().decode(body);
+  if (text.length > MAX_BODY_CHARS) return Response.json({ error: TOO_BIG }, { status: 413, headers: noStore });
   let raw: { data?: unknown; changedAt?: unknown } | null = null;
   try {
     raw = JSON.parse(text);

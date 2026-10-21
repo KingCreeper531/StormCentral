@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, gte, inArray, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import type { ActivityItem, CommentDto, ConditionsSnapshot, FeedResponse, PostDto } from "../community";
 import { avatarUrl, conditionsSchema } from "../community";
 import { isDeveloper, isTrustedSpotter } from "../auth/session";
@@ -228,6 +228,22 @@ export async function getPostOwner(postId: string) {
   return row ?? null;
 }
 
+/**
+ * The report's author when the viewer can see the report, by the feeds' rules
+ * (moderators also see suspended accounts' reports, as on their profiles);
+ * null when it's hidden from them, blocked either way, or gone.
+ */
+export async function getVisiblePost(postId: string, viewerId: string | null, moderator = false) {
+  const db = await getDb();
+  const shown = visible(viewerId, posts.hidden, posts.userId, Date.now());
+  const [row] = await db
+    .select({ userId: posts.userId })
+    .from(posts)
+    .innerJoin(users, eq(posts.userId, users.id))
+    .where(and(eq(posts.id, postId), moderator ? or(shown, eq(posts.hidden, 0)) : shown, notBlocked(viewerId, posts.userId)));
+  return row ?? null;
+}
+
 /** Explicit cascade (libSQL's connection pool doesn't guarantee PRAGMA foreign_keys). */
 export async function deletePost(postId: string, mediaId: string | null) {
   const db = await getDb();
@@ -262,8 +278,9 @@ export async function toggleVerification(postId: string, userId: string) {
 
 /**
  * Confirmations and visible comments by other people on `userId`'s reports,
- * and the NWS confirming one, since `since` (epoch ms), newest last, skipping
- * accounts either side blocked.
+ * and the NWS confirming one, after `since` (epoch ms), newest last, skipping
+ * accounts either side blocked. Strictly after: apps pass the newest `at` they
+ * were given, which mustn't come back on the next check.
  */
 export async function listActivity(userId: string, since: number, limit = 30): Promise<ActivityItem[]> {
   const db = await getDb();
@@ -276,7 +293,7 @@ export async function listActivity(userId: string, since: number, limit = 30): P
       .from(verifications)
       .innerJoin(posts, eq(posts.id, verifications.postId))
       .innerJoin(users, eq(users.id, verifications.userId))
-      .where(and(eq(posts.userId, userId), sql`${verifications.userId} <> ${userId}`, gte(verifications.createdAt, since), shownUser, notBlocked(userId, sql`${verifications.userId}`)))
+      .where(and(eq(posts.userId, userId), sql`${verifications.userId} <> ${userId}`, gt(verifications.createdAt, since), shownUser, notBlocked(userId, sql`${verifications.userId}`)))
       .orderBy(desc(verifications.createdAt))
       .limit(limit),
     db
@@ -284,13 +301,13 @@ export async function listActivity(userId: string, since: number, limit = 30): P
       .from(comments)
       .innerJoin(posts, eq(posts.id, comments.postId))
       .innerJoin(users, eq(users.id, comments.userId))
-      .where(and(eq(posts.userId, userId), sql`${comments.userId} <> ${userId}`, gte(comments.createdAt, since), eq(comments.hidden, 0), shownUser, notBlocked(userId, comments.userId)))
+      .where(and(eq(posts.userId, userId), sql`${comments.userId} <> ${userId}`, gt(comments.createdAt, since), eq(comments.hidden, 0), shownUser, notBlocked(userId, comments.userId)))
       .orderBy(desc(comments.createdAt))
       .limit(limit),
     db
       .select({ postId: posts.id, at: posts.nwsConfirmedAt, body: posts.body })
       .from(posts)
-      .where(and(eq(posts.userId, userId), gte(posts.nwsConfirmedAt, since)))
+      .where(and(eq(posts.userId, userId), gt(posts.nwsConfirmedAt, since)))
       .orderBy(desc(posts.nwsConfirmedAt))
       .limit(limit),
   ]);
@@ -326,6 +343,7 @@ export async function listActivity(userId: string, since: number, limit = 30): P
   return items.sort((a, b) => a.at - b.at).slice(-limit);
 }
 
+/** A thread's newest 200 comments, oldest first. */
 export async function listComments(postId: string, viewerId: string | null): Promise<CommentDto[]> {
   const db = await getDb();
   const rows = await db
@@ -333,9 +351,9 @@ export async function listComments(postId: string, viewerId: string | null): Pro
     .from(comments)
     .innerJoin(users, eq(comments.userId, users.id))
     .where(and(eq(comments.postId, postId), visible(viewerId, comments.hidden, comments.userId, Date.now()), notBlocked(viewerId, comments.userId)))
-    .orderBy(comments.createdAt)
+    .orderBy(desc(comments.createdAt), desc(comments.id))
     .limit(200);
-  return rows.map((r) => ({
+  return rows.reverse().map((r) => ({
     id: r.c.id,
     body: r.c.body,
     createdAt: r.c.createdAt,
