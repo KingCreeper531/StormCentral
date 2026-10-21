@@ -49,6 +49,8 @@ jobs:
           const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, locale: "en-US", timezoneId: "America/Chicago" });
           await ctx.addInitScript(() => {
             localStorage.setItem("stormcentral:v1", JSON.stringify({ state: { theme: "dark", units: "imperial" }, version: 1 }));
+            // The live stream's basemap (stream/director.ts): do its hidden layers hide on CARTO's Protomaps tiles?
+            localStorage.setItem("stormcentral:map-style:v1", JSON.stringify({ state: { style: { roads: "major", buildings: false, landcover: false, roadLabels: false, poiLabels: false } }, version: 1 }));
           });
           await ctx.route("**/api/alerts?**", async (route) => {
             const url = route.request().url();
@@ -90,7 +92,8 @@ jobs:
             const kinds2 = {};
             for (const f of pl) { const k = `${f.properties?.kind}/${f.properties?.kind_detail}`; kinds2[k] = (kinds2[k] ?? 0) + 1; }
             const filters = map.getStyle().layers.filter((l) => ["places", "roads", "pois"].includes(l["source-layer"])).slice(0, 12).map((l) => `${l.id}: ${JSON.stringify(l.filter)}`);
-            return { zoom: map.getZoom().toFixed(2), vec, places: places.length, classes, rendered, sourceLayers: bySl, placesLayer: pl.length, placeKinds: kinds2, placeSample: pl.slice(0, 4).map((f) => f.properties), filters };
+            const hidden = map.getStyle().layers.filter((l) => map.getLayoutProperty(l.id, "visibility") === "none").map((l) => l.id);
+            return { zoom: map.getZoom().toFixed(2), vec, rendered, placesLayer: pl.length, hidden };
           });
           console.log("── map:", JSON.stringify(diag, null, 1));
           const panel = await page.locator("text=In the path").first().locator("xpath=..").innerText({ timeout: 10000 }).catch((e) => `no "In the path" section: ${e.message}`);

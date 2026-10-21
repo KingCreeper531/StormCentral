@@ -19,16 +19,24 @@ const PATH_EVENTS = new Set(["Tornado Warning", "Severe Thunderstorm Warning", "
 const MAX_CALLOUTS = 8;
 const SIZE: Record<string, number> = { city: 0, town: 1, village: 2 };
 
-/** The basemap's town labels in the tiles on screen: the towns a path can name, with no data of our own. */
+/**
+ * The basemap's towns in the tiles on screen: the towns a path can name, with no data of our own. Both tile
+ * schemas: Protomaps (CARTO's now: "places", kind locality, kind_detail city/town/village) and OpenMapTiles
+ * (MapTiler: "place", class city/town/village).
+ */
 function basemapPlaces(map: MlMap): PathPlace[] {
   const source = Object.entries(map.getStyle()?.sources ?? {}).find(([, s]) => s.type === "vector")?.[0];
   if (!source) return [];
   const seen = new Set<string>();
   const out: PathPlace[] = [];
-  for (const f of map.querySourceFeatures(source, { sourceLayer: "place" })) {
+  const features = [
+    ...map.querySourceFeatures(source, { sourceLayer: "places" }).filter((f) => f.properties?.kind === "locality").map((f) => [f, f.properties?.kind_detail] as const),
+    ...map.querySourceFeatures(source, { sourceLayer: "place" }).map((f) => [f, f.properties?.class] as const),
+  ];
+  for (const [f, detail] of features) {
     const p = f.properties ?? {};
-    const size = SIZE[String(p.class)];
-    const name = String(p.name_en || p["name:latin"] || p.name || "");
+    const size = SIZE[String(detail)];
+    const name = String(p["name:en"] || p.name_en || p["name:latin"] || p.name || "");
     if (size == null || !name || f.geometry.type !== "Point") continue;
     const [lon, lat] = f.geometry.coordinates as [number, number];
     // The same town comes from every tile it sits near.
