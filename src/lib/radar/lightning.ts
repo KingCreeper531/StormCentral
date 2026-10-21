@@ -29,23 +29,49 @@ export function lightningTileUrl(slot: number): string {
 }
 
 // ── Bolts ───────────────────────────────────────────────────────────────────
-// Lightning is drawn as a bolt per flash when there are flashes: GOES GLM from
-// the Pro data server (lightning.json, pro-server/pro_server/glm.py). The
-// density grid above only says which ~8 km squares had strikes, not where in
-// them, so without flashes the map shows the grid itself rather than bolts
-// that would line up in rows.
+// Lightning is drawn as a bolt per flash: GOES GLM flashes, which the app's
+// own server reads from NOAA's open data (GET /api/lightning/flashes,
+// src/lib/server/glm.ts). The density grid above only says which ~8 km
+// squares had strikes, not where in them, so it's shown as it is (not as
+// bolts, which would line up in rows) only when the flashes can't be had.
 
-/** Ages (seconds) where a bolt changes colour: newer is brighter. */
-export const BOLT_AGES = [120, 300, 600] as const;
-/** Bolt colours from newest to oldest. */
-export const BOLT_COLORS = ["#ffffff", "#ffd60a", "#ff9f1c", "#ef4444"] as const;
+/** [west, south, east, north], degrees. */
+export type Bbox = readonly [west: number, south: number, east: number, north: number];
 
 export interface LightningFile {
   generated: string;
   minutes: number;
-  /** [lon, lat, seconds before `generated`, energy fJ], oldest first. */
-  flashes: [number, number, number, number][];
+  /** [lon, lat, seconds before `generated`], oldest first. */
+  flashes: [number, number, number][];
 }
+
+/** `?bbox=w,s,e,n` → the area, or null when it isn't a valid one. */
+export function parseBbox(raw: string | null): Bbox | null {
+  const v = (raw ?? "").split(",").map((p) => (p.trim() === "" ? NaN : Number(p)));
+  if (v.length !== 4 || !v.every(Number.isFinite)) return null;
+  const [w, s, e, n] = v as [number, number, number, number];
+  if (w < -180 || e > 180 || s < -90 || n > 90 || w >= e || s >= n) return null;
+  return [w, s, e, n];
+}
+
+/**
+ * The flashes to ask for around a map view: its bounds widened to whole 10°
+ * squares, so panning a little asks again only past a square's edge and
+ * nearby viewers share cached answers. A view across the date line, or wider
+ * than the world, asks for every longitude.
+ */
+export function flashesBbox(west: number, south: number, east: number, north: number): Bbox {
+  const down = (v: number) => Math.floor(v / 10) * 10;
+  const up = (v: number) => Math.ceil(v / 10) * 10;
+  const s = Math.max(-90, down(south));
+  const n = Math.min(90, Math.max(s + 10, up(north)));
+  if (east - west >= 360 || west < -180 || east > 180) return [-180, s, 180, n];
+  const w = down(west);
+  return [w, s, Math.min(180, Math.max(w + 10, up(east))), n];
+}
+
+/** The app's flashes for an area (GET /api/lightning/flashes). */
+export const flashesUrl = (bbox: Bbox) => `/api/lightning/flashes?bbox=${bbox.join(",")}`;
 
 /** A flash as a map point, `age` seconds old. */
 export interface Bolt {

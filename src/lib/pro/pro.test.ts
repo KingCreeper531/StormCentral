@@ -5,6 +5,7 @@ import { ibwDetails, ibwSection } from "./ibw";
 import { modelPoint, parseProfile, PROFILE_LEVELS, transect, type OpenMeteoProfile } from "./model";
 import { isProProductId, PRO_PRODUCT_IDS, PRO_PRODUCTS, productUsable, satelliteFrames, shownProduct } from "./products";
 import { fillTileUrl, pixelAt, tileBbox, tileZoom, valueFromColor, wrapLon } from "./sample";
+import { DEFAULT_PRO_SERVER, PRO_SERVER, proServerFrom } from "./server";
 import { arrivals, minutesUntil, motionFrom, stormMotion, toaFan } from "./storm-tools";
 import { frameAt, syncTime } from "./sync";
 
@@ -222,19 +223,32 @@ describe("value scales", () => {
 });
 
 describe("products this device can show", () => {
-  it("hides Level II on phones and the data server's products until one is set up", () => {
+  it("hides Level II on phones and the data server's products without a server", () => {
     expect(productUsable("vol-ref", { volume: true })).toBe(true);
     expect(productUsable("vol-ref", { volume: false })).toBe(false);
-    // No NEXT_PUBLIC_PRO_SERVER in tests.
-    expect(PRO_PRODUCT_IDS.filter((id) => PRO_PRODUCTS[id].kind === "server").every((id) => !productUsable(id, { volume: true }))).toBe(true);
+    const serverIds = PRO_PRODUCT_IDS.filter((id) => PRO_PRODUCTS[id].kind === "server");
+    // Storm Central's own server is built in.
+    expect(serverIds.every((id) => productUsable(id, { volume: false }))).toBe(true);
+    expect(serverIds.every((id) => !productUsable(id, { volume: true, server: false }))).toBe(true);
     expect(productUsable("cc", { volume: false })).toBe(true);
+  });
+
+  it("uses Storm Central's own data server unless a build names another or turns it off", () => {
+    expect(PRO_SERVER).toBe(DEFAULT_PRO_SERVER);
+    expect(proServerFrom(undefined)).toBe("https://pro.stormcentralwx.com");
+    expect(proServerFrom("")).toBe("https://pro.stormcentralwx.com");
+    expect(proServerFrom(" https://pro.example.org/ ")).toBe("https://pro.example.org");
+    expect(proServerFrom("off")).toBe("");
+    expect(proServerFrom("None")).toBe("");
   });
 
   it("swaps a saved product that doesn't work here for the nearest one that does", () => {
     expect(shownProduct("vol-vel", { volume: false })).toBe("vel");
     expect(shownProduct("vol-vel", { volume: true })).toBe("vol-vel");
-    expect(shownProduct("goes-nightmicro", { volume: true })).toBe("sat-ir");
-    expect(shownProduct("mrms-mesh", { volume: true })).toBe("cref");
-    for (const id of PRO_PRODUCT_IDS) expect(productUsable(shownProduct(id, { volume: false }), { volume: false })).toBe(true);
+    expect(shownProduct("goes-nightmicro", { volume: true })).toBe("goes-nightmicro");
+    expect(shownProduct("goes-nightmicro", { volume: true, server: false })).toBe("sat-ir");
+    expect(shownProduct("mrms-mesh", { volume: true, server: false })).toBe("cref");
+    const none = { volume: false, server: false };
+    for (const id of PRO_PRODUCT_IDS) expect(productUsable(shownProduct(id, none), none)).toBe(true);
   });
 });
