@@ -148,8 +148,13 @@ async function discoverNewest(icao: string, signal?: AbortSignal): Promise<Chunk
   return found.reduce<ChunkVolume | null>((best, v) => (v && (!best || v.time > best.time) ? v : best), null);
 }
 
-/** Per radar: the newest volume seen, and finished volumes (their chunks don't change). */
-const live = new Map<string, { newest: number; time: number; done: Map<number, ChunkVolume> }>();
+/** Per radar: the newest volume seen, when it was last looked for afresh, and finished volumes (their chunks don't change). */
+const live = new Map<string, { newest: number; time: number; looked: number; done: Map<number, ChunkVolume> }>();
+
+/** No volume after the newest for this long (a scan takes 10 minutes at most): the radar skipped a number or started counting again. */
+const STALE_MS = 12 * 60_000;
+/** Looking afresh costs a few listings: not on every poll while a radar is down. */
+const RELOOK_MS = 60_000;
 
 /**
  * The radar's latest `count` volumes from the real-time chunks, oldest first;
@@ -161,7 +166,7 @@ export async function liveVolumes(icao: string, count: number, signal?: AbortSig
   if (!state) {
     const newest = await discoverNewest(icao, signal);
     if (!newest) return [];
-    state = { newest: newest.volume, time: newest.time, done: new Map() };
+    state = { newest: newest.volume, time: newest.time, looked: Date.now(), done: new Map() };
     live.set(icao, state);
   }
   // Catch up with volumes started since the last look.
@@ -174,6 +179,17 @@ export async function liveVolumes(icao: string, count: number, signal?: AbortSig
     state.time = after.time;
     fresh.set(after.volume, after);
     if (after.done) state.done.set(after.volume, after);
+  }
+  // Nothing after the newest for too long: find the newest afresh.
+  if (Date.now() - state.time > STALE_MS && Date.now() - state.looked > RELOOK_MS) {
+    state.looked = Date.now();
+    const newest = await discoverNewest(icao, signal);
+    if (newest && newest.time > state.time) {
+      state.newest = newest.volume;
+      state.time = newest.time;
+      fresh.set(newest.volume, newest);
+      if (newest.done) state.done.set(newest.volume, newest);
+    }
   }
   const out: ChunkVolume[] = [];
   for (let v = state.newest, i = 0; i < count; v = prevVolume(v), i++) {

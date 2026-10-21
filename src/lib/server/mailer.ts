@@ -27,3 +27,14 @@ export async function sendMail(msg: { to: string; subject: string; text: string;
   transport ??= nodemailer.createTransport(process.env.SMTP_URL);
   await transport.sendMail({ from: sender(), ...msg });
 }
+
+/**
+ * A send failure for the logs: nodemailer's error code, the SMTP reply code
+ * and the message, with email addresses blanked out (a rejection quotes the
+ * recipient's).
+ */
+export function mailError(err: unknown): string {
+  const e = (err ?? {}) as { code?: unknown; responseCode?: unknown; message?: unknown };
+  const message = String(e.message ?? err).replace(/[^\s<>()[\]"',;:]+@[^\s<>()[\]"',;:]+/g, "<address>");
+  return [e.code, e.responseCode, message].filter((v) => v != null && v !== "").join(" ");
+}

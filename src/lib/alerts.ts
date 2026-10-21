@@ -262,6 +262,7 @@ interface RawAlertFeature {
     description?: string | null;
     instruction?: string | null;
     messageType?: string;
+    references?: { identifier?: string }[] | null;
     parameters?: Record<string, string[] | undefined>;
   };
 }
@@ -318,6 +319,7 @@ export function normalizeAlert(f: RawAlertFeature): WeatherAlert {
     pds: /PARTICULARLY DANGEROUS SITUATION/i.test(description),
   });
   const rank = baseRank(p.event) + (SEVERITY_RANK[p.severity ?? ""] ?? 0) + bonus;
+  const refs = (p.references ?? []).map((r) => r?.identifier).filter((id): id is string => typeof id === "string" && !!id);
 
   const geometry =
     f.geometry && (f.geometry.type === "Polygon" || f.geometry.type === "MultiPolygon")
@@ -350,12 +352,14 @@ export function normalizeAlert(f: RawAlertFeature): WeatherAlert {
     rank,
     motion: parseEventMotion(first(params, "eventMotionDescription")),
     geometry,
+    ...(refs.length ? { references: refs } : {}),
   };
 }
 
 export function normalizeAlerts(features: RawAlertFeature[], now = Date.now()): WeatherAlert[] {
   return features
-    .filter((f) => f?.properties?.event && Date.parse(f.properties.ends ?? f.properties.expires) > now)
+    // A cancellation carries the warning's event and rank but ends it: never show or notify it as one.
+    .filter((f) => f?.properties?.event && f.properties.messageType !== "Cancel" && Date.parse(f.properties.ends ?? f.properties.expires) > now)
     .map(normalizeAlert)
     .sort((a, b) => b.rank - a.rank || Date.parse(b.sent) - Date.parse(a.sent));
 }

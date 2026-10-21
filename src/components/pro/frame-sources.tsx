@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { useIntlTimes, useNoaaTimes, useRadarProducts } from "@/hooks/queries";
 import { useRadarLoop } from "@/hooks/use-radar-loop";
 import { listLevel2, listLevel3, liveVolumes, newest } from "@/lib/pro/nexrad/aws";
-import { decodedVersion, jobKey, liveJob, peekDecoded, requestDecode, subscribeDecoded, type DecodeJob } from "@/lib/pro/nexrad/client";
+import { decodedVersion, holdDecodes, jobKey, liveJob, peekDecoded, subscribeDecoded, type DecodeJob } from "@/lib/pro/nexrad/client";
 import { archiveNote, l3CodeFor, mrmsLayer, PRO_PRODUCTS, satelliteFrames, type ProProductId } from "@/lib/pro/products";
 import { sweepColors, type Sweep } from "@/lib/pro/nexrad/sweep";
 import { paletteScale, type Palette } from "@/lib/pro/palettes";
@@ -130,9 +130,8 @@ function useDecodedScale(scaleId: DecodedScaleId) {
  * the standard one).
  */
 function useDecodedFrames(jobs: readonly { job: DecodeJob; time: number }[], scaleId: DecodedScaleId, palette: Palette | null) {
-  useEffect(() => {
-    for (const j of jobs) requestDecode(j.job);
-  }, [jobs]);
+  // Held while shown: other panes' decodes don't evict this pane's frames.
+  useEffect(() => holdDecodes(jobs.map((j) => j.job)), [jobs]);
   // Re-render as frames land (anywhere); `readyKey` below decides whether this pane's changed.
   useSyncExternalStore(subscribeDecoded, decodedVersion, () => 0);
   // Identity only changes when the set of finished frames does.

@@ -13,7 +13,7 @@ import { useT } from "@/lib/i18n/use-t";
 import { rainTotals } from "@/lib/rainfall";
 import { pm25ToAqi, usAqiCategory } from "@/lib/science/air";
 import { cn } from "@/lib/utils";
-import { clockIn, fmtIn } from "@/lib/weather/view";
+import { clockIn, dayFmtIn } from "@/lib/weather/view";
 import { useAddonsStore } from "@/store/addons-store";
 import { useAppStore } from "@/store/app-store";
 import { Button } from "../ui/button";
@@ -49,7 +49,7 @@ export function FireSmokePanel({ f, air, now, className }: { f: Forecast; air: A
   const days = fireDays(f, now, 3);
   const smoke = air ? smokeOutlook(air, now) : null;
   const dry = recent.data ? rainTotals(recent.data, now).dryDays : null;
-  const dayFmt = fmtIn(f.timezone, { weekday: "short" }, t.locale);
+  const dayFmt = dayFmtIn(f.timezone, { weekday: "short" }, t.locale);
   const acresFmt = new Intl.NumberFormat(t.locale, { maximumFractionDigits: 0 });
   const nearby = fires.data?.fires ?? [];
   const aqiNow = smoke?.now != null ? usAqiCategory(pm25ToAqi(smoke.now)) : null;

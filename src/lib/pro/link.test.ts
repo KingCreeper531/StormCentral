@@ -1,6 +1,6 @@
 import { createStore } from "zustand/vanilla";
 import { describe, expect, it, vi } from "vitest";
-import { connectProLink, POPOUT_TIMEOUT_MS, type LinkOptions, type ToolPoints } from "./link";
+import { connectProLink, HIDDEN_POPOUT_TIMEOUT_MS, popoutUrl, POPOUT_TIMEOUT_MS, type LinkOptions, type ToolPoints } from "./link";
 import { createProSync } from "./sync";
 
 /** BroadcastChannel stand-in: delivers to every other channel of the same name, synchronously. */
@@ -22,24 +22,27 @@ function hub() {
   };
 }
 
-function windowOf(role: LinkOptions["role"], channel: LinkOptions["channel"], key?: string, clock = { t: 0 }) {
+function windowOf(role: LinkOptions["role"], channel: LinkOptions["channel"], key?: string, clock = { t: 0 }, workspace = "w1") {
   const sync = createProSync();
   const store = createStore<Record<string, unknown>>()(() => ({ panes: ["ref"], tool: "inspect", layoutOnlyHere: 1 }));
   let tools: ToolPoints = { soundingAt: { lat: 35, lon: -97 }, xsect: null, selectedAlert: null };
   const popouts: string[][] = [];
   const recalled = vi.fn();
+  const basis: boolean[] = [];
   const link = connectProLink({
     role,
+    workspace,
     key,
     sync,
     store: { getState: store.getState, setState: (p) => store.setState(p), subscribe: store.subscribe, fields: ["panes", "tool"] },
     tools: { get: () => tools, set: (p) => (tools = { ...tools, ...p }) },
     onPopouts: (keys) => popouts.push([...keys].sort()),
     onRecall: recalled,
+    onBasis: (b) => basis.push(b),
     channel,
     now: () => clock.t,
   });
-  return { sync, store, link, popouts, recalled, tools: () => tools };
+  return { sync, store, link, popouts, recalled, basis, tools: () => tools };
 }
 
 describe("Pro link between windows", () => {
@@ -116,5 +119,93 @@ describe("Pro link between windows", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("gives a hidden pop-out (its heartbeat throttled) much longer", () => {
+    vi.useFakeTimers();
+    const page = Object.assign(new EventTarget(), { visibilityState: "visible" });
+    vi.stubGlobal("document", page);
+    try {
+      const base = hub();
+      const sent: { t: string; hidden?: boolean }[] = [];
+      let muted = false;
+      const channel: LinkOptions["channel"] = (name) => {
+        const ch = base(name);
+        const post = ch.postMessage.bind(ch);
+        ch.postMessage = (data: unknown) => {
+          sent.push(data as { t: string; hidden?: boolean });
+          if (!muted) post(data);
+        };
+        return ch;
+      };
+      const clock = { t: 0 };
+      const ws = windowOf("workspace", channel, undefined, clock);
+      windowOf("popout", channel, "p3", clock);
+      // Minimised: it says so at once, then its timers all but stop.
+      page.visibilityState = "hidden";
+      page.dispatchEvent(new Event("visibilitychange"));
+      expect(sent.at(-1)).toMatchObject({ t: "here", key: "p3", hidden: true });
+      muted = true;
+      clock.t = 60_000;
+      vi.advanceTimersByTime(4_000);
+      expect(ws.popouts.at(-1)).toEqual(["p3"]);
+      clock.t = HIDDEN_POPOUT_TIMEOUT_MS + 1;
+      vi.advanceTimersByTime(4_000);
+      expect(ws.popouts.at(-1)).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps to its own workspace's windows", () => {
+    const channel = hub();
+    const mine = windowOf("workspace", channel, undefined, undefined, "w1");
+    const other = windowOf("workspace", channel, undefined, undefined, "w2");
+    const otherPop = windowOf("popout", channel, "p2", undefined, "w2");
+    expect(mine.popouts).toEqual([]);
+    expect(other.popouts.at(-1)).toEqual(["p2"]);
+    mine.sync.setState({ timeline: [1, 2], index: 1 });
+    mine.store.setState({ tool: "xsect" });
+    expect(otherPop.sync.getState().timeline).toEqual([]);
+    expect(otherPop.store.getState().tool).toBe("inspect");
+    // A pop-out's address names its workspace.
+    expect(popoutUrl("p2", "w2")).toBe("/pro-window?view=p2&ws=w2");
+  });
+
+  it("brings open pop-outs up to date when the workspace reloads", () => {
+    const channel = hub();
+    const before = windowOf("workspace", channel);
+    const pop = windowOf("popout", channel, "p2");
+    pop.store.setState({ tool: "vector" });
+    before.link.close();
+    // The reloaded workspace (same id) starts from its saved state: it knows its pop-out at once, and brings it into line.
+    const after = windowOf("workspace", channel);
+    expect(after.popouts.at(-1)).toEqual(["p2"]);
+    expect(pop.store.getState().tool).toBe("inspect");
+  });
+
+  it("lets the pop-out holding the time-basis panel set the timeline when the workspace shows none", () => {
+    const channel = hub();
+    const ws = windowOf("workspace", channel);
+    const basisPop = windowOf("popout", channel, "p1");
+    const otherPop = windowOf("popout", channel, "p2");
+    ws.sync.setState({ timeline: [1, 2, 3], index: 2 });
+    ws.link.setBasis("p1");
+    expect(basisPop.basis.at(-1)).toBe(true);
+    expect(otherPop.basis.at(-1)).toBe(false);
+    // New scans in the pop-out: everyone's loop runs over them, and the workspace's clock knows what's buffered.
+    basisPop.sync.setState({ timeline: [2, 3, 4], index: 1, ready: [true, true, false] });
+    expect(ws.sync.getState()).toMatchObject({ timeline: [2, 3, 4], index: 1, ready: [true, true, false] });
+    expect(otherPop.sync.getState().timeline).toEqual([2, 3, 4]);
+    // A pop-out opened now learns who sets it.
+    const late = windowOf("popout", channel, "p3");
+    expect(late.sync.getState().timeline).toEqual([2, 3, 4]);
+    expect(late.basis).toEqual([false]);
+    // A panel is back in the workspace: it sets the timeline again.
+    ws.link.setBasis(null);
+    expect(basisPop.basis.at(-1)).toBe(false);
+    basisPop.sync.setState({ timeline: [9] });
+    expect(ws.sync.getState().timeline).toEqual([2, 3, 4]);
   });
 });

@@ -18,6 +18,9 @@ const GATE_KM: Record<number, number> = { 94: 1, 134: 1, 135: 1, 99: 0.25, 153: 
 
 const MS_TO_KT = 1.943844;
 
+/** Uncompressed products are a megabyte or two: a bigger size hint from the header is ignored. */
+const MAX_SIZE_HINT = 16 << 20;
+
 /** NEXRAD's 16-bit float: sign, 5-bit exponent (bias 16), 10-bit fraction. */
 export function float16(v: number): number {
   const frac = v & 0x3ff;
@@ -135,7 +138,8 @@ export function parseLevel3(file: Uint8Array): Level3Product {
 
   if (compression === 1) {
     const head = msg.subarray(0, P + 102);
-    const body = bunzip2(msg.subarray(P + 102), dv.getUint32(P + 84));
+    // The header's uncompressed size, only as a hint: a corrupt one mustn't allocate gigabytes.
+    const body = bunzip2(msg.subarray(P + 102), Math.min(dv.getUint32(P + 84), MAX_SIZE_HINT));
     const joined = new Uint8Array(head.length + body.length);
     joined.set(head);
     joined.set(body, head.length);
@@ -153,6 +157,8 @@ export function parseLevel3(file: Uint8Array): Level3Product {
   const firstBin = dv.getInt16(p + 2);
   const nGates = dv.getInt16(p + 4);
   const nRadials = dv.getInt16(p + 12);
+  // Products have at most 1840 gates and 720 radials: a corrupt header mustn't ask for a gigabyte.
+  if (nGates <= 0 || nGates > 2048 || nRadials <= 0 || nRadials > 1500) throw new Error("Level III radial array is malformed");
   p += 14;
   const data = new Uint8Array(nRadials * nGates);
   const azStart = new Float32Array(nRadials);

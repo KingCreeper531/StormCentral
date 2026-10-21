@@ -27,16 +27,38 @@ async function fontFile(pattern: string) {
   return stdout ? `fontfile=${pathValue(stdout)}` : "font=Inter";
 }
 
+/** How much of a budget is used on its quota day, saved across restarts. */
+export interface BudgetState {
+  day: string;
+  used: number;
+}
+
 /** A daily allowance, counted on YouTube's quota day. */
 export class Budget {
   private day = quotaDay();
   private used = 0;
-  constructor(private max: number) {}
+  /** `onTake` runs after each one taken (the director saves the counts then, so a restart doesn't start the day over). */
+  constructor(
+    private max: number,
+    private onTake: () => void = () => {},
+  ) {}
   take(): boolean {
     if (this.day !== quotaDay()) [this.day, this.used] = [quotaDay(), 0];
     if (this.used >= this.max) return false;
     this.used++;
+    this.onTake();
     return true;
+  }
+  /** Whether there's one left today, without taking it. */
+  get left(): boolean {
+    return (this.day === quotaDay() ? this.used : 0) < this.max;
+  }
+  get state(): BudgetState {
+    return { day: this.day, used: this.used };
+  }
+  /** Carries on from a count saved earlier the same quota day (one from an earlier day is ignored). */
+  restore(saved: BudgetState | undefined) {
+    if (saved?.day === quotaDay() && Number.isFinite(saved.used) && saved.used > this.used) [this.day, this.used] = [saved.day, saved.used];
   }
 }
 
@@ -50,6 +72,8 @@ export interface YouTubeLiveOptions {
   privacy: string;
   /** Tests: render clips to this file and don't post them. */
   dryRunClip?: string;
+  /** Runs when a title or a clip is counted against the day's budget (to save the counts). */
+  onBudget?: () => void;
   log: (msg: string) => void;
 }
 
@@ -58,12 +82,12 @@ export class YouTubeLive {
   private live: { id: string | null; chatId: string | null; at: number } = { id: null, chatId: null, at: 0 };
   title = "";
   private titledAt = 0;
-  private titles: Budget;
-  private clips: Budget;
+  readonly titles: Budget;
+  readonly clips: Budget;
 
   constructor(private o: YouTubeLiveOptions) {
-    this.titles = new Budget(o.titlesPerDay);
-    this.clips = new Budget(o.clipsPerDay);
+    this.titles = new Budget(o.titlesPerDay, o.onBudget);
+    this.clips = new Budget(o.clipsPerDay, o.onBudget);
   }
 
   get enabled() {
@@ -99,9 +123,14 @@ export class YouTubeLive {
     return (await this.broadcast()).chatId;
   }
 
-  /** Sets the title when it says something new: at most every 10 minutes (urgent ones at once), within the day's budget. */
+  /** Whether a new title would be set now: at most every 10 minutes (urgent ones at once), within the day's budget. */
+  canRetitle(urgent: boolean) {
+    return this.enabled && (urgent || Date.now() - this.titledAt >= 10 * 60_000) && this.titles.left;
+  }
+
+  /** Sets the title when it says something new and canRetitle allows it. */
   async retitle(title: string, urgent: boolean) {
-    if (!this.enabled || title === this.title || (!urgent && Date.now() - this.titledAt < 10 * 60_000)) return;
+    if (title === this.title || !this.canRetitle(urgent)) return;
     const id = await this.liveId();
     if (!id || !this.titles.take()) return;
     // Counted as an attempt either way, so a title YouTube keeps refusing isn't retried every 30 seconds.

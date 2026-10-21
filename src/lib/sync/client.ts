@@ -245,9 +245,10 @@ export function stopSync() {
 
 /**
  * Turn sync on for an account. `keep` says which settings win the first
- * time: the ones already on the account, or this device's.
+ * time: the ones already on the account, or this device's. If that fails,
+ * sync stays off and this rejects with the reason.
  */
-export async function enableSync(userId: string, keep: "account" | "device") {
+export async function enableSync(userId: string, keep: "account" | "device"): Promise<void> {
   stopSync();
   writeMeta({ userId, agreed: "", changedAt: 0 });
   status("syncing");
@@ -266,7 +267,9 @@ export async function enableSync(userId: string, keep: "account" | "device") {
     }
     startSync();
   } catch (err) {
-    status("error", (err as Error).message);
+    // Off again, so the next launch doesn't start a sync whose first choice never happened.
+    disableSync();
+    throw err;
   }
 }
 

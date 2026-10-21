@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { VolumePoints } from "@/lib/pro/volume3d";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +90,8 @@ function program(gl: WebGL2RenderingContext, vs: string, fs: string): WebGLProgr
     gl.compileShader(s);
     if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) || (gl.isContextLost() ? "WebGL context lost" : "shader didn't compile"));
     gl.attachShader(p, s);
+    // Freed with the program.
+    gl.deleteShader(s);
   }
   gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) ?? "link");
@@ -160,6 +162,9 @@ export const VolumeCanvas = forwardRef<VolumeCanvasHandle, { scene: VolumeScene;
   const frame = useRef(0);
   /** Sends the scene's points to the GPU (set once WebGL is up). */
   const uploadRef = useRef<() => void>(() => {});
+  /** Bumped for a new canvas element when the old one's context was let go (see the set-up below). */
+  const [canvasKey, setCanvasKey] = useState(0);
+  const renewed = useRef(false);
   const gl = useRef<{
     ctx: WebGL2RenderingContext;
     points: WebGLProgram;
@@ -319,6 +324,13 @@ export const VolumeCanvas = forwardRef<VolumeCanvasHandle, { scene: VolumeScene;
     const init = () => {
       const ctx = c.getContext("webgl2", { antialias: true, preserveDrawingBuffer: true });
       if (!ctx) return;
+      // This canvas's context was let go (an unmount React then undid): a new canvas gets a new one. Once, not in a loop.
+      if (ctx.isContextLost()) {
+        if (!renewed.current) setCanvasKey((k) => k + 1);
+        renewed.current = true;
+        return;
+      }
+      renewed.current = false;
       const points = program(ctx, POINT_VS, POINT_FS);
       const lines = program(ctx, LINE_VS, LINE_FS);
       const pointVao = ctx.createVertexArray()!;
@@ -372,10 +384,21 @@ export const VolumeCanvas = forwardRef<VolumeCanvasHandle, { scene: VolumeScene;
       c.removeEventListener("webglcontextrestored", init);
       cancelAnimationFrame(frame.current);
       frame.current = 0;
-      // Not lost on purpose: a remount (React runs effects twice in development) gets the same context back.
+      const g = gl.current;
       gl.current = null;
+      if (!g || g.ctx.isContextLost()) return;
+      const { ctx } = g;
+      ctx.deleteProgram(g.points);
+      ctx.deleteProgram(g.lines);
+      ctx.deleteVertexArray(g.pointVao);
+      ctx.deleteVertexArray(g.lineVao);
+      for (const b of [...g.pointBufs, g.lineBuf]) ctx.deleteBuffer(b);
+      // Gone for good: let the context go now, not whenever the canvas is collected (browsers keep only a
+      // handful, and the map panels need theirs). Not on a remount (React runs effects twice in development):
+      // the canvas is still in the page then, and gets the same context back.
+      if (!c.isConnected) ctx.getExtension("WEBGL_lose_context")?.loseContext();
     };
-  }, [request]);
+  }, [request, canvasKey]);
 
   // New points: upload them; anything else: just draw again.
   const prevPoints = useRef<VolumePoints | null>(null);
@@ -473,7 +496,7 @@ export const VolumeCanvas = forwardRef<VolumeCanvasHandle, { scene: VolumeScene;
     };
     c.addEventListener("wheel", wheel, { passive: false });
     return () => c.removeEventListener("wheel", wheel);
-  }, [request]);
+  }, [request, canvasKey]);
   const onKey = (e: React.KeyboardEvent) => {
     const k = cam.current;
     if (e.key === "ArrowLeft") k.yaw += 0.08;
@@ -484,13 +507,16 @@ export const VolumeCanvas = forwardRef<VolumeCanvasHandle, { scene: VolumeScene;
     else if (e.key === "-") zoomBy(1 / 0.85);
     else if (e.key === "0") cam.current = defaultCamera(sceneRef.current);
     else return;
+    // The view's keys, not the workspace's: the arrows mustn't also step and pause the loop.
     e.preventDefault();
+    e.stopPropagation();
     request();
   };
 
   return (
     <div ref={wrap} className={cn("relative", className)}>
       <canvas
+        key={canvasKey}
         ref={canvas}
         role="img"
         aria-label={label}

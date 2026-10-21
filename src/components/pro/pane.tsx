@@ -78,11 +78,11 @@ export const Pane = memo(function Pane({ config, n, site, frameCount, basis, too
       frame: () => frames[frameAt(times, syncTime(sync.getState()))] ?? null,
       zoom: () => map.current?.getZoom() ?? 6,
       scale: (frame) => feedScale ?? scaleForTiles(frame.tileUrl, family),
-      // Decoded radar: the exact gate value.
+      // Decoded radar: the exact gate value, from the sweep the frame draws (in whatever colour table).
       exact:
         decoded && feedScale
           ? (frame, lat, lon) => {
-              const r = decodedValueAt(frame.id, lat, lon);
+              const r = frame.sweep ? decodedValueAt(frame.sweep.sweep, lat, lon) : null;
               if (!r) return null;
               if (r.special) return r.special;
               return r.value == null ? "" : formatDecoded(feedScale, r.value, t);

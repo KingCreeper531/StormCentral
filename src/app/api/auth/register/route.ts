@@ -5,6 +5,7 @@ import { createSession, isReservedUsername } from "@/lib/auth/session";
 import { firstIssue, registerSchema } from "@/lib/community";
 import { getDb } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
+import { readJson } from "@/lib/server/body";
 import { forbidden, sameOrigin, tooMany } from "@/lib/server/guard";
 import { clientIp, rateLimit } from "@/lib/server/rate-limit";
 
@@ -13,7 +14,9 @@ export async function POST(req: Request) {
   const rl = rateLimit(`register:${clientIp(req)}`, 5, 60 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
 
-  const parsed = registerSchema.safeParse(await req.json().catch(() => null));
+  const body = await readJson(req);
+  if (body instanceof Response) return body;
+  const parsed = registerSchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: firstIssue(parsed.error) }, { status: 400 });
   const { username, email, password, displayName } = parsed.data;
   if (isReservedUsername(username)) return Response.json({ error: "That username is reserved" }, { status: 409 });

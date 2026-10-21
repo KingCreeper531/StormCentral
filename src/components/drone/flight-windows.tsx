@@ -17,7 +17,8 @@ export interface FlightHour {
   i: number;
   t: number;
   atAlt: WindSample | null;
-  gustAtAlt: number;
+  /** Null when the forecast has no gusts. */
+  gustAtAlt: number | null;
   result: ScoreResult;
 }
 

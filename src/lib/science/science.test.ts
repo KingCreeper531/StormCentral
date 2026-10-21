@@ -35,7 +35,15 @@ describe("wind", () => {
     expect(w.speedMs).toBeGreaterThan(5);
     expect(w.speedMs).toBeLessThan(9);
     expect(windAtHeight(profile, 2)!.speedMs).toBeLessThan(5);
-    expect(windAtHeight(profile, 500)!.speedMs).toBe(10);
+    expect(windAtHeight(profile, 500)!.speedMs).toBeCloseTo(10 * (500 / 120) ** (1 / 7));
+  });
+
+  it("extrapolates above the highest level with the power law", () => {
+    // Only 10 m wind (some models): 120 m is windier, not the same.
+    const w = windAtHeight([{ heightM: 10, speedMs: 5, dirDeg: 200 }], 120)!;
+    expect(w.speedMs).toBeCloseTo(5 * 12 ** (1 / 7));
+    expect(w).toMatchObject({ heightM: 120, dirDeg: 200 });
+    expect(windAtHeight([{ heightM: 10, speedMs: 5, dirDeg: 200 }], 10)!.speedMs).toBe(5);
   });
 });
 
@@ -137,6 +145,16 @@ describe("scores", () => {
     const r = droneFlyability({ ...calm, windAtAltitudeMs: 8 }, mini, translator("es"));
     expect(r.factors.find((f) => f.key === "wind")).toMatchObject({ label: "Viento en altitud", detail: "75% del límite de la aeronave" });
     expect(droneFlyability(calm, mini).factors[0]!.label).toBe("Wind at altitude");
+  });
+
+  it("treats missing gusts and rain chances as unknown, not calm", () => {
+    const r = droneFlyability({ ...calm, gustMs: null, precipProbPct: null }, mini);
+    expect(r.status).toBe("caution");
+    expect(r.factors.find((f) => f.key === "gust")).toMatchObject({ status: "caution", detail: "No data" });
+    expect(r.factors.find((f) => f.key === "precip")).toMatchObject({ status: "caution", detail: "No data" });
+    // Rain in the forecast still grounds it.
+    expect(droneFlyability({ ...calm, precipProbPct: null, precipMm: 1 }, mini).factors.find((f) => f.key === "precip")?.status).toBe("no-go");
+    expect(droneFlyability({ ...calm, gustMs: null }, mini, translator("es")).factors.find((f) => f.key === "gust")?.detail).toBe("Sin datos");
   });
 
   it("enforces Part 107 cloud clearance", () => {

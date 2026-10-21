@@ -3,7 +3,6 @@
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import type { ExpressionSpecification } from "maplibre-gl";
 import { useMemo, useRef } from "react";
-import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import type { TropicalStorm } from "@/lib/feeds/tropical";
 import { intensityColor } from "../../radar/tropical-list";
 import { mapAlive, SLOTS, useMapContext } from "../map-view";
@@ -25,8 +24,10 @@ const DIM: ExpressionSpecification = ["==", ["get", "dim"], 1];
  * selected, the others are dimmed.
  */
 export function TropicalLayer({ storms, selectedId, onSelect }: { storms: TropicalStorm[]; selectedId: string | null; onSelect: (id: string) => void }) {
-  // White reads on the dark basemap; the light basemap needs near-black instead.
-  const light = useResolvedTheme() === "light";
+  // White reads on the dark basemap; the light ones need near-black instead. That's the basemap on
+  // screen, not the app theme (they can differ). Switching it builds a new map, which re-adds these layers.
+  const { map, dark } = useMapContext();
+  const light = !dark;
   const fg = light ? "#111316" : "#ffffff";
   const textFg = light ? "#111316" : "#ececed";
   const halo = light ? "#ffffff" : "#000000";
@@ -163,7 +164,6 @@ export function TropicalLayer({ storms, selectedId, onSelect }: { storms: Tropic
   );
 
   // One click can hit several layers (a point inside a cone); select once, the top-most storm.
-  const { map } = useMapContext();
   const lastEvent = useRef<Event | null>(null);
   useLayerClick(HIT_LAYERS, (e) => {
     if (lastEvent.current === e.originalEvent) return;

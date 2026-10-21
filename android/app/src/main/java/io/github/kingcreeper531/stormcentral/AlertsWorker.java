@@ -61,6 +61,10 @@ public final class AlertsWorker extends Worker {
     private static final long HOUR = 3_600_000L;
 
     private static final String SEEN_ALERTS = "native-seen-alerts";
+    /** How dangerous each seen warning was (dangerLevel), to tell an update that escalates it. */
+    private static final String SEEN_ALERT_LEVELS = "native-seen-alert-levels";
+    /** One check at a time: the app asks for one when it opens while the periodic one may be running. */
+    private static final Object RUN_LOCK = new Object();
     private static final String SEEN_REPORTS = "native-seen-reports";
     private static final String LIGHTNING_AT = "native-lightning-at";
     private static final String BRIEFING_DAY = "native-briefing-day";
@@ -97,9 +101,17 @@ public final class AlertsWorker extends Worker {
         Notifier.ensureChannels(ctx);
         String result;
         try {
-            result = runChecks(ctx, System.currentTimeMillis());
+            synchronized (RUN_LOCK) {
+                result = runChecks(ctx, System.currentTimeMillis());
+            }
         } catch (Exception e) {
             result = "error: " + e.getClass().getSimpleName();
+        }
+        // The background runner may have written a new warning into the widget snapshot: show it now.
+        try {
+            WeatherWidgetProvider.updateAll(ctx);
+        } catch (Exception ignored) {
+            // No widgets, or none placed.
         }
         // Stored as text: the background runner shares this file and reads only strings.
         prefs(ctx).edit().putString(LAST_RUN, String.valueOf(System.currentTimeMillis())).putString(LAST_RESULT, result).apply();
@@ -279,9 +291,35 @@ public final class AlertsWorker extends Worker {
         return "other";
     }
 
-    /** Returns {active matching warnings, notifications sent}. */
+    /** The first value of a CAP parameter, or "". */
+    private static String param(JSONObject params, String key) {
+        JSONArray a = params == null ? null : params.optJSONArray(key);
+        return a == null || a.length() == 0 || a.isNull(0) ? "" : a.optString(0, "");
+    }
+
+    /**
+     * 0 none, 1 tornado observed, 2 PDS or destructive or considerable, 3 tornado or flash flood emergency
+     * (dangerLevel in lib/alerting/engine.ts).
+     */
+    private static int dangerLevel(JSONObject props, String text) {
+        JSONObject params = props.optJSONObject("parameters");
+        String tornado = param(params, "tornadoDamageThreat");
+        String tstm = param(params, "thunderstormDamageThreat");
+        String flood = param(params, "flashFloodDamageThreat");
+        if (text.contains("TORNADO EMERGENCY") || text.contains("FLASH FLOOD EMERGENCY") || "CATASTROPHIC".equals(tornado) || "CATASTROPHIC".equals(flood)) return 3;
+        if (text.contains("PARTICULARLY DANGEROUS SITUATION") || "CONSIDERABLE".equals(tornado) || "DESTRUCTIVE".equals(tstm)
+                || "CONSIDERABLE".equals(tstm) || "CONSIDERABLE".equals(flood)) return 2;
+        return "OBSERVED".equals(param(params, "tornadoDetection")) ? 1 : 0;
+    }
+
+    /**
+     * Returns {active matching warnings, notifications sent}. NWS sends each update of a warning with a new id
+     * that references the earlier ones: an update of one already told about stays quiet, unless it got more
+     * dangerous.
+     */
     private static int[] checkWarnings(Context ctx, JSONObject cfg, JSONObject settings, Place p, long now) throws Exception {
-        String url = "https://api.weather.gov/alerts/active?status=actual&point=" + fmt(p.lat) + "," + fmt(p.lon);
+        // Not cancellations: they carry the warning's event but end it.
+        String url = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&point=" + fmt(p.lat) + "," + fmt(p.lon);
         JSONObject res = new JSONObject(get(url, "application/geo+json"));
         JSONArray features = res.optJSONArray("features");
         if (features == null) return new int[] {0, 0};
@@ -289,13 +327,14 @@ public final class AlertsWorker extends Worker {
         JSONObject cats = settings.optJSONObject("categories");
 
         JSONObject seen = readJson(ctx, SEEN_ALERTS);
+        JSONObject levels = readJson(ctx, SEEN_ALERT_LEVELS);
         int active = 0;
         int sent = 0;
         for (int i = 0; i < features.length(); i++) {
             JSONObject props = features.optJSONObject(i) == null ? null : features.optJSONObject(i).optJSONObject("properties");
             if (props == null) continue;
             String event = str(props, "event");
-            if (event.isEmpty() || event.toLowerCase(Locale.US).contains("test message")) continue;
+            if (event.isEmpty() || event.toLowerCase(Locale.US).contains("test message") || "Cancel".equalsIgnoreCase(str(props, "messageType"))) continue;
             String text = (str(props, "description") + " " + str(props, "headline")).toUpperCase(Locale.US);
             boolean emergency = text.contains("TORNADO EMERGENCY") || text.contains("FLASH FLOOD EMERGENCY");
             boolean isWarning = event.matches("(?i).*(warning|emergency).*") || emergency;
@@ -309,6 +348,15 @@ public final class AlertsWorker extends Worker {
             String key = (alertId.isEmpty() ? event + str(props, "sent") : alertId) + "@" + p.id;
             if (seen.has(key)) continue;
             seen.put(key, ends == WeatherWidgetData.NO_TIME ? now + 6 * HOUR : ends);
+            int level = dangerLevel(props, text);
+            int was = -1;
+            JSONArray refs = props.optJSONArray("references");
+            for (int r = 0; refs != null && r < refs.length(); r++) {
+                String ref = str(refs.optJSONObject(r), "identifier");
+                if (!ref.isEmpty() && seen.has(ref + "@" + p.id)) was = Math.max(was, levels.optInt(ref + "@" + p.id, 0));
+            }
+            levels.put(key, Math.max(level, was));
+            if (was >= 0 && level <= was) continue;
 
             boolean es = Lang.spanish(cfg);
             StringBuilder body = new StringBuilder();
@@ -328,7 +376,14 @@ public final class AlertsWorker extends Worker {
             if (seen.optLong(k, 0) + HOUR < now) stale.add(k);
         }
         for (String k : stale) seen.remove(k);
+        List<String> gone = new ArrayList<>();
+        for (Iterator<String> lv = levels.keys(); lv.hasNext(); ) {
+            String k = lv.next();
+            if (!seen.has(k)) gone.add(k);
+        }
+        for (String k : gone) levels.remove(k);
         writeJson(ctx, SEEN_ALERTS, seen);
+        writeJson(ctx, SEEN_ALERT_LEVELS, levels);
         return new int[] {active, sent};
     }
 
@@ -406,7 +461,13 @@ public final class AlertsWorker extends Worker {
         int sent = 0;
         for (Place p : places) {
             String url = base + "/api/posts?sort=nearby&lat=" + fmt(p.lat) + "&lon=" + fmt(p.lon) + "&radiusKm=" + Math.round(radiusKm);
-            JSONArray posts = new JSONObject(get(url, "application/json")).optJSONArray("posts");
+            JSONArray posts;
+            try {
+                posts = new JSONObject(get(url, "application/json")).optJSONArray("posts");
+            } catch (Exception e) {
+                // This place's request failed; the others' reports, and what's been told, still count.
+                continue;
+            }
             if (posts == null) continue;
             for (int i = 0; i < posts.length(); i++) {
                 JSONObject post = posts.optJSONObject(i);
@@ -658,7 +719,13 @@ public final class AlertsWorker extends Worker {
         String windUnit = units == null ? "mph" : units.optString("wind", "mph");
         int sent = 0;
         for (Place p : places) {
-            JSONArray storms = new JSONObject(get(server + "/api/storm-eta?lat=" + fmt(p.lat) + "&lon=" + fmt(p.lon), "application/json")).optJSONArray("storms");
+            JSONArray storms;
+            try {
+                storms = new JSONObject(get(server + "/api/storm-eta?lat=" + fmt(p.lat) + "&lon=" + fmt(p.lon), "application/json")).optJSONArray("storms");
+            } catch (Exception e) {
+                // This place's request failed; the others' storms, and what's been told, still count.
+                continue;
+            }
             JSONObject s = storms == null ? null : storms.optJSONObject(0);
             if (s == null) continue;
             String key = p.id + ":" + str(s, "id");
@@ -761,6 +828,14 @@ public final class AlertsWorker extends Worker {
                 String what = str(a, "postPreview");
                 if (what.length() > 60) what = what.substring(0, 57) + "…";
                 body = what.isEmpty() ? Lang.pick(es, "Your report is being confirmed by spotters nearby.", "Observadores cercanos están confirmando tu reporte.") : "“" + what + "”";
+            } else if ("nws".equals(str(a, "kind"))) {
+                title = Lang.pick(es, "The NWS confirmed your report", "El NWS confirmó tu reporte");
+                String what = str(a, "postPreview");
+                if (what.length() > 60) what = what.substring(0, 57) + "…";
+                // 5 is NWS_BONUS in lib/nws-match.ts.
+                String counts = Lang.pick(es, "It matches an official NWS storm report and counts as 5 confirmations.",
+                        "Coincide con un reporte oficial de tormenta del NWS y cuenta como 5 confirmaciones.");
+                body = what.isEmpty() ? counts : "“" + what + "” " + counts;
             } else {
                 title = Lang.fill(Lang.pick(es, "{who} commented on your report", "{who} comentó tu reporte"), "who", who);
                 body = str(a, "text").replaceAll("\\s+", " ").trim();

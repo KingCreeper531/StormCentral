@@ -57,7 +57,7 @@ export const alertsFeed: Feed<AlertsResponse | AlertTextResponse> = {
     if (!p) throw badParams("lat/lon required");
     const point = `${p.lat.toFixed(3)},${p.lon.toFixed(3)}`;
     return cached(`alerts:${point}`, 60_000, async () => {
-      const raw = await upstreamJson<{ features?: RawAlertFeature[] }>(`${NWS}?status=actual&point=${point}`, { headers: HEADERS });
+      const raw = await upstreamJson<{ features?: RawAlertFeature[] }>(`${NWS}?status=actual&message_type=alert,update&point=${point}`, { headers: HEADERS });
       return { alerts: normalizeAlerts(raw.features ?? []), updated: new Date().toISOString() };
     });
   },

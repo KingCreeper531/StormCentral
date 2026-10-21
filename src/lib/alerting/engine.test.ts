@@ -97,6 +97,31 @@ describe("checkWarnings", () => {
     expect((await checkWarnings(cfg(), io)).sent).toHaveLength(0);
   });
 
+  it("stays quiet for an update of a warning already notified, unless it got more dangerous", async () => {
+    const original = alert("urn:1", "Tornado Warning", { tags: ["OBSERVED"] });
+    const update = alert("urn:2", "Tornado Warning", { tags: ["OBSERVED"], references: ["urn:1"] });
+    const emergency = alert("urn:3", "Tornado Warning", { tags: ["TORNADO EMERGENCY", "OBSERVED"], references: ["urn:2", "urn:1"] });
+    const later = alert("urn:4", "Tornado Warning", { tags: ["TORNADO EMERGENCY"], references: ["urn:3"] });
+    const one = cfg().places.slice(0, 1);
+    const feed: Record<string, WeatherAlert[]> = { "35.22": [original] };
+    const { io } = fakeIO(feed);
+    expect((await checkWarnings({ ...cfg(), places: one }, io)).sent).toHaveLength(1);
+    // NWS replaces the warning with an update (new id): nothing new to say.
+    feed["35.22"] = [update];
+    expect((await checkWarnings({ ...cfg(), places: one }, io)).sent).toHaveLength(0);
+    // Upgraded to a tornado emergency: say so.
+    feed["35.22"] = [emergency];
+    const up = (await checkWarnings({ ...cfg(), places: one }, io)).sent;
+    expect(up).toHaveLength(1);
+    expect(up[0]!.body).toMatch(/^Tornado emergency/);
+    // Updated again at the same level: quiet.
+    feed["35.22"] = [later];
+    expect((await checkWarnings({ ...cfg(), places: one }, io)).sent).toHaveLength(0);
+    // A different warning is still news.
+    feed["35.22"] = [alert("urn:9", "Tornado Warning")];
+    expect((await checkWarnings({ ...cfg(), places: one }, io)).sent).toHaveLength(1);
+  });
+
   it("caps a burst at five notifications", async () => {
     const many = Array.from({ length: 8 }, (_, i) => alert(`w${i}`, "Severe Thunderstorm Warning"));
     const { io } = fakeIO({ "35.22": many });

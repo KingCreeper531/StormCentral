@@ -51,9 +51,10 @@ export function flyabilityAt(f: Forecast, i: number, o: FlyabilityInputs) {
   const t = f.hourly.time[i]! * 1000;
   const prof = windProfileAt(f, i);
   const atAlt = windAtHeight(prof, o.altitudeM);
-  const gust = f.hourly.gust10[i] ?? 0;
+  // Missing gusts or rain chances (some models have none) stay unknown: a caution, not calm.
+  const gust = f.hourly.gust10[i] ?? null;
   // Gusts scale up with height roughly like the mean wind does.
-  const gustAtAlt = atAlt && prof[0] ? gust * Math.max(1, atAlt.speedMs / Math.max(0.5, prof[0].speedMs)) : gust;
+  const gustAtAlt = gust != null && atAlt && prof[0] ? gust * Math.max(1, atAlt.speedMs / Math.max(0.5, prof[0].speedMs)) : gust;
   const ceiling = estimateCeiling({
     tempC: f.hourly.temp[i] ?? 15,
     dewPointC: f.hourly.dewPoint[i] ?? 5,
@@ -65,7 +66,7 @@ export function flyabilityAt(f: Forecast, i: number, o: FlyabilityInputs) {
     {
       windAtAltitudeMs: atAlt?.speedMs ?? f.hourly.wind10[i] ?? 0,
       gustMs: gustAtAlt,
-      precipProbPct: f.hourly.precipProb[i] ?? 0,
+      precipProbPct: f.hourly.precipProb[i] ?? null,
       precipMm: f.hourly.precip[i] ?? 0,
       visibilityM: f.hourly.visibility[i] ?? null,
       ceilingM: ceiling.baseM,

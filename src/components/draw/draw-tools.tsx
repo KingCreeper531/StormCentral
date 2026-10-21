@@ -3,7 +3,7 @@
 import type { Map as MlMap } from "maplibre-gl";
 import { ArrowUpRight, Circle, Eraser, Hand, Minus, PenLine, Radio, Redo2, Type, Undo2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useHotkeys } from "@/hooks/use-hotkeys";
+import { isTyping, useHotkeys } from "@/hooks/use-hotkeys";
 import { DRAW_COLORS, DRAW_WIDTHS, simplify, type DrawKind, type LonLat } from "@/lib/draw/shapes";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
@@ -84,7 +84,8 @@ export function DrawCanvas({ map }: { map: MlMap | null }) {
     labelRef.current = label;
   });
 
-  // Keep the canvas at the element's size, sharp on high-density screens.
+  // Keep the canvas at the element's size, sharp on high-density screens. It's
+  // only there once a tool is picked and the map exists.
   useEffect(() => {
     const c = canvas.current;
     if (!c) return;
@@ -97,7 +98,7 @@ export function DrawCanvas({ map }: { map: MlMap | null }) {
     const ro = new ResizeObserver(fit);
     ro.observe(c);
     return () => ro.disconnect();
-  }, [tool]);
+  }, [tool, map]);
 
   if (!tool || !map) return null;
   const local = (e: React.PointerEvent) => {
@@ -119,6 +120,8 @@ export function DrawCanvas({ map }: { map: MlMap | null }) {
     if (tool === "text") {
       // No mouse events after this, so the click doesn't take the focus from the new field.
       e.preventDefault();
+      // Nor from an open one, which then never blurs: place what was typed there first.
+      if (labelRef.current) placeLabel();
       setLabel({ at: p, text: "" });
       return;
     }
@@ -199,8 +202,9 @@ export function DrawToolbar({ presenter, airStatus, side = "right" }: { presente
   const s = useDrawStore();
   const keys: Record<string, (e: KeyboardEvent) => void> = {
     Escape: () => (s.tool ? s.setTool(null) : s.setOpen(false)),
-    "mod+z": (e: KeyboardEvent) => (e.shiftKey ? s.redo() : s.undo()),
-    "mod+y": s.redo,
+    // Not while typing: a text field's own undo has those keys.
+    "mod+z": (e: KeyboardEvent) => !isTyping(e.target) && (e.shiftKey ? s.redo() : s.undo()),
+    "mod+y": (e: KeyboardEvent) => !isTyping(e.target) && s.redo(),
   };
   for (const tool of TOOLS) keys[tool.key] = () => s.setTool(tool.id);
   useHotkeys(keys);

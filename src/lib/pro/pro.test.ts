@@ -1,11 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { destination, haversineKm } from "../geo";
 import { FAMILIES } from "../radar/products";
 import { ibwDetails, ibwSection } from "./ibw";
-import { parseProfile, PROFILE_LEVELS, transect, type OpenMeteoProfile } from "./model";
+import { modelPoint, parseProfile, PROFILE_LEVELS, transect, type OpenMeteoProfile } from "./model";
 import { isProProductId, PRO_PRODUCT_IDS, PRO_PRODUCTS, productUsable, satelliteFrames, shownProduct } from "./products";
-import { fillTileUrl, pixelAt, tileBbox, tileZoom, valueFromColor } from "./sample";
-import { arrivals, motionFrom, stormMotion, toaFan } from "./storm-tools";
+import { fillTileUrl, pixelAt, tileBbox, tileZoom, valueFromColor, wrapLon } from "./sample";
+import { arrivals, minutesUntil, motionFrom, stormMotion, toaFan } from "./storm-tools";
 import { frameAt, syncTime } from "./sync";
 
 describe("sync clock", () => {
@@ -50,6 +50,15 @@ describe("sampling", () => {
     expect(tileZoom(12, 256, 8)).toBe(8);
   });
 
+  it("reads points on the world's copies from the one world", () => {
+    expect(pixelAt(-215, 40, 3, 256)).toEqual(pixelAt(145, 40, 3, 256));
+    expect(pixelAt(180, 0, 1, 256).tx).toBe(0);
+    expect(wrapLon(-215)).toBeCloseTo(145, 9);
+    expect(wrapLon(-97)).toBe(-97);
+    // An image's own longitudes: wrapped to start at its west edge.
+    expect(wrapLon(-170, 150)).toBeCloseTo(190, 9);
+  });
+
   it("reads values back from scale colours, interpolating between stops", () => {
     const ref = FAMILIES.reflectivity.legend;
     expect(valueFromColor([0xfd, 0x00, 0x00], ref)!.value).toBeCloseTo(50, 0);
@@ -91,6 +100,15 @@ describe("storm tools", () => {
     expect(r[0]!.inPath).toBe(true);
     expect(r[0]!.minutes).toBeCloseTo(30, 0);
     expect(r[1]!.inPath).toBe(false);
+  });
+
+  it("counts arrivals from now, not from the pick", () => {
+    const m = stormMotion(a, b)!;
+    const [r] = arrivals(m, [{ ...destination(m.origin, 60, 37), name: "ahead" }]);
+    // Picked on a frame 10 minutes ago: 20 minutes left.
+    expect(minutesUntil(r!, m.origin.t + 10 * 60_000)).toBeCloseTo(20, 0);
+    // 40 minutes on, it's passed.
+    expect(minutesUntil(r!, m.origin.t + 40 * 60_000)).toBeLessThan(0);
   });
 });
 
@@ -155,6 +173,30 @@ describe("model profiles", () => {
   it("spaces transect points evenly", () => {
     const pts = transect({ lat: 30, lon: -100 }, { lat: 40, lon: -90 }, 11);
     expect(pts[5]).toEqual({ lat: 35, lon: -95 });
+  });
+
+  it("shares a point's request without one caller's abort failing the others", async () => {
+    let answer = () => {};
+    const fetch = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal!.reason));
+          answer = () => resolve(new Response(JSON.stringify(fake(370, 970))));
+        }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    try {
+      const hover = new AbortController();
+      const first = modelPoint({ lat: 12.34, lon: 56.78 }, hover.signal);
+      const second = modelPoint({ lat: 12.34, lon: 56.78 }, new AbortController().signal);
+      hover.abort();
+      await expect(first).rejects.toMatchObject({ name: "AbortError" });
+      answer();
+      await expect(second).resolves.toMatchObject({ elevation: 370 });
+      expect(fetch).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

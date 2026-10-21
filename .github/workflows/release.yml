@@ -267,7 +267,11 @@ jobs:
   #   https://<owner>.github.io/<repo>/download/<version>/StormCentral-Setup-<version>.exe
   # One-time setup: Settings → Pages → Source: GitHub Actions. Files are
   # deployed as a Pages artifact, not committed, so git's 100 MB file limit
-  # doesn't apply.
+  # doesn't apply. The github-pages environment only lets main deploy by
+  # default: runs started from the Actions tab on main work as they are, but
+  # releasing by pushing a tag also needs a tag rule "v*" under Settings →
+  # Environments → github-pages → Deployment branches and tags, or this job
+  # is refused.
   store-download:
     name: Publish the Store download
     needs: [check, release]

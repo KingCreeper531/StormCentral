@@ -8,7 +8,7 @@ import { useT } from "@/lib/i18n/use-t";
 import { isoDateIn, normalPrecipOver, normalPrecipToDate, slotOf, type ClimateTable } from "@/lib/climate";
 import { rainTotals } from "@/lib/rainfall";
 import { cn } from "@/lib/utils";
-import { fmtIn, todayIndex } from "@/lib/weather/view";
+import { dayFmtIn, todayIndex } from "@/lib/weather/view";
 import { Skeleton, Stat } from "../ui/misc";
 import { Panel } from "../ui/panel";
 
@@ -33,7 +33,7 @@ function DepartureStrip({ f, c, now }: { f: Forecast; c: ClimateTable; now: numb
   const t = useT();
   const fmt = useFormat();
   const di = todayIndex(f, now);
-  const dayFmt = fmtIn(f.timezone, { weekday: "short" }, t.locale);
+  const dayFmt = dayFmtIn(f.timezone, { weekday: "short" }, t.locale);
   const days = [];
   for (let i = di; i < Math.min(f.daily.time.length, di + 7); i++) {
     const time = f.daily.time[i]! * 1000;
@@ -104,7 +104,7 @@ export function ClimatePanel({ f, now, className }: { f: Forecast; now: number; 
   const diff = hi != null && nHi != null ? hi - nHi : null;
   const nearHi = hi != null && rHi != null && hi >= rHi - 1;
   const nearLo = lo != null && rLo != null && lo <= rLo + 1;
-  const dateLabel = fmtIn(f.timezone, { month: "long", day: "numeric" }, t.locale).format(now);
+  const dateLabel = dayFmtIn(f.timezone, { month: "long", day: "numeric" }, t.locale).format(now);
 
   const totals = recent.data ? rainTotals(recent.data, now) : null;
   const normalMonth = normalPrecipToDate(c, iso);
@@ -112,7 +112,7 @@ export function ClimatePanel({ f, now, className }: { f: Forecast; now: number; 
   const pct = (v: number | null | undefined, n: number | null | undefined) => (v != null && n != null && n > 0.5 ? Math.round((v / n) * 100) : null);
   const monthPct = pct(totals?.monthToDate, normalMonth?.toDate);
   const d30Pct = pct(totals?.last30d, normal30);
-  const monthName = fmtIn(f.timezone, { month: "long" }, t.locale).format(now);
+  const monthName = dayFmtIn(f.timezone, { month: "long" }, t.locale).format(now);
   const norm = (value: string) => t("Normal {value}", { value });
 
   return (

@@ -61,7 +61,7 @@ function notify(n: AppNotification) {
 const io: EngineIO = {
   now: () => Date.now(),
   fetchAlerts: async (lat, lon) => {
-    const raw = (await getJson(`https://api.weather.gov/alerts/active?status=actual&point=${lat.toFixed(3)},${lon.toFixed(3)}`, {
+    const raw = (await getJson(`https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&point=${lat.toFixed(3)},${lon.toFixed(3)}`, {
       Accept: "application/geo+json",
     })) as { features?: RawAlertFeature[] };
     return normalizeAlerts(raw.features ?? []);

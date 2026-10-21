@@ -33,6 +33,8 @@ export interface EngineIO {
 }
 
 const SEEN_KEY = "seen-alerts";
+/** How dangerous each seen warning was (dangerLevel), to tell an update that escalates it. */
+const LEVEL_KEY = "seen-alert-levels";
 const FIRED_KEY = "fired-rules";
 /** At most this many warning notifications per check; the rest are marked seen. */
 const MAX_PER_CHECK = 5;
@@ -93,12 +95,26 @@ export interface WarningCheckResult {
   alerts: Map<string, WeatherAlert[]>;
 }
 
-/** Notify about alerts that are new since the last check, once per alert and place. */
+/** 0 none, 1 tornado observed, 2 PDS or destructive or considerable, 3 tornado or flash flood emergency. */
+export function dangerLevel(a: WeatherAlert): number {
+  if (a.tags.includes("TORNADO EMERGENCY") || a.tags.includes("FLASH FLOOD EMERGENCY")) return 3;
+  if (a.tags.some((t) => t === "PDS" || t === "DESTRUCTIVE" || t === "CONSIDERABLE")) return 2;
+  return a.tags.includes("OBSERVED") ? 1 : 0;
+}
+
+/**
+ * Notify about alerts that are new since the last check, once per alert and
+ * place. NWS sends each update of a warning (every 10–20 minutes, or when it's
+ * extended) with a new id that references the earlier ones: an update of one
+ * already told about stays quiet, unless it got more dangerous (a tornado
+ * emergency, PDS, a tornado observed).
+ */
 export async function checkWarnings(cfg: WatchConfig, io: EngineIO): Promise<WarningCheckResult> {
   const alerts = new Map<string, WeatherAlert[]>();
   const sent: AppNotification[] = [];
   const now = io.now();
   const seen = readJson<Record<string, number>>(io, SEEN_KEY, {});
+  const levels = readJson<Record<string, number>>(io, LEVEL_KEY, {});
   const fresh: { a: WeatherAlert; place: SavedPlace }[] = [];
 
   for (const place of cfg.places) {
@@ -116,6 +132,11 @@ export async function checkWarnings(cfg: WatchConfig, io: EngineIO): Promise<War
       if (seen[key] || !alertMatchesLevel(a, cfg.settings.level) || cfg.settings.categories?.[alertCategory(a.event)] === false) continue;
       const ends = Date.parse(a.ends ?? a.expires);
       seen[key] = Number.isFinite(ends) ? ends : now + 6 * 3_600_000;
+      const level = dangerLevel(a);
+      const earlier = (a.references ?? []).map((r) => `${r}@${place.id}`).filter((k) => seen[k]);
+      const was = earlier.length ? Math.max(...earlier.map((k) => levels[k] ?? 0)) : -1;
+      levels[key] = Math.max(level, was);
+      if (was >= 0 && level <= was) continue;
       if (!Number.isFinite(ends) || ends > now) fresh.push({ a, place });
     }
   }
@@ -128,7 +149,9 @@ export async function checkWarnings(cfg: WatchConfig, io: EngineIO): Promise<War
   }
   // Forget alerts an hour after they end.
   for (const [k, ends] of Object.entries(seen)) if (ends + 3_600_000 < now) delete seen[k];
+  for (const k of Object.keys(levels)) if (!(k in seen)) delete levels[k];
   io.kvSet(SEEN_KEY, JSON.stringify(seen));
+  io.kvSet(LEVEL_KEY, JSON.stringify(levels));
   return { sent, alerts };
 }
 
@@ -225,8 +248,9 @@ const WIDGET_HOURS = 6;
 function widgetForecast(f: Forecast, now: number): Pick<WidgetSnapshot, "days" | "hours"> {
   const days: NonNullable<WidgetSnapshot["days"]> = [];
   for (let i = todayIndex(f, now); i < f.daily.time.length && days.length < WIDGET_DAYS; i++) {
-    // daily.time is the place's local midnight; shifting by the offset gives that date in UTC.
-    const date = new Date((f.daily.time[i]! + f.utcOffsetSeconds) * 1000).toISOString().slice(0, 10);
+    // daily.time is the place's local midnight; shifted by the offset it's that date in UTC. Read at midday, so a
+    // day after a daylight-saving change (another offset than today's) still lands on its own date.
+    const date = new Date((f.daily.time[i]! + f.utcOffsetSeconds + 43_200) * 1000).toISOString().slice(0, 10);
     days.push({ date, code: f.daily.code[i] ?? null, hiC: f.daily.tMax[i] ?? null, loC: f.daily.tMin[i] ?? null });
   }
   const hours: NonNullable<WidgetSnapshot["hours"]> = [];

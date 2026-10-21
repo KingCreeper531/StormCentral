@@ -102,3 +102,6 @@ export function arrivals(m: Motion, points: readonly (LatLon & { name: string })
   }
   return out.sort((a, b) => Number(b.inPath) - Number(a.inPath) || a.minutes - b.minutes);
 }
+
+/** Minutes from `now` (not from the pick, which may be a loop frame long ago) to an arrival; negative once it's passed. */
+export const minutesUntil = (a: Pick<Arrival, "at">, now: number) => (a.at - now) / 60_000;

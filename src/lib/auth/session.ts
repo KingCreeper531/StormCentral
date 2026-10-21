@@ -26,7 +26,7 @@ export interface SessionUser {
   displayName: string;
   avatarHue: number;
   avatarUrl: string | null;
-  /** Listed in MODERATORS: sees the moderation queue and can act on it. */
+  /** Listed in MODERATORS and not suspended: sees the moderation queue and can act on it. */
   moderator: boolean;
   /** Set while a moderator has suspended the account. */
   suspendedUntil: number | null;
@@ -128,14 +128,16 @@ export async function getSessionUser(opts: { refresh?: boolean } = {}): Promise<
     await db.update(sessions).set({ expiresAt }).where(eq(sessions.id, id));
     await setCookie(token, expiresAt);
   }
+  const suspendedUntil = row.suspendedUntil != null && row.suspendedUntil > now ? row.suspendedUntil : null;
   return {
     id: row.id,
     username: row.username,
     displayName: row.displayName,
     avatarHue: row.avatarHue,
     avatarUrl: avatarUrl(row.avatarMediaId),
-    moderator: isModerator(row.username),
-    suspendedUntil: row.suspendedUntil != null && row.suspendedUntil > now ? row.suspendedUntil : null,
+    // A suspended moderator has no moderator powers (and so can't lift their own suspension).
+    moderator: isModerator(row.username) && suspendedUntil == null,
+    suspendedUntil,
   };
 }
 
