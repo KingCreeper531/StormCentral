@@ -144,6 +144,64 @@ describe("layerGroup", () => {
   });
 });
 
+/** CARTO's styles on Protomaps tiles (as served from October 2026): same layer ids, Protomaps' source layers. */
+const PROTOMAPS: BaseLayer[] = [
+  { id: "background", type: "background" },
+  { id: "landcover", type: "fill", "source-layer": "landuse" },
+  { id: "road_path_areas", type: "line", "source-layer": "landuse" },
+  { id: "waterway", type: "line", "source-layer": "water" },
+  { id: "water", type: "fill", "source-layer": "water" },
+  { id: "watername_lake", type: "symbol", "source-layer": "water" },
+  { id: "boundary_county", type: "line", "source-layer": "boundaries", filter: ["==", ["get", "kind"], "county"] },
+  { id: "boundary_state", type: "line", "source-layer": "boundaries", filter: ["==", ["get", "kind_detail"], 4] },
+  { id: "boundary_country_inner", type: "line", "source-layer": "boundaries", filter: ["==", ["get", "kind"], "country"] },
+  { id: "aeroway-runway", type: "line", "source-layer": "roads", filter: ["all", ["==", ["get", "kind"], "aeroway"]] },
+  { id: "tunnel_minor_case", type: "line", "source-layer": "roads", filter: ["!", ["in", ["get", "kind"], ["literal", ["path", "highway", "major_road"]]]] },
+  { id: "road_sec_fill_noramp", type: "line", "source-layer": "roads" },
+  { id: "road_pri_case_ramp", type: "line", "source-layer": "roads" },
+  { id: "bridge_trunk_fill", type: "line", "source-layer": "roads" },
+  { id: "road_mot_fill_noramp", type: "line", "source-layer": "roads" },
+  { id: "rail", type: "line", "source-layer": "roads" },
+  { id: "roadname_minor", type: "symbol", "source-layer": "roads" },
+  { id: "building", type: "fill", "source-layer": "buildings" },
+  { id: "housenumber", type: "symbol", "source-layer": "buildings" },
+  { id: "poi_park", type: "symbol", "source-layer": "pois" },
+  { id: "place_town", type: "symbol", "source-layer": "places" },
+];
+
+describe("layerGroup on Protomaps tiles", () => {
+  it("sorts the same layers by what they draw", () => {
+    expect(Object.fromEntries(PROTOMAPS.map((l) => [l.id, layerGroup(l)]))).toEqual({
+      background: "land",
+      landcover: "landcover",
+      road_path_areas: "landcover",
+      waterway: "waterways",
+      water: "water",
+      watername_lake: "waterLabels",
+      boundary_county: "counties",
+      boundary_state: "states",
+      boundary_country_inner: "countries",
+      "aeroway-runway": "roadsMinor",
+      // A negated list of major kinds is still a minor road.
+      tunnel_minor_case: "roadsMinor",
+      road_sec_fill_noramp: "roadsMinor",
+      road_pri_case_ramp: "roadsMajor",
+      bridge_trunk_fill: "roadsMajor",
+      road_mot_fill_noramp: "roadsMajor",
+      rail: "roadsMinor",
+      roadname_minor: "roadLabels",
+      building: "buildings",
+      housenumber: "poiLabels",
+      poi_park: "poiLabels",
+      place_town: "placeLabels",
+    });
+  });
+
+  it("puts the county lines under the same layer as before", () => {
+    expect(insertionPoints(PROTOMAPS).counties).toBeDefined();
+  });
+});
+
 describe("scaleSize", () => {
   it("scales numbers, legacy zoom functions and zoom curves", () => {
     expect(scaleSize(1.2, 2, 1)).toBe(2.4);
