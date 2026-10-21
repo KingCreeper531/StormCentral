@@ -6,6 +6,7 @@ import { isDefaultStyle, LIMITS, type BasemapId, type CountyMode, type LineStyle
 import { cn } from "@/lib/utils";
 import { useMapStyleStore } from "@/store/map-style-store";
 import { Button } from "../ui/button";
+import { MapPresets } from "./map-presets";
 import { Toggle } from "../ui/misc";
 import { Segmented } from "../ui/segmented";
 
@@ -95,6 +96,7 @@ export function MapStyleControls() {
 
   return (
     <div className="space-y-4">
+      <MapPresets />
       <div>
         <p className="label mb-1.5">{t("Basemap")}</p>
         <Segmented<BasemapId>

@@ -14,6 +14,9 @@ export const IS_STATIC_BUNDLE = process.env.NEXT_PUBLIC_BUILD_TARGET === "mobile
 /** Accounts and reports need the server and its database. */
 export const COMMUNITY_ENABLED = !IS_STATIC_BUNDLE;
 
+/** The hosted web app, for links people share (the apps' own addresses aren't reachable from elsewhere). */
+export const PUBLIC_APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://app.stormcentralwx.com").replace(/\/+$/, "");
+
 /** `owner/name` of the GitHub repository that publishes releases (set per fork by CI). */
 export const GITHUB_REPO = process.env.NEXT_PUBLIC_GITHUB_REPO || "KingCreeper531/StormCentral";
 
