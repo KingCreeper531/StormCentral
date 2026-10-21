@@ -296,7 +296,7 @@ Decoding runs in a pool of Web Workers (`decode.worker.ts`), which hand back the
 **Pro data server** (`pro-server/`, optional). Some products need channel math or GRIB2 decoding on files too big for a browser:
 - GOES Day Cloud Phase Distinction, Nighttime Microphysics (night fog) and IR Sandwich from raw ABI bands.
 - MRMS hail size (MESH), rotation tracks and VIL.
-- Lightning: every GOES GLM flash of the last 15 minutes from GOES-East and -West (`lightning.json`), which the radar map draws as bolts coloured by age. Without a server the map puts a bolt on each cell of nowCOAST's strike-density grid instead (`boltsFromDensity`).
+- Lightning: every GOES GLM flash of the last 15 minutes from GOES-East and -West (`lightning.json`), which the radar map draws as bolts coloured by age. Without a server the map shows nowCOAST's strike-density grid itself, ~8 km squares in nowCOAST's colours: it doesn't say where in a square the strikes were, and a bolt per square lined up in rows that looked like strikes.
 
 A small Python service renders them on a schedule (satpy for the RGB recipes, GRIB2 decoding for MRMS). It publishes `index.json` plus Web Mercator PNGs, built to run on a free Oracle Cloud VM. Memory stays flat over long runs: the freed heap goes back to the OS after every frame, everything it keeps (frames, flashes, files seen) is pruned as it goes, and past a memory limit it restarts itself cleanly between cycles. The app gets its address at build time (`NEXT_PUBLIC_PRO_SERVER` on Vercel, the `PRO_SERVER_URL` variable in the release workflow), so every user has the products once one runs. Until then they're left out of the product menus, like Level II on phones, and a saved panel showing one switches to the nearest product that works.
 
