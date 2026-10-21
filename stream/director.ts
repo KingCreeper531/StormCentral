@@ -79,6 +79,8 @@ const CONFIG = {
   height: Number(env.STREAM_HEIGHT) || 720,
   // What run.sh captures; pace.ts keeps Chromium from drawing more than that.
   fps: Number(env.STREAM_FPS) || 30,
+  // A public camera beside a warned storm: off unless asked for (one more picture to fetch and draw).
+  cameras: env.STREAM_CAMERAS === "on",
   voice: env.STREAM_VOICE || "en-US-AndrewNeural",
   sink: env.STREAM_SINK || "stream",
   tmp: env.STREAM_TMP || "/tmp/stormcentral-stream",
@@ -265,9 +267,18 @@ class Director {
     log(`AI writers: ${this.writers.map((w) => w.name).join(" → ") || "none (facts read as written)"}; ${this.places.length} towns for distances.`);
     this.front = this.context.pages()[0] ?? (await this.context.newPage());
     this.back = await this.context.newPage();
+    // What draws the radar map (no GPU: SwiftShader, or Mesa's llvmpipe when it's installed), for tuning.
+    const gl = await this.front
+      .evaluate(() => {
+        const c = document.createElement("canvas").getContext("webgl2");
+        const info = c?.getExtension("WEBGL_debug_renderer_info");
+        return c ? String(c.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : c.RENDERER)) : "no WebGL2";
+      })
+      .catch((err: unknown) => errText(err));
+    log(`graphics: ${gl}`);
     const restored = this.restore();
     this.outlook = await fetchOutlook().catch(() => null);
-    [this.reports, this.cameras] = await Promise.all([fetchReports().catch(() => []), fetchCameras().catch(() => [])]);
+    [this.reports, this.cameras] = await Promise.all([fetchReports().catch(() => []), CONFIG.cameras ? fetchCameras().catch(() => []) : []]);
     for (const r of this.reports) this.readReports.add(r.id);
     this.startMode = restored ? "restart" : "first";
     await this.refresh();
@@ -428,7 +439,7 @@ class Director {
       await sleep(30_000);
       n++;
       if (n % 60 === 0) this.outlook = await fetchOutlook().catch(() => this.outlook);
-      if (n % 60 === 30) this.cameras = await fetchCameras().catch(() => this.cameras);
+      if (CONFIG.cameras && n % 60 === 30) this.cameras = await fetchCameras().catch(() => this.cameras);
       if (n % 4 === 0) await this.checkReports();
       await this.refresh();
       if (this.overlay.camera) await this.paint();
@@ -542,8 +553,8 @@ class Director {
         return { title: scene.mode === "professional" ? "PROFESSIONAL MODE" : "LIVE RADAR", subtitle: scene.name, color: scene.mode === "professional" ? ACCENT.pro : ACCENT.national };
       case "pro":
         return scene.warning
-          ? { title: "PROFESSIONAL MODE", subtitle: `Reflectivity · Velocity · Storm-relative · Composite — ${sceneText(scene.warning).subtitle}`, color: ACCENT.pro, ends: scene.warning.ends }
-          : { title: "PROFESSIONAL MODE", subtitle: `Reflectivity · Velocity · Storm-relative · Composite — ${HOME.name}`, color: ACCENT.pro };
+          ? { title: "PROFESSIONAL MODE", subtitle: `Reflectivity · Velocity — ${sceneText(scene.warning).subtitle}`, color: ACCENT.pro, ends: scene.warning.ends }
+          : { title: "PROFESSIONAL MODE", subtitle: `Reflectivity · Velocity — ${HOME.name}`, color: ACCENT.pro };
       case "warning": {
         const { title, subtitle } = sceneText(scene.warning);
         const f = stormFacts(scene.warning, this.places);
@@ -731,9 +742,33 @@ async function main() {
   await context.addInitScript(() => {
     // Dark, imperial, Professional mode on, and observed radar only (no model forecast or extrapolated
     // frames), except in the HRRR scene, which asks for the model's frames with ?scl_future=1.
+    // Only what the stream is about: radar, warnings and watches, and storm reports. Every other layer
+    // (lightning, cells and tracks, radar sites, cameras, advisories...) is more for Chromium to draw on
+    // the CPU, and more clutter on a TV-sized picture.
     const future = new URLSearchParams(location.search).get("scl_future") === "1";
-    localStorage.setItem("stormcentral:v1", JSON.stringify({ state: { professional: true, theme: "dark", units: "imperial", radar: { future, nowcast: false } }, version: 1 }));
-    localStorage.setItem("stormcentral:pro", JSON.stringify({ state: { layout: "2x2", frames: 10, speed: 1 }, version: 1 }));
+    const radar = {
+      future,
+      nowcast: false,
+      alertKinds: ["warning", "watch"],
+      showReports: false,
+      showCells: false,
+      showTracks: false,
+      showSites: false,
+      showLightning: false,
+      showTropical: false,
+      showSpotterWarnings: false,
+      showChasers: false,
+      showCams: false,
+      intlRadar: false,
+      intlAlerts: false,
+    };
+    localStorage.setItem("stormcentral:v1", JSON.stringify({ state: { professional: true, theme: "dark", units: "imperial", radar }, version: 1 }));
+    // The basemap without what a radar picture doesn't need: minor roads, buildings, land cover, and labels
+    // other than places (each label is placed again whenever the map moves).
+    const style = { roads: "major", buildings: false, landcover: false, roadLabels: false, poiLabels: false };
+    localStorage.setItem("stormcentral:map-style:v1", JSON.stringify({ state: { style }, version: 1 }));
+    // Professional mode: reflectivity and velocity side by side (two maps, not four), 6-scan loops.
+    localStorage.setItem("stormcentral:pro", JSON.stringify({ state: { layout: "1x2", frames: 6, speed: 1 }, version: 1 }));
   });
   await context.addInitScript(paceFrames, CONFIG.fps);
   const director = new Director(context);
