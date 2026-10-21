@@ -39,7 +39,8 @@ export function drawOverlay(s: OverlayState) {
     const css = d.createElement("style");
     css.textContent = `
 :root{--topbar-h:0px!important}
-header.fixed.top-0{display:none!important}
+/* The app's controls (top bar, radar playback, the layers button, zoom buttons): nothing to press on air. */
+header.fixed.top-0,[data-chrome],.maplibregl-ctrl-group{display:none!important}
 /* The dot on the scene's place (components/map/layers/user-marker): the stream names the place instead. */
 .maplibregl-marker[aria-label="Selected location"]{display:none!important}
 /* No frosted glass: every blurred panel is redone on the CPU each time the radar under it changes, and that halved

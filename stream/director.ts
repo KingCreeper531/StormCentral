@@ -32,7 +32,7 @@
  */
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { availableParallelism, homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { chromium, type BrowserContext, type Page } from "playwright-core";
@@ -81,7 +81,8 @@ const CONFIG = {
   fps: Number(env.STREAM_FPS) || 30,
   // The radar map's resolution: below 1 it's drawn smaller and scaled up to the screen, the graphics over it
   // stay sharp. Without a GPU, the map's pixels are most of what Chromium does each frame.
-  mapScale: Math.min(1, Math.max(0.5, Number(env.STREAM_MAP_SCALE) || 1)),
+  // 0.75 by default with 2 CPUs or fewer: on 2 cores it cut Chromium's graphics work per new frame by a quarter.
+  mapScale: Math.min(1, Math.max(0.5, Number(env.STREAM_MAP_SCALE) || (availableParallelism() <= 2 ? 0.75 : 1))),
   // A public camera beside a warned storm: off unless asked for (one more picture to fetch and draw).
   cameras: env.STREAM_CAMERAS === "on",
   voice: env.STREAM_VOICE || "en-US-AndrewNeural",

@@ -86,7 +86,7 @@ export function RadarTimeline({
   };
 
   return (
-    <div className="@container w-full">
+    <div data-chrome className="@container w-full">
       <div className="overlay">
         {legend && legendPosition === "top" && legend}
         <div className={cn("flex items-center", compact ? "gap-2 px-1.5 py-1.5" : "gap-2 p-1.5 @sm:gap-3 @sm:p-2")}>
