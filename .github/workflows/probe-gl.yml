@@ -1,0 +1,56 @@
+# TEMP: which WebGL renderer the stream's Chromium gets on Ubuntu 26.04 as vps/setup.sh installs it, and with Mesa added.
+name: Probe GL on Ubuntu 26.04
+on:
+  push:
+    branches: [claude/trusting-pasteur-qzc0fq]
+    paths: [.github/workflows/probe-gl.yml]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    container: ubuntu:26.04
+    steps:
+      - name: Install as vps/setup.sh does
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -qq
+          apt-get install -y -qq ca-certificates curl git jq gnupg xvfb ffmpeg pulseaudio pulseaudio-utils pipx unzip fonts-inter fonts-dejavu-core fonts-noto-color-emoji util-linux > /dev/null
+          curl -fsSL https://deb.nodesource.com/setup_22.x | bash - > /dev/null && apt-get install -y -qq nodejs > /dev/null
+          mkdir -p /opt/rt && cd /opt/rt && npm install --no-audit --no-fund --silent playwright-core@1.63.0
+          PLAYWRIGHT_BROWSERS_PATH=/opt/browsers ./node_modules/.bin/playwright-core install --with-deps chromium > /dev/null 2>&1
+          echo "── mesa packages after the install:"; dpkg -l | grep -iE "mesa|libgl1|libegl|gallium|llvm" | awk '{print $2, $3}' || true
+          echo "── candidates:"; apt-cache policy libgl1-mesa-dri libegl-mesa0 libglx-mesa0 mesa-libgallium 2>/dev/null | grep -E "^[a-z]|Candidate"
+      - name: The renderer and its speed on 2 cores
+        run: |
+          cd /opt/rt
+          cat > page.html <<'HTML'
+          <!doctype html><body style="margin:0;background:#000"><canvas id=c width=1280 height=720 style="position:fixed;inset:0"></canvas><script>
+          const gl=document.getElementById('c').getContext('webgl');
+          const sh=(t,s)=>{const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);return o};
+          const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,'attribute vec2 a;void main(){gl_Position=vec4(a,0,1);}'));
+          gl.attachShader(p,sh(gl.FRAGMENT_SHADER,'precision mediump float;uniform float t;void main(){vec2 u=gl_FragCoord.xy/vec2(1280.,720.);gl_FragColor=vec4(.5+.5*sin(u.x*9.+t),u.y,.5+.5*cos(u.y*7.-t),1);}'));
+          gl.linkProgram(p);gl.useProgram(p);const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+          const l=gl.getAttribLocation(p,'a');gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,2,gl.FLOAT,false,0,0);const ut=gl.getUniformLocation(p,'t');
+          window.n=0;(function f(t){n++;gl.uniform1f(ut,t/1000);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);requestAnimationFrame(f)})(0);
+          </script>
+          HTML
+          cat > t.mjs <<'JS'
+          import { chromium } from "playwright-core";
+          const extra = process.argv.slice(2);
+          const ctx = await chromium.launchPersistentContext("/tmp/prof-" + Date.now(), { headless: false, viewport: null, ignoreDefaultArgs: ["--enable-automation"],
+            args: ["--kiosk", "--start-fullscreen", "--window-size=1280,720", "--window-position=0,0", "--no-sandbox", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", ...extra] });
+          const page = ctx.pages()[0] ?? (await ctx.newPage());
+          await page.goto("file:///opt/rt/page.html");
+          const gl = await page.evaluate(() => { const c = document.createElement("canvas").getContext("webgl2"); const i = c?.getExtension("WEBGL_debug_renderer_info"); return c ? c.getParameter(i ? i.UNMASKED_RENDERER_WEBGL : c.RENDERER) : "no WebGL2"; });
+          await page.waitForTimeout(3000);
+          const a = await page.evaluate(() => n); await page.waitForTimeout(8000); const b = await page.evaluate(() => n);
+          console.log(`${extra.join(" ") || "(default)"} | ${gl} | full-screen WebGL frames/s on 2 cores: ${((b - a) / 8).toFixed(1)}`);
+          await ctx.close();
+          JS
+          Xvfb :99 -screen 0 1280x720x24 -nolisten tcp > /dev/null 2>&1 &
+          sleep 1
+          run() { DISPLAY=:99 PLAYWRIGHT_BROWSERS_PATH=/opt/browsers taskset -c 0,1 node t.mjs "$@" 2>&1 | tail -1; }
+          echo "── as installed today"; run; run --use-angle=swiftshader
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get install -y -qq libgl1-mesa-dri libegl-mesa0 libglx-mesa0 libegl1 libgl1 > /dev/null 2>&1 && echo "mesa installed" || echo "mesa install failed"
+          dpkg -l | grep -iE "mesa|gallium" | awk '{print $2, $3}'
+          echo "── with Mesa"; run; run --use-angle=gl; run --use-angle=swiftshader
