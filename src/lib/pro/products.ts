@@ -222,13 +222,14 @@ export function satelliteFrames(id: ProProductId, sat: GoesSat, loopTimes: reado
 
 /**
  * Whether a product works on this device: Level II volumes need a desktop
- * (`volume`), and the Pro data server's products need a server to be set up.
- * Products that don't are left out of the menus.
+ * (`volume`), and the Pro data server's products need a server (`server`,
+ * the build's own unless said otherwise). Products that don't are left out of
+ * the menus.
  */
-export function productUsable(id: ProProductId, caps: { volume: boolean }): boolean {
+export function productUsable(id: ProProductId, caps: { volume: boolean; server?: boolean }): boolean {
   const p = PRO_PRODUCTS[id];
   if (p.kind === "l2") return caps.volume;
-  if (p.kind === "server") return !!PRO_SERVER;
+  if (p.kind === "server") return caps.server ?? !!PRO_SERVER;
   return true;
 }
 
@@ -247,6 +248,6 @@ const STAND_IN: Partial<Record<ProProductId, ProProductId>> = {
   "goes-sandwich": "sat-ir",
 };
 
-export function shownProduct(id: ProProductId, caps: { volume: boolean }): ProProductId {
+export function shownProduct(id: ProProductId, caps: { volume: boolean; server?: boolean }): ProProductId {
   return productUsable(id, caps) ? id : (STAND_IN[id] ?? "ref");
 }

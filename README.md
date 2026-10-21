@@ -90,7 +90,7 @@ Every colour slot and layer option, plus ready-made examples to copy (Nord, Drac
 | Convective outlook and hazard probabilities | [Storm Prediction Center](https://www.spc.noaa.gov) |
 | Local storm reports, NEXRAD storm-cell attributes | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) |
 | Tropical cyclones (positions, cone, track) | [National Hurricane Center](https://www.nhc.noaa.gov) + NOAA map services |
-| Lightning: GOES GLM flashes (Pro data server), strike density otherwise | [NOAA Open Data on AWS](https://registry.opendata.aws/noaa-goes/), [NOAA nowCOAST](https://nowcoast.noaa.gov) |
+| Lightning: GOES GLM flashes (read by the app's server), strike density as a fallback | [NOAA Open Data on AWS](https://registry.opendata.aws/noaa-goes/), [NOAA nowCOAST](https://nowcoast.noaa.gov) |
 | HRRR forecast reflectivity (future radar) | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/GIS/model.phtml) |
 | NEXRAD Level II and III files (Pro mode, and its archive back to 1995) | [NOAA Open Data on AWS](https://registry.opendata.aws/noaa-nexrad/) |
 | Radar archive: national mosaic, warnings and storm reports at a past time | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) |

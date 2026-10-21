@@ -1,25 +1,27 @@
 "use client";
 
 import type { FeatureCollection } from "geojson";
-import type { RasterTileSource } from "maplibre-gl";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import type { Map as MlMap, RasterTileSource } from "maplibre-gl";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { useNow } from "@/hooks/use-now";
-import { PRO_SERVER } from "@/lib/pro/server";
-import { BOLT_AGES, BOLT_COLORS, boltsFromFile, LIGHTNING_ATTRIBUTION, LIGHTNING_REFRESH_MS, lightningTileUrl, type LightningFile } from "@/lib/radar/lightning";
+import { getJson } from "@/lib/api/http";
+import { boltsFromFile, flashesBbox, flashesUrl, LIGHTNING_ATTRIBUTION, LIGHTNING_REFRESH_MS, lightningTileUrl, type Bbox, type LightningFile } from "@/lib/radar/lightning";
 import { mapAlive, SLOTS, useMapContext } from "../map-view";
 import { useGeoJsonLayers } from "./use-geojson-source";
 
 const SRC = "lightning";
-const ICONS = BOLT_COLORS.map((_, i) => `lightning-bolt-${i}`);
+const ICON = "lightning-bolt";
 const DENSITY_SRC = "lightning-density";
 const slotNow = () => Math.floor(Date.now() / LIGHTNING_REFRESH_MS);
 
-/** A lightning bolt, drawn at 2× with a dark rim so it reads over any radar colour. */
-function boltImage(color: string): ImageData | null {
+/** The lightning bolt: plain white with a black outline, drawn at 2× so it stays crisp. */
+function boltImage(): ImageData | null {
   const ratio = 2;
-  const w = 14 * ratio;
-  const h = 20 * ratio;
+  // Room for the outline around the 14×20 bolt.
+  const pad = 1.5;
+  const w = (14 + 2 * pad) * ratio;
+  const h = (20 + 2 * pad) * ratio;
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
@@ -27,27 +29,44 @@ function boltImage(color: string): ImageData | null {
   if (!g) return null;
   const pts: [number, number][] = [[8.5, 1], [2, 11.5], [6.5, 11.5], [4.5, 19], [12, 7.5], [7.5, 7.5], [10, 1]];
   g.beginPath();
-  pts.forEach(([x, y], i) => (i ? g.lineTo(x * ratio, y * ratio) : g.moveTo(x * ratio, y * ratio)));
+  pts.forEach(([x, y], i) => (i ? g.lineTo((x + pad) * ratio, (y + pad) * ratio) : g.moveTo((x + pad) * ratio, (y + pad) * ratio)));
   g.closePath();
   g.lineJoin = "round";
-  g.lineWidth = 2.5 * ratio;
-  g.strokeStyle = "rgba(0,0,0,0.8)";
+  // Stroked under the fill, so 1.5 px of the 3 px line shows outside it.
+  g.lineWidth = 3 * ratio;
+  g.strokeStyle = "#000";
   g.stroke();
-  g.fillStyle = color;
+  g.fillStyle = "#fff";
   g.fill();
   return g.getImageData(0, 0, w, h);
 }
 
-/** GOES GLM flashes from the Pro data server; null when there's no server or it can't be reached. */
-function useGlmFlashes() {
+/** The area of flashes to ask for: the map's view, widened to whole 10° squares, updated as it moves. */
+function useFlashesBbox(map: MlMap | null): Bbox | null {
+  const [key, setKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!mapAlive(map)) return;
+    const update = () => {
+      const b = map.getBounds();
+      setKey(flashesBbox(b.getWest(), b.getSouth(), b.getEast(), b.getNorth()).join(","));
+    };
+    update();
+    map.on("moveend", update);
+    return () => {
+      map.off("moveend", update);
+    };
+  }, [map]);
+  return useMemo(() => (key ? (key.split(",").map(Number) as unknown as Bbox) : null), [key]);
+}
+
+/** GOES GLM flashes in the area, from the app's server (NOAA open data). */
+function useGlmFlashes(bbox: Bbox | null) {
   return useQuery({
-    queryKey: ["lightning", PRO_SERVER],
-    queryFn: async ({ signal }) => {
-      const res = await fetch(`${PRO_SERVER}/lightning.json`, { signal, cache: "no-cache" });
-      if (!res.ok) throw new Error(`lightning.json: ${res.status}`);
-      return (await res.json()) as LightningFile;
-    },
-    enabled: !!PRO_SERVER,
+    queryKey: ["lightning-flashes", bbox?.join(",")],
+    queryFn: ({ signal }) => getJson<LightningFile>(flashesUrl(bbox!), { signal, timeoutMs: 20_000 }),
+    enabled: !!bbox,
+    // The bolts already shown stay while a moved map's area loads.
+    placeholderData: keepPreviousData,
     refetchInterval: 60_000,
     staleTime: 30_000,
     retry: 1,
@@ -87,26 +106,23 @@ function DensityGrid({ opacity }: { opacity: number }) {
 }
 
 /**
- * Lightning: a bolt for each GOES GLM flash of the last 15 minutes from the
- * Pro data server, white when new, then yellow, orange and red as it ages
- * (dense storms thin out: bolts don't overlap, the newest win). Without a
- * server, NOAA nowCOAST's strike-density squares.
+ * Lightning: a plain white bolt with a black outline for each GOES GLM flash
+ * of the last 15 minutes (dense storms thin out: bolts don't overlap, the
+ * newest win). If the flashes can't be had, NOAA nowCOAST's strike-density
+ * squares instead.
  */
 export function LightningLayer({ opacity = 1 }: { opacity?: number }) {
   const { map } = useMapContext();
-  const glm = useGlmFlashes();
-  const useDensity = !PRO_SERVER || glm.isError;
-  // Ages tick on between fetches.
+  const glm = useGlmFlashes(useFlashesBbox(map));
+  const useDensity = glm.isError;
+  // Ages tick on between fetches, so bolts leave the 15 minutes on time.
   const now = useNow(30_000);
 
-  // Register the bolts before the layers below are added (effects run in order).
+  // Register the bolt before the layers below are added (effects run in order).
   useEffect(() => {
-    if (!mapAlive(map)) return;
-    ICONS.forEach((id, i) => {
-      if (map.hasImage(id)) return;
-      const img = boltImage(BOLT_COLORS[i]!);
-      if (img) map.addImage(id, img, { pixelRatio: 2 });
-    });
+    if (!mapAlive(map) || map.hasImage(ICON)) return;
+    const img = boltImage();
+    if (img) map.addImage(ICON, img, { pixelRatio: 2 });
   }, [map]);
 
   const data = useMemo<FeatureCollection>(() => {
@@ -126,7 +142,7 @@ export function LightningLayer({ opacity = 1 }: { opacity?: number }) {
         type: "symbol",
         source: SRC,
         layout: {
-          "icon-image": ["step", ["get", "age"], ICONS[0]!, BOLT_AGES[0], ICONS[1]!, BOLT_AGES[1], ICONS[2]!, BOLT_AGES[2], ICONS[3]!],
+          "icon-image": ICON,
           "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.5, 6, 0.75, 10, 1],
           // Newest first, so they win where bolts would overlap.
           "symbol-sort-key": ["get", "age"],

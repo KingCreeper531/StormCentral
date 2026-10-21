@@ -263,10 +263,11 @@ class Director {
     for (const r of this.reports) this.readReports.add(r.id);
     this.startMode = restored ? "restart" : "first";
     await this.refresh();
-    // Tests: read the most serious warning in effect as if it had just been issued (or, with none, one
-    // from a saved scenario, STREAM_DEMO_FIXTURE, moved to now).
+    // Tests: read the most serious warning in effect as if it had just been issued, one that gets a clip
+    // (above "severe"), or else one from a saved scenario, STREAM_DEMO_FIXTURE, moved to now. A live
+    // severe thunderstorm warning alone would leave the test with nothing to clip.
     if (env.STREAM_DEMO_ALERT === "1") {
-      const demo = this.warnings[0] ?? demoWarning();
+      const demo = this.warnings.find((w) => w.level !== "severe") ?? demoWarning();
       // After the recording has started, so the clip has something to cut.
       // And a viewer asking for a forecast in chat, 20 seconds in.
       setTimeout(() => void this.onChat({ id: "demo", author: "demo", moderator: true, text: "!forecast Moore, OK", at: Date.now() }).catch((err) => log(`chat command: ${errText(err)}`)), 20_000);
