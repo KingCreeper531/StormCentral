@@ -43,10 +43,17 @@ export function SyncPanel() {
   };
   const choose = async (keep: "account" | "device") => {
     setBusy(true);
-    await enableSync(userId, keep);
-    setBusy(false);
-    setChoosing(false);
-    setOn(true);
+    setNote(null);
+    try {
+      await enableSync(userId, keep);
+      setOn(true);
+    } catch (err) {
+      // Sync stayed off: the switch too, with the reason.
+      setNote((err as Error).message);
+    } finally {
+      setBusy(false);
+      setChoosing(false);
+    }
   };
   const turnOff = () => {
     disableSync();
