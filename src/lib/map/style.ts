@@ -219,6 +219,11 @@ export interface BaseLayer {
 }
 
 const MAJOR_ROADS = new Set(["motorway", "trunk", "primary"]);
+/**
+ * Protomaps' road layers (CARTO's styles since they moved to its tiles) say what they draw in their ids:
+ * road_mot_…, tunnel_trunk_…, bridge_pri_… are major. Their filters, full of negations, don't say it plainly.
+ */
+const MAJOR_ROAD_ID = /(^|_)(mot|motorway|trunk|pri|primary|highway)(_|$)/;
 
 /** Values a filter compares `key` with, in legacy (["==", "class", "x"]) or expression (["==", ["get", "class"], "x"]) syntax. */
 export function filterValues(filter: unknown, key: string): (string | number)[] {
@@ -245,18 +250,31 @@ export function filterValues(filter: unknown, key: string): (string | number)[] 
 
 const roleOf = (id: string) => (/case|casing|outline/i.test(id) ? "casing" : "fill");
 
-/** Which group a basemap layer belongs to, or null for layers this module leaves alone. */
+/**
+ * Which group a basemap layer belongs to, or null for layers this module leaves alone. Two tile schemas:
+ * OpenMapTiles (MapTiler, CARTO's older tiles: place, transportation, boundary…) and Protomaps (CARTO's
+ * tiles now: places, roads, boundaries, buildings, pois, landuse, water).
+ */
 export function layerGroup(layer: BaseLayer): LayerGroup | null {
   const sl = layer["source-layer"] ?? "";
   if (layer.type === "background") return "land";
   if (layer.type === "symbol") {
-    if (sl === "place") return "placeLabels";
-    if (sl === "transportation_name") return "roadLabels";
-    if (sl === "water_name" || sl === "waterway") return "waterLabels";
-    if (["poi", "aerodrome_label", "housenumber", "mountain_peak"].includes(sl)) return "poiLabels";
+    if (sl === "place" || sl === "places") return "placeLabels";
+    if (sl === "transportation_name" || sl === "roads") return "roadLabels";
+    if (sl === "water_name" || sl === "waterway" || sl === "water") return "waterLabels";
+    if (["poi", "pois", "aerodrome_label", "housenumber", "buildings", "mountain_peak"].includes(sl)) return "poiLabels";
     return null;
   }
   switch (sl) {
+    case "boundaries": {
+      if (layer.type !== "line") return null;
+      const kinds = filterValues(layer.filter, "kind").map(String);
+      if (kinds.includes("county") || /county/.test(layer.id)) return "counties";
+      if (kinds.includes("region") || /state|region/.test(layer.id)) return "states";
+      return "countries";
+    }
+    case "roads":
+      return layer.type === "line" ? (MAJOR_ROAD_ID.test(layer.id) ? "roadsMajor" : "roadsMinor") : null;
     case "boundary": {
       if (layer.type !== "line") return null;
       const levels = filterValues(layer.filter, "admin_level").filter((v): v is number => typeof v === "number");
@@ -271,7 +289,7 @@ export function layerGroup(layer: BaseLayer): LayerGroup | null {
     case "aeroway":
       return "roadsMinor";
     case "water":
-      return layer.type === "fill" ? "water" : null;
+      return layer.type === "fill" ? "water" : layer.type === "line" ? "waterways" : null;
     case "waterway":
       return layer.type === "line" ? "waterways" : null;
     case "landcover":
@@ -279,6 +297,7 @@ export function layerGroup(layer: BaseLayer): LayerGroup | null {
     case "park":
       return "landcover";
     case "building":
+    case "buildings":
       return "buildings";
     default:
       return null;

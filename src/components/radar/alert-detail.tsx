@@ -10,6 +10,7 @@ import { stormEta } from "@/lib/science/storm-motion";
 import { cn } from "@/lib/utils";
 import { clockIn } from "@/lib/weather/view";
 import { useAppStore } from "@/store/app-store";
+import { useStormPathStore } from "@/store/storm-path-store";
 import { IconButton } from "../ui/button";
 import { AlertTag, HazardSwatch } from "./alert-list";
 import { productLink, useFullAlert } from "./use-full-alert";
@@ -62,6 +63,8 @@ export function AlertDetail({
   const [expanded, setExpanded] = useState(false);
   const textId = useId();
   const eta = a.motion ? stormEta(a.motion, loc, 15, now) : null;
+  // Towns the storm reaches in the next hour, from the map's storm path layer (empty when tracks are off).
+  const path = useStormPathStore((s) => s.towns[a.id]);
   const time = (iso: string) => clockIn(timeZone, iso, t.locale);
   const event = eventName(t.lang, a.event);
   const hasFacts = !!(a.hazards.maxHail || a.hazards.maxWind || a.hazards.tornado || a.motion);
@@ -107,6 +110,22 @@ export function AlertDetail({
         <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-line pt-3">
           <span className="label min-w-0">{t("Projected arrival at {place}", { place: loc.name })}</span>
           <span className="shrink-0 text-lg leading-6 font-semibold text-ink tabular">~{Math.round(eta)} min</span>
+        </div>
+      )}
+
+      {path && path.length > 0 && (
+        <div className="mt-3 border-t border-line pt-3">
+          <p className="label">{t("In the path")}</p>
+          <ul className="mt-1.5 space-y-1">
+            {path.slice(0, 8).map((town) => (
+              <li key={`${town.name}|${town.lat}|${town.lon}`} className="flex items-baseline justify-between gap-3 text-[13px]">
+                <span className="min-w-0 truncate font-medium text-ink">{town.name}</span>
+                <span className="shrink-0 text-ink-2 tabular">
+                  {clockIn(timeZone, town.at, t.locale)} · {t("in {min} min", { min: Math.max(1, Math.round(town.minutes)) })}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
