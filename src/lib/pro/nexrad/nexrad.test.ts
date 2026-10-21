@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { l2Time, l3Time, newest, parseKeys } from "./aws";
 import { bunzip2, bzipCrc } from "./bzip2";
 import { gunzipIfNeeded } from "./gzip";
-import { parseLevel2 } from "./level2";
+import { parseLevel2, parseLevel2Volume } from "./level2";
 import { float16, parseLevel3 } from "./level3";
 import { azimuthIndex, levelAt, maxRangeKm, polarOf, slantRange } from "./sweep";
 import { sweepBox } from "./sweep-layer";
@@ -168,6 +168,15 @@ describe("Level II", () => {
     }
   });
 
+  it("decodes every cut of a moment in one pass, the same as one at a time", () => {
+    const v = parseLevel2Volume(file, "REF");
+    const one = parseLevel2(file, "REF", 0.5).sweep!;
+    expect(v.sweeps).toHaveLength(1);
+    expect(v.sweeps[0]!.elevation).toBe(one.elevation);
+    expect(Array.from(v.sweeps[0]!.data)).toEqual(Array.from(one.data));
+    expect(v.cuts).toEqual(parseLevel2(file, "REF", null).cuts);
+  });
+
   it("returns no sweep for a tilt the volume doesn't have", () => {
     expect(parseLevel2(file, "REF", 19.5).sweep).toBeNull();
   });
@@ -215,6 +224,15 @@ describe("Level II before 2008 (Message 1)", () => {
         else expect(v).toBeCloseTo(moment === "VEL" ? val * KT : val, 4);
       }
     }
+  });
+
+  it("keeps one sweep per angle when a volume scans an angle twice", async () => {
+    const file = await gunzipIfNeeded(read("KTLX20050510_000351_cut12.gz"));
+    const v = parseLevel2Volume(file, "VEL", { site });
+    // Both cuts are at 0.48°: the first one carrying velocity is kept.
+    expect(v.sweeps.map((s) => s.elevation)).toEqual([0.48]);
+    expect(Array.from(v.sweeps[0]!.data)).toEqual(Array.from(parseLevel2(file, "VEL", 0.5, { site }).sweep!.data));
+    expect(v.complete).toBe(true);
   });
 
   it("reads the oldest archive files (ARCHIVE2 header), even partial ones", async () => {

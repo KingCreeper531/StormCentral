@@ -37,6 +37,7 @@ import { ProTour, visibleSteps } from "./pro-tour";
 import { ReadoutHud } from "./readout-hud";
 import { MeteogramPanel } from "./meteogram-panel";
 import { SoundingPanel } from "./sounding-panel";
+import { VolumePanel } from "./volume-panel";
 import { StormToolsPanel } from "./storm-tools-panel";
 import { WarnGenPanel } from "./warngen-panel";
 import { ProToolbar, TOOLS } from "./toolbar";
@@ -161,6 +162,8 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
   // ── Tools ─────────────────────────────────────────────────────────────────
   const [soundingAt, setSoundingAt] = useState<LatLon>({ lat: home.lat, lon: home.lon });
   const [xsect, setXsect] = useState<{ a: LatLon; b: LatLon | null } | null>(null);
+  const [volumeAt, setVolumeAt] = useState<LatLon | null>(null);
+  const volumeRadius = useProStore((s) => s.volume3d.radiusKm);
   const [selectedAlert, setSelectedAlert] = useState<string | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
   // The optional guide: its reference in the side panel, and the tour's stops while it runs.
@@ -271,6 +274,10 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
         else if (!v.b) setVector({ a: v.a, b: at });
         setPanelOpen(true);
       },
+      volume: (p) => {
+        setVolumeAt(p);
+        setPanelOpen(true);
+      },
       selectAlert: (id) => {
         if (toolRef.current !== "inspect") return;
         setSelectedAlert(id);
@@ -292,8 +299,9 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
       motion,
       toaPoints,
       showFan: !!motion,
+      volume: tool === "volume" && volumeAt ? { at: volumeAt, radiusKm: volumeRadius } : null,
     }),
-    [tool, soundingAt, xsect, vector, motion, toaPoints],
+    [tool, soundingAt, xsect, vector, motion, toaPoints, volumeAt, volumeRadius],
   );
   const arrivalPoints = useMemo(() => [{ lat: home.lat, lon: home.lon, name: home.name }, ...places.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })), ...toaPoints], [home, places, toaPoints]);
   const activeAlert = selectedAlert ? alerts.find((a) => a.id === selectedAlert) : undefined;
@@ -365,6 +373,7 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
           {xsect?.b ? <CrossSectionPanel a={xsect.a} b={xsect.b} /> : <p className="p-3 text-[12px] text-ink-3">{t(xsect ? "Now click the end point (A′)." : "Click the start point (A) on any panel.")}</p>}
         </>
       );
+    if (tool === "volume") return <VolumePanel point={volumeAt} site={site} until={archiveAt} onPoint={setVolumeAt} />;
     if (tool === "warngen") return archiveAt != null ? <p className="p-3 text-[12px] text-ink-3">{t("WarnGen works on live radar only.")}</p> : <WarnGenPanel timeZone={timeZone} />;
     if (tool === "vector" || tool === "toa")
       return (

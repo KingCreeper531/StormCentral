@@ -6,9 +6,9 @@
  */
 import { DECODED_SCALES } from "../scales";
 import { gunzipIfNeeded } from "./gzip";
-import { parseLevel2 } from "./level2";
+import { parseLevel2, parseLevel2Volume } from "./level2";
 import { parseLevel3 } from "./level3";
-import type { DecodeRequest, DecodeResponse } from "./protocol";
+import type { DecodeRequest, DecodeResponse, VolumeResponse } from "./protocol";
 import { sweepColors, type Sweep } from "./sweep";
 
 declare const self: DedicatedWorkerGlobalScope;
@@ -65,6 +65,16 @@ async function chunkedVolume(urls: readonly string[]): Promise<Uint8Array> {
 
 self.onmessage = async (e: MessageEvent<DecodeRequest>) => {
   const req = e.data;
+  if (req.kind === "l2volume") {
+    try {
+      const r = parseLevel2Volume(await volume(req.url), req.moment, { site: req.site });
+      const buffers = r.sweeps.flatMap((s) => [s.data.buffer, s.azStart.buffer, s.azWidth.buffer, s.table.buffer]);
+      self.postMessage({ id: req.id, ok: true, sweeps: r.sweeps, complete: r.complete } satisfies VolumeResponse, buffers as Transferable[]);
+    } catch (err) {
+      self.postMessage({ id: req.id, ok: false, error: String((err as Error)?.message ?? err) } satisfies VolumeResponse);
+    }
+    return;
+  }
   try {
     let sweep: Sweep | null;
     let cuts: number[] = [];

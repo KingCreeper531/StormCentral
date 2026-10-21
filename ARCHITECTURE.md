@@ -254,6 +254,18 @@ The decoders are our own TypeScript, with no dependencies: `bzip2.ts`, `level3.t
 
 Decoding runs in a pool of Web Workers (`decode.worker.ts`), which hand back the compact sweep and a colour per raw level. The map draws it on the GPU (`sweep-layer.ts`, a MapLibre custom layer): each sweep in the loop is uploaded once as integer textures (levels as gates × radials, the colour table, a 0.1° azimuth → radial lookup), and a fragment shader takes every screen pixel back to the radar's polar grid by 4/3-earth beam geometry (great-circle distance and bearing, then slant range for the sweep's elevation) and reads the gate under it. Gates stay sharp at any zoom, nothing is rendered to an image or encoded, and stepping the loop only rebinds textures. The frame pool sends frames that carry a sweep (`RadarFrame.sweep`) to one such layer per panel and everything else to raster sources, and the cursor readout reads the exact gate value from the same sweep (`levelAt`, the shader's math on the CPU).
 
+**3D volume** (`lib/pro/volume3d.ts`, `components/pro/volume-panel.tsx` and `volume-canvas.tsx`, a Pro tool on devices that take Level II). Every reflectivity tilt of the radar's newest Level II volume around a clicked spot, in 3D:
+- **Decoding**: `parseLevel2Volume` decodes every cut of a moment in one pass. The single-cut decoder shares its code and still stops at its cut. A repeated angle (SAILS) keeps its first scan, unless that one was cut well short. The worker's `l2volume` request returns the sweeps, and the client keeps the last two volumes.
+- **Points**: each gate at or above the threshold within the circle becomes a point in a local km frame around the spot, at its 4/3-earth beam height above sea level. Gates and radials are thinned evenly past 600,000 points.
+- **Filling between tilts** (on by default): where the tilt above also has echo at the same place, the gap is filled at beam-depth steps with blended values. Gaps over 4 km stay open.
+- **Drawing**: a small WebGL 2 renderer (no 3D library) draws gate-sized square points with depth, plus:
+  - a ground grid and the circle;
+  - a height axis at the corner furthest left on screen;
+  - the model's 0 °C and −20 °C levels (`freezingLevels` from the Open-Meteo sounding; not shown for the archive) as see-through sheets;
+  - labels on a 2D layer above.
+- **Controls**: drag to orbit, right/Shift-drag to pan, wheel or pinch to zoom, keyboard too. Heights can be exaggerated ×1–3 about the ground. It redraws only on change.
+- **Readouts**: the panel lists the highest echo shown and the top of the 50 dBZ core against the −20 °C level. It can expand over the panels, or move to another window with the side panel.
+
 **Colour tables** (`lib/pro/palettes.ts`, `store/palette-store.ts`, a panel's settings): decoded products can be drawn with a built-in alternative (classic NWS reflectivity, plasma, green–red or blue–orange velocity) or an imported GRLevelX palette.
 - **Import**: `.pal` files are parsed into legend stops: `Color` gradients, second colours, `SolidColor` bands, `Color4` alpha, `RF`, and velocity units converted to knots.
 - **Recolouring**: the worker colours each sweep in the standard scale; for another table the main thread recolours its levels once per sweep and table (`sweepColors`). Those frames get a new id, so the GPU layer uploads them afresh. The legend and readout use the same scale, and values stay exact.

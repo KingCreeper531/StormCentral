@@ -32,7 +32,35 @@ export interface PaneConfig {
   satelliteMap: boolean;
 }
 
-export type ProTool = "inspect" | "sounding" | "meteogram" | "xsect" | "vector" | "toa" | "warngen";
+export type ProTool = "inspect" | "sounding" | "meteogram" | "xsect" | "vector" | "toa" | "warngen" | "volume";
+
+/** The 3D volume view's settings (components/pro/volume-panel). */
+export interface Volume3dSettings {
+  /** Reflectivity shown from (dBZ). */
+  threshold: number;
+  /** How far around the spot (km). */
+  radiusKm: (typeof VOLUME_RADII)[number];
+  /** Heights drawn this many times taller than life. */
+  exaggeration: 1 | 2 | 3;
+  /** The model's 0 °C and −20 °C levels. */
+  levels: boolean;
+  /** Fill the gaps between tilts where both have echo (off: the tilts as scanned). */
+  fill: boolean;
+}
+export const VOLUME_RADII = [30, 60, 100] as const;
+export const DEFAULT_VOLUME3D: Volume3dSettings = { threshold: 25, radiusKm: 60, exaggeration: 2, levels: true, fill: true };
+
+function normalizeVolume3d(raw: unknown): Volume3dSettings {
+  const v = (raw ?? {}) as Partial<Volume3dSettings>;
+  const d = DEFAULT_VOLUME3D;
+  return {
+    threshold: typeof v.threshold === "number" && v.threshold >= 0 && v.threshold <= 70 ? Math.round(v.threshold / 5) * 5 : d.threshold,
+    radiusKm: (VOLUME_RADII as readonly number[]).includes(v.radiusKm as number) ? (v.radiusKm as Volume3dSettings["radiusKm"]) : d.radiusKm,
+    exaggeration: v.exaggeration === 1 || v.exaggeration === 3 ? v.exaggeration : 2,
+    levels: v.levels !== false,
+    fill: v.fill !== false,
+  };
+}
 
 /**
  * The WarnGen editor's draft (this session only). The storm is the storm
@@ -85,6 +113,8 @@ export interface ProState {
   /** Loop speed multiplier (1 = the radar mode's normal pace). */
   speed: 0.5 | 1 | 2;
   tool: ProTool;
+  volume3d: Volume3dSettings;
+  setVolume3d: (patch: Partial<Volume3dSettings>) => void;
   vector: StormVector | null;
   /** Points of interest for the time-of-arrival fan (besides your location and saved places). */
   toaPoints: (LatLon & { name: string })[];
@@ -156,6 +186,8 @@ export const useProStore = create<ProState>()(
       guideButton: true,
       meteogramModels: DEFAULT_COMPARE,
       meteogramEnsemble: ENSEMBLES[0]!.id,
+      volume3d: DEFAULT_VOLUME3D,
+      setVolume3d: (patch) => set((s) => ({ volume3d: normalizeVolume3d({ ...s.volume3d, ...patch }) })),
       setLayout: (layout) => set({ layout }),
       setPane: (id, patch) => set((s) => ({ panes: s.panes.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
       setSite: (site) => set({ site }),
@@ -184,6 +216,7 @@ export const useProStore = create<ProState>()(
         guideButton: s.guideButton,
         meteogramModels: s.meteogramModels,
         meteogramEnsemble: s.meteogramEnsemble,
+        volume3d: s.volume3d,
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ProState>;
@@ -197,6 +230,7 @@ export const useProStore = create<ProState>()(
           guideButton: p.guideButton !== false,
           meteogramModels: Array.isArray(p.meteogramModels) ? p.meteogramModels.filter(isCompareModel) : current.meteogramModels,
           meteogramEnsemble: isEnsemble(p.meteogramEnsemble) ? p.meteogramEnsemble : current.meteogramEnsemble,
+          volume3d: normalizeVolume3d(p.volume3d),
         };
       },
     },

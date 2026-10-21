@@ -10,7 +10,8 @@
  *
  * Decoding stops as soon as the requested cut is complete, so low tilts cost
  * a fraction of the volume. The cut list comes from the VCP (Message 5) in
- * the first record.
+ * the first record. `parseLevel2Volume` reads every cut of a moment in one
+ * pass instead (the 3D view).
  */
 import { bunzip2 } from "./bzip2";
 import type { Sweep } from "./sweep";
@@ -80,15 +81,68 @@ interface Radial {
   data: Uint8Array;
 }
 
-/**
- * Decode the first cut at `angle` (±0.25°) that carries `moment`. With
- * `angle` null only the cut list is read.
- */
 /** Sanity limits: past these a header is corrupt, not a radar (super-res has 1832 gates and 720 radials a cut). */
 const MAX_GATES = 2048;
 const MAX_RADIALS = 1500;
 
+/** One cut's radials as they're read. */
+interface CutRadials {
+  angle: number;
+  radials: Radial[];
+  complete: boolean;
+}
+
+interface Decoded {
+  site: string;
+  time: number;
+  vcp: number | null;
+  cuts: Level2Cut[];
+  lat: number;
+  lon: number;
+  heightM: number;
+  /** Elevation number → its radials, in the order the cuts were met. */
+  groups: Map<number, CutRadials>;
+  damaged: number;
+}
+
+/**
+ * Decode the first cut at `angle` (±0.25°) that carries `moment`. With
+ * `angle` null only the cut list is read.
+ */
 export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | null, opts: Level2Options = {}): Level2Result {
+  const d = decodeLevel2(file, moment, angle, opts);
+  const cut = d.groups.values().next().value as CutRadials | undefined;
+  const built = cut && buildSweep(d, cut, moment);
+  return { site: d.site, time: d.time, vcp: d.vcp, cuts: d.cuts, sweep: built?.sweep ?? null, complete: cut?.complete ?? false, damaged: d.damaged + (built?.damaged ?? 0) };
+}
+
+export interface Level2VolumeResult extends Omit<Level2Result, "sweep" | "complete"> {
+  /** One sweep per elevation angle that carries the moment, lowest first (a repeated angle, like SAILS, keeps its first scan). */
+  sweeps: Sweep[];
+  /** The volume ran to its end. */
+  complete: boolean;
+}
+
+/** Every cut of `moment` in the volume, decoded in one pass. */
+export function parseLevel2Volume(file: Uint8Array, moment: Moment, opts: Level2Options = {}): Level2VolumeResult {
+  const d = decodeLevel2(file, moment, "all", opts);
+  const byAngle = new Map<number, Sweep>();
+  let damaged = d.damaged;
+  for (const cut of d.groups.values()) {
+    const built = buildSweep(d, cut, moment);
+    damaged += built.damaged;
+    const key = Math.round(built.sweep.elevation * 10);
+    // The first scan at an angle, unless it was cut well short and a later one wasn't.
+    const prev = byAngle.get(key);
+    if (!prev || prev.nRadials < built.sweep.nRadials * 0.9) byAngle.set(key, built.sweep);
+  }
+  const sweeps = [...byAngle.values()].sort((a, b) => a.elevation - b.elevation);
+  const last = [...d.groups.values()].at(-1);
+  return { site: d.site, time: d.time, vcp: d.vcp, cuts: d.cuts, sweeps, complete: !!last?.complete, damaged };
+}
+
+function decodeLevel2(file: Uint8Array, moment: Moment, angle: number | null | "all", opts: Level2Options): Decoded {
+  const all = angle === "all";
   const head = new DataView(file.buffer, file.byteOffset, 24);
   // "ARCHIVE2." before about 2000.
   if (ascii(file, 0, 4) !== "AR2V" && ascii(file, 0, 8) !== "ARCHIVE2") throw new Error("Not an Archive II file");
@@ -102,11 +156,26 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
   let lon = 0;
   let heightM = 0;
   let targetEl = -1;
-  let cutAngle = 0;
   let done = false;
-  let complete = false;
   let damaged = 0;
-  const radials: Radial[] = [];
+  const groups = new Map<number, CutRadials>();
+  /** A radial of the moment for cut `elNum`: the first such cut is the target unless every cut is wanted. */
+  const accept = (elNum: number, elAngle: number, r: Radial, status: number) => {
+    let g = groups.get(elNum);
+    if (!g) {
+      if (!all && targetEl >= 0) return;
+      targetEl = elNum;
+      g = { angle: cuts[elNum - 1]?.angle ?? elAngle, radials: [], complete: false };
+      groups.set(elNum, g);
+    }
+    if (g.radials.length >= MAX_RADIALS) return;
+    g.radials.push(r);
+    // 2 = end of elevation, 4 = end of volume.
+    if (status === 2 || status === 4) {
+      g.complete = true;
+      if (!all) done = true;
+    }
+  };
 
   const handleMsg31 = (m: Uint8Array, dv: DataView, o: number) => {
     // o = start of the Message 31 data header (after the 16-byte message header).
@@ -116,14 +185,16 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
     const elNum = dv.getUint8(o + 22);
     const elAngle = dv.getFloat32(o + 24);
     const blocks = dv.getUint16(o + 30);
-    if (targetEl >= 0 && elNum !== targetEl) {
-      if (elNum > targetEl) done = true;
-      return;
+    if (!all) {
+      if (targetEl >= 0 && elNum !== targetEl) {
+        if (elNum > targetEl) done = true;
+        return;
+      }
+      if (angle == null) return;
+      // Match on the VCP's nominal angle for this cut (radial angles wander while the antenna settles).
+      const nominal = cuts[elNum - 1]?.angle ?? elAngle;
+      if (Math.abs(nominal - angle) > 0.25) return;
     }
-    if (angle == null) return;
-    // Match on the VCP's nominal angle for this cut (radial angles wander while the antenna settles).
-    const nominal = cuts[elNum - 1]?.angle ?? elAngle;
-    if (Math.abs(nominal - angle) > 0.25) return;
     let found: Radial | null = null;
     for (let b = 0; b < blocks; b++) {
       const ptr = dv.getUint32(o + 32 + b * 4);
@@ -158,21 +229,14 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
         };
       }
     }
-    if (!found || radials.length >= MAX_RADIALS) return;
-    if (targetEl < 0) {
-      targetEl = elNum;
-      cutAngle = cuts[elNum - 1]?.angle ?? elAngle;
-    }
-    radials.push(found);
-    // 2 = end of elevation, 4 = end of volume.
-    if (status === 2 || status === 4) done = complete = true;
+    if (found) accept(elNum, elAngle, found, status);
   };
 
   const handleMsg1 = (m: Uint8Array, dv: DataView, o: number) => {
     // o = start of the Message 1 body; offsets to the moments' data count from there.
     const status = dv.getUint16(o + 12);
     const elNum = dv.getUint16(o + 16);
-    if (targetEl >= 0 && elNum !== targetEl) {
+    if (!all && targetEl >= 0 && elNum !== targetEl) {
       if (elNum > targetEl) done = true;
       return;
     }
@@ -181,9 +245,9 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
     if (!def) return;
     const elAngle = dv.getUint16(o + 14) * BAM;
     const nominal = cuts[elNum - 1]?.angle ?? elAngle;
-    if (Math.abs(nominal - angle) > 0.25) return;
+    if (!all && Math.abs(nominal - angle) > 0.25) return;
     const gates = dv.getUint16(o + (def.doppler ? 28 : 26));
-    if (!gates || radials.length >= MAX_RADIALS) return;
+    if (!gates) return;
     const ptr = dv.getUint16(o + (moment === "REF" ? 36 : moment === "VEL" ? 38 : 40));
     if (gates > MAX_GATES || o + ptr + gates > m.length) {
       damaged++;
@@ -192,11 +256,7 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
     // Velocity resolution: 2 = 0.5 m/s steps, 4 = 1 m/s.
     const fine = moment !== "VEL" || dv.getUint16(o + 42) !== 4;
     vcp ||= dv.getUint16(o + 44) || null;
-    if (targetEl < 0) {
-      targetEl = elNum;
-      cutAngle = cuts[elNum - 1]?.angle ?? elAngle;
-    }
-    radials.push({
+    const radial: Radial = {
       az: dv.getUint16(o + 8) * BAM,
       spacing: 1,
       gates,
@@ -206,8 +266,8 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
       scale: fine ? def.scale : 1,
       offset: def.offset,
       data: m.slice(o + ptr, o + ptr + gates),
-    });
-    if (status === 2 || status === 4) done = complete = true;
+    };
+    accept(elNum, elAngle, radial, status);
   };
 
   const handleMsg5 = (dv: DataView, o: number) => {
@@ -270,16 +330,16 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
 
   // Older archives' scan pattern message is empty: the cut list comes from the radials themselves.
   if (!cuts.length && !compressed) cuts.push(...legacyCuts(file));
-  if (!radials.length) return { site, time, vcp, cuts, sweep: null, complete, damaged };
   // Message 1 doesn't say where the radar is.
   if (!lat && opts.site) [lat, lon, heightM] = [opts.site.lat, opts.site.lon, opts.site.heightM ?? 0];
+  return { site, time, vcp, cuts, lat, lon, heightM, groups, damaged };
+}
 
-  // One gate geometry and scaling per sweep: a radial that disagrees with the first is damaged.
-  const ref = radials[0]!;
-  const same = radials.filter((r) => r.first === ref.first && r.width === ref.width && r.scale === ref.scale && r.offset === ref.offset && r.wordBits === ref.wordBits);
-  damaged += radials.length - same.length;
-  radials.length = 0;
-  radials.push(...same);
+/** One cut's radials as a sweep. One gate geometry and scaling per sweep: a radial that disagrees with the first is damaged. */
+function buildSweep(d: Decoded, cut: CutRadials, moment: Moment): { sweep: Sweep; damaged: number } {
+  const ref = cut.radials[0]!;
+  const radials = cut.radials.filter((r) => r.first === ref.first && r.width === ref.width && r.scale === ref.scale && r.offset === ref.offset && r.wordBits === ref.wordBits);
+  const damaged = cut.radials.length - radials.length;
   const nRadials = radials.length;
   const nGates = Math.max(...radials.map((r) => r.gates));
   const wide = ref.wordBits === 16;
@@ -300,18 +360,13 @@ export function parseLevel2(file: Uint8Array, moment: Moment, angle: number | nu
   for (let i = 2; i < levels; i++) table[i] = ((i - ref.offset) / ref.scale) * k;
 
   return {
-    site,
-    time,
-    vcp,
-    cuts,
-    complete,
     damaged,
     sweep: {
-      lat,
-      lon,
-      heightM,
-      time,
-      elevation: Math.round(cutAngle * 100) / 100,
+      lat: d.lat,
+      lon: d.lon,
+      heightM: d.heightM,
+      time: d.time,
+      elevation: Math.round(cut.angle * 100) / 100,
       nRadials,
       nGates,
       firstGateKm: ref.first,
