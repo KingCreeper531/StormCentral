@@ -70,9 +70,19 @@ export function serverFrames(base: string, id: string, p: ServerProduct, count: 
   });
 }
 
+/** Storm Central's own Pro data server (pro-server/, on the VPS). */
+export const DEFAULT_PRO_SERVER = "https://pro.stormcentralwx.com";
+
 /**
- * The Pro data server every user gets, set at build time with
- * NEXT_PUBLIC_PRO_SERVER (Vercel and the release workflow). Empty until one is
- * running: the products that need it are hidden from the Pro menus.
+ * The server address a build uses: Storm Central's own unless
+ * NEXT_PUBLIC_PRO_SERVER names another, or turns it off with "off" (the
+ * products that need it are then hidden from the Pro menus).
  */
-export const PRO_SERVER = normalizeServerUrl(process.env.NEXT_PUBLIC_PRO_SERVER ?? "");
+export function proServerFrom(setting: string | undefined): string {
+  const v = (setting ?? "").trim();
+  if (/^(off|none)$/i.test(v)) return "";
+  return normalizeServerUrl(v || DEFAULT_PRO_SERVER);
+}
+
+/** The Pro data server every user gets. A panel says when it can't be reached. */
+export const PRO_SERVER = proServerFrom(process.env.NEXT_PUBLIC_PRO_SERVER);
