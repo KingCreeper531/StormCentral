@@ -23,8 +23,9 @@ CORS and cache headers the app needs.
 
 It also keeps **`lightning.json`**: every flash the GOES Geostationary Lightning
 Mapper saw in the last 15 minutes, from GOES-East and -West (`GLM-L2-LCFA`, a new
-file every 20 seconds), polled every 30 seconds on its own thread. The radar
-map draws a bolt per flash, coloured by age.
+file every 20 seconds), polled every 30 seconds on its own thread. The app
+itself doesn't need it: its own server reads the same GLM files
+(`src/lib/server/glm.ts`), so the radar map has bolts without a Pro data server.
 
 The labels in `index.json` say whether a product is a day or night product. All
 three GOES RGBs are made around the clock. A day product at night (or the night
