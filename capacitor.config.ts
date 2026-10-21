@@ -30,6 +30,9 @@ const config: CapacitorConfig = {
   appName: "Storm Central",
   webDir: "out",
   backgroundColor: "#000000",
+  // Lets pages tell they're in the app even without Capacitor's bridge (the backup server);
+  // APP_USER_AGENT in src/lib/platform.ts.
+  appendUserAgent: "StormCentralApp",
   ...(remoteUrl && {
     server: {
       url: remoteUrl,

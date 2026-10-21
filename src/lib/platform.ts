@@ -20,6 +20,18 @@ export const PUBLIC_APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://app.s
 /** `owner/name` of the GitHub repository that publishes releases (set per fork by CI). */
 export const GITHUB_REPO = process.env.NEXT_PUBLIC_GITHUB_REPO || "KingCreeper531/StormCentral";
 
+/** Added to the Android app's user agent (capacitor.config.ts appendUserAgent). */
+export const APP_USER_AGENT = "StormCentralApp";
+
+/**
+ * True inside the Android app's web view even where Capacitor's bridge isn't
+ * (the backup server it falls back to), so the app's native features aren't
+ * there; isNativeApp() says whether they are.
+ */
+export function inAppWebView(): boolean {
+  return typeof navigator !== "undefined" && navigator.userAgent.includes(APP_USER_AGENT);
+}
+
 /** True inside the Android app, in both the bundled and the hosted configuration. */
 export function isNativeApp(): boolean {
   if (typeof window === "undefined") return false;

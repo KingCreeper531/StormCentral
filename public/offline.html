@@ -4,10 +4,11 @@
   (no signal, or a VPN or private DNS that can't find the address):
   Capacitor's server.errorPath shows it from the app's own files, in place
   of the WebView's error page, whose dark text is invisible on the app's
-  black background. It retries by itself and offers the backup server
-  (Vercel, the same app). scripts/build-native.mjs writes the build's
-  addresses into the two meta tags. Same look as the desktop app's page
-  (desktop/main.mjs).
+  black background. When the backup server (Vercel, the same app) answers
+  and the main one doesn't, it opens the backup by itself; with neither,
+  the phone is offline, so it explains and retries. scripts/build-native.mjs
+  writes the build's addresses into the two meta tags. Same look as the
+  desktop app's page (desktop/main.mjs).
 -->
 <html lang="en">
   <head>
@@ -74,6 +75,12 @@
         border-color: #3b6fc4;
         background: #1e3a66;
       }
+      /* Until the first check decides: most of the time it opens a server straight away. */
+      .checking h1,
+      .checking p:not(#status),
+      .checking .actions {
+        display: none;
+      }
       #status {
         min-height: 1.5em;
         font-size: 12px;
@@ -97,6 +104,7 @@
         const meta = (name) => document.querySelector(`meta[name="${name}"]`).content.replace(/\/$/, "");
         const APP = meta("sc-app");
         const BACKUP = meta("sc-backup");
+        document.body.classList.add("checking");
         const es = /^es\b/i.test(navigator.language || "");
         const T = es
           ? {
@@ -105,6 +113,8 @@
               retry: "Reintentar",
               backup: "Usar el servidor de respaldo",
               checking: "Comprobando…",
+              connecting: "Conectando…",
+              switching: "Conectando con el servidor de respaldo…",
               still: "Todavía sin conexión. Se vuelve a intentar solo.",
               backupUp: "El servidor de respaldo responde.",
             }
@@ -114,6 +124,8 @@
               retry: "Try again",
               backup: "Use the backup server",
               checking: "Checking…",
+              connecting: "Connecting…",
+              switching: "Connecting to the backup server…",
               still: "Still can't connect. Trying again by itself.",
               backupUp: "The backup server is answering.",
             };
@@ -129,22 +141,44 @@
             () => true,
             () => false,
           );
+        // A server that answers but whose page still fails (an HTTP error) brings the app back here: one opened
+        // in the last 20 seconds is passed over, so the page can't bounce between it and this one.
+        const store = (() => {
+          try {
+            return sessionStorage;
+          } catch {
+            return null;
+          }
+        })();
+        const recent = (key) => Date.now() - Number(store?.getItem(key) || 0) < 20000;
+        const open = (url, key) => {
+          store?.setItem(key, String(Date.now()));
+          location.replace(url);
+        };
+
         let busy = false;
         const check = async (byHand) => {
           if (busy) return;
           busy = true;
           if (byHand) status.textContent = T.checking;
-          if (await answers(APP)) return location.replace(APP);
-          const backupUp = !!BACKUP && (await answers(BACKUP));
+          const [appUp, backupUp] = await Promise.all([answers(APP), BACKUP ? answers(BACKUP) : false]);
+          if (appUp && (byHand || !recent("sc-opened-app"))) return open(APP, "sc-opened-app");
+          // The main server can't be reached from here but the backup can (often a VPN or a private DNS): use it.
+          if (backupUp && !recent("sc-opened-backup")) {
+            status.textContent = T.switching;
+            return open(BACKUP, "sc-opened-backup");
+          }
+          document.body.classList.remove("checking");
           backupButton.classList.toggle("primary", backupUp);
           status.textContent = backupUp ? T.backupUp : byHand ? T.still : "";
           busy = false;
         };
         document.getElementById("retry").addEventListener("click", () => check(true));
-        backupButton.addEventListener("click", () => location.assign(BACKUP));
+        backupButton.addEventListener("click", () => open(BACKUP, "sc-opened-backup"));
         // Back by itself once the connection returns.
         setInterval(() => document.visibilityState === "visible" && check(false), 15000);
         window.addEventListener("online", () => check(false));
+        status.textContent = T.connecting;
         check(false);
       })();
     </script>
