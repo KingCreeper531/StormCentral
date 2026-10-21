@@ -151,14 +151,29 @@ export async function addToPlaylist(videoId: string, title: string, description:
   });
 }
 
-/** The channel's live broadcast on air now (its video id and live chat id), or null (needs the youtube scope; 1 quota unit). */
-export async function liveBroadcast(token: string): Promise<{ id: string; chatId: string | null } | null> {
-  const res = await fetch(`${API}/liveBroadcasts?part=snippet&broadcastStatus=active&broadcastType=all&maxResults=5`, {
-    headers: { Authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!res.ok) throw await failure(res, "Finding the live broadcast");
-  const b = ((await res.json()) as { items?: { id: string; snippet?: { liveChatId?: string } }[] }).items?.[0];
+/**
+ * The channel's live broadcast on air now (its video id and live chat id), or null (needs the youtube scope;
+ * 1 quota unit a request). With `streamKey`, the broadcast fed by that key, never another stream's: with two on air
+ * at once (the main stream and the vertical one for the Shorts feed), each must find its own. The key is only
+ * compared here, never sent.
+ */
+export async function liveBroadcast(token: string, streamKey?: string): Promise<{ id: string; chatId: string | null } | null> {
+  const get = async <T>(path: string, what: string): Promise<T> => {
+    const res = await fetch(`${API}/${path}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) throw await failure(res, what);
+    return (await res.json()) as T;
+  };
+  let streamId: string | undefined;
+  if (streamKey) {
+    const streams = await get<{ items?: { id: string; cdn?: { ingestionInfo?: { streamName?: string } } }[] }>("liveStreams?part=cdn&mine=true&maxResults=50", "Finding the live stream");
+    streamId = streams.items?.find((s) => s.cdn?.ingestionInfo?.streamName === streamKey)?.id;
+  }
+  const { items = [] } = await get<{ items?: { id: string; snippet?: { liveChatId?: string }; contentDetails?: { boundStreamId?: string } }[] }>(
+    "liveBroadcasts?part=snippet,contentDetails&broadcastStatus=active&broadcastType=all&maxResults=50",
+    "Finding the live broadcast",
+  );
+  // A key YouTube doesn't list (it should) can still take the broadcast when it's the only one on air.
+  const b = !streamKey ? items[0] : streamId ? items.find((i) => i.contentDetails?.boundStreamId === streamId) : items.length === 1 ? items[0] : undefined;
   return b ? { id: b.id, chatId: b.snippet?.liveChatId ?? null } : null;
 }
 

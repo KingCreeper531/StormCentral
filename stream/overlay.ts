@@ -125,7 +125,60 @@ header.fixed.top-0{display:none!important}
   animation:scl-wipe .85s .12s cubic-bezier(.7,0,.3,1) both}
 #scl-live .wipe div{display:flex;align-items:center;gap:16px;font-size:30px;font-weight:900;letter-spacing:5px}
 #scl-live .wipe img{width:64px;height:64px;border-radius:14px}
-@keyframes scl-wipe{to{transform:translateX(100%);opacity:.6;visibility:hidden}}`;
+@keyframes scl-wipe{to{transform:translateX(100%);opacity:.6;visibility:hidden}}
+/* ── Vertical (9:16), for the Shorts feed. YouTube draws its own UI over the picture there: the top ~70 px,
+   the bottom ~22% (title, channel, subscribe) and a column of buttons down the right of the lower half, so
+   text stays out of those. The app's phone chrome (tab bar, bottom sheet, zoom buttons) is hidden. */
+@media (orientation:portrait){
+:root{--tabbar-h:0px!important}
+[data-chrome],.maplibregl-ctrl-group,div:has(>[data-tour="layout"]),[data-tour="readout"]{display:none!important}
+/* The bottom sheet is only made invisible: gone, its space would leave the app's map padding and move the storm. */
+div.fixed.inset-x-0.z-30:has(>section[aria-label]){visibility:hidden!important}
+/* Professional mode: its two stacked panes between the top row and the lower third. */
+div.absolute.inset-0.flex.flex-col:has(>div>[data-tour="layout"]){top:148px!important;bottom:420px!important}
+#scl-live .bug{left:16px;top:84px;gap:10px;padding:7px 12px 7px 7px}
+#scl-live .bug img{width:36px;height:36px}
+#scl-live .bug b{font-size:15px;letter-spacing:2px}
+#scl-live .bug small{display:none}
+#scl-live .side{left:236px;right:16px;top:84px;width:auto;display:flex;align-items:stretch}
+#scl-live .clock{flex:none;display:flex;flex-direction:column;justify-content:center;border-bottom:0;border-right:1px solid rgba(255,255,255,.07);padding:7px 12px}
+#scl-live .clock b{font-size:21px}
+#scl-live .clock b span{font-size:11px;margin-left:4px}
+#scl-live .clock small{font-size:10.5px}
+#scl-live .counts{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;align-content:center;gap:5px 7px;padding:7px 10px}
+#scl-live .counts h6{width:100%;margin:0;font-size:9.5px;letter-spacing:1.5px}
+#scl-live .count{margin:0;gap:5px}
+#scl-live .count .code{min-width:0;padding:2px 6px;font-size:11px}
+#scl-live .count .lbl{display:none}
+#scl-live .count .n{font-size:16px}
+#scl-live .none{font-size:12px}
+#scl-live .spc{margin:0;padding:3px 7px;font-size:10px;letter-spacing:.4px}
+#scl-live .ban{left:16px;right:16px;top:152px}
+#scl-live .ban .in{gap:14px;padding:15px 18px}
+#scl-live .ban .ic{width:50px;height:50px;font-size:28px}
+#scl-live .ban .k{font-size:11.5px;letter-spacing:2.5px}
+#scl-live .ban .h{font-size:34px}
+#scl-live .ban .p{font-size:16.5px}
+#scl-live .ban .chips span{font-size:11px;padding:3px 8px}
+#scl-live .cam{right:16px;top:152px;bottom:auto;width:236px}
+#scl-live .cam img{width:236px;height:133px}
+#scl-live .cam .lab{padding:5px 9px 6px;font-size:11.5px}
+/* The takeover has the top while it's up; the camera comes back after it. */
+#scl-live:has(.ban:not([hidden])) .cam{display:none}
+#scl-live .card{left:16px;right:16px;top:152px;width:auto}
+#scl-live:has(.cam:not([hidden])) .card{right:264px}
+#scl-live .tick{right:110px;bottom:282px;border:1px solid rgba(255,255,255,.08);border-left:0;border-radius:0 10px 10px 0;overflow:hidden}
+#scl-live .tick .lab{padding:0 10px;font-size:11px;letter-spacing:1.6px}
+#scl-live .l3{left:16px;right:122px;bottom:328px;height:92px}
+#scl-live .l3 .bar{width:8px}
+#scl-live .l3 .txt{padding:10px 14px 0}
+#scl-live .l3 .t{font-size:23px}
+#scl-live .l3 .s{font-size:14.5px;line-height:1.3;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+#scl-live .l3 .cd{padding:0 12px}
+#scl-live .l3 .cd small{font-size:9.5px;letter-spacing:1.4px}
+#scl-live .l3 .cd b{font-size:19px}
+#scl-live .cap,#scl-live .cap.beside{left:16px;right:122px;bottom:432px;transform:none;max-width:none;padding:9px 14px;font-size:19px;line-height:1.36}
+}`;
     d.head.appendChild(css);
     root = d.createElement("div");
     root.id = "scl-live";
