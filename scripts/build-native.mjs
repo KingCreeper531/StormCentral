@@ -8,7 +8,7 @@
  *                                           (then ./gradlew assembleRelease in android/)
  */
 import { spawnSync } from "node:child_process";
-import { copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const target = process.argv[2];
@@ -59,6 +59,18 @@ if (target === "desktop") {
   // The background runner (alert checks and the widget while the app is closed) is a separate,
   // self-contained script; Capacitor copies it from out/ into the APK's assets.
   npx(["esbuild", "src/native/runner/background.ts", "--bundle", "--format=iife", "--target=es2019", "--platform=neutral", "--main-fields=module,main", "--minify", "--outfile=out/runners/background.js"]);
+  // The offline page (Capacitor's server.errorPath when a hosted app doesn't load) retries the build's addresses.
+  if (process.env.STORMCENTRAL_URL) {
+    const file = path.join(root, "out", "offline.html");
+    const backup = process.env.STORMCENTRAL_BACKUP_URL ?? "https://storm-central-pi.vercel.app";
+    const attr = (s) => s.replace(/[&"<>]/g, (c) => `&#${c.charCodeAt(0)};`);
+    writeFileSync(
+      file,
+      readFileSync(file, "utf8")
+        .replace(/(<meta name="sc-app" content=")[^"]*/, `$1${attr(process.env.STORMCENTRAL_URL)}`)
+        .replace(/(<meta name="sc-backup" content=")[^"]*/, `$1${backup === "none" ? "" : attr(backup)}`),
+    );
+  }
   npx(["cap", "sync", "android"]);
   console.log("✓ static bundle synced to android/ (build it with: cd android && ./gradlew assembleRelease)");
 }

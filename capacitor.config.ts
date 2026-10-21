@@ -16,16 +16,31 @@ export const RUNNER_LABEL = "io.github.kingcreeper531.stormcentral.alerts";
  * `node scripts/build-native.mjs android`) and runs the weather feeds on the
  * phone. Accounts and reports need a server, so the spotter network is off.
  * Set STORMCENTRAL_URL when building to load a hosted Storm Central instead,
- * with everything enabled and one shared spotter network.
+ * with everything enabled and one shared spotter network. When it doesn't
+ * load (no signal, or a VPN or private DNS that can't find it), the app shows
+ * its own offline.html, which retries and offers the backup server
+ * (STORMCENTRAL_BACKUP_URL, Vercel by default; "none" to leave it out).
  */
 const remoteUrl = process.env.STORMCENTRAL_URL;
+const backupUrl = process.env.STORMCENTRAL_BACKUP_URL ?? "https://storm-central-pi.vercel.app";
+const backupHost = backupUrl === "none" ? null : new URL(backupUrl).host;
 
 const config: CapacitorConfig = {
   appId: "io.github.kingcreeper531.stormcentral",
   appName: "Storm Central",
   webDir: "out",
   backgroundColor: "#000000",
-  ...(remoteUrl && { server: { url: remoteUrl } }),
+  // Lets pages tell they're in the app even without Capacitor's bridge (the backup server);
+  // APP_USER_AGENT in src/lib/platform.ts.
+  appendUserAgent: "StormCentralApp",
+  ...(remoteUrl && {
+    server: {
+      url: remoteUrl,
+      errorPath: "offline.html",
+      // The backup opens in the app rather than the browser.
+      ...(backupHost && { allowNavigation: [backupHost] }),
+    },
+  }),
   plugins: {
     SystemBars: {
       // Edge-to-edge, with real env(safe-area-inset-*) values: the layout pads

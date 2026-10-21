@@ -4,7 +4,7 @@ import { Smartphone, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n/use-t";
 import { desktopBridge } from "@/lib/native/desktop";
-import { GITHUB_REPO, isNativeApp } from "@/lib/platform";
+import { GITHUB_REPO, inAppWebView, isNativeApp } from "@/lib/platform";
 import { buttonClass, IconButton } from "../ui/button";
 
 const KEY = "stormcentral:open-in-app-dismissed";
@@ -24,7 +24,7 @@ export function OpenInApp() {
   const [target, setTarget] = useState<Target | null>(null);
 
   useEffect(() => {
-    if (isNativeApp() || desktopBridge()) return;
+    if (isNativeApp() || inAppWebView() || desktopBridge()) return;
     try {
       const until = Number(localStorage.getItem(KEY) ?? 0);
       if (until > Date.now()) return;
