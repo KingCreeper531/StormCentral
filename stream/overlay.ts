@@ -25,6 +25,11 @@ export interface OverlayState {
   banner: { kicker: string; title: string; places: string; chips: string[]; color: string } | null;
   /** What the narrator is saying right now. */
   caption: string | null;
+  /**
+   * A small server: nothing moves all the time (the ticker flips through its items, the LIVE dot is still),
+   * so Chromium only draws when something changes and there's no constant motion to stutter.
+   */
+  light?: boolean;
   /** A public camera near the storm, picture-in-picture. */
   camera?: { url: string; name: string; credit: string } | null;
   /** An answer to a viewer's chat command ("FORECAST", "Moore, OK", the answer). */
@@ -33,7 +38,7 @@ export interface OverlayState {
 
 export function drawOverlay(s: OverlayState) {
   const d = document;
-  const w = window as unknown as { __scl?: { ends: string | null; tickerKey: string } };
+  const w = window as unknown as { __scl?: { ends: string | null; tickerKey: string; items: string[] } };
   let root = d.getElementById("scl-live");
   if (!root) {
     const css = d.createElement("style");
@@ -93,6 +98,9 @@ header.fixed.top-0,[data-chrome],.maplibregl-ctrl-group{display:none!important}
 #scl-live .tick .it em{font-style:normal;font-size:11px;font-weight:900;letter-spacing:1px;padding:2px 6px;border-radius:4px;color:#0a0d14}
 #scl-live .tick .it.note{color:#8f99ad}
 @keyframes scl-tick{from{transform:translateX(var(--from,1200px))}to{transform:translateX(-100%)}}
+/* light: one ticker item at a time, flipped every 5 seconds; a steady LIVE dot */
+#scl-live.light .tick .run{animation:none;transform:none;left:16px}
+#scl-live.light .live i{animation:none}
 /* live camera */
 #scl-live .cam{position:absolute;right:18px;bottom:140px;width:304px;border-radius:12px;overflow:hidden;animation:scl-rise .6s cubic-bezier(.2,.8,.2,1) both}
 #scl-live .cam img{display:block;width:304px;height:171px;object-fit:cover;background:#000}
@@ -111,18 +119,22 @@ header.fixed.top-0,[data-chrome],.maplibregl-ctrl-group{display:none!important}
   background:rgba(0,0,0,.74);font-size:21px;line-height:1.38;font-weight:600;text-align:center;transition:opacity .35s}
 /* beside the camera, not over it */
 #scl-live .cap.beside{left:18px;transform:none;max-width:calc(100% - 358px)}
-/* alert takeover */
-#scl-live .ban{position:absolute;left:18px;right:18px;top:84px;border-radius:16px;overflow:hidden;color:#fff;
+/* alert takeover: a box on the left, clear of the radar in the middle (and outside the middle third that
+   YouTube's auto-crop shows in the Shorts feed) */
+#scl-live .ban{position:absolute;left:18px;top:84px;width:400px;border-radius:14px;overflow:hidden;color:#fff;
   box-shadow:0 18px 60px rgba(0,0,0,.6);animation:scl-drop .6s cubic-bezier(.2,.9,.25,1.15) both}
 #scl-live .ban .bg{position:absolute;inset:0;background:var(--b)}
 #scl-live .ban .st{position:absolute;inset:0;opacity:.18;background:repeating-linear-gradient(-45deg,#000 0 18px,transparent 18px 36px);background-size:51px 51px;animation:scl-stripes 1.2s linear infinite}
-#scl-live .ban .in{position:relative;display:flex;align-items:center;gap:20px;padding:18px 24px}
-#scl-live .ban .ic{flex:none;width:64px;height:64px;border-radius:50%;background:rgba(0,0,0,.22);display:grid;place-items:center;font-size:36px;font-weight:900;animation:scl-throb 1s ease-in-out infinite}
-#scl-live .ban .k{font-size:13px;font-weight:900;letter-spacing:3px;opacity:.9}
-#scl-live .ban .h{font-size:42px;font-weight:900;letter-spacing:1px;line-height:1.05;text-shadow:0 2px 8px rgba(0,0,0,.35)}
-#scl-live .ban .p{font-size:19px;font-weight:700;margin-top:4px}
-#scl-live .ban .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
-#scl-live .ban .chips span{font-size:12px;font-weight:900;letter-spacing:1px;padding:4px 9px;border-radius:6px;background:rgba(0,0,0,.3)}
+#scl-live .ban .in{position:relative;display:flex;align-items:flex-start;gap:14px;padding:14px 16px}
+#scl-live .ban .ic{flex:none;width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.22);display:grid;place-items:center;font-size:26px;font-weight:900;animation:scl-throb 1s ease-in-out infinite}
+#scl-live .ban .k{font-size:11px;font-weight:900;letter-spacing:2.4px;opacity:.9}
+#scl-live .ban .h{font-size:28px;font-weight:900;letter-spacing:.5px;line-height:1.08;text-shadow:0 2px 8px rgba(0,0,0,.35)}
+#scl-live .ban .p{font-size:15px;font-weight:700;margin-top:4px;line-height:1.3}
+#scl-live .ban .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+#scl-live .ban .chips span{font-size:11px;font-weight:900;letter-spacing:1px;padding:3px 8px;border-radius:6px;background:rgba(0,0,0,.3)}
+/* a chat answer gives way while the takeover has the left side */
+#scl-live:has(.ban:not([hidden])) .card{display:none}
+#scl-live.light .ban .st{animation:none}
 @keyframes scl-drop{from{transform:translateY(-30px) scale(.97);opacity:0}to{transform:none;opacity:1}}
 @keyframes scl-stripes{to{background-position:51px 0}}
 @keyframes scl-throb{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
@@ -159,7 +171,7 @@ div.absolute.inset-0.flex.flex-col:has(>div>[data-tour="layout"]){top:148px!impo
 #scl-live .count .n{font-size:16px}
 #scl-live .none{font-size:12px}
 #scl-live .spc{margin:0;padding:3px 7px;font-size:10px;letter-spacing:.4px}
-#scl-live .ban{left:16px;right:16px;top:152px}
+#scl-live .ban{left:16px;right:16px;top:152px;width:auto}
 #scl-live .ban .in{gap:14px;padding:15px 18px}
 #scl-live .ban .ic{width:50px;height:50px;font-size:28px}
 #scl-live .ban .k{font-size:11.5px;letter-spacing:2.5px}
@@ -199,7 +211,7 @@ div.absolute.inset-0.flex.flex-col:has(>div>[data-tour="layout"]){top:148px!impo
 <div class="l3 glass"><div class="bar"></div><div class="txt"><div class="t"></div><div class="s"></div></div><div class="cd"><small>ENDS IN</small><b></b></div></div>
 <div class="tick"><div class="lab">WARNINGS</div><div class="win"><div class="run"></div></div></div>`;
     d.body.appendChild(root);
-    w.__scl = { ends: null, tickerKey: "" };
+    w.__scl = { ends: null, tickerKey: "", items: [] };
     const time = root.querySelector(".time")!, date = root.querySelector(".date")!, cdBox = root.querySelector<HTMLElement>(".cd")!, cd = cdBox.querySelector("b")!;
     const tick = () => {
       const now = new Date();
@@ -209,6 +221,9 @@ div.absolute.inset-0.flex.flex-col:has(>div>[data-tour="layout"]){top:148px!impo
       const left = Math.round((ends - now.getTime()) / 60_000);
       cdBox.style.display = Number.isFinite(left) && left > 0 ? "" : "none";
       cd.textContent = left >= 60 ? `${Math.floor(left / 60)} HR ${left % 60} MIN` : `${left} MIN`;
+      // Light: the next ticker item, by the clock, so a scene change (a new page) carries on in turn.
+      const items = w.__scl?.items ?? [];
+      if (root!.classList.contains("light") && items.length) root!.querySelector(".tick .run")!.innerHTML = items[Math.floor(now.getTime() / 5_000) % items.length]!;
     };
     tick();
     setInterval(tick, 5_000);
@@ -241,26 +256,34 @@ div.absolute.inset-0.flex.flex-col:has(>div>[data-tour="layout"]){top:148px!impo
       : `<div class="none">None in effect</div>`) +
     (s.outlook ? `<div class="spc" style="background:${s.outlook.color}">SPC TODAY · ${esc(s.outlook.label)}</div>` : "");
 
-  // Ticker: rebuilt only when its items change, at a steady ~95 px/s whatever its length.
-  const key = JSON.stringify(s.ticker);
+  root.classList.toggle("light", !!s.light);
+
+  // Ticker: rebuilt only when its items change, at a steady ~95 px/s whatever its length (light: one at a time).
+  const key = JSON.stringify([s.ticker, !!s.light]);
   if (w.__scl!.tickerKey !== key) {
     w.__scl!.tickerKey = key;
     const run = $(".tick .run");
-    run.innerHTML =
-      `<span class="it note">Not an official warning source: follow the National Weather Service.</span>` +
-      (s.ticker.length
-        ? s.ticker.map((t) => `<span class="it"><em style="background:${t.color}">${esc(t.code)}</em>${esc(t.text)}</span>`).join("")
-        : `<span class="it">No tornado, severe thunderstorm or flash flood warnings in effect right now.</span>`);
-    const from = $(".tick .win").clientWidth;
-    const dur = Math.round((run.scrollWidth + from) / 95);
-    run.style.setProperty("--from", `${from}px`);
-    run.style.setProperty("--d", `${dur}s`);
-    // Timed off the clock, so a scene change (a new page) carries on where the ticker was instead of starting over.
-    run.style.animationDelay = `-${((Date.now() / 1000) % dur).toFixed(2)}s`;
-    run.style.animation = "none";
-    void run.offsetWidth;
-    run.style.animation = "";
-    run.style.animationDelay = `-${((Date.now() / 1000) % dur).toFixed(2)}s`;
+    const items = [
+      `<span class="it note">Not an official warning source: follow the National Weather Service.</span>`,
+      ...(s.ticker.length
+        ? s.ticker.map((t) => `<span class="it"><em style="background:${t.color}">${esc(t.code)}</em>${esc(t.text)}</span>`)
+        : [`<span class="it">No tornado, severe thunderstorm or flash flood warnings in effect right now.</span>`]),
+    ];
+    w.__scl!.items = items;
+    if (s.light) run.innerHTML = items[Math.floor(Date.now() / 5_000) % items.length]!;
+    else {
+      run.innerHTML = items.join("");
+      const from = $(".tick .win").clientWidth;
+      const dur = Math.round((run.scrollWidth + from) / 95);
+      run.style.setProperty("--from", `${from}px`);
+      run.style.setProperty("--d", `${dur}s`);
+      // Timed off the clock, so a scene change (a new page) carries on where the ticker was instead of starting over.
+      run.style.animationDelay = `-${((Date.now() / 1000) % dur).toFixed(2)}s`;
+      run.style.animation = "none";
+      void run.offsetWidth;
+      run.style.animation = "";
+      run.style.animationDelay = `-${((Date.now() / 1000) % dur).toFixed(2)}s`;
+    }
   }
 
   // Live camera.
