@@ -190,19 +190,23 @@ type Check =
   | { kind: "downloading"; latest: string | null }
   | { kind: "ready"; latest: string | null }
   | { kind: "available"; update: AvailableUpdate }
+  /** The Mac app: it can't install updates, so it offers the download. */
+  | { kind: "download"; latest: string | null; url: string }
   | { kind: "store" }
   | { kind: "error" };
 
 const fromDesktop = (s: DesktopUpdateStatus): Check =>
   s.state === "store"
     ? { kind: "store" }
-    : s.state === "ready"
-    ? { kind: "ready", latest: s.latest }
-    : s.state === "downloading"
-      ? { kind: "downloading", latest: s.latest }
-      : s.state === "error"
-        ? { kind: "error" }
-        : { kind: "current", latest: s.latest };
+    : s.state === "available" && s.downloadUrl?.startsWith("https://")
+      ? { kind: "download", latest: s.latest, url: s.downloadUrl }
+      : s.state === "ready"
+        ? { kind: "ready", latest: s.latest }
+        : s.state === "downloading"
+          ? { kind: "downloading", latest: s.latest }
+          : s.state === "error"
+            ? { kind: "error" }
+            : { kind: "current", latest: s.latest };
 
 /** Android 0.4.3+: in-app install and the automatic-updates switch. */
 function useInAppUpdates(host: Host) {
@@ -292,6 +296,12 @@ function UpdatesPanel() {
             <Download className="size-4" aria-hidden />
             {t("Download {version}", { version: check.update.version })}
           </a>
+        ) : check.kind === "download" ? (
+          // The desktop app opens other sites in the default browser.
+          <a href={check.url} target="_blank" rel="noreferrer" className={buttonClass("primary")}>
+            <Download className="size-4" aria-hidden />
+            {t("Download {version}", { version: check.latest ?? "" })}
+          </a>
         ) : check.kind === "store" ? null : legacyDesktop ? (
           <a href={releases} target="_blank" rel="noreferrer" className={buttonClass("secondary")}>
             {t("Open the Releases page")}
@@ -315,6 +325,10 @@ function UpdatesPanel() {
               (inApp.available
                 ? t("Version {version} is available. Your settings stay.", { version: check.update.version })
                 : t("Version {version} is available. Install it over this one; your settings stay.", { version: check.update.version })))}
+          {check.kind === "download" &&
+            t("Version {version} is available. Open the download and drag Storm Central to Applications to replace this copy; your settings stay.", {
+              version: check.latest ?? "",
+            })}
           {check.kind === "error" && t("Couldn't reach GitHub. Check your connection and try again.")}
         </p>
       </div>

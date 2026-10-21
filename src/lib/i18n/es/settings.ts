@@ -49,6 +49,8 @@ export const SETTINGS: Record<string, string> = {
   "Version {version} is available. Your settings stay.": "La versión {version} está disponible. Tu configuración se conserva.",
   "Version {version} is available. Install it over this one; your settings stay.":
     "La versión {version} está disponible. Instálala sobre esta; tu configuración se conserva.",
+  "Version {version} is available. Open the download and drag Storm Central to Applications to replace this copy; your settings stay.":
+    "La versión {version} está disponible. Abre la descarga y arrastra Storm Central a Aplicaciones para reemplazar esta copia; tu configuración se conserva.",
   "Couldn't reach GitHub. Check your connection and try again.": "No se pudo conectar con GitHub. Revisa tu conexión e inténtalo de nuevo.",
   "Install updates automatically": "Instalar actualizaciones automáticamente",
   "New versions install in the background while you're not using the app.": "Las versiones nuevas se instalan en segundo plano mientras no usas la app.",
@@ -218,10 +220,13 @@ export const SETTINGS: Record<string, string> = {
   // ─── desktop-settings.tsx ──────────────────────────────────────────────────
   "Desktop app": "App de escritorio",
   "Keep running in the tray when the window is closed": "Seguir ejecutándose en la bandeja del sistema al cerrar la ventana",
+  "Keep running when the window is closed": "Seguir ejecutándose al cerrar la ventana",
   "Start Storm Central when you sign in to Windows": "Iniciar Storm Central al iniciar sesión en Windows",
   "Start Storm Central when you log in": "Iniciar Storm Central al iniciar sesión",
   "With the window closed, Storm Central keeps checking for warnings. Quit from the tray icon.":
     "Con la ventana cerrada, Storm Central sigue buscando avisos. Para salir, usa el ícono de la bandeja del sistema.",
+  "With the window closed, Storm Central keeps checking for warnings. Quit from the menu bar icon or with ⌘Q.":
+    "Con la ventana cerrada, Storm Central sigue buscando avisos. Para salir, usa el ícono de la barra de menús o ⌘Q.",
   "Couldn't save that setting. Try again.": "No se pudo guardar esa configuración. Inténtalo de nuevo.",
   "Couldn't load the desktop app settings.": "No se pudo cargar la configuración de la app de escritorio.",
 

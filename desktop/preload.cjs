@@ -25,25 +25,30 @@ const isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v)
 contextBridge.exposeInMainWorld("stormcentralDesktop", {
   platform: process.platform,
 
-  /** @param {{ text: string, tooltip: string, iconDataUrl?: string }} status */
+  /** @param {{ text: string, tooltip: string, iconDataUrl?: string, badge?: "red" | "orange" }} status */
   setTrayStatus(status) {
     if (!isObject(status)) return;
-    const { text, tooltip, iconDataUrl } = status;
+    const { text, tooltip, iconDataUrl, badge } = status;
     if (typeof text !== "string" || typeof tooltip !== "string") return;
     if (iconDataUrl !== undefined && typeof iconDataUrl !== "string") return;
-    ipcRenderer.send(CHANNEL.trayStatus, iconDataUrl === undefined ? { text, tooltip } : { text, tooltip, iconDataUrl });
+    /** @type {{ text: string, tooltip: string, iconDataUrl?: string, badge?: "red" | "orange" }} */
+    const payload = { text, tooltip };
+    if (iconDataUrl !== undefined) payload.iconDataUrl = iconDataUrl;
+    // The warning dot's colour: macOS shows it beside the temperature (it doesn't use the drawn icon).
+    if (badge === "red" || badge === "orange") payload.badge = badge;
+    ipcRenderer.send(CHANNEL.trayStatus, payload);
   },
 
   showWindow() {
     ipcRenderer.send(CHANNEL.showWindow);
   },
 
-  /** Checks GitHub Releases now. @returns {Promise<{ state: string, current: string, latest: string | null }>} */
+  /** Checks GitHub Releases now. @returns {Promise<{ state: string, current: string, latest: string | null, downloadUrl?: string }>} */
   checkForUpdates() {
     return ipcRenderer.invoke(CHANNEL.checkUpdates);
   },
 
-  /** Restarts into a downloaded update. @returns {Promise<boolean>} */
+  /** Restarts into a downloaded update (macOS: opens the newer version's download). @returns {Promise<boolean>} */
   installUpdate() {
     return ipcRenderer.invoke(CHANNEL.installUpdate);
   },

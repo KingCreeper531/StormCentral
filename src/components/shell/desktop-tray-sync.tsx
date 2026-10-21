@@ -152,6 +152,8 @@ export function DesktopTraySync() {
     const next: TrayStatus = { text: status.text, tooltip: status.tooltip };
     const icon = status.label ? temperatureIcon(status.label, status.badge) : undefined;
     if (icon) next.iconDataUrl = icon;
+    // The Mac menu bar shows text, not the drawn icon, so the warning dot travels separately too.
+    if (status.badge) next.badge = status.badge;
     bridge.setTrayStatus(next);
   }, [status]);
 
