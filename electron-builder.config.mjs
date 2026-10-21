@@ -1,17 +1,32 @@
 // @ts-check
 /**
- * Packages the Windows app: the Electron shell (desktop/) plus the standalone
- * Next.js server staged in build/desktop/server/ by scripts/build-native.mjs.
+ * Packages the desktop apps: the Electron shell (desktop/) plus, where it's
+ * used, the standalone Next.js server staged in build/desktop/server/ by
+ * scripts/build-native.mjs.
  *
- *   npm run desktop:dist     → dist/desktop/StormCentral-Setup-<version>.exe
+ *   npm run desktop:dist      → dist/desktop/StormCentral-Setup-<version>.exe (Windows)
+ *   npm run desktop:dist:mac  → dist/desktop/StormCentral-<version>.dmg (macOS, on a Mac)
  *
  * Releases are published by .github/workflows/release.yml. The installer and
- * latest.yml go on a GitHub release, which is where installed apps look for
- * updates (electron-updater, GitHub provider).
+ * latest.yml go on a GitHub release, which is where installed Windows apps
+ * look for updates (electron-updater, GitHub provider).
+ *
+ * The Mac app is one universal (Apple silicon + Intel) .dmg, built without an
+ * Apple Developer ID: it's ad-hoc signed (an unsigned arm64 app won't open at
+ * all) and not notarized, so the first launch needs System Settings → Privacy
+ * & Security → Open Anyway. Squirrel.Mac only installs updates signed with a
+ * Developer ID, so there's no latest-mac.yml: the app checks the latest
+ * release itself and offers the download (desktop/release-check.mjs). It
+ * only supports hosted builds (STORMCENTRAL_URL): the embedded server's
+ * native libSQL module is built for one architecture, which a universal app
+ * can't carry, so a local Mac build without STORMCENTRAL_URL is for this
+ * Mac's architecture only.
  */
 import { readFileSync } from "node:fs";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+/** Build-time switch: point the app at a hosted Storm Central instead of the local server. */
+const remoteUrl = process.env.STORMCENTRAL_URL || null;
 
 /**
  * Microsoft Store package (MSIX/AppX). The identity comes from Partner Center
@@ -32,6 +47,17 @@ const buildMsix = process.env.SKIP_MSIX !== "1" && !!(MSIX.identityName && MSIX.
 const repo = process.env.GITHUB_REPOSITORY || "KingCreeper531/StormCentral";
 const [owner, name] = repo.split("/");
 
+/**
+ * The local server. It needs real files on disk (native libSQL module), so it
+ * lives outside the asar. Copied via its parent folder: electron-builder
+ * always drops the *top-level* node_modules of an extraResources source,
+ * which would gut the server. Listed per platform because platform
+ * extraResources add to the top-level list rather than replace it, and the
+ * hosted Mac app leaves it out.
+ * @type {import("electron-builder").FileSet[]}
+ */
+const serverResources = [{ from: "build/desktop", to: ".", filter: ["server/**/*"] }];
+
 /** @type {import("electron-builder").Configuration} */
 const config = {
   appId: "io.github.kingcreeper531.stormcentral",
@@ -43,21 +69,17 @@ const config = {
   // One version for the web app and the desktop shell: the root package.json.
   extraMetadata: {
     version: pkg.version,
-    // Build-time switch: point the app at a hosted Storm Central instead of the local server.
-    stormcentral: { remoteUrl: process.env.STORMCENTRAL_URL || null, repo },
+    stormcentral: { remoteUrl, repo },
   },
-  files: ["**/*", "!resources{,/**}"],
+  files: ["**/*", "!resources{,/**}", "!**/*.test.mjs"],
   asar: true,
-  // The server needs real files on disk (native libSQL module), so it lives outside the asar.
-  // Copied via its parent folder: electron-builder always drops the *top-level*
-  // node_modules of an extraResources source, which would gut the server.
-  extraResources: [{ from: "build/desktop", to: ".", filter: ["server/**/*"] }],
   // electron-updater is plain JS; nothing to rebuild for Electron's ABI.
   npmRebuild: false,
   electronLanguages: ["en-US"],
   win: {
     target: [{ target: "nsis", arch: ["x64"] }, ...(buildMsix ? [{ target: "appx", arch: ["x64"] }] : [])],
     icon: "icon.png",
+    extraResources: serverResources,
     // Optional signing: set CSC_LINK / CSC_KEY_PASSWORD secrets and electron-builder signs automatically.
   },
   nsis: {
@@ -89,7 +111,45 @@ const config = {
     artifactName: "StormCentral-${version}-store.${ext}",
   },
   // Lets contributors on Linux run the packaged app locally (`npm run desktop:dist -- --linux dir`).
-  linux: { target: ["AppImage"], category: "Science", icon: "icon.png" },
+  linux: { target: ["AppImage"], category: "Science", icon: "icon.png", extraResources: serverResources },
+  // macOS 13 or newer (Electron's minimum). See the header for why it's ad-hoc signed and hosted.
+  mac: {
+    // One .dmg for Apple silicon and Intel. A local-server build is for this Mac's architecture
+    // only, because the server's native module is.
+    target: [{ target: "dmg", arch: remoteUrl ? ["universal"] : [process.arch === "arm64" ? "arm64" : "x64"] }],
+    category: "public.app-category.weather",
+    // electron-builder turns the 1024 px PNG into the .icns.
+    icon: "icon.png",
+    // "-" signs ad hoc: no certificate, but Apple silicon runs it (an unsigned arm64 app shows
+    // as "damaged"). Never left unset: unset, electron-builder looks for a certificate in the
+    // keychain and skips signing entirely when there's none. CI has no certificate (no CSC_LINK,
+    // CSC_IDENTITY_AUTO_DISCOVERY=false).
+    identity: "-",
+    // Hardened runtime only matters for notarization, and its library validation would reject
+    // Electron's frameworks under an ad-hoc signature.
+    hardenedRuntime: false,
+    notarize: false,
+    // Passed to codesign as --timestamp=none: an ad-hoc signature has nothing for Apple's timestamp server to vouch for.
+    timestamp: "none",
+    // Native dialogs and menus follow the system's light or dark appearance.
+    darkModeSupport: true,
+    extraResources: remoteUrl ? [] : serverResources,
+    // macOS takes the app's language from its .lproj folders and the page follows it, so keep Spanish.
+    electronLanguages: ["en", "es", "es_419"],
+    // "Use my location": macOS shows this when it asks for permission.
+    extendInfo: {
+      NSLocationUsageDescription: "Storm Central uses your location to show the weather and warnings where you are.",
+      NSLocationWhenInUseUsageDescription: "Storm Central uses your location to show the weather and warnings where you are.",
+    },
+    // No electron-updater feed (latest-mac.yml) or app-update.yml for the Mac app.
+    publish: null,
+  },
+  dmg: {
+    artifactName: "StormCentral-${version}.${ext}",
+    title: "Storm Central ${version}",
+    // No .blockmap: it's only for electron-updater's differential downloads.
+    writeUpdateInfo: false,
+  },
   publish: [{ provider: "github", owner, repo: name, releaseType: "release" }],
 };
 

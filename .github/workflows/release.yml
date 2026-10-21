@@ -1,12 +1,14 @@
-# Builds the Windows installer and the Android APK, and publishes them as a
-# GitHub release. Installed apps update from the latest release:
+# Builds the Windows installer, the Mac app and the Android APK, and publishes
+# them as a GitHub release. Installed apps update from the latest release:
 #   - Windows: electron-updater reads latest.yml and installs in the background.
+#   - macOS: the app checks the latest release and offers the new .dmg (it's
+#     ad-hoc signed, without an Apple Developer ID, so it can't install updates).
 #   - Android: the app checks the latest release and offers the new APK.
 #
 # Release:  bump "version" in package.json, commit, then push a matching tag
 #           (git tag v0.2.0 && git push origin v0.2.0), or run this workflow
 #           from the Actions tab with "publish" ticked.
-# Verify:   any push that touches the packaging builds both apps without publishing.
+# Verify:   any push that touches the packaging builds all three apps without publishing.
 name: Release apps
 
 on:
@@ -146,6 +148,62 @@ jobs:
             dist/desktop/latest.yml
             dist/desktop/StormCentral-*-store.appx
 
+  mac:
+    name: macOS app
+    needs: check
+    # Apple silicon. One universal .dmg (arm64 + x64) for every Mac.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+      - name: Hosted mode only
+        # The Mac app loads STORMCENTRAL_URL and doesn't bundle the local server
+        # (its native module is built for one architecture; the app is universal).
+        run: |
+          if [ -z "$STORMCENTRAL_URL" ]; then
+            echo "::error::The Mac app needs STORMCENTRAL_URL."
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm ci --prefix desktop
+      - name: Package
+        # Ad-hoc signed (mac.identity "-" in electron-builder.config.mjs), not notarized:
+        # no Apple Developer ID, so there's no certificate to find or use.
+        run: npx electron-builder --config electron-builder.config.mjs --mac --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Check the app
+        # Universal, ad-hoc signed (an unsigned arm64 app shows as "damaged"),
+        # without the server, and it starts in hosted mode and keeps running.
+        run: |
+          app=$(find dist/desktop -maxdepth 2 -name StormCentral.app -type d | head -n 1)
+          [ -n "$app" ] || { echo "::error::StormCentral.app not found"; ls -R dist/desktop | head -50; exit 1; }
+          lipo -archs "$app/Contents/MacOS/StormCentral" | tee "$RUNNER_TEMP/archs"
+          grep -q x86_64 "$RUNNER_TEMP/archs" || { echo "::error::No Intel (x86_64) code in the app"; exit 1; }
+          grep -q arm64 "$RUNNER_TEMP/archs" || { echo "::error::No Apple silicon (arm64) code in the app"; exit 1; }
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -dv "$app" 2>&1 | tee "$RUNNER_TEMP/sig"
+          grep -q "Signature=adhoc" "$RUNNER_TEMP/sig" || { echo "::error::The app isn't ad-hoc signed"; exit 1; }
+          [ ! -e "$app/Contents/Resources/server" ] || { echo "::error::The hosted Mac app shouldn't bundle the server"; exit 1; }
+          "$app/Contents/MacOS/StormCentral" > "$RUNNER_TEMP/app.log" 2>&1 &
+          pid=$!
+          sleep 20
+          if ! kill -0 "$pid" 2>/dev/null; then cat "$RUNNER_TEMP/app.log"; echo "::error::The app quit on launch"; exit 1; fi
+          kill "$pid" || true
+          cat "$RUNNER_TEMP/app.log"
+          grep -qF "starting (remote $STORMCENTRAL_URL" "$RUNNER_TEMP/app.log" || { echo "::error::The app didn't start in hosted mode"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          if-no-files-found: error
+          path: dist/desktop/StormCentral-*.dmg
+
   android:
     name: Android APK
     needs: check
@@ -199,7 +257,7 @@ jobs:
 
   release:
     name: Publish release
-    needs: [check, windows, android]
+    needs: [check, windows, mac, android]
     if: needs.check.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -223,6 +281,7 @@ jobs:
             echo "| Device | File |"
             echo "|---|---|"
             echo "| Windows 10 or 11 (64-bit) | \`StormCentral-Setup-$VERSION.exe\`: run it to install. The app updates itself from new releases. |"
+            echo "| macOS 13 or newer (Apple silicon and Intel) | \`StormCentral-$VERSION.dmg\`: open it and drag Storm Central to Applications. The first time, open it from Applications; if macOS says it can't verify the developer, go to **System Settings → Privacy & Security** and choose **Open Anyway** (once). In Terminal, \`xattr -dr com.apple.quarantine /Applications/StormCentral.app\` does the same. The app tells you when a new version is out. |"
             echo "| Android 7.0 or newer | \`StormCentral-$VERSION.apk\`: open it on your phone and allow installs from your browser when asked. After that, the app updates itself. |"
             if ls assets/*-store.appx > /dev/null 2>&1; then
               echo "| Microsoft Store | \`StormCentral-$VERSION-store.appx\`: the package uploaded to Partner Center. It can't be installed directly; get Storm Central from the Store or use the installer above. |"

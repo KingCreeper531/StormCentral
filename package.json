@@ -1,6 +1,6 @@
 {
   "name": "stormcentral",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "private": true,
   "description": "Next-generation open-data weather platform: immersive forecasts, NEXRAD radar, drone, angler and air-quality modes, plus a community spotter network.",
   "license": "MIT",
@@ -25,6 +25,7 @@
     "desktop:build": "node scripts/build-native.mjs desktop",
     "desktop:start": "npm run desktop:build && electron desktop",
     "desktop:dist": "npm run desktop:build && electron-builder --config electron-builder.config.mjs --publish never",
+    "desktop:dist:mac": "npm run desktop:build && electron-builder --config electron-builder.config.mjs --mac --publish never",
     "android:build": "node scripts/build-native.mjs android"
   },
   "dependencies": {

@@ -17,8 +17,9 @@ const PUBLIC_KEYS = ["closeToTray", "launchAtLogin"];
 /** @returns {Settings} */
 function defaults() {
   return {
-    // Windows users expect tray apps; elsewhere a hidden window may have no tray to come back from.
-    closeToTray: process.platform === "win32",
+    // Windows users expect tray apps, and Mac apps keep running when their window closes (the Dock
+    // icon brings it back); elsewhere a hidden window may have no tray to come back from.
+    closeToTray: process.platform === "win32" || process.platform === "darwin",
     launchAtLogin: false,
     trayHintShown: false,
   };
