@@ -31,7 +31,7 @@
  *   node director.mjs      (env: see CONFIG below; stream.env on the VPS)
  */
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { availableParallelism, homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -50,6 +50,7 @@ import { writeChecked, writersFromEnv } from "./llm";
 import { drawOverlay, type OverlayState } from "./overlay";
 import {
   annotateWarning,
+  captionChunks,
   activeWarnings,
   announcement,
   briefingFacts,
@@ -73,6 +74,8 @@ import { Budget, YouTubeLive, type BudgetState } from "./youtube-live";
 
 const run = promisify(execFile);
 const env = process.env;
+/** 2 CPUs or fewer: the stream's lighter defaults (map scale, light mode). */
+const SMALL = availableParallelism() <= 2;
 const CONFIG = {
   app: (env.STREAM_APP_URL || "https://app.stormcentralwx.com").replace(/\/$/, ""),
   width: Number(env.STREAM_WIDTH) || 1280,
@@ -82,7 +85,10 @@ const CONFIG = {
   // The radar map's resolution: below 1 it's drawn smaller and scaled up to the screen, the graphics over it
   // stay sharp. Without a GPU, the map's pixels are most of what Chromium does each frame.
   // 0.75 by default with 2 CPUs or fewer: on 2 cores it cut Chromium's graphics work per new frame by a quarter.
-  mapScale: Math.min(1, Math.max(0.5, Number(env.STREAM_MAP_SCALE) || (availableParallelism() <= 2 ? 0.75 : 1))),
+  mapScale: Math.min(1, Math.max(0.5, Number(env.STREAM_MAP_SCALE) || (SMALL ? 0.75 : 1))),
+  // Nothing in constant motion (the ticker flips, a steady LIVE dot, the radar loop steps without fading), so a
+  // small server's Chromium draws only when something changes and has no motion to stutter. On with 2 CPUs or fewer.
+  light: env.STREAM_LIGHT ? env.STREAM_LIGHT === "on" : SMALL,
   // A public camera beside a warned storm: off unless asked for (one more picture to fetch and draw).
   cameras: env.STREAM_CAMERAS === "on",
   voice: env.STREAM_VOICE || "en-US-AndrewNeural",
@@ -159,9 +165,9 @@ const play = (file: string) => run("paplay", [`--device=${CONFIG.sink}`, file], 
  * Reads `text` on the stream, one thing at a time in order: the alert sound
  * first (sounds.sh), then the voice, cleaned up like a broadcast mic (rumble
  * cut, gentle compression, normalized loudness). `onAir` runs as the voice
- * starts and stops, for the captions.
+ * starts (with how long it lasts, ms) and stops, for the captions.
  */
-function say(text: string, sound: AlertLevel | "update" | null, onAir: (on: boolean) => void = () => {}): Promise<void> {
+function say(text: string, sound: AlertLevel | "update" | null, onAir: (on: boolean, ms?: number) => void = () => {}): Promise<void> {
   busy++;
   speaking = speaking.then(async () => {
     try {
@@ -170,7 +176,8 @@ function say(text: string, sound: AlertLevel | "update" | null, onAir: (on: bool
       await run("ffmpeg", ["-v", "error", "-y", "-i", mp3, "-af", "highpass=f=85,acompressor=threshold=-20dB:ratio=3:attack=5:release=150:makeup=2,loudnorm=I=-15:TP=-1.5:LRA=7", "-ar", "48000", "-ac", "2", wav]);
       const tone = sound && CONFIG.sounds ? join(CONFIG.sounds, `${sound}.wav`) : "";
       if (tone && existsSync(tone)) await play(tone);
-      onAir(true);
+      // 48 kHz, 2 channels, 16-bit: 192,000 bytes a second after the 44-byte header.
+      onAir(true, ((statSync(wav).size - 44) / 192_000) * 1000);
       await play(wav);
     } catch (err) {
       log(`couldn't speak: ${errText(err)}`);
@@ -255,6 +262,7 @@ class Director {
     banner: null,
     caption: null,
     camera: null,
+    light: CONFIG.light,
   };
   // The first briefing comes two minutes in, so someone tuning in soon after a restart hears one.
   private lastBriefing = Date.now() - (CONFIG.briefingMinutes - 2) * 60_000;
@@ -480,11 +488,26 @@ class Director {
     }
   }
 
-  /** Reads `text` with captions. */
+  /** Reads `text` with captions: a line or two at a time, each up as long as its share of the voice. */
   private speak(text: string, sound: AlertLevel | "update" | null) {
-    return say(text, sound, (on) => {
-      this.overlay = { ...this.overlay, caption: on ? text : null };
+    let timers: NodeJS.Timeout[] = [];
+    const show = (caption: string | null) => {
+      this.overlay = { ...this.overlay, caption };
       void this.paint();
+    };
+    return say(text, sound, (on, ms = 0) => {
+      for (const t of timers) clearTimeout(t);
+      timers = [];
+      if (!on) return show(null);
+      const chunks = captionChunks(text);
+      const total = chunks.reduce((n, c) => n + c.length, 0) || 1;
+      let done = 0;
+      for (const c of chunks) {
+        const at = (done / total) * ms;
+        if (at === 0) show(c);
+        else timers.push(setTimeout(() => show(c), at));
+        done += c.length;
+      }
     });
   }
 
@@ -743,7 +766,7 @@ async function main() {
       "--ignore-gpu-blocklist",
     ],
   });
-  await context.addInitScript(() => {
+  await context.addInitScript((light: boolean) => {
     // Dark, imperial, Professional mode on, and observed radar only (no model forecast or extrapolated
     // frames), except in the HRRR scene, which asks for the model's frames with ?scl_future=1.
     // Only what the stream is about: radar, warnings and watches, and storm reports. Every other layer
@@ -753,6 +776,8 @@ async function main() {
     const radar = {
       future,
       nowcast: false,
+      // Light: each loop step is one redraw instead of a fade's worth.
+      crossfade: !light,
       alertKinds: ["warning", "watch"],
       showReports: false,
       showCells: false,
@@ -773,7 +798,7 @@ async function main() {
     localStorage.setItem("stormcentral:map-style:v1", JSON.stringify({ state: { style }, version: 1 }));
     // Professional mode: reflectivity and velocity side by side (two maps, not four), 6-scan loops.
     localStorage.setItem("stormcentral:pro", JSON.stringify({ state: { layout: "1x2", frames: 6, speed: 1 }, version: 1 }));
-  });
+  }, CONFIG.light);
   await context.addInitScript(paceFrames, CONFIG.fps);
   // MapLibre sizes its drawing to devicePixelRatio; the page's own text and graphics don't read it.
   if (CONFIG.mapScale < 1)
