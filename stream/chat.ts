@@ -12,7 +12,7 @@
  * on the stream. Slurs and abuse are filtered by YouTube's own chat moderation
  * (blocked words, held messages; vps/README.md), before anyone sees them.
  */
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as grpc from "@grpc/grpc-js";
@@ -299,12 +299,17 @@ interface RawResponse {
 type StreamClient = grpc.Client & { StreamList(req: object, md: grpc.Metadata): grpc.ClientReadableStream<RawResponse> };
 
 let definition: protoLoader.PackageDefinition | null = null;
-/** The service definition (proto-loader reads it from a file). */
+/** The service definition (proto-loader reads it from a file, removed once it's read). */
 export function chatService() {
   if (!definition) {
-    const file = join(mkdtempSync(join(tmpdir(), "scl-chat-")), "stream_list.proto");
-    writeFileSync(file, PROTO);
-    definition = protoLoader.loadSync(file, { keepCase: false, longs: String, enums: String, defaults: false, oneofs: true });
+    const dir = mkdtempSync(join(tmpdir(), "scl-chat-"));
+    try {
+      const file = join(dir, "stream_list.proto");
+      writeFileSync(file, PROTO);
+      definition = protoLoader.loadSync(file, { keepCase: false, longs: String, enums: String, defaults: false, oneofs: true });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   }
   const pkg = grpc.loadPackageDefinition(definition) as unknown as { youtube: { api: { v3: { V3DataLiveChatMessageService: grpc.ServiceClientConstructor } } } };
   return pkg.youtube.api.v3.V3DataLiveChatMessageService;

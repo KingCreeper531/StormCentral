@@ -31,7 +31,7 @@
  *   node director.mjs      (env: see CONFIG below; stream.env on the VPS)
  */
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -68,7 +68,7 @@ import {
   type Strengthening,
   type StreamWarning,
 } from "./plan";
-import { Budget, YouTubeLive } from "./youtube-live";
+import { Budget, YouTubeLive, type BudgetState } from "./youtube-live";
 
 const run = promisify(execFile);
 const env = process.env;
@@ -79,6 +79,8 @@ const CONFIG = {
   voice: env.STREAM_VOICE || "en-US-AndrewNeural",
   sink: env.STREAM_SINK || "stream",
   tmp: env.STREAM_TMP || "/tmp/stormcentral-stream",
+  // Chromium's profile, emptied at each start: on disk, not in STREAM_TMP (in memory under /run on the VPS).
+  profile: env.STREAM_PROFILE || join(tmpdir(), "stormcentral-chromium"),
   sounds: env.STREAM_SOUNDS || "",
   places: env.STREAM_PLACES || "",
   state: env.STREAM_STATE || join(homedir(), "stream-state.json"),
@@ -187,6 +189,8 @@ const urlFor = (s: Scene) => {
 interface SavedState {
   /** Warning key → when it was first seen (ms). */
   seen: Record<string, number>;
+  /** What's used of YouTube's daily budgets (Director.budgets), so a restart doesn't start the day's quota over. */
+  budgets?: Record<string, BudgetState>;
 }
 
 class Director {
@@ -217,13 +221,16 @@ class Director {
     tmp: CONFIG.tmp,
     privacy: env.STREAM_CLIPS_PRIVACY || "public",
     dryRunClip: env.STREAM_CLIPS_DRY,
+    onBudget: () => this.save(),
     log,
   });
   private aiTitle = { basis: "", text: "" };
+  /** A title being written (in the background; see retitleSoon). */
+  private titling = false;
   /** Viewers' chat commands (needs the YouTube credentials; STREAM_CHAT=off turns it off). */
   private chat: ChatReader | null = null;
   private chatCooldowns = new Cooldowns();
-  private chatReplies = new Budget(Number(env.STREAM_CHAT_REPLIES_DAILY_MAX ?? 60));
+  private chatReplies = new Budget(Number(env.STREAM_CHAT_REPLIES_DAILY_MAX ?? 60), () => this.save());
   private viewerRadarAt = 0;
   private cardTimer: ReturnType<typeof setTimeout> | null = null;
   private overlay: OverlayState = {
@@ -303,11 +310,17 @@ class Director {
     return p ? [p, ...this.warnings.filter((w) => w !== p)] : this.warnings;
   }
 
-  /** Warnings seen before a restart, so they're neither missed nor read again. True when there was a saved state. */
+  /** YouTube's daily budgets, by their names in the saved state. */
+  private budgets() {
+    return { titles: this.youtube.titles, clips: this.youtube.clips, chatReplies: this.chatReplies };
+  }
+
+  /** Warnings seen before a restart, so they're neither missed nor read again, and the day's budgets so far. True when there was a saved state. */
   private restore(): boolean {
     try {
       const s = JSON.parse(readFileSync(CONFIG.state, "utf8")) as SavedState;
       for (const [k, at] of Object.entries(s.seen ?? {})) if (Date.now() - at < 6 * 3_600_000) this.seen.set(k, at);
+      for (const [name, b] of Object.entries(this.budgets())) b.restore(s.budgets?.[name]);
       return true;
     } catch {
       return false;
@@ -316,7 +329,8 @@ class Director {
 
   private save() {
     try {
-      writeFileSync(CONFIG.state, JSON.stringify({ seen: Object.fromEntries(this.seen) } satisfies SavedState));
+      const budgets = Object.fromEntries(Object.entries(this.budgets()).map(([name, b]) => [name, b.state]));
+      writeFileSync(CONFIG.state, JSON.stringify({ seen: Object.fromEntries(this.seen), budgets } satisfies SavedState));
     } catch (err) {
       log(`couldn't save the state: ${errText(err)}`);
     }
@@ -348,7 +362,7 @@ class Director {
       this.save();
       this.overlay = { ...this.overlay, counts: countsOf(ws), outlook: outlookBadge(this.outlook), ticker: [...tickerItems(ws), ...this.reportTicker()] };
       await this.paint();
-      await this.updateTitle();
+      this.retitleSoon();
     } catch (err) {
       log(`warnings: ${errText(err)}`);
     }
@@ -362,12 +376,24 @@ class Director {
       .map((r) => ({ code: code[r.kind] ?? "REPORT", color: "#7cc4ff", text: reportSentence(r, "America/Chicago").replace(/ Central time\.$/, " CT") }));
   }
 
+  /** The title, in the background: the AI can take minutes to write it, and the warnings never wait for it. One at a time. */
+  private retitleSoon() {
+    if (this.titling) return;
+    this.titling = true;
+    void this.updateTitle()
+      .catch((err) => log(`title: ${errText(err)}`))
+      .finally(() => (this.titling = false));
+  }
+
   /** The title: by hand (control API), else the rules' title worded by the AI when the situation changes. */
   private async updateTitle() {
     if (this.titleOverride) return this.youtube.retitle(this.titleOverride, true);
     if (!this.youtube.enabled) return;
     const basis = liveTitle(this.warnings, this.outlook, this.recent);
-    if (basis !== this.aiTitle.basis) {
+    const urgent = this.warnings.some((w) => w.level === "emergency");
+    // Written only when YouTube would take it now (not within 10 minutes of the last title, nor over the day's
+    // budget); until then it's left for a later refresh.
+    if (basis !== this.aiTitle.basis && this.youtube.canRetitle(urgent)) {
       const top = this.warnings[0];
       const facts = [basis, ...(top ? commentaryFacts(top, stormFacts(top, this.places), []) : [])].join(" ");
       const ai = this.writers.length
@@ -380,8 +406,10 @@ class Director {
           )
         : null;
       this.aiTitle = { basis, text: ai ? `${ai.text}${ai.text.length <= 84 ? " • Live" : ""}` : basis };
+      // A title set by hand while the AI was writing stays.
+      if (this.titleOverride) return;
     }
-    await this.youtube.retitle(this.aiTitle.text, this.warnings.some((w) => w.level === "emergency"));
+    await this.youtube.retitle(this.aiTitle.text, urgent);
   }
 
   /** The data, every 30 seconds; never waits on the AI, so a new warning is never late. */
@@ -657,7 +685,9 @@ class Director {
 async function main() {
   mkdirSync(CONFIG.tmp, { recursive: true });
   // A persistent profile, because only then does Chromium open its window with --kiosk (no tabs or address bar).
-  const context = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), "scl-chromium-")), {
+  // Always the same folder, emptied first: a new one per start left a whole profile behind on every restart.
+  rmSync(CONFIG.profile, { recursive: true, force: true });
+  const context = await chromium.launchPersistentContext(CONFIG.profile, {
     headless: false,
     viewport: null,
     bypassCSP: true,

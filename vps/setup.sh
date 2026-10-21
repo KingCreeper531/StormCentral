@@ -309,6 +309,8 @@ EOF
   systemctl enable --now stormcentral-stream-restart.timer >/dev/null
   systemctl enable stormcentral-stream >/dev/null
   systemctl restart stormcentral-stream
+  # What earlier versions left in /tmp on every restart (a whole Chromium profile each); the stream now reuses one folder.
+  find /tmp -maxdepth 1 -user "$SVC_USER" -mmin +1 \( -name 'scl-chromium-*' -o -name 'scl-chat-*' \) -exec rm -rf {} + 2>/dev/null || true
 else
   warn "No stream key: skipping the live stream."
 fi
