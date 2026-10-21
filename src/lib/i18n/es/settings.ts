@@ -262,4 +262,5 @@ export const SETTINGS: Record<string, string> = {
     "Sincroniza unidades, tema e idioma, los ajustes del radar y del estilo del mapa, los ajustes predefinidos del mapa, las tablas de colores, el espacio de trabajo Profesional, los lugares guardados y las alertas personalizadas, temas y complementos, las capas propias desde enlaces y los gráficos de transmisión. Tu ubicación, el interruptor de notificaciones, los archivos que cargaste, el logotipo de transmisión y compartir como cazador se quedan en cada dispositivo.",
   "Remove the settings kept on your account": "Quitar los ajustes guardados en tu cuenta",
   "Removed the settings kept on your account. Each device keeps its own.": "Se quitaron los ajustes guardados en tu cuenta. Cada dispositivo conserva los suyos.",
+  "On-air graphics for streaming the radar": "Gráficos al aire para transmitir el radar",
 };

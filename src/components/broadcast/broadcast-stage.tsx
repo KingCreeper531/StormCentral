@@ -1,9 +1,7 @@
 "use client";
 
 import type { Map as MlMap, MapMouseEvent } from "maplibre-gl";
-import { Radio } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useHotkeys } from "@/hooks/use-hotkeys";
 import { useNow } from "@/hooks/use-now";
 import type { RadarLoop } from "@/hooks/use-radar-loop";
 import type { WeatherAlert } from "@/lib/api/types";
@@ -12,9 +10,7 @@ import { broadcastWarnings, tickerItems, warningLowerThird, type LowerThird } fr
 import { useT } from "@/lib/i18n/use-t";
 import type { ExportLoopOptions } from "@/lib/radar/export-loop";
 import { useBroadcastStore } from "@/store/broadcast-store";
-import { useDrawStore } from "@/store/draw-store";
 import { ExportLoopButton } from "../radar/export-loop-dialog";
-import { IconButton } from "../ui/button";
 import { BroadcastControls, useSceneTour } from "./broadcast-controls";
 import { BroadcastDialog } from "./broadcast-dialog";
 import { BroadcastOverlay } from "./broadcast-overlay";
@@ -26,34 +22,11 @@ const viewOf = (map: MlMap | null, name: string) => {
   return { lat: c.lat, lon: c.lng, zoom: map.getZoom(), name };
 };
 
-/** Opens broadcast settings, from where broadcast mode starts. */
-export function BroadcastButton({ map, onStart, size = "sm" }: { map: MlMap | null; onStart: () => void; size?: "sm" | "md" }) {
-  const t = useT();
-  const [open, setOpen] = useState(false);
-  const scenes = useBroadcastStore((s) => s.scenes.length);
-  return (
-    <>
-      <IconButton size={size} label={t("Broadcast mode")} onClick={() => setOpen(true)} disabled={!map}>
-        <Radio className={size === "sm" ? "size-4" : "size-5"} aria-hidden />
-      </IconButton>
-      <BroadcastDialog
-        open={open}
-        onClose={() => setOpen(false)}
-        onStart={() => {
-          setOpen(false);
-          onStart();
-        }}
-        currentView={() => viewOf(map, t("Scene {n}", { n: scenes + 1 }))}
-      />
-    </>
-  );
-}
-
 /**
- * Broadcast mode on the radar map: the app's chrome hidden, on-air graphics
- * over the map, a control bar that hides itself, scenes and tours, and loop
- * exports with the same graphics. Picking a warning on the map puts it in the
- * lower third with a countdown.
+ * Broadcast mode on the radar map (the /broadcast page): the app's chrome
+ * hidden, on-air graphics over the map, a control bar that hides itself,
+ * scenes and tours, and loop exports with the same graphics. Picking a
+ * warning on the map puts it in the lower third with a countdown.
  */
 export function BroadcastStage({
   map,
@@ -95,31 +68,6 @@ export function BroadcastStage({
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     };
   }, []);
-  // The back button or gesture leaves broadcast mode, not the page: going on air adds a history entry
-  // (same address), and leaving any other way goes back over it.
-  const exitRef = useRef(onExit);
-  useEffect(() => {
-    exitRef.current = onExit;
-  });
-  const entry = useRef("");
-  useEffect(() => {
-    const id = Math.random().toString(36).slice(2);
-    entry.current = id;
-    window.history.pushState({ broadcast: id }, "");
-    const onPop = () => exitRef.current();
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
-  const exit = useCallback(() => {
-    if ((window.history.state as { broadcast?: string } | null)?.broadcast === entry.current) window.history.back();
-    else exitRef.current();
-  }, []);
-  // Esc leaves, unless it's closing a dialog (settings, the export) or the drawing tools first.
-  useHotkeys({
-    Escape: () => {
-      if (!document.querySelector('[role="dialog"][aria-modal="true"]') && !useDrawStore.getState().open) exit();
-    },
-  });
 
   // Moving the map by hand leaves the scene.
   const { leave } = tour;
@@ -183,7 +131,7 @@ export function BroadcastStage({
       <BroadcastControls
         tour={tour}
         onSettings={() => setSettings(true)}
-        onExit={exit}
+        onExit={onExit}
         extra={
           <>
             {extra}

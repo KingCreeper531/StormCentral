@@ -55,7 +55,7 @@ import { AlertList, alertUntil, HazardSwatch, type RankedAlert } from "../radar/
 import { WarningSquares } from "../radar/warning-squares";
 import { reportsInAlert, type AlertReports } from "@/lib/alert-reports";
 import { Segmented } from "../ui/segmented";
-import { BroadcastButton, BroadcastStage } from "../broadcast/broadcast-stage";
+import { BroadcastStage } from "../broadcast/broadcast-stage";
 import { DrawCanvas, DrawToolbar } from "../draw/draw-tools";
 import { DrawingLayer } from "../draw/drawing-layer";
 import { LiveDrawingLayer, useLiveDrawingPublisher, usePresenter } from "../draw/live-drawing";
@@ -149,7 +149,7 @@ function useHeight<T extends HTMLElement>() {
  * MapLibre's camera padding tracks the overlays, so centring and framing use
  * the part of the map that is actually visible.
  */
-export function SevereMode() {
+export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {}) {
   const t = useT();
   const loc = useAppStore((s) => s.location);
   const radar = useAppStore((s) => s.radar);
@@ -190,8 +190,9 @@ export function SevereMode() {
   const fitDone = useRef(0);
   const [dockRef, dockH] = useHeight<HTMLDivElement>();
   const [archiveOpen, setArchiveOpen] = useState(false);
-  // Broadcast mode: the map full screen with on-air graphics (components/broadcast).
-  const [broadcasting, setBroadcasting] = useState(false);
+  // Broadcast mode: the map full screen with on-air graphics (components/broadcast). Only on its own
+  // page (/broadcast), so nobody opening the radar lands in it.
+  const broadcasting = !!studio;
   // Drawing on the map (a telestrator), optionally on the live stream.
   const drawOpen = useDrawStore((s) => s.open);
   const setDrawOpen = useDrawStore((s) => s.setOpen);
@@ -802,7 +803,6 @@ export function SevereMode() {
                 <History className="size-4" aria-hidden />
               </IconButton>
               {drawButton}
-              <BroadcastButton size="sm" map={map} onStart={() => setBroadcasting(true)} />
               <ExportLoopButton size="sm" map={map} loop={loop} speed={radar.speed} title={loopTitle} subtitle={placeName} timeZone={timeZone} />
             </>
           }
@@ -859,7 +859,7 @@ export function SevereMode() {
         <LiveDrawingLayer />
       </MapView>
 
-      {broadcasting && (
+      {studio && (
         <BroadcastStage
           map={map}
           loop={loop}
@@ -869,7 +869,7 @@ export function SevereMode() {
           title={loopTitle}
           placeName={placeName}
           timeZone={timeZone}
-          onExit={() => setBroadcasting(false)}
+          onExit={studio.onExit}
           extra={drawButton}
         />
       )}
