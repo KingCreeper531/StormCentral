@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ImageUp, MapPinPlus, Radio, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ImageUp, MapPinPlus, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
@@ -28,8 +28,6 @@ const PARTS: { key: keyof BroadcastParts; label: string }[] = [
 export interface BroadcastDialogProps {
   open: boolean;
   onClose: () => void;
-  /** Starts broadcast mode; absent while it's already on. */
-  onStart?: () => void;
   /** The map's view now, to save as a scene, with a suggested name. */
   currentView: () => { lat: number; lon: number; zoom: number; name: string } | null;
 }
@@ -61,7 +59,7 @@ export function BroadcastDialog(props: BroadcastDialogProps) {
   );
 }
 
-function Panel({ onClose, onStart, currentView }: BroadcastDialogProps) {
+function Panel({ onClose, currentView }: BroadcastDialogProps) {
   const t = useT();
   const s = useBroadcastStore();
   const ref = useRef<HTMLDivElement>(null);
@@ -233,13 +231,7 @@ function Panel({ onClose, onStart, currentView }: BroadcastDialogProps) {
       </div>
 
       <footer className={cn("flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)_+_12px)] md:pb-3", "max-md:[&>*]:flex-1")}>
-        <Button onClick={onClose}>{onStart ? t("Close") : t("Done")}</Button>
-        {onStart && (
-          <Button variant="primary" onClick={onStart}>
-            <Radio className="size-4" aria-hidden />
-            {t("Start broadcast mode")}
-          </Button>
-        )}
+        <Button onClick={onClose}>{t("Done")}</Button>
       </footer>
     </motion.div>
   );
