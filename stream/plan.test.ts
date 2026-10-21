@@ -4,6 +4,7 @@ import type { RawAlertFeature } from "../src/lib/alerts";
 import { checkAgainst } from "./analysis";
 import { haversineKm } from "../src/lib/geo";
 import {
+  captionChunks,
   activeWarnings,
   annotateWarning,
   announcement,
@@ -203,5 +204,28 @@ describe("the live title", () => {
     expect(c.title.length).toBeLessThanOrEqual(100);
     expect(c.description).toContain("Watch the live stream: https://youtu.be/abc");
     expect(c.description).toContain("Not an official warning source");
+  });
+});
+
+describe("captionChunks", () => {
+  it("keeps short sentences whole and cuts long ones at commas, then between words, never past the limit", () => {
+    const text =
+      "A Tornado Warning is in effect for Graham County, Arizona, until 4:45 PM Mountain time. A severe thunderstorm capable of producing a tornado is 16 miles southwest of Safford, moving northeast at 30 mph, and it is 14 miles southwest of Roper Lake State Park, with radar-indicated tornado and hail up to 1.50 inches.";
+    const chunks = captionChunks(text);
+    expect(chunks.slice(0, 2)).toEqual(["A Tornado Warning is in effect for Graham County, Arizona,", "until 4:45 PM Mountain time."]);
+    for (const c of chunks) expect(c.length).toBeLessThanOrEqual(84);
+    // Nothing lost or reordered.
+    expect(chunks.join(" ")).toBe(text);
+  });
+
+  it("splits a run-on without commas between words", () => {
+    const words = Array.from({ length: 40 }, (_, i) => `word${i}`).join(" ");
+    const chunks = captionChunks(words, 30);
+    expect(chunks.every((c) => c.length <= 30)).toBe(true);
+    expect(chunks.join(" ")).toBe(words);
+  });
+
+  it("gives nothing for nothing", () => {
+    expect(captionChunks("  ")).toEqual([]);
   });
 });

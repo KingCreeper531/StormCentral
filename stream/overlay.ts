@@ -115,8 +115,9 @@ header.fixed.top-0,[data-chrome],.maplibregl-ctrl-group{display:none!important}
 #scl-live .card .h{font-size:20px;font-weight:800;margin-top:2px}
 #scl-live .card .x{font-size:14.5px;line-height:1.42;color:#dfe5f0;margin-top:5px}
 /* captions */
-#scl-live .cap{position:absolute;left:50%;bottom:140px;transform:translateX(-50%);max-width:940px;padding:10px 18px;border-radius:10px;
-  background:rgba(0,0,0,.74);font-size:21px;line-height:1.38;font-weight:600;text-align:center;transition:opacity .35s}
+/* captions: a line or two at a time (director: captionChunks), small, low over the map */
+#scl-live .cap{position:absolute;left:50%;bottom:136px;transform:translateX(-50%);max-width:720px;padding:6px 14px;border-radius:8px;
+  background:rgba(0,0,0,.72);font-size:17px;line-height:1.32;font-weight:600;text-align:center;transition:opacity .35s}
 /* beside the camera, not over it */
 #scl-live .cap.beside{left:18px;transform:none;max-width:calc(100% - 358px)}
 /* alert takeover: a box on the left, clear of the radar in the middle (and outside the middle third that
