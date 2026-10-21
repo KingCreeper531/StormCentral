@@ -93,6 +93,8 @@ Restart the service after a change.
 |---|---|---|
 | `STREAM_APP_URL` | `https://app.stormcentralwx.com` | the Storm Central the stream shows (the self-hosted address, which fails over to Vercel) |
 | `STREAM_FPS`, `STREAM_VIDEO_KBPS` | 30, 3500 | YouTube's range for 720p |
+| `STREAM_MAP_SCALE` | 0.75 with 2 CPUs or fewer, else 1 | the radar map's resolution (0.5–1): lower draws a smaller map scaled up to the screen, smoother on a small server and a little softer; the graphics over it stay sharp |
+| `STREAM_CAMERAS` | off | `on`: a public traffic, river or fire camera near a warned storm, beside the radar |
 | `STREAM_X264_PRESET` | `superfast` with 2 CPUs or fewer, else `veryfast` | the encoder's speed: each step faster takes less CPU and looks a little softer at the same bitrate (`ultrafast` is the lightest) |
 | `STREAM_COMMENTARY_MINUTES`, `STREAM_BRIEFING_MINUTES` | 4, 20 | how often it talks during warnings, and on quiet days |
 | `STREAM_TITLE_DAILY_MAX`, `STREAM_CLIPS_DAILY_MAX`, `STREAM_CLIPS_PRIVACY` | 20, 1, `public` | titles and clips a day: they share YouTube's 10,000 daily units with the Shorts (a title ~51, any upload 1,600). For more, ask YouTube for a quota increase (free, in the Google Cloud console) |

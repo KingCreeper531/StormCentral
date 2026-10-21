@@ -70,8 +70,10 @@ for _ in $(seq 50); do pactl info >/dev/null 2>&1 && break; sleep 0.1; done
 pactl load-module module-null-sink sink_name=stream sink_properties=device.description=stream >/dev/null
 pactl set-default-sink stream
 
-# The director: Chromium and the scenes. Give it time to put the first scene up.
-node "$RUNTIME/director.mjs" &
+# The director: Chromium and the scenes. Give it time to put the first scene up. A step below ffmpeg and the
+# sound: when the CPU is short, Chromium draws a few frames fewer, rather than the encoder falling behind and
+# YouTube's picture stalling.
+nice -n 5 node "$RUNTIME/director.mjs" &
 pids+=($!)
 sleep "${STREAM_WARMUP:-25}"
 

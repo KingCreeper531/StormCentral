@@ -894,7 +894,7 @@ export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {})
         </Sheet>
       )}
       {!broadcasting && desktop && !panelOpen && (
-        <Button size="sm" className="absolute top-3 left-[var(--sl)] z-20" onClick={() => setPanelOpen(true)}>
+        <Button data-chrome size="sm" className="absolute top-3 left-[var(--sl)] z-20" onClick={() => setPanelOpen(true)}>
           <Layers className="size-4" aria-hidden />
           {t("Warnings & layers")}
           {ranked.length > 0 && <span className="text-ink-3 tabular">{ranked.length}</span>}
