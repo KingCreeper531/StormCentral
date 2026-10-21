@@ -320,7 +320,7 @@ const withBrand = (t: string) => (t.length + BRAND.length <= 100 ? t + BRAND : t
  */
 export function liveTitle(ws: StreamWarning[], outlook: Outlook | null, recent: Strengthening[] = [], now = Date.now()): string {
   const emergency = ws.find((w) => w.tags.includes("TORNADO EMERGENCY") || w.tags.includes("FLASH FLOOD EMERGENCY"));
-  if (emergency) return fitTitle(withBrand(`🔴 ${emergency.name.toUpperCase()}: ${placeOf(emergency)} • Live Radar`), `🔴 ${emergency.name.toUpperCase()} • Live Radar`);
+  if (emergency) return fitTitle(withBrand(`${emergency.name.toUpperCase()}: ${placeOf(emergency)} • Live Radar`), `${emergency.name.toUpperCase()} • Live Radar`);
   const fresh = recent.filter((r) => now - r.at < 30 * 60_000 && ws.some((w) => w.key === r.warning.key)).sort((a, b) => b.warning.rank - a.warning.rank)[0];
   if (fresh) return fitTitle(withBrand(`Watching a strengthening storm near ${placeOf(fresh.warning)}: ${fresh.why} • Live`), `Strengthening storm near ${placeOf(fresh.warning)} • Live`);
   const tor = ws.filter((w) => w.event === "Tornado Warning");
