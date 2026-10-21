@@ -9,6 +9,8 @@ import { useBroadcastStore, type BroadcastScene } from "@/store/broadcast-store"
 import { IconButton } from "../ui/button";
 
 const reducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+/** How long the bar stays after the last move or tap; longer on touch screens, where it takes a tap to find. */
+const hideAfter = () => (window.matchMedia("(pointer: coarse)").matches ? 5000 : 2500);
 
 /** Fly the map through the saved scenes, holding each for the tour's seconds. */
 export function useSceneTour(map: MlMap | null) {
@@ -58,8 +60,9 @@ export type SceneTour = ReturnType<typeof useSceneTour>;
 
 /**
  * Broadcast mode's controls: a bar along the top that shows while the
- * pointer moves (or a control has focus) and hides itself on air. Scenes,
- * the tour, full screen, settings and the way out (Esc works too).
+ * pointer moves, on a tap (phones have no pointer to move), or while a
+ * control has focus, and hides itself on air. Scenes, the tour, full
+ * screen, settings and the way out (Esc and the back button work too).
  */
 export function BroadcastControls({ tour, onSettings, onExit, extra }: { tour: SceneTour; onSettings: () => void; onExit: () => void; extra?: React.ReactNode }) {
   const t = useT();
@@ -71,13 +74,16 @@ export function BroadcastControls({ tour, onSettings, onExit, extra }: { tour: S
     const poke = () => {
       setShown(true);
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => setShown(false), 2500);
+      timer.current = setTimeout(() => setShown(false), hideAfter());
     };
     poke();
     window.addEventListener("pointermove", poke);
+    // Captured, so a tap on the map shows the bar too.
+    window.addEventListener("pointerdown", poke, true);
     window.addEventListener("keydown", poke);
     return () => {
       window.removeEventListener("pointermove", poke);
+      window.removeEventListener("pointerdown", poke, true);
       window.removeEventListener("keydown", poke);
       if (timer.current) clearTimeout(timer.current);
     };
@@ -99,7 +105,7 @@ export function BroadcastControls({ tour, onSettings, onExit, extra }: { tour: S
       role="toolbar"
       aria-label={t("Broadcast controls")}
       className={cn(
-        "overlay absolute top-3 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 px-1.5 py-1 transition-opacity duration-300 focus-within:opacity-100",
+        "overlay absolute top-3 left-1/2 z-40 flex w-max max-w-[calc(100vw-1.5rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 px-1.5 py-1 transition-opacity duration-300 focus-within:opacity-100",
         shown ? "opacity-100" : "pointer-events-none opacity-0",
       )}
     >

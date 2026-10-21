@@ -57,6 +57,7 @@ export function OpenInApp() {
     <div
       role="region"
       aria-label={t("Storm Central app")}
+      data-chrome
       className="surface fixed inset-x-4 bottom-[calc(var(--tabbar-h)_+_12px)] z-50 flex items-center gap-3 py-2 pr-2 pl-3 md:inset-x-auto md:right-6 md:bottom-6 md:w-[420px]"
     >
       <Smartphone className="size-4 shrink-0 text-ink-3" aria-hidden />
