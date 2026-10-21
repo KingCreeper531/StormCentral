@@ -1,0 +1,40 @@
+# TEMP: what app.stormcentralwx.com serves right now (removed after the check).
+name: Probe app domain
+on:
+  push:
+    branches: [claude/trusting-pasteur-qzc0fq]
+    paths: [.github/workflows/probe-app.yml]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: DNS
+        run: |
+          for r in 1.1.1.1 8.8.8.8; do
+            for t in A AAAA CNAME; do echo "@$r $t: $(dig +short app.stormcentralwx.com $t @$r | tr '\n' ' ')"; done
+          done
+          echo "NS: $(dig +short stormcentralwx.com NS @1.1.1.1 | tr '\n' ' ')"
+          echo "SOA: $(dig +short stormcentralwx.com SOA @1.1.1.1)"
+      - name: Headers along the way
+        run: |
+          for u in https://app.stormcentralwx.com/ "https://app.stormcentralwx.com/?mode=severe" https://app.stormcentralwx.com/api/health https://www.stormcentralwx.com/app; do
+            echo "=== $u"
+            curl -sS -o /dev/null -D - -L --max-redirs 5 -m 30 -A "Mozilla/5.0 (Linux; Android 14) Chrome/130 Mobile" "$u" \
+              | grep -iE '^(HTTP/|location|server|via|x-vercel|x-powered-by|x-nextjs|cf-cache-status|content-type|age|cache-control)' || echo "(request failed)"
+          done
+      - name: What the page is
+        run: |
+          for u in https://app.stormcentralwx.com/ https://storm-central-pi.vercel.app/; do
+            echo "=== $u"
+            body=$(curl -sSL -m 30 -A "Mozilla/5.0 (Linux; Android 14) Chrome/130 Mobile" "$u" || true)
+            echo "bytes: ${#body}"
+            echo "title: $(grep -o '<title>[^<]*</title>' <<<"$body" | head -1)"
+            echo "build id: $(grep -oE '"buildId":"[^"]+"|/_next/static/[A-Za-z0-9_-]{8,}/' <<<"$body" | head -1)"
+            for w in "Storm Central" scl_ stream overlay LIVE broadcast ticker manifest.webmanifest restreamer owncast obs; do
+              printf '%-16s %s\n' "$w" "$(grep -oi -- "$w" <<<"$body" | wc -l)"
+            done
+            echo "--- first 1200 chars of visible text"
+            sed -e 's/<script[^>]*>.*<\/script>//g' -e 's/<[^>]*>/ /g' <<<"$body" | tr -s ' \n' ' ' | head -c 1200; echo
+          done
