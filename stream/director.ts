@@ -126,7 +126,9 @@ async function fetchOutlook(): Promise<Outlook | null> {
 /** The last hour's NWS storm reports, from Storm Central's own feed. */
 const fetchReports = async () => (await getJson<StormReportsResponse>(`${CONFIG.app}/api/storm-reports?hours=1`)).reports;
 /** Public cameras (traffic, fire, river), from Storm Central's own feed. */
-const fetchCameras = async () => (await getJson<WebcamsResponse>(`${CONFIG.app}/api/webcams`)).cams.map(toWebcam);
+// Only sources whose owners allow it on the stream (one this build doesn't know is skipped, not shown).
+const fetchCameras = async () =>
+  (await getJson<WebcamsResponse>(`${CONFIG.app}/api/webcams`)).cams.map(toWebcam).filter((c) => WEBCAM_SOURCES[c.source]?.onStream);
 
 /** Tests only: the top warning of a saved NWS scenario (STREAM_DEMO_FIXTURE, STREAM_DEMO_NOW), ending 30 minutes from now. */
 function demoWarning(): StreamWarning | null {
