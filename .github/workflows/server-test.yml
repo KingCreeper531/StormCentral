@@ -1,7 +1,7 @@
 # The servers' parts, tested on fresh runners before they reach a real server:
 # (1) the live stream runs 4 minutes into a file instead of YouTube, with a demo tornado emergency
-#     (takeover, read-out, a clip rendered but not posted); frames, the sound and the clip are kept
-#     as the run's artifact;
+#     (takeover, read-out, a clip rendered but not posted), and the vertical stream (Shorts feed)
+#     alongside it as a server runs both; frames, the sound and the clip are kept as the run's artifact;
 # (2) vps/setup.sh installs the web app and it answers through Caddy;
 # (3) vps/setup.sh installs the stream and the local AI;
 # (4) the Pro data server starts and publishes its index.
@@ -49,8 +49,19 @@ jobs:
           STREAM_PLACES: ${{ runner.temp }}/places.tsv
           STREAM_STATE: ${{ runner.temp }}/state.json
         run: |
+          # The vertical stream at the same time, the way a server runs both: its own screen, sound, Chromium
+          # profile, state and control port (what vps/setup.sh puts in stream-vertical.env), for 150 s.
+          (
+            export STREAM_WIDTH=720 STREAM_HEIGHT=1280 STREAM_DISPLAY=98 STREAM_CONTROL_PORT=8788 STREAM_SECONDS=150 \
+              XDG_RUNTIME_DIR="$RUNNER_TEMP/xdg-vertical" STREAM_OUTPUT="$RUNNER_TEMP/vertical.mp4" \
+              STREAM_STATE="$RUNNER_TEMP/state-vertical.json" STREAM_PROFILE="$RUNNER_TEMP/chromium-vertical" \
+              STREAM_SEGMENTS="$RUNNER_TEMP/segments-vertical" STREAM_CLIPS_DRY= STREAM_CLIPS_DAILY_MAX=0 STREAM_TITLE_DAILY_MAX=0 STREAM_CHAT=off
+            timeout 300 bash stream/run.sh > "$RUNNER_TEMP/vertical.log" 2>&1 || echo "vertical run.sh exited with $?"
+          ) &
           timeout 380 bash stream/run.sh || echo "run.sh exited with $?"
-          ls -la "$RUNNER_TEMP"/test.mp4
+          wait
+          echo "── vertical stream log (end)" && tail -n 25 "$RUNNER_TEMP/vertical.log"
+          ls -la "$RUNNER_TEMP"/test.mp4 "$RUNNER_TEMP"/vertical.mp4
       - name: Frames, sound and the clip
         run: |
           out="$RUNNER_TEMP/result" && mkdir -p "$out" && cd "$out"
@@ -65,6 +76,13 @@ jobs:
           ffmpeg -v error -i "$RUNNER_TEMP/test.mp4" -vn -ac 1 -ar 22050 -c:a libmp3lame -b:a 48k audio.mp3 || true
           ffmpeg -v info -i "$RUNNER_TEMP/test.mp4" -af volumedetect -vn -f null - 2>&1 | grep -E "mean_volume|max_volume" | tee -a info.txt
           cp "$RUNNER_TEMP/clip.mp4" . 2>/dev/null || true
+          # The vertical stream: quiet scene, chat card, the takeover, the read-out.
+          for t in 15 30 45 60 80 110 140; do
+            ffmpeg -v error -ss $t -i "$RUNNER_TEMP/vertical.mp4" -frames:v 1 -q:v 3 vertical$t.jpg || true
+          done
+          ffprobe -v error -show_entries stream=codec_name,width,height -of compact "$RUNNER_TEMP/vertical.mp4" | sed 's/^/vertical: /' | tee -a info.txt
+          cp "$RUNNER_TEMP/vertical.log" . 2>/dev/null || true
+          grep -q "vertical: stream|codec_name=h264|width=720|height=1280" info.txt || { echo "::error::No 720x1280 vertical stream"; exit 1; }
           # It talked (the read-out and its alert sound), and the warning was cut into a vertical clip.
           max=$(grep -oP 'max_volume: \K-?[0-9.]+' info.txt)
           awk -v m="$max" 'BEGIN { exit !(m > -30) }' || { echo "::error::The stream is silent (max volume $max dB)"; exit 1; }
@@ -113,7 +131,7 @@ jobs:
       - name: Answers for setup.sh
         run: |
           sudo mkdir -p /etc/stormcentral
-          printf 'DOMAIN=\nYT_STREAM_KEY=ci-dummy-key\nYT_CLIENT_ID=\nYT_CLIENT_SECRET=\nYT_REFRESH_TOKEN=\nANTHROPIC_API_KEY=\nGEMINI_API_KEY=\nSTREAM_EXTRA_OUTPUTS=\nAI=yes\nAPP_DOMAIN=\nWATCHER_IP=\nWATCH_DOMAIN=\nWATCH_IP=\nCF_API_TOKEN=\nBACKUP_HOST=storm-central-pi.vercel.app\nNTFY_TOPIC=\n' | sudo tee /etc/stormcentral/setup.env > /dev/null
+          printf 'DOMAIN=\nYT_STREAM_KEY=ci-dummy-key\nYT_VERTICAL_STREAM_KEY=ci-dummy-vertical\nYT_CLIENT_ID=\nYT_CLIENT_SECRET=\nYT_REFRESH_TOKEN=\nANTHROPIC_API_KEY=\nGEMINI_API_KEY=\nSTREAM_EXTRA_OUTPUTS=\nAI=yes\nAPP_DOMAIN=\nWATCHER_IP=\nWATCH_DOMAIN=\nWATCH_IP=\nCF_API_TOKEN=\nBACKUP_HOST=storm-central-pi.vercel.app\nNTFY_TOPIC=\n' | sudo tee /etc/stormcentral/setup.env > /dev/null
       - name: Install the stream and the local AI with vps/setup.sh
         run: sudo STORMCENTRAL_BRANCH="$BRANCH" bash vps/setup.sh < /dev/null
       - name: Everything the stream needs is in place, and it starts
@@ -127,11 +145,28 @@ jobs:
           sleep 60
           sudo journalctl -u stormcentral-stream -n 40 --no-pager
           sudo journalctl -u stormcentral-stream --no-pager | grep -q "AI writers: local gemma3"
+      - name: The vertical stream is installed beside it, with its own settings, and starts
+        run: |
+          systemctl is-enabled stormcentral-stream-vertical
+          sudo stat -c '%a %U:%G %n' /etc/stormcentral/stream-vertical.env | tee /dev/stderr | grep -q '^640 root:'
+          sudo grep -E '^(STREAM_WIDTH|STREAM_HEIGHT|STREAM_DISPLAY|STREAM_CONTROL_PORT|STREAM_CLIPS_DAILY_MAX|STREAM_TITLE_DAILY_MAX|STREAM_CHAT)=' /etc/stormcentral/stream-vertical.env
+          sudo grep -q '^YT_STREAM_KEY=ci-dummy-vertical$' /etc/stormcentral/stream-vertical.env
+          sudo journalctl -u stormcentral-stream-vertical -n 30 --no-pager
+          sudo journalctl -u stormcentral-stream-vertical --no-pager | grep -q "Live stream director: .*720x1280"
       - name: Running the installer again keeps a setting changed by hand
         run: |
           echo 'GEMINI_MODEL=gemini-flash-lite-latest' | sudo tee -a /etc/stormcentral/stream.env > /dev/null
+          echo 'STREAM_FPS=24' | sudo tee -a /etc/stormcentral/stream-vertical.env > /dev/null
           sudo STORMCENTRAL_BRANCH="$BRANCH" bash vps/setup.sh < /dev/null > /dev/null
           sudo grep -q '^GEMINI_MODEL=gemini-flash-lite-latest' /etc/stormcentral/stream.env
+          sudo grep -q '^STREAM_FPS=24' /etc/stormcentral/stream-vertical.env
+      - name: Without its key, the vertical stream is turned off and removed
+        run: |
+          sudo sed -i 's/^YT_VERTICAL_STREAM_KEY=.*/YT_VERTICAL_STREAM_KEY=/' /etc/stormcentral/setup.env
+          sudo STORMCENTRAL_BRANCH="$BRANCH" bash vps/setup.sh < /dev/null > /dev/null
+          if systemctl is-enabled stormcentral-stream-vertical 2>/dev/null; then echo "::error::The vertical stream is still installed"; exit 1; fi
+          test ! -e /etc/stormcentral/stream-vertical.env
+          systemctl is-enabled stormcentral-stream
   pro-server:
     runs-on: ubuntu-24.04
     timeout-minutes: 30

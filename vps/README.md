@@ -7,6 +7,7 @@ any of these parts; each server gets the parts you answer for:
 |---|---|---|
 | **Pro data server** | MESH, rotation tracks, VIL and GOES RGBs for Professional mode | `pro-server/`, Docker, capped at 1 CPU / 2 GB |
 | **24/7 live stream** | Storm Central itself on YouTube Live (and any other RTMP platform), run by a director: tornado warnings first, then the rest by severity; a takeover, alert sound and read-out for each new or upgraded warning; live commentary with the storm's position, motion and arrival times for the towns in its path; storm reports, nearby live cameras, the HRRR model before storms; a title that follows what's happening; clips of warnings posted as Shorts | `stream/` (`run.sh`, `director.ts`), systemd `stormcentral-stream` |
+| **Vertical live stream** (optional) | the same stream in 9:16 on a second stream key, so it can show in YouTube's Shorts feed ([below](#vertical-live-stream-shorts-feed)) | systemd `stormcentral-stream-vertical` |
 | **AI** (optional) | words the commentary, briefings and titles: Claude Haiku (Anthropic key; about $1–3 a month at the stream's volume, set ANTHROPIC_MODEL in stream.env for another), Gemini (Google AI Studio key, free tier), then a local model (gemma3:4b with 8 GB, gemma3:1b with less). Every line is checked against the facts first: a number, place, hazard or piece of advice that isn't in them, and it's thrown out for the next AI or the plain facts | `stream/llm.ts`; Ollama at the lowest CPU priority |
 | **Web app** | the app itself, behind Cloudflare, building and switching to each new `main` by itself (rolling back if it doesn't come up) | Caddy + systemd `stormcentral-app`, `app-deploy.sh` every 5 minutes |
 | **Failover watcher** | on a *different* server: checks the app server every minute and points the app's address at Vercel after 3 failures, back after 5 good checks | `failover.sh`, systemd timer |
@@ -101,6 +102,45 @@ Restart the service after a change.
 | `STREAM_VOICE` | `en-US-AndrewNeural` | the voice |
 | `STREAM_EXTRA_OUTPUTS` | | more `rtmp://` addresses, space-separated (Twitch, Kick…) |
 | `STREAM_CHAT`, `STREAM_CHAT_REPLIES_DAILY_MAX` | on, 60 | chat commands (`off` turns them off), and how many chat replies a day (20 quota units each) |
+
+## Vertical live stream (Shorts feed)
+
+YouTube shows vertical (9:16) live streams in the Shorts feed on phones. The vertical stream is a second copy of
+the live stream on the same server, on its own stream key: the same scenes, warnings, read-outs and commentary,
+at 720x1280 with a layout made for phones. Its graphics keep clear of what YouTube draws over a Short (the top bar,
+the title and channel at the bottom, the like and share buttons down the right), the storm sits above the lower
+third, and Professional mode shows reflectivity over velocity.
+
+1. **A second stream key**: YouTube Studio → **Go live** → **Stream** → open the stream key list → **Create new
+   stream key** (a name like "Vertical"). Copy it, and turn on **Auto-start** for the stream that uses it.
+2. **On the server**: run the installer again and paste it at the *vertical live stream* question (Enter keeps
+   your other answers). Typing `none` there later turns the vertical stream off and removes it.
+
+What it doesn't do, by default: change its title, post clips or answer chat commands. The main stream does those.
+YouTube's 10,000 API units a day are already shared with the Shorts uploads, and the vertical stream would spend them
+twice. Set a title for it once in YouTube Studio. To let it retitle itself anyway, raise `STREAM_TITLE_DAILY_MAX`
+in its settings; each stream only ever changes the broadcast fed by its own key.
+
+It roughly doubles the stream's CPU (a second Chromium drawing the radar, and a second video encode). The main
+stream keeps the higher priority. Watch the load (`htop`) on the first stormy day; on a small server, lower
+`STREAM_FPS` in the vertical stream's settings.
+
+```bash
+journalctl -u stormcentral-stream-vertical -f        # what it's doing
+sudo systemctl restart stormcentral-stream-vertical  # restart it (it restarts nightly with the main stream too)
+ssh -L 8788:127.0.0.1:8788 root@<stream server>      # its control API, the same as the main stream's but on port 8788
+```
+
+Its settings are `/etc/stormcentral/stream-vertical.env`, read on top of `stream.env`: everything not set there
+(the AI keys, the voice, the app's address) is the main stream's. The installer rewrites the key and what keeps the
+two copies apart, and leaves the rest as you change it.
+
+| Setting | Default | |
+|---|---|---|
+| `STREAM_WIDTH`, `STREAM_HEIGHT` | 720, 1280 | the vertical frame (set by the installer) |
+| `STREAM_VIDEO_KBPS` | 3000 | YouTube's range for 720p |
+| `STREAM_TITLE_DAILY_MAX`, `STREAM_CLIPS_DAILY_MAX`, `STREAM_CHAT` | 0, 0, `off` | left to the main stream |
+| `STREAM_DISPLAY`, `STREAM_CONTROL_PORT`, `STREAM_STATE`, `STREAM_PROFILE`, `STREAM_SEGMENTS` | 98, 8788, … | its own screen, control port, saved state, Chromium profile and recording (set by the installer) |
 
 ## Taking control of the stream
 
