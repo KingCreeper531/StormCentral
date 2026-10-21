@@ -84,7 +84,13 @@ jobs:
             const kinds = {};
             for (const f of data?.features ?? []) kinds[f.properties.kind] = (kinds[f.properties.kind] ?? 0) + 1;
             const towns = (data?.features ?? []).filter((f) => f.properties.kind === "town").map((f) => `${f.properties.name} ${f.properties.time}`);
-            return { zoom: map.getZoom().toFixed(2), center: map.getCenter(), sources, vec, places: places.length, classes, sample: places.slice(0, 3).map((f) => f.properties), rendered, kinds, towns };
+            const bySl = {};
+            for (const l of map.getStyle().layers) if (l["source-layer"]) (bySl[l["source-layer"]] ??= []).push(`${l.id}:${l.type}${map.getLayoutProperty(l.id, "visibility") === "none" ? "(hidden)" : ""}`);
+            const pl = vec ? map.querySourceFeatures(vec, { sourceLayer: "places" }) : [];
+            const kinds2 = {};
+            for (const f of pl) { const k = `${f.properties?.kind}/${f.properties?.kind_detail}`; kinds2[k] = (kinds2[k] ?? 0) + 1; }
+            const filters = map.getStyle().layers.filter((l) => ["places", "roads", "pois"].includes(l["source-layer"])).slice(0, 12).map((l) => `${l.id}: ${JSON.stringify(l.filter)}`);
+            return { zoom: map.getZoom().toFixed(2), vec, places: places.length, classes, rendered, sourceLayers: bySl, placesLayer: pl.length, placeKinds: kinds2, placeSample: pl.slice(0, 4).map((f) => f.properties), filters };
           });
           console.log("── map:", JSON.stringify(diag, null, 1));
           const panel = await page.locator("text=In the path").first().locator("xpath=..").innerText({ timeout: 10000 }).catch((e) => `no "In the path" section: ${e.message}`);
