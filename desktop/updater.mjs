@@ -1,17 +1,23 @@
 // @ts-check
 import { app, BrowserWindow, dialog } from "electron";
 import updaterPkg from "electron-updater";
+import { checkReleasesFromMenu, checkReleasesFromPage, initReleaseChecks, openReleaseDownload } from "./release-check.mjs";
 
 /**
  * Updates from GitHub Releases. electron-builder writes the repository into
  * the packaged app (app-update.yml). We check on launch and every 4 hours,
  * download in the background, and ask before restarting. An update the user
  * defers installs when they next quit.
+ *
+ * The Mac app can't install updates (see release-check.mjs), so on macOS
+ * every entry point here hands over to release-check.mjs, which tells the
+ * user about a new version instead, and electron-updater is never started.
  */
-const { autoUpdater } = updaterPkg;
 const CHECK_EVERY_MS = 4 * 3_600_000;
 /** The Microsoft Store version: the Store installs updates, so this updater stays off. */
 export const storeBuild = !!process.windowsStore;
+/** The Mac app: update notices only. */
+const noticeOnly = process.platform === "darwin";
 
 /** @type {(m: string) => void} */
 let log = () => {};
@@ -32,13 +38,13 @@ function show(opts) {
 
 async function check() {
   try {
-    await autoUpdater.checkForUpdates();
+    await updaterPkg.autoUpdater.checkForUpdates();
   } catch (err) {
     log(`updates: check failed: ${err instanceof Error ? err.message : err}`);
   }
 }
 
-/** @param {{ log: (m: string) => void }} opts */
+/** @param {{ log: (m: string) => void, repo: string }} opts */
 export function initAutoUpdates(opts) {
   log = opts.log;
   if (!app.isPackaged) {
@@ -49,6 +55,12 @@ export function initAutoUpdates(opts) {
     log("updates: handled by the Microsoft Store");
     return;
   }
+  if (noticeOnly) {
+    initReleaseChecks(opts);
+    return;
+  }
+  // Created on first use, so the Mac app never sets up Squirrel.Mac.
+  const { autoUpdater } = updaterPkg;
   autoUpdater.logger = { info: (m) => log(`updates: ${m}`), warn: (m) => log(`updates: ${m}`), error: (m) => log(`updates: ${m}`), debug: () => {} };
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
@@ -104,12 +116,17 @@ export function checkForUpdatesFromMenu() {
     void show({ type: "info", message: "Storm Central updates through the Microsoft Store", detail: "New versions install automatically. To check now, open the Store's Library." });
     return;
   }
+  if (noticeOnly) {
+    void checkReleasesFromMenu();
+    return;
+  }
   manualCheck = true;
   void check();
 }
 
 /**
- * @typedef {{ state: "current" | "downloading" | "ready" | "error" | "unsupported" | "store", current: string, latest: string | null }} UpdateStatus
+ * "available" (macOS only): a newer version is out, and downloadUrl is its .dmg or release page.
+ * @typedef {{ state: "current" | "downloading" | "ready" | "available" | "error" | "unsupported" | "store", current: string, latest: string | null, downloadUrl?: string }} UpdateStatus
  */
 
 /** @returns {UpdateStatus} */
@@ -124,13 +141,15 @@ function status() {
 
 /**
  * Settings → Check for updates: checks now and reports the result to the page
- * (no dialog). A newer version starts downloading; "ready" means restart to install.
+ * (no dialog). A newer version starts downloading; "ready" means restart to
+ * install. On macOS, "available" comes with a download link instead.
  * @returns {Promise<UpdateStatus>}
  */
 export async function checkForUpdatesFromPage() {
+  if (app.isPackaged && noticeOnly) return checkReleasesFromPage();
   if (!app.isPackaged || storeBuild || state.ready) return status();
   try {
-    const result = await autoUpdater.checkForUpdates();
+    const result = await updaterPkg.autoUpdater.checkForUpdates();
     const latest = result?.updateInfo?.version ?? null;
     if (latest) state.latest = latest;
   } catch (err) {
@@ -140,9 +159,10 @@ export async function checkForUpdatesFromPage() {
   return status();
 }
 
-/** Restart into a downloaded update. Returns false when none is ready. */
+/** Restart into a downloaded update (on macOS: open the newer version's download). Returns false when there's none. */
 export function installUpdateFromPage() {
+  if (noticeOnly) return app.isPackaged && openReleaseDownload();
   if (!state.ready) return false;
-  setImmediate(() => autoUpdater.quitAndInstall());
+  setImmediate(() => updaterPkg.autoUpdater.quitAndInstall());
   return true;
 }

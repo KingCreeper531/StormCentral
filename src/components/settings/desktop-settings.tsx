@@ -52,12 +52,15 @@ export function DesktopSettings() {
         ? t("Start Storm Central when you log in")
         : null;
 
+  // A Mac app stays in the Dock and menu bar; "tray" is a Windows word.
+  const mac = bridge.platform === "darwin";
+
   return (
     <Panel title={t("Desktop app")}>
       {settings ? (
         <div className="divide-y divide-line">
           <Toggle
-            label={t("Keep running in the tray when the window is closed")}
+            label={mac ? t("Keep running when the window is closed") : t("Keep running in the tray when the window is closed")}
             checked={settings.closeToTray}
             onChange={(closeToTray) => change({ closeToTray })}
           />
@@ -74,7 +77,11 @@ export function DesktopSettings() {
         )
       )}
       {settings?.closeToTray && (
-        <p className="mt-2 text-xs text-ink-3">{t("With the window closed, Storm Central keeps checking for warnings. Quit from the tray icon.")}</p>
+        <p className="mt-2 text-xs text-ink-3">
+          {mac
+            ? t("With the window closed, Storm Central keeps checking for warnings. Quit from the menu bar icon or with ⌘Q.")
+            : t("With the window closed, Storm Central keeps checking for warnings. Quit from the tray icon.")}
+        </p>
       )}
       {error && (
         <p role="alert" className="mt-2 text-xs text-ink-2">

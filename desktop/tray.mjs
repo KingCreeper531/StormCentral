@@ -6,13 +6,24 @@ import { fileURLToPath } from "node:url";
  * The notification-area icon. It shows the current temperature (the page
  * draws the image and sends it over IPC, see parseTrayStatus) and is how a
  * window hidden by "close to tray" comes back.
+ *
+ * On macOS it's a menu bar item instead: a monochrome bolt (a template image,
+ * so macOS tints it for light and dark menu bars) with the temperature as
+ * text beside it, in the system font, rather than the page's drawn digits.
  */
+
+const IS_MAC = process.platform === "darwin";
 
 /** @param {string} name */
 const asset = (name) => fileURLToPath(new URL(`./assets/${name}`, import.meta.url));
 
-/** 16 px tray icon (Electron picks up tray@2x.png beside it); Linux trays are larger, so they get the 32 px icon. */
-const TRAY_ICON = asset(process.platform === "linux" ? "icon.png" : "tray.png");
+/**
+ * 16 px tray icon (Electron picks up tray@2x.png beside it); Linux trays are
+ * larger, so they get the 32 px icon. macOS gets the 16 pt template bolt,
+ * trayTemplate.png and trayTemplate@2x.png ("Template" in the name makes it
+ * a template image).
+ */
+const TRAY_ICON = asset(process.platform === "linux" ? "icon.png" : IS_MAC ? "trayTemplate.png" : "tray.png");
 /** 32 px app icon (and icon@2x.png) for notifications. */
 const APP_ICON = asset("icon.png");
 
@@ -22,7 +33,13 @@ const PNG_PREFIX = "data:image/png;base64,";
 /** Windows caps notification-area tooltips at 127 characters. */
 const MAX_TOOLTIP = process.platform === "win32" ? 127 : MAX_TEXT;
 
-/** @typedef {{ text: string, tooltip: string, iconDataUrl?: string }} TrayStatus */
+/**
+ * badge: an active warning at the location, by the colour of the dot the
+ * drawn icon carries (red: tornado or emergency, orange: other warnings).
+ * @typedef {{ text: string, tooltip: string, iconDataUrl?: string, badge?: "red" | "orange" }} TrayStatus
+ */
+/** macOS shows the warning beside the temperature, since it doesn't use the drawn icon. */
+const BADGE_MARK = { red: "🔴", orange: "🟠" };
 
 /** @param {unknown} v @returns {v is string} */
 const isText = (v) => typeof v === "string" && v.length <= MAX_TEXT;
@@ -42,16 +59,21 @@ function pngSize(buf) {
 
 /**
  * Validates a tray status from the page. The icon, when present, must be a
- * square PNG data URL (16–64 px, under 64 KB). Returns null if anything is off.
+ * square PNG data URL (16–64 px, under 64 KB), and the badge "red" or
+ * "orange". Returns null if anything is off.
  * @param {unknown} payload
  * @returns {TrayStatus | null}
  */
 export function parseTrayStatus(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
-  const { text, tooltip, iconDataUrl } = /** @type {Record<string, unknown>} */ (payload);
+  const { text, tooltip, iconDataUrl, badge } = /** @type {Record<string, unknown>} */ (payload);
   if (!isText(text) || !isText(tooltip)) return null;
   /** @type {TrayStatus} */
   const status = { text: clean(text), tooltip: clean(tooltip) };
+  if (badge !== undefined) {
+    if (badge !== "red" && badge !== "orange") return null;
+    status.badge = badge;
+  }
   if (iconDataUrl !== undefined) {
     if (typeof iconDataUrl !== "string" || iconDataUrl.length >= MAX_DATA_URL || !iconDataUrl.startsWith(PNG_PREFIX)) return null;
     const b64 = iconDataUrl.slice(PNG_PREFIX.length);
@@ -77,6 +99,7 @@ let tray = null;
 export function createTray({ onOpen, onCheckForUpdates, onQuit, log }) {
   const defaultImage = nativeImage.createFromPath(TRAY_ICON);
   if (defaultImage.isEmpty()) log(`tray: couldn't load ${TRAY_ICON}`);
+  if (IS_MAC) defaultImage.setTemplateImage(true);
   const icon = new Tray(defaultImage);
   tray = icon;
   icon.setToolTip("Storm Central");
@@ -88,8 +111,11 @@ export function createTray({ onOpen, onCheckForUpdates, onQuit, log }) {
       { label: "Quit", click: onQuit },
     ]),
   );
-  icon.on("click", onOpen);
-  icon.on("double-click", onOpen);
+  // macOS opens the menu on a click (and would also report the click), as menu bar items do.
+  if (!IS_MAC) {
+    icon.on("click", onOpen);
+    icon.on("double-click", onOpen);
+  }
 
   let lastTooltip = "";
   let lastText = "";
@@ -100,13 +126,20 @@ export function createTray({ onOpen, onCheckForUpdates, onQuit, log }) {
     /**
      * Updates the tooltip (and, on macOS, the text beside the icon). With an
      * icon the tray shows it; without one it goes back to the app icon.
+     * macOS keeps its template icon and shows the text, plus a coloured dot
+     * for a warning.
      * @param {TrayStatus} status a value returned by parseTrayStatus
      */
     setStatus(status) {
       if (icon.isDestroyed()) return;
       const tooltip = (status.tooltip || "Storm Central").slice(0, MAX_TOOLTIP);
       if (tooltip !== lastTooltip) icon.setToolTip((lastTooltip = tooltip));
-      if (process.platform === "darwin" && status.text !== lastText) icon.setTitle((lastText = status.text));
+      if (IS_MAC) {
+        const title = [status.badge ? BADGE_MARK[status.badge] : "", status.text].filter(Boolean).join(" ");
+        // Digits of equal width, so the menu bar doesn't shift as the temperature changes.
+        if (title !== lastText) icon.setTitle((lastText = title), { fontType: "monospacedDigit" });
+        return;
+      }
 
       const next = status.iconDataUrl ?? "";
       if (next === lastIcon) return;

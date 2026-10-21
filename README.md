@@ -23,6 +23,7 @@ npm run dev                  # http://localhost:3000
 | `npm run check` | Typecheck, lint and tests (CI runs it on every pull request) |
 | `npm run build` / `npm start` | Production build of the web app |
 | `npm run desktop:build`, `desktop:dist` | Windows app (Electron) |
+| `npm run desktop:dist:mac` | Mac app (.dmg; on a Mac). Universal with `STORMCENTRAL_URL` set, as releases are; without it, for this Mac's chip with the local server |
 | `npm run android:build` | Android app (static export + Capacitor) |
 
 Without a database setting, accounts and spotter reports use a local SQLite file in `data/`. On Vercel, connect a Turso database.

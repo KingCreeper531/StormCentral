@@ -210,13 +210,16 @@
   // ── Platform and downloads ─────────────────────────────────────────────
 
   const ua = navigator.userAgent;
+  // iPads report a Mac user agent, so touch decides before the Mac check.
   const os = /Android/i.test(ua)
     ? "android"
     : /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
       ? "ios"
       : /Windows NT/i.test(ua)
         ? "windows"
-        : "other";
+        : /Macintosh|Mac OS X/i.test(ua)
+          ? "mac"
+          : "other";
 
   const icons = {
     windows:
@@ -245,11 +248,14 @@
   } else if (os === "android") {
     setHero("#download", "Download for Android");
     setSecondary("#download", "Other downloads");
+  } else if (os === "mac") {
+    setHero("#download", "Download for Mac");
+    setSecondary("#download", "Other downloads");
   } else {
     setHero(WEB_APP, "Open the web app", icons.external);
-    setSecondary("#download", "Windows and Android downloads");
+    setSecondary("#download", "Windows, Mac and Android downloads");
   }
-  $(`.dl[data-platform="${os === "windows" || os === "android" ? os : "web"}"]`)?.classList.add("is-you");
+  $(`.dl[data-platform="${os === "windows" || os === "android" || os === "mac" ? os : "web"}"]`)?.classList.add("is-you");
 
   const mb = (bytes) => `${Math.round(bytes / 1048576)} MB`;
 
@@ -257,9 +263,16 @@
     const version = String(rel.tag_name || "").replace(/^v/, "");
     const exe = rel.assets?.find((a) => /^StormCentral-Setup-.*\.exe$/.test(a.name));
     const apk = rel.assets?.find((a) => /^StormCentral-[\d.]+\.apk$/.test(a.name));
+    // Until a release has a .dmg, the Mac button stays on the Releases page.
+    const dmg = rel.assets?.find((a) => /^StormCentral-[\d.]+\.dmg$/.test(a.name));
     if (exe) {
       $("#dl-exe").href = exe.browser_download_url;
       $("#dl-exe-size").textContent = `(${mb(exe.size)})`;
+    }
+    if (dmg) {
+      $("#dl-dmg").href = dmg.browser_download_url;
+      $("#dl-dmg-size").textContent = `(${mb(dmg.size)})`;
+      if (os === "mac") setHero(dmg.browser_download_url, "Download for Mac");
     }
     if (apk) {
       $("#dl-apk").href = apk.browser_download_url;
@@ -269,7 +282,7 @@
     }
     if (version) {
       $("#dl-version").textContent = `Latest version: ${version}.`;
-      $("#hero-meta").textContent = `Version ${version} for Windows 10 and 11, Android 7 and newer, and any modern browser.`;
+      $("#hero-meta").textContent = `Version ${version} for Windows 10 and 11, macOS 13 or newer, Android 7 and newer, and any modern browser.`;
     }
   }
 

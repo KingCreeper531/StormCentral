@@ -1,16 +1,19 @@
 // @ts-check
 /**
- * Storm Central for Windows. An Electron window around the app's own Next.js
- * server, which runs locally (server.mjs), so every feature works with no
- * hosting: radar, all modes, and accounts and reports stored on this PC.
+ * Storm Central for Windows and macOS. An Electron window around the app's
+ * own Next.js server, which runs locally (server.mjs), so every feature works
+ * with no hosting: radar, all modes, and accounts and reports stored on this PC.
  *
  * A build can instead point at a hosted Storm Central (STORMCENTRAL_URL at
  * build time, baked into package.json by electron-builder.config.mjs), so all
- * users share one spotter network. Updates come from GitHub Releases.
+ * users share one spotter network; released Mac apps always do. Updates come
+ * from GitHub Releases (on macOS as a notice with a download, updater.mjs).
  *
- * A tray icon shows the current temperature. Closing the window can hide it
- * to the tray instead of quitting, so the page keeps watching for warnings,
- * and the app can start hidden at sign-in (settings.mjs, tray.mjs).
+ * A tray (macOS: menu bar) icon shows the current temperature. Closing the
+ * window can hide it instead of quitting, so the page keeps watching for
+ * warnings, and the app can start hidden at sign-in (settings.mjs, tray.mjs).
+ * On macOS the app also behaves as Mac apps do: the app menu, staying in the
+ * Dock with no window, and the Dock icon bringing the window back.
  */
 import { app, autoUpdater as nativeUpdater, BrowserWindow, dialog, ipcMain, Menu, Notification, screen, session, shell } from "electron";
 import { createRequire } from "node:module";
@@ -28,6 +31,7 @@ const require = createRequire(import.meta.url);
 const meta = require("./package.json");
 
 const APP_ID = "io.github.kingcreeper531.stormcentral";
+const IS_MAC = process.platform === "darwin";
 const REPO = meta.stormcentral?.repo || "KingCreeper531/StormCentral";
 const REMOTE_URL = httpsUrl(meta.stormcentral?.remoteUrl);
 /** Permissions the UI may use: "Use my location", copying share links, map fullscreen, warning notifications. */
@@ -61,6 +65,8 @@ let appOrigin = "";
 let appUrl = "";
 /** The first window exists; later launches just show it. */
 let started = false;
+/** macOS: a stormcentral:// link launched the app, so it starts with a window even at login. */
+let openedFromLink = false;
 /** Professional-mode panels popped out of the workspace onto other monitors. */
 const popouts = new Set();
 
@@ -194,6 +200,8 @@ function openMainWindow(opts) {
   const win = createWindow(opts);
   win.on("closed", () => {
     if (mainWindow === win) mainWindow = null;
+    // macOS keeps running without a window, but nothing updates the menu bar icon then; don't leave a stale temperature.
+    if (IS_MAC && !isQuitting) tray?.setStatus({ text: "", tooltip: "" });
   });
   return win;
 }
@@ -207,7 +215,8 @@ function loadApp(win, url) {
 // ─── Tray, close to tray, sign-in launch ────────────────────────────────────
 
 function keepsRunningInTray() {
-  return tray !== null && settings.get().closeToTray;
+  // On macOS the Dock icon brings a hidden window back, menu bar icon or not.
+  return (tray !== null || IS_MAC) && settings.get().closeToTray;
 }
 
 /** @type {Notification | null} Held so its click handler outlives the call. */
@@ -219,11 +228,13 @@ function showTrayHintOnce() {
   if (!Notification.isSupported()) return;
   trayHint = new Notification({
     title: "Storm Central is still running",
-    body: "It keeps checking for warnings. Quit from the tray icon.",
+    body: IS_MAC ? "It keeps checking for warnings. Quit from the menu bar icon or with ⌘Q." : "It keeps checking for warnings. Quit from the tray icon.",
     icon: appIcon(),
     silent: true,
   });
   trayHint.on("click", showWindow);
+  // macOS only shows notifications from code-signed apps; the ad-hoc signed build may not qualify.
+  if (IS_MAC) trayHint.on("failed", (_e, error) => log(`notification failed: ${error}`));
   trayHint.show();
 }
 
@@ -249,8 +260,11 @@ function currentSettings() {
 /** @param {Partial<import("./settings.mjs").PublicSettings>} patch */
 function applySettings(patch) {
   if (patch.launchAtLogin !== undefined) {
-    if (loginItemSupported()) app.setLoginItemSettings({ openAtLogin: patch.launchAtLogin, ...LOGIN_ITEM });
-    else log("settings: launch at sign-in only applies to installed Windows builds");
+    if (loginItemSupported()) {
+      app.setLoginItemSettings({ openAtLogin: patch.launchAtLogin, ...LOGIN_ITEM });
+      // macOS may hold a new login item until it's approved in System Settings → General → Login Items.
+      if (IS_MAC) log(`settings: login item ${app.getLoginItemSettings().status}`);
+    } else log("settings: launch at sign-in only applies to installed Windows builds");
   }
   settings.update(patch);
   log(`settings: ${JSON.stringify(patch)}`);
@@ -390,7 +404,8 @@ app.on("web-contents-created", (_e, contents) => {
 });
 
 function showAbout() {
-  const win = mainWindow;
+  // The Mac app menu works with the window closed (hidden), where a sheet on it would never be seen.
+  const win = IS_MAC && !mainWindow?.isVisible() ? null : mainWindow;
   const opts = /** @type {import("electron").MessageBoxOptions} */ ({
     type: "info",
     message: `Storm Central ${app.getVersion()}`,
@@ -399,7 +414,67 @@ function showAbout() {
   void (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts));
 }
 
+/** The macOS menu bar: the app menu (About, updates, Hide, Quit), File, Edit so copy and paste work, View, Window and Help. */
+function buildMacMenu() {
+  return Menu.buildFromTemplate([
+    {
+      label: "Storm Central",
+      submenu: [
+        { label: "About Storm Central", click: showAbout },
+        { label: "Check for Updates…", click: () => checkForUpdatesFromMenu() },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        { role: "hide", label: "Hide Storm Central" },
+        { role: "hideOthers" },
+        { role: "unhide" },
+        { type: "separator" },
+        { role: "quit", label: "Quit Storm Central" },
+      ],
+    },
+    // ⌘W closes the window; the app keeps running in the Dock (and keeps watching when "keep running" is on).
+    { label: "File", submenu: [{ role: "close" }] },
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "pasteAndMatchStyle" },
+        { role: "delete" },
+        { role: "selectAll" },
+      ],
+    },
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" },
+        { role: "toggleDevTools" },
+        { type: "separator" },
+        { role: "resetZoom" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+      ],
+    },
+    // Minimize, Zoom, Bring All to Front and the list of windows (pop-out panels too).
+    { role: "windowMenu" },
+    {
+      role: "help",
+      submenu: [
+        { label: "Release Notes", click: () => openExternal(`https://github.com/${REPO}/releases`) },
+        { label: "Open Logs Folder", click: () => void shell.openPath(app.getPath("logs")) },
+      ],
+    },
+  ]);
+}
+
 function buildMenu() {
+  if (IS_MAC) return buildMacMenu();
   return Menu.buildFromTemplate([
     { label: "&File", submenu: [{ role: "quit" }] },
     {
@@ -458,13 +533,15 @@ async function start() {
   hardenSessions();
   registerIpc();
   Menu.setApplicationMenu(buildMenu());
-  mainWindow = openMainWindow({ hidden: START_HIDDEN });
+  // macOS login items get no arguments (--hidden is for Windows); macOS says whether it opened the app at login instead.
+  const startHidden = (START_HIDDEN || (IS_MAC && app.getLoginItemSettings().wasOpenedAtLogin)) && !openedFromLink;
+  mainWindow = openMainWindow({ hidden: startHidden });
   try {
     tray = createTray({ onOpen: showWindow, onCheckForUpdates: checkForUpdatesFromMenu, onQuit: quitFromTray, log });
   } catch (err) {
     // No tray (some Linux desktops): closing quits, and a hidden start would leave no way back in.
     log(`tray unavailable: ${err instanceof Error ? err.message : err}`);
-    if (START_HIDDEN) mainWindow.show();
+    if (startHidden && !IS_MAC) mainWindow.show();
   }
   started = true;
 
@@ -483,7 +560,7 @@ async function start() {
   appOrigin = new URL(url).origin;
   appUrl = url;
   if (mainWindow) loadApp(mainWindow, url);
-  initAutoUpdates({ log });
+  initAutoUpdates({ log, repo: REPO });
 }
 
 // The Microsoft Store (MSIX) package already has an identity Windows ties its
@@ -507,9 +584,23 @@ if (!app.requestSingleInstanceLock()) {
   app.on("before-quit", () => (isQuitting = true));
   nativeUpdater.on("before-quit-for-update", () => (isQuitting = true));
   app.on("window-all-closed", () => {
+    // macOS apps stay open in the Dock with no windows; the Dock icon opens a new one (activate).
+    if (IS_MAC && !isQuitting) return;
     // A window hidden to the tray isn't closed, so this only runs once it's really gone.
     if (isQuitting || !keepsRunningInTray()) app.quit();
   });
+  if (IS_MAC) {
+    // Clicking the Dock icon, or opening the app again from Finder or Launchpad, brings the window back.
+    app.on("activate", () => {
+      if (started) showWindow();
+    });
+    // stormcentral:// links reach a Mac app here (from Launch Services), not as a second instance.
+    app.on("open-url", (event) => {
+      event.preventDefault();
+      if (started) showWindow();
+      else openedFromLink = true;
+    });
+  }
   app.on("will-quit", () => tray?.destroy());
   void app.whenReady().then(start);
 }
