@@ -7,7 +7,8 @@ import { frameAt, sameCamera, syncTime } from "@/lib/pro/sync";
 import { toaFan, type Motion } from "@/lib/pro/storm-tools";
 import type { RadarFrame } from "@/lib/radar/frames";
 import { RadarLayerManager, type BufferStatus, type RadarMap } from "@/lib/radar/layer-manager";
-import type { LatLon } from "@/lib/geo";
+import { circleRing } from "@/lib/draw/shapes";
+import { destination, type LatLon } from "@/lib/geo";
 import type { ProTool } from "@/store/pro-store";
 import { mapAlive, SLOTS, useMapContext } from "../map/map-view";
 import { useGeoJsonLayers } from "../map/layers/use-geojson-source";
@@ -178,6 +179,7 @@ export function ToolClicks({ tool }: { tool: ProTool }) {
       else if (active === "vector") act.vector(p);
       else if (active === "toa") act.toa(p);
       else if (active === "warngen" && !warngenDragging()) act.warngen(p);
+      else if (active === "volume") act.volume(p);
     };
     map.on("click", onClick);
     return () => {
@@ -197,6 +199,8 @@ export interface ToolShapes {
   motion: Motion | null;
   toaPoints: (LatLon & { name: string })[];
   showFan: boolean;
+  /** The 3D volume view's spot and how far around it the view reaches. */
+  volume: { at: LatLon; radiusKm: number } | null;
 }
 
 const SRC = "pro-tools";
@@ -231,6 +235,12 @@ export function ToolOverlay({ shapes }: { shapes: ToolShapes }) {
       }
     }
     if (shapes.sounding) pt(shapes.sounding, "", "snd");
+    if (shapes.volume) {
+      const { at, radiusKm } = shapes.volume;
+      const edge = destination(at, 90, radiusKm);
+      f.push({ type: "Feature", geometry: { type: "LineString", coordinates: circleRing([at.lon, at.lat], [edge.lon, edge.lat]) }, properties: { kind: "vol" } });
+      pt(at, "", "snd");
+    }
     for (const p of shapes.toaPoints) pt(p, p.name, "poi");
     return { type: "FeatureCollection", features: f };
   }, [shapes]);
@@ -244,9 +254,9 @@ export function ToolOverlay({ shapes }: { shapes: ToolShapes }) {
         id: "pro-lines",
         type: "line",
         source: SRC,
-        filter: ["match", ["get", "kind"], ["arc", "axis", "vector", "xsect"], true, false],
+        filter: ["match", ["get", "kind"], ["arc", "axis", "vector", "xsect", "vol"], true, false],
         paint: {
-          "line-color": ["match", ["get", "kind"], "xsect", "#38bdf8", "vector", "#f472b6", "#facc15"],
+          "line-color": ["match", ["get", "kind"], "xsect", "#38bdf8", "vector", "#f472b6", "vol", "#a78bfa", "#facc15"],
           "line-width": ["match", ["get", "kind"], "axis", 1.2, 2],
           "line-dasharray": ["match", ["get", "kind"], "axis", ["literal", [2, 2]], ["literal", [1, 0]]],
         },

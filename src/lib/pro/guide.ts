@@ -298,6 +298,20 @@ export const TOOL_GUIDE: Record<ProTool, ToolTopic> = {
       "Fill in the duration, hail, wind and damage threat, read the product text, tick the confirmation and issue it.",
     ],
   },
+  volume: {
+    what: "A storm in 3D: every tilt of the radar's newest Level II scan around a spot, at the height the beam really reaches.",
+    steps: [
+      "Pick 3D volume and click a storm on any panel. Click again to move the view.",
+      "Drag to turn it, scroll or pinch to zoom, right-drag or Shift-drag to move it, double-click to start over.",
+      "Set the lowest reflectivity shown, how far around the spot, and how much taller than life heights are drawn.",
+    ],
+    read: "The height scale is above sea level. The blue sheet is the model's freezing level (0 °C) and the violet one −20 °C, where hail grows fastest. The panel lists the highest echo shown and the top of the 50 dBZ core.",
+    look: [
+      "A 50 dBZ core reaching well above the −20 °C level: the storm can grow large hail.",
+      "A tall core leaning over a hole of weak echo near the ground (a bounded weak echo region): a very strong updraft, typical of supercells.",
+      "Raise the lowest reflectivity to 45–50 dBZ to see just the core.",
+    ],
+  },
 };
 
 export const HOW_TOS: readonly HowTo[] = [
