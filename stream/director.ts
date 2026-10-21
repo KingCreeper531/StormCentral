@@ -88,6 +88,8 @@ const CONFIG = {
   commentaryMinutes: Number(env.STREAM_COMMENTARY_MINUTES) || 4,
   controlPort: Number(env.STREAM_CONTROL_PORT) || 8787,
 };
+/** A vertical (9:16) stream, for the Shorts feed: the overlay's portrait layout (overlay.ts), and scenes framed to match. */
+const PORTRAIT = CONFIG.height > CONFIG.width;
 const UA = "StormCentralLive/1.0 (github.com/KingCreeper531/StormCentral)";
 const NWS = "https://api.weather.gov";
 const EVENTS = "Tornado Warning,Severe Thunderstorm Warning,Flash Flood Warning,Extreme Wind Warning";
@@ -223,6 +225,7 @@ class Director {
     tmp: CONFIG.tmp,
     privacy: env.STREAM_CLIPS_PRIVACY || "public",
     dryRunClip: env.STREAM_CLIPS_DRY,
+    streamKey: env.YT_STREAM_KEY || undefined,
     onBudget: () => this.save(),
     log,
   });
@@ -553,18 +556,22 @@ class Director {
     try {
       // The scene loads and settles in the background tab while the current one stays on air.
       await page.goto(urlFor(scene), { waitUntil: "domcontentloaded", timeout: 45_000 });
-      await page.waitForTimeout(scene.kind === "pro" || (scene.kind === "custom" && scene.mode === "professional") ? 8_000 : 5_000);
+      const pro = scene.kind === "pro" || (scene.kind === "custom" && scene.mode === "professional");
+      await page.waitForTimeout(pro ? 8_000 : 5_000);
       // The side panel (warnings list, tools) would cover part of the map; the overlay shows what matters.
-      // Forced: a toast or loading layer over the button mustn't leave the panel up.
-      await page
-        .locator('button[aria-label="Hide panel"]')
-        .first()
-        .click({ timeout: 3_000, force: true })
-        .catch(() => {});
+      // Forced: a toast or loading layer over the button mustn't leave the panel up. In portrait the radar's
+      // panel is the phone's bottom sheet instead, which the overlay hides: there's no button to wait for.
+      if (!PORTRAIT || pro)
+        await page
+          .locator('button[aria-label="Hide panel"]')
+          .first()
+          .click({ timeout: 3_000, force: true })
+          .catch(() => {});
       if (scene.kind === "national" || scene.kind === "model") {
-        // The whole country: zoom out from the app's local view.
-        await page.mouse.move(CONFIG.width / 2, CONFIG.height / 2);
-        for (let i = 0; i < 4; i++) {
+        // The whole country: zoom out from the app's local view. Narrower in portrait, so further, and around a
+        // point above the middle, which brings the country up clear of the raised lower third.
+        await page.mouse.move(CONFIG.width / 2, CONFIG.height * (PORTRAIT ? 0.38 : 0.5));
+        for (let i = 0; i < (PORTRAIT ? 6 : 4); i++) {
           await page.mouse.wheel(0, 360);
           await page.waitForTimeout(250);
         }

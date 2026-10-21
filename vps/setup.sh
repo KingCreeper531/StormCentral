@@ -2,7 +2,7 @@
 # Storm Central on your own servers (Ubuntu 24.04). Each server gets the parts
 # you answer for; leave a question empty to skip that part:
 #   • the Pro data server (MESH, rotation tracks, VIL, GOES RGBs for Professional mode), behind HTTPS
-#   • the 24/7 live stream to YouTube (radar, warnings read aloud, briefings)
+#   • the 24/7 live stream to YouTube (radar, warnings read aloud, briefings), and optionally a vertical copy for the Shorts feed
 #   • the local AI (Ollama, gemma3:4b) that rewords the stream's briefings
 #   • the web app itself, behind Cloudflare, updating itself from main (Vercel stays as the backup)
 #   • the failover watcher: on another server, switches the app's address to Vercel if the app server stops answering
@@ -23,6 +23,7 @@ RUNTIME=$BASE/stream
 BROWSERS=$BASE/browsers
 CONF=/etc/stormcentral
 STREAM_ENV=$CONF/stream.env
+VERTICAL_ENV=$CONF/stream-vertical.env
 SETTINGS=$CONF/setup.env
 SVC_USER=stormcentral
 
@@ -35,7 +36,7 @@ warn() { printf '\033[1;33m!!  %s\033[0m\n' "$*"; }
 # ── Your settings ───────────────────────────────────────────────────────────
 mkdir -p "$CONF"
 chmod 755 "$CONF"
-DOMAIN="" YT_STREAM_KEY="" YT_CLIENT_ID="" YT_CLIENT_SECRET="" YT_REFRESH_TOKEN="" ANTHROPIC_API_KEY="" GEMINI_API_KEY="" STREAM_EXTRA_OUTPUTS="" AI="no" APP_DOMAIN="" WATCHER_IP="" WATCH_DOMAIN="" WATCH_IP="" CF_API_TOKEN="" NTFY_TOPIC="" BACKUP_HOST="storm-central-pi.vercel.app"
+DOMAIN="" YT_STREAM_KEY="" YT_VERTICAL_STREAM_KEY="" YT_CLIENT_ID="" YT_CLIENT_SECRET="" YT_REFRESH_TOKEN="" ANTHROPIC_API_KEY="" GEMINI_API_KEY="" STREAM_EXTRA_OUTPUTS="" AI="no" APP_DOMAIN="" WATCHER_IP="" WATCH_DOMAIN="" WATCH_IP="" CF_API_TOKEN="" NTFY_TOPIC="" BACKUP_HOST="storm-central-pi.vercel.app"
 # shellcheck disable=SC1090
 [ -f "$SETTINGS" ] && . "$SETTINGS"
 
@@ -57,6 +58,14 @@ ask() { # ask VAR "Question" [secret]
 echo "Storm Central server setup. Leave an answer empty to skip that part."
 ask DOMAIN "Pro data server on this server? Its domain (e.g. pro.stormcentralwx.com; DNS A record pointing here, not proxied)"
 ask YT_STREAM_KEY "Live stream on this server? YouTube stream key (YouTube Studio → Go live → Stream)" secret
+if [ -n "$YT_STREAM_KEY" ]; then
+  # Enter keeps a saved key, so "none" is how to turn the vertical stream off again.
+  ask YT_VERTICAL_STREAM_KEY "Vertical live stream for the Shorts feed too? A second stream key (YouTube Studio → Go live → Stream → the stream key list → Create new stream key; empty skips, none turns it off)" secret
+  [ "${YT_VERTICAL_STREAM_KEY,,}" = none ] && YT_VERTICAL_STREAM_KEY=""
+  [ "$YT_VERTICAL_STREAM_KEY" = "$YT_STREAM_KEY" ] && { echo "The vertical stream needs its own stream key, not the main one's." >&2; exit 1; }
+else
+  YT_VERTICAL_STREAM_KEY=""
+fi
 if [ -n "$YT_STREAM_KEY" ]; then
   echo "Optional: YouTube API credentials let the stream retitle itself as storms change and post clips as Shorts"
   echo "(the same ones as the Shorts' GitHub secrets; the refresh token needs the https://www.googleapis.com/auth/youtube scope)."
@@ -94,7 +103,7 @@ if [ -n "$APP_DOMAIN" ] && [ -n "$WATCH_DOMAIN" ]; then
   exit 1
 fi
 umask 077
-for v in DOMAIN YT_STREAM_KEY YT_CLIENT_ID YT_CLIENT_SECRET YT_REFRESH_TOKEN ANTHROPIC_API_KEY GEMINI_API_KEY STREAM_EXTRA_OUTPUTS AI APP_DOMAIN WATCHER_IP WATCH_DOMAIN WATCH_IP CF_API_TOKEN BACKUP_HOST NTFY_TOPIC; do printf '%s=%q\n' "$v" "${!v}"; done >"$SETTINGS"
+for v in DOMAIN YT_STREAM_KEY YT_VERTICAL_STREAM_KEY YT_CLIENT_ID YT_CLIENT_SECRET YT_REFRESH_TOKEN ANTHROPIC_API_KEY GEMINI_API_KEY STREAM_EXTRA_OUTPUTS AI APP_DOMAIN WATCHER_IP WATCH_DOMAIN WATCH_IP CF_API_TOKEN BACKUP_HOST NTFY_TOPIC; do printf '%s=%q\n' "$v" "${!v}"; done >"$SETTINGS"
 umask 022
 
 # The web app's settings: the same environment variables as on Vercel (Settings → Environment Variables).
@@ -293,6 +302,8 @@ Description=Restart the Storm Central live stream
 [Service]
 Type=oneshot
 ExecStart=/bin/systemctl try-restart stormcentral-stream.service
+# The vertical stream too, when there is one.
+ExecStart=-/bin/systemctl try-restart stormcentral-stream-vertical.service
 EOF
   cat >/etc/systemd/system/stormcentral-stream-restart.timer <<'EOF'
 [Unit]
@@ -313,6 +324,70 @@ EOF
   find /tmp -maxdepth 1 -user "$SVC_USER" -mmin +1 \( -name 'scl-chromium-*' -o -name 'scl-chat-*' \) -exec rm -rf {} + 2>/dev/null || true
 else
   warn "No stream key: skipping the live stream."
+fi
+
+# ── Vertical live stream (9:16, for the Shorts feed) ────────────────────────
+# A second copy of the stream with its own key, 720x1280 (the overlay's portrait layout), screen, sound,
+# Chromium profile and control port. It reads stream.env first, then its own file on top. The main stream keeps
+# the titles, clips and chat commands: YouTube's 10,000 daily API units are already shared with the Shorts uploads.
+if [ -n "$YT_STREAM_KEY" ] && [ -n "$YT_VERTICAL_STREAM_KEY" ]; then
+  say "Vertical live stream for the Shorts feed"
+  umask 027
+  # The key and what keeps the two copies apart are rewritten; the rest stays as changed by hand.
+  local vanswered="YT_STREAM_KEY STREAM_WIDTH STREAM_HEIGHT STREAM_DISPLAY STREAM_CONTROL_PORT STREAM_STATE STREAM_PROFILE STREAM_SEGMENTS STREAM_EXTRA_OUTPUTS"
+  {
+    cat <<EOF
+YT_STREAM_KEY=$YT_VERTICAL_STREAM_KEY
+STREAM_WIDTH=720
+STREAM_HEIGHT=1280
+STREAM_DISPLAY=98
+STREAM_CONTROL_PORT=8788
+STREAM_STATE=$BASE/stream-vertical-state.json
+STREAM_PROFILE=/tmp/stormcentral-chromium-vertical
+STREAM_SEGMENTS=/tmp/stormcentral-segments-vertical
+STREAM_EXTRA_OUTPUTS=
+EOF
+    [ -f "$VERTICAL_ENV" ] && grep -E '^[A-Z_][A-Z0-9_]*=' "$VERTICAL_ENV" | grep -vE "^(${vanswered// /|})=" || true
+  } >"$VERTICAL_ENV.new"
+  for kv in STREAM_VIDEO_KBPS=3000 STREAM_TITLE_DAILY_MAX=0 STREAM_CLIPS_DAILY_MAX=0 STREAM_CHAT=off; do
+    grep -q "^${kv%%=*}=" "$VERTICAL_ENV.new" || echo "$kv" >>"$VERTICAL_ENV.new"
+  done
+  mv "$VERTICAL_ENV.new" "$VERTICAL_ENV"
+  umask 022
+  chown root:"$SVC_USER" "$VERTICAL_ENV"
+  chmod 640 "$VERTICAL_ENV"
+
+  cat >/etc/systemd/system/stormcentral-stream-vertical.service <<EOF
+[Unit]
+Description=Storm Central vertical live stream (Shorts feed)
+After=network-online.target stormcentral-stream.service
+Wants=network-online.target
+
+[Service]
+User=$SVC_USER
+EnvironmentFile=$STREAM_ENV
+EnvironmentFile=$VERTICAL_ENV
+Environment=XDG_RUNTIME_DIR=/run/stormcentral-stream-vertical
+RuntimeDirectory=stormcentral-stream-vertical
+RuntimeDirectoryMode=0700
+ExecStart=$SRC/stream/run.sh
+Restart=always
+RestartSec=15
+# After the main stream for the CPU, still ahead of Ollama and the Pro server.
+Nice=0
+CPUWeight=200
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  systemctl daemon-reload
+  systemctl enable stormcentral-stream-vertical >/dev/null
+  systemctl restart stormcentral-stream-vertical
+elif [ -f /etc/systemd/system/stormcentral-stream-vertical.service ]; then
+  say "Turning the vertical live stream off"
+  systemctl disable --now stormcentral-stream-vertical >/dev/null 2>&1 || true
+  rm -f /etc/systemd/system/stormcentral-stream-vertical.service "$VERTICAL_ENV"
+  systemctl daemon-reload
 fi
 
 # ── Web app ─────────────────────────────────────────────────────────────────
@@ -481,6 +556,14 @@ Live stream:  on its way to YouTube (YouTube Studio → Go live shows it within 
   Stop:     sudo systemctl stop stormcentral-stream      Start: sudo systemctl start stormcentral-stream
   Control:  from your computer, ssh -L 8787:127.0.0.1:8787 root@<this server>, then e.g.
             curl localhost:8787/state     (see vps/README.md for show, pin, say and title)
+EOF
+fi
+if [ -n "$YT_STREAM_KEY" ] && [ -n "$YT_VERTICAL_STREAM_KEY" ]; then
+  cat <<EOF
+Vertical stream (Shorts feed):  720x1280 on its own key; turn on Auto-start for that key in YouTube Studio.
+  Logs:     journalctl -u stormcentral-stream-vertical -f
+  Stop:     sudo systemctl stop stormcentral-stream-vertical      Settings: $VERTICAL_ENV (on top of $STREAM_ENV)
+  Control:  the same API on port 8788 (ssh -L 8788:127.0.0.1:8788 …)
 EOF
 fi
 if [ -n "$APP_DOMAIN" ]; then

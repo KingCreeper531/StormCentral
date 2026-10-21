@@ -72,6 +72,8 @@ export interface YouTubeLiveOptions {
   privacy: string;
   /** Tests: render clips to this file and don't post them. */
   dryRunClip?: string;
+  /** This stream's key: with two streams on air (the vertical one too), the broadcast it feeds is the one to title and chat in. */
+  streamKey?: string;
   /** Runs when a title or a clip is counted against the day's budget (to save the counts). */
   onBudget?: () => void;
   log: (msg: string) => void;
@@ -104,7 +106,7 @@ export class YouTubeLive {
     if (this.enabled && Date.now() - this.live.at > (this.live.id ? 10 : 2) * 60_000) {
       let b: Awaited<ReturnType<typeof liveBroadcast>> = null;
       try {
-        b = await liveBroadcast(await this.auth());
+        b = await liveBroadcast(await this.auth(), this.o.streamKey);
       } catch (err) {
         this.o.log(`couldn't find the live broadcast: ${errText(err)}`);
       }
@@ -150,7 +152,8 @@ export class YouTubeLive {
    */
   async clip(w: StreamWarning, from: number, to: number) {
     const dry = this.o.dryRunClip;
-    if ((!this.enabled && !dry) || !this.o.segments) return;
+    // None allowed (the vertical stream leaves clips to the main one): nothing to read or cut.
+    if ((!this.enabled && !dry) || !this.o.segments || (!dry && !this.clips.left)) return;
     let dir: string | null = null;
     try {
       const segs = readdirSync(this.o.segments)

@@ -14,6 +14,11 @@
 #   STREAM_EXTRA_OUTPUTS other platforms too, space-separated RTMP URLs with their keys (Twitch, Kick, Facebook…)
 #   ANTHROPIC_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY + OPENAI_MODEL, OLLAMA_MODEL
 #                        the AI that words the commentary (best first; see llm.ts); none = the facts as written
+#   STREAM_WIDTH, STREAM_HEIGHT  1280x720; 720x1280 is the vertical stream for the Shorts feed (portrait layout)
+#
+# A second copy on the same machine (the vertical stream, stormcentral-stream-vertical) needs its own
+# STREAM_DISPLAY, XDG_RUNTIME_DIR (its PulseAudio and STREAM_TMP live there), STREAM_SEGMENTS,
+# STREAM_PROFILE, STREAM_STATE and STREAM_CONTROL_PORT; vps/setup.sh sets them.
 set -euo pipefail
 
 W=${STREAM_WIDTH:-1280}
@@ -77,6 +82,11 @@ case "$OUT" in *.mp4) fmt=mp4 ;; esac
 # Other platforms: one more output each, which may drop without taking YouTube down.
 extra=""
 for url in ${STREAM_EXTRA_OUTPUTS:-}; do extra="$extra|[f=flv:onfail=ignore]$url"; done
+# The rolling recording, only when this stream makes clips (the vertical one leaves them to the main stream).
+segs=""
+if [ "${STREAM_CLIPS_DAILY_MAX:-1}" != "0" ] || [ -n "${STREAM_CLIPS_DRY:-}" ]; then
+  segs="|[f=segment:segment_time=6:segment_wrap=40:reset_timestamps=1:onfail=ignore]$STREAM_SEGMENTS/seg%02d.ts"
+fi
 # ffmpeg names an output that fails (YouTube turning the stream away), key and all: the keys are hidden from the log.
 ffmpeg -hide_banner -loglevel warning -nostdin \
   -thread_queue_size 1024 -f x11grab -draw_mouse 0 -framerate "$FPS" -video_size "${W}x${H}" -i "$DISPLAY.0+0,0" \
@@ -85,7 +95,7 @@ ffmpeg -hide_banner -loglevel warning -nostdin \
   -c:v libx264 -preset veryfast -b:v "${KBPS}k" -maxrate "${KBPS}k" -bufsize "$((KBPS * 2))k" \
   -g "$((FPS * 2))" -keyint_min "$((FPS * 2))" -sc_threshold 0 -pix_fmt yuv420p \
   -c:a aac -b:a 160k -ar 48000 -ac 2 -flags +global_header \
-  "${limit[@]}" -f tee "[f=$fmt:onfail=abort]$OUT|[f=segment:segment_time=6:segment_wrap=40:reset_timestamps=1:onfail=ignore]$STREAM_SEGMENTS/seg%02d.ts$extra" \
+  "${limit[@]}" -f tee "[f=$fmt:onfail=abort]$OUT$segs$extra" \
   2> >(sed -Eu "s#(rtmps?://[^/ |']+/[^/ |']+/)[^ |']+#\1<key>#g" >&2) &
 pids+=($!)
 
