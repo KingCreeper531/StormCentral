@@ -45,7 +45,7 @@ import { ReportsLayer } from "../map/layers/reports-layer";
 import { ChasersLayer } from "../map/layers/chasers-layer";
 import { WebcamsLayer } from "../map/layers/webcams-layer";
 import { SitesLayer } from "../map/layers/sites-layer";
-import { TracksLayer } from "../map/layers/tracks-layer";
+import { StormPathLayer } from "../map/layers/storm-path-layer";
 import { UserMarker } from "../map/layers/user-marker";
 import { WarningsLayer } from "../map/layers/warnings-layer";
 import { IntlRadarLayers } from "../map/layers/intl-radar-layer";
@@ -847,7 +847,7 @@ export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {})
             }}
           />
         )}
-        {radar.showWarnings && radar.showTracks && <TracksLayer alerts={national.data?.alerts ?? []} now={now} />}
+        {radar.showWarnings && radar.showTracks && <StormPathLayer alerts={national.data?.alerts ?? []} selectedId={selectedAlert} now={now} timeZone={timeZone} />}
         {layers.showSites && <SitesLayer selected={site?.icao ?? null} onSelect={(icao) => setRadar({ source: "site", site: icao })} />}
         {layers.showCells && <StormCellsLayer cells={cellList} selectedId={selectedId("cell")} onSelect={(id) => select("cell", id)} />}
         {radar.showStormReports && <StormReportsLayer reports={lsrList} now={now} hours={LSR_HOURS} selectedId={selectedId("lsr")} onSelect={(id) => select("lsr", id)} />}
