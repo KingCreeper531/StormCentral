@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { NEXRAD_SITES } from "../../radar/sites";
 import { l2Time, l3Time, newest, parseKeys } from "./aws";
 import { bunzip2, bzipCrc } from "./bzip2";
 import { gunzipIfNeeded } from "./gzip";
@@ -71,6 +72,35 @@ describe("Level III", () => {
     });
   }
 
+  it("rejects a corrupt header's sizes instead of allocating them", () => {
+    const file = read("TLX_N0C_2026_10_19_15_52_10");
+    const msg = file.subarray(30); // after the WMO header
+    const dv = new DataView(msg.buffer, msg.byteOffset, msg.byteLength);
+    // A size hint of 4 GB is only a hint.
+    const hinted = msg.slice();
+    new DataView(hinted.buffer).setUint32(18 + 84, 0xffffffff);
+    const radials = parseLevel3(file).nRadials;
+    expect(parseLevel3(hinted).nRadials).toBe(radials);
+    // The same product uncompressed, then with an impossible radial count or gate count.
+    const body = bunzip2(msg.subarray(120), dv.getUint32(18 + 84));
+    const plain = new Uint8Array(120 + body.length);
+    plain.set(msg.subarray(0, 120));
+    plain.set(body, 120);
+    const pdv = new DataView(plain.buffer);
+    pdv.setInt16(18 + 82, 0);
+    expect(parseLevel3(plain).nRadials).toBe(radials);
+    const packet = 120 + 16;
+    for (const [at, v] of [
+      [packet + 4, 30_000],
+      [packet + 12, 30_000],
+      [packet + 12, -5],
+    ] as const) {
+      const bad = plain.slice();
+      new DataView(bad.buffer).setInt16(at, v);
+      expect(() => parseLevel3(bad)).toThrow(/malformed/);
+    }
+  });
+
   it("decodes NEXRAD's 16-bit floats", () => {
     expect(float16(0x3c00)).toBeCloseTo(0.5, 6); // exponent bias 16
     expect(float16(0x8000 | 0x3c00)).toBeCloseTo(-0.5, 6);
@@ -100,6 +130,14 @@ describe("Level II", () => {
       // The CRC-32/BZIP2 check value.
       expect(bzipCrc(new TextEncoder().encode("123456789"))).toBe(0xfc891918);
     });
+
+    it("stops at a run longer than a block instead of looping on it", () => {
+      // Zeros decode as a long string of run symbols: the run's bit used to overflow and the copy never end.
+      const [at, size] = records()[1]!;
+      const bad = file.slice(at, at + size);
+      bad.fill(0, 20_000, 20_024);
+      expect(() => bunzip2(bad)).toThrow(/run too long/);
+    }, 2_000);
 
     it("skips a corrupt record and keeps the rest of the sweep", () => {
       const bad = file.slice();
@@ -233,6 +271,13 @@ describe("Level II before 2008 (Message 1)", () => {
     expect(v.sweeps.map((s) => s.elevation)).toEqual([0.48]);
     expect(Array.from(v.sweeps[0]!.data)).toEqual(Array.from(parseLevel2(file, "VEL", 0.5, { site }).sweep!.data));
     expect(v.complete).toBe(true);
+  });
+
+  it("takes the radar's height from the site table", async () => {
+    const file = await gunzipIfNeeded(read("KTLX20050510_000351_cut12.gz"));
+    const heightOf = (icao: string) => NEXRAD_SITES.find((s) => s[0] === icao)![5];
+    expect(heightOf("KFTG")).toBe(1675);
+    expect(parseLevel2Volume(file, "REF", { site: { ...site, heightM: heightOf("KTLX") } }).sweeps[0]!.heightM).toBe(370);
   });
 
   it("reads the oldest archive files (ARCHIVE2 header), even partial ones", async () => {

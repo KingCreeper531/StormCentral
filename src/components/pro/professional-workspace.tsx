@@ -11,7 +11,7 @@ import type { LatLon } from "@/lib/geo";
 import { TOUR, type TourStep } from "@/lib/pro/guide";
 import { isSatellite, shownProduct } from "@/lib/pro/products";
 import { stormMotion } from "@/lib/pro/storm-tools";
-import { connectProLink, openPopout, PANEL_KEY, type PopoutKey, type ProLink, type ToolPoints } from "@/lib/pro/link";
+import { connectProLink, openPopout, PANEL_KEY, workspaceId, type PopoutKey, type ProLink, type ToolPoints } from "@/lib/pro/link";
 import { createProSync, syncTime } from "@/lib/pro/sync";
 import type { RadarFrame } from "@/lib/radar/frames";
 import type { BufferStatus } from "@/lib/radar/layer-manager";
@@ -45,9 +45,11 @@ import { useProCaps } from "./use-pro-caps";
 
 const GRID: Record<Layout, { cols: number; rows: number }> = { "1x1": { cols: 1, rows: 1 }, "1x2": { cols: 2, rows: 1 }, "2x2": { cols: 2, rows: 2 }, "3x3": { cols: 3, rows: 3 } };
 
-/** The Pro store's fields every window shares (the layout stays the workspace's own). */
-const SHARED_FIELDS = ["panes", "site", "frames", "speed", "tool", "vector", "toaPoints", "warnDraft"] as const;
-const noop = () => {};
+/**
+ * The Pro store's fields every window shares: the tool state, and every saved setting (each window
+ * saves the whole store, so one it didn't share would put back its stale copy over the other's).
+ */
+const SHARED_FIELDS = ["panes", "site", "frames", "speed", "tool", "vector", "toaPoints", "warnDraft", "layout", "guideButton", "volume3d", "meteogramModels", "meteogramEnsemble"] as const;
 
 /**
  * Professional mode: an AWIPS II / CAVE-style workspace. Up to nine map
@@ -59,8 +61,17 @@ const noop = () => {};
  * tools (sounding, cross-section, storm vector / time of arrival, warning
  * inspector).
  */
-export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window: the panel it shows (a pane id, or the analysis panel). */ popout?: PopoutKey | null } = {}) {
+export function ProfessionalWorkspace({
+  popout = null,
+  workspace,
+}: {
+  /** A pop-out window: the panel it shows (a pane id, or the analysis panel). */
+  popout?: PopoutKey | null;
+  /** A pop-out window: the workspace it belongs to (from its address). */
+  workspace?: string;
+} = {}) {
   const t = useT();
+  const [ws] = useState(() => workspace ?? workspaceId());
   const home = useAppStore((s) => s.location);
   const caps = useProCaps();
   const narrow = caps.narrow;
@@ -99,9 +110,14 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
   const frameCount = Math.min(caps.maxFrames, layout === "3x3" ? Math.min(frames, 8) : frames);
   // Panels shown in windows of their own (the workspace leaves their places empty).
   const [popped, setPopped] = useState<ReadonlySet<PopoutKey>>(() => new Set());
-  // The time basis: the first radar panel shown here (satellite panels follow it).
+  // The time basis: the first radar panel shown here (satellite panels follow it); with every panel
+  // in a window of its own, the first radar panel there, whose window then sets the timeline.
   const local = panes.filter((p) => !popped.has(p.id));
-  const basisId = (local.find((p) => !isSatellite(p.product)) ?? local[0] ?? panes[0])!.id;
+  const basisAway = !local.length;
+  const lead = basisAway ? panes : local;
+  const basisId = (lead.find((p) => !isSatellite(p.product)) ?? lead[0])!.id;
+  // Pop-out: its panel sets the timeline (the workspace said so).
+  const [isBasis, setIsBasis] = useState(false);
 
   const site = getSite(pinned) ?? nearestSites(home, 1)[0]!;
 
@@ -179,6 +195,7 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
     if (typeof BroadcastChannel === "undefined") return;
     const l = connectProLink({
       role: popout ? "popout" : "workspace",
+      workspace: ws,
       key: popout ?? undefined,
       sync,
       store: {
@@ -199,6 +216,7 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
       onPopouts: setPopped,
       // The workspace took this panel back.
       onRecall: () => window.close(),
+      onBasis: setIsBasis,
     });
     link.current = l;
     // Say goodbye as the window goes, so the workspace takes the panel back at once.
@@ -209,7 +227,10 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
       l.close();
       link.current = null;
     };
-  }, [popout, sync]);
+  }, [popout, sync, ws]);
+  // No panel shown here: the window holding the time-basis panel sets the timeline, so new scans keep coming.
+  const awayBasis = !popout && basisAway ? basisId : null;
+  useEffect(() => link.current?.setBasis(awayBasis), [awayBasis]);
   // Tell the other windows when a tool point changes here (not when it came from them).
   const linkStarted = useRef(false);
   useEffect(() => {
@@ -225,11 +246,14 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
     if (selectedAlert !== r.selectedAlert) patch.selectedAlert = selectedAlert;
     if (Object.keys(patch).length) link.current?.sendTools(patch);
   }, [soundingAt, xsect, selectedAlert]);
-  const popOut = useCallback((key: PopoutKey) => {
-    openPopout(key);
-    // Shown as moved right away; if the window never opens, the panel comes back after a few seconds.
-    link.current?.expect(key);
-  }, []);
+  const popOut = useCallback(
+    (key: PopoutKey) => {
+      openPopout(key, ws);
+      // Shown as moved right away; if the window never opens, the panel comes back after a few seconds.
+      link.current?.expect(key);
+    },
+    [ws],
+  );
   const bringBack = useCallback((key: PopoutKey) => link.current?.recall(key), []);
   // Phones start with the maps uncovered; the panel opens when a tool needs it.
   const [panelOpen, setPanelOpen] = useState(!narrow);
@@ -381,6 +405,7 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
           motion={motion}
           picking={!vector ? 0 : vector.b ? 2 : 1}
           points={arrivalPoints}
+          now={now}
           timeZone={timeZone}
           onReset={() => setVector(null)}
           onClearPoints={clearToaPoints}
@@ -446,7 +471,7 @@ export function ProfessionalWorkspace({ popout = null }: { /** A pop-out window:
             <>
               <div className="relative grid min-h-0 flex-1">
                 <PanelBoundary name={`pro-pane-${shown.id}`}>
-                  <Pane config={shown} n={index + 1} {...paneProps} basis={false} compact={false} onBasisFeed={noop} onBasisStatus={noop} />
+                  <Pane config={shown} n={index + 1} {...paneProps} basis={isBasis} compact={false} onBasisFeed={onBasisFeed} onBasisStatus={onBasisStatus} />
                 </PanelBoundary>
               </div>
               <ReadoutHud site={site} />

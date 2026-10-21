@@ -194,7 +194,7 @@ function readBlock(r: BitReader, blockSize: number, out: Output) {
   const flushRun = () => {
     if (!run) return;
     const b = symToByte[mtf[0]!]!;
-    if (count + run > blockSize) throw new Error("bzip2: block overflow");
+    if (run < 0 || count + run > blockSize) throw new Error("bzip2: block overflow");
     byteCount[b]! += run;
     while (run--) tt[count++] = b;
     run = 0;
@@ -211,6 +211,8 @@ function readBlock(r: BitReader, blockSize: number, out: Output) {
     if (sym <= 1) {
       // RUNA = +1·bit, RUNB = +2·bit, in bijective base 2.
       run += (sym + 1) * runBit;
+      // No run is longer than a block: corrupt data stops here, before the bit overflows (as bzip2 itself does).
+      if (run > blockSize) throw new Error("bzip2: run too long");
       runBit <<= 1;
       continue;
     }
