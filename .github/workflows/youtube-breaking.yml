@@ -90,15 +90,19 @@ jobs:
         timeout-minutes: 20
         run: |
           npm install --prefix "$RUNNER_TEMP/shorts" --no-audit --no-fund playwright-core@1.56.1
-          # apt waits forever on a package mirror that stops answering (on Oct 22, 2026 two outlook runs hung here for
-          # hours): give up on a mirror after 30 s, and try the whole install twice before failing the run. A slow mirror
-          # can outlast the first try, whose apt-get carries on: the second waits for its lock instead of failing at once.
-          echo 'Acquire::http::Timeout "30"; Acquire::https::Timeout "30"; Acquire::Retries "3"; DPkg::Lock::Timeout "600";' | sudo tee /etc/apt/apt.conf.d/99-timeouts >/dev/null
-          for try in 1 2; do
-            timeout 480 "$RUNNER_TEMP/shorts/node_modules/.bin/playwright-core" install --with-deps chromium && break
-            [ "$try" = 2 ] && exit 1
-            echo "::warning::Installing Chromium failed or took over 8 minutes; trying again."
-          done
+          # Chromium itself comes from Playwright's CDN. GitHub's runner image already has the libraries it needs (Chrome is
+          # installed), so apt, which some days crawls or hangs on Azure's mirror (2.5 hours once), runs only when one is
+          # missing: with timeouts, two tries, and the second waiting for the first one's lock.
+          PW="$RUNNER_TEMP/shorts/node_modules/.bin/playwright-core"
+          "$PW" install chromium
+          if find ~/.cache/ms-playwright -type f \( -name chrome -o -name headless_shell \) -exec ldd {} \; | grep -q "not found"; then
+            echo 'Acquire::http::Timeout "30"; Acquire::https::Timeout "30"; Acquire::Retries "3"; DPkg::Lock::Timeout "600";' | sudo tee /etc/apt/apt.conf.d/99-timeouts >/dev/null
+            for try in 1 2; do
+              timeout 480 "$PW" install-deps chromium && break
+              [ "$try" = 2 ] && exit 1
+              echo "::warning::Installing Chromium's libraries failed or took over 8 minutes; trying again."
+            done
+          fi
           command -v ffmpeg || (timeout 300 sudo apt-get update -qq; timeout 300 sudo apt-get install -y -qq ffmpeg)
           pipx install edge-tts==7.3.1 || echo "::warning::Couldn't install edge-tts; the Short will have no narration."
           npx --yes esbuild@0.28.2 shorts/main.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNNER_TEMP/shorts/shorts.mjs" --log-level=warning
