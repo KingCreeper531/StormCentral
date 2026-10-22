@@ -103,7 +103,17 @@ jobs:
               echo "::warning::Installing Chromium's libraries failed or took over 8 minutes; trying again."
             done
           fi
-          command -v ffmpeg || (timeout 300 sudo apt-get update -qq; timeout 300 sudo apt-get install -y -qq ffmpeg)
+          # The runner has no ffmpeg: a static build (seconds), and apt (minutes, or stuck, some days) only if that fails.
+          if ! command -v ffmpeg >/dev/null; then
+            mkdir -p "$RUNNER_TEMP/ffmpeg"
+            if curl -fsSL --retry 3 -m 180 https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz | tar -xJ -C "$RUNNER_TEMP/ffmpeg" --strip-components=1; then
+              sudo install -m 755 "$RUNNER_TEMP/ffmpeg/ffmpeg" "$RUNNER_TEMP/ffmpeg/ffprobe" /usr/local/bin/
+            else
+              echo "::warning::No static ffmpeg build; installing it with apt."
+              timeout 300 sudo apt-get update -qq; timeout 300 sudo apt-get install -y -qq ffmpeg
+            fi
+          fi
+          ffmpeg -hide_banner -version | head -1
           pipx install edge-tts==7.3.1 || echo "::warning::Couldn't install edge-tts; the Short will have no narration."
           npx --yes esbuild@0.28.2 shorts/main.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNNER_TEMP/shorts/shorts.mjs" --log-level=warning
       - name: Make the Short
