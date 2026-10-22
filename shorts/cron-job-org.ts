@@ -64,6 +64,8 @@ const PLANS: Plan[] = [
   { name: "seasonal", workflow: "youtube-shorts.yml", inputs: { kind: "seasonal" }, hours: [10], minutes: [45], wdays: [4] },
   // Five minutes after GitHub's own every-10-minutes schedule, so together they look every 5.
   { name: "breaking", workflow: "youtube-breaking.yml", inputs: {}, hours: EVERY, minutes: [5, 15, 25, 35, 45, 55] },
+  // Warnings on Facebook: every 3 minutes (GitHub's own every-5-minutes schedule is often late).
+  { name: "facebook", workflow: "facebook-warnings.yml", inputs: {}, hours: EVERY, minutes: Array.from({ length: 20 }, (_, i) => i * 3) },
 ];
 
 /** The cron-job.org jobs that start each Short through GitHub's workflow-dispatch API. */

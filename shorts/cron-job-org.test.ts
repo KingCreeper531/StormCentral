@@ -14,6 +14,7 @@ describe("cron-job.org setup", () => {
       "Storm Central: lesson",
       "Storm Central: seasonal",
       "Storm Central: breaking",
+      "Storm Central: facebook",
     ]);
     expect(jobs.find((j) => j.title.endsWith("lesson"))!.schedule).toMatchObject({ hours: [13], minutes: [20], wdays: [3] });
     const recap = jobs.find((j) => j.title.endsWith("recap"))!;
@@ -28,6 +29,9 @@ describe("cron-job.org setup", () => {
     expect(breaking.url).toContain("/youtube-breaking.yml/dispatches");
     expect(JSON.parse(breaking.extendedData.body)).toEqual({ ref: "main", inputs: { scheduled: "true" } });
     expect(breaking.schedule.minutes).toEqual([5, 15, 25, 35, 45, 55]);
+    const facebook = jobs.find((j) => j.title.endsWith("facebook"))!;
+    expect(facebook.url).toContain("/facebook-warnings.yml/dispatches");
+    expect(facebook.schedule.minutes).toEqual([0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57]);
   });
 
   it("updates the jobs it made before and creates the rest", async () => {
@@ -41,10 +45,10 @@ describe("cron-job.org setup", () => {
       return new Response("{}");
     });
     const r = await syncJobs("key", jobs, { fetchImpl: fetchImpl as typeof fetch, pauseMs: 0, log: () => {} });
-    expect(r).toEqual({ created: 7, updated: 1 });
+    expect(r).toEqual({ created: 8, updated: 1 });
     expect(calls[0]).toBe("GET /jobs");
     expect(calls).toContain("PATCH /jobs/7");
-    expect(calls.filter((c) => c === "PUT /jobs")).toHaveLength(7);
+    expect(calls.filter((c) => c === "PUT /jobs")).toHaveLength(8);
     expect(calls.some((c) => c.includes("/jobs/9"))).toBe(false);
   });
 
