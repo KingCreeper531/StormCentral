@@ -24,6 +24,7 @@ const ABOUT: Record<string, string> = {
   "weekly.html": "the severe weather outlook for the next eight days, posted Sunday mornings",
   "tropical.html": "the latest National Hurricane Center advisory on a tropical storm or hurricane",
   "fire.html": "the latest on a large wildfire, from the National Interagency Fire Center",
+  "seasonal.html": "NOAA's Climate Prediction Center outlook for the next three months: where a warmer, colder, wetter or drier than normal season is more likely (odds, not a forecast of amounts), updated once a month",
 };
 
 const SYSTEM = `You are the narrator of Storm Central, a weather channel on YouTube. You write the voice-over for its Shorts: short vertical videos drawn from NOAA data. Each Short already has a plain script, one line per scene, and the video shows each scene while its line is read.
@@ -62,6 +63,14 @@ export function background(v: Pick<Video, "template" | "data">): string[] {
     if (fc.length) out.push(`Forecast: ${fc.map((p) => `${p.when}, ${p.stage}${typeof p.windMph === "number" ? ` with ${p.windMph} mph winds` : ""}`).join("; ")}.`);
     if (typeof s.windMph === "number" && typeof last?.windMph === "number" && last.windMph !== s.windMph)
       out.push(last.windMph > s.windMph ? "It is forecast to strengthen." : "It is forecast to weaken.");
+  } else if (v.template === "seasonal.html") {
+    const s = obj(d.season);
+    if (typeof d.issued === "string") out.push(`Issued ${d.issued} by NOAA's Climate Prediction Center.`);
+    if (typeof s.range === "string") out.push(`It covers ${s.range}.`);
+    for (const k of ["temp", "prcp"]) {
+      const panel = obj(d[k]).panel;
+      if (Array.isArray(panel)) out.push(...panel.filter((x): x is string => typeof x === "string").map((x) => `${k === "temp" ? "Temperature" : "Precipitation"}, ${x}.`));
+    }
   } else if (v.template === "fire.html") {
     const f = obj(d.fire);
     if (typeof f.name === "string") out.push(`The fire: the ${f.name}.`);
@@ -239,6 +248,10 @@ export function checkLine(line: string, f: LineFacts): string | null {
 // ── Asking the model ────────────────────────────────────────────────────────
 
 export interface WriterOptions {
+  /** Claude instead of Ollama (ANTHROPIC_API_KEY): faster and better than a model on the runner's CPU. */
+  anthropicKey?: string;
+  /** The Claude model (SHORTS_CLAUDE_MODEL), default claude-haiku-5-5. */
+  claudeModel?: string;
   /** Ollama's address (OLLAMA_HOST), default http://127.0.0.1:11434. */
   host?: string;
   model?: string;
@@ -266,8 +279,38 @@ export function parseLines(reply: string, n: number): string[] {
   return lines.map((l) => l.replace(/\s+/g, " ").trim());
 }
 
+export const DEFAULT_CLAUDE_MODEL = "claude-haiku-5-5";
+/** Which model writes the drafts, for the log. */
+export const writerName = (o: WriterOptions) => (o.anthropicKey ? o.claudeModel || DEFAULT_CLAUDE_MODEL : o.model || DEFAULT_MODEL);
+
+/** One draft from Claude's Messages API, as JSON in the shape the prompt asks for. */
+async function claudeDraft(prompt: string, n: number, o: WriterOptions): Promise<string[]> {
+  const res = await (o.fetch ?? fetch)("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": o.anthropicKey!, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({
+      model: o.claudeModel || DEFAULT_CLAUDE_MODEL,
+      max_tokens: 80 * n + 256,
+      // A few lines of voice-over don't need reasoning (and Haiku's would count against max_tokens), as on the live stream.
+      thinking: { type: "disabled" },
+      output_config: {
+        format: { type: "json_schema", schema: { type: "object", properties: { lines: { type: "array", items: { type: "string" } } }, required: ["lines"], additionalProperties: false } },
+      },
+      system: SYSTEM,
+      messages: [{ role: "user", content: prompt }],
+    }),
+    signal: AbortSignal.timeout(o.timeoutMs ?? 60_000),
+  });
+  if (!res.ok) throw new Error(`Claude answered ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const r = (await res.json()) as { content?: { type: string; text?: string }[]; stop_reason?: string };
+  // A cut-off reply isn't a whole script.
+  if (r.stop_reason !== "end_turn") throw new Error(`Claude stopped: ${r.stop_reason}`);
+  return parseLines((r.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join(""), n);
+}
+
 /** One draft of the script from Ollama's chat API (streamed, so a slow model can't hit an HTTP timeout). */
 async function draft(prompt: string, n: number, o: WriterOptions): Promise<string[]> {
+  if (o.anthropicKey) return claudeDraft(prompt, n, o);
   const model = o.model || DEFAULT_MODEL;
   // Thinking models write faster with thinking off; the rest don't take the setting.
   const think = /^(qwen3|gemma4|deepseek-r1|magistral)/.test(model) ? { think: false } : {};
@@ -338,11 +381,11 @@ export async function livelyNarration(v: Pick<Video, "template" | "data">, plain
     } catch (err) {
       const why = `${err instanceof Error ? err.message : err}${err instanceof Error && err.cause ? ` (${err.cause})` : ""}`;
       log(`AI draft ${attempt} failed: ${why}`);
-      // No point asking again when Ollama isn't running or doesn't have the model.
-      if (/ECONNREFUSED|fetch failed|not found/i.test(why)) break;
+      // No point asking again when Ollama isn't running or doesn't have the model, or Claude turns the key away.
+      if (/ECONNREFUSED|fetch failed|not found|answered 40[13]/i.test(why)) break;
       continue;
     }
-    log(`AI draft ${attempt} (${o.model || DEFAULT_MODEL}, ${Math.round((Date.now() - started) / 1000)} s):`);
+    log(`AI draft ${attempt} (${writerName(o)}, ${Math.round((Date.now() - started) / 1000)} s):`);
     const checked = lines.map((line, i) => {
       const said = spoken(digits(line, facts(i).allowed));
       const why = checkLine(said, facts(i));

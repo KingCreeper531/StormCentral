@@ -12,6 +12,7 @@
  *   tropical  an update for each named storm (while there are any)
  *   fire      the most significant active wildfire (when one is big, growing or far from contained)
  *   lesson    Radar School: a full-length (16:9) lesson on reading radar (Wednesdays)
+ *   seasonal  NOAA's three-month temperature and precipitation outlook (the third Thursday of each month)
  *   breaking  a Tornado or Flash Flood Emergency, Extreme Wind Warning, PDS tornado warning or watch, or SPC High Risk
  *             (checked every 10 minutes by .github/workflows/youtube-breaking.yml)
  *
@@ -22,12 +23,14 @@
  *   SHORTS_PRIVACY         public (default), unlisted or private
  *   SHORTS_PLAYLISTS=false don't add videos to playlists
  *   SHORTS_WAIT_MIN        outlook: minutes to wait for today's morning outlook (default 50)
- *   SHORTS_LATEST=1        outlook: the latest Day 1 outlook, whatever its time; recap: post even on a quiet day
+ *   SHORTS_LATEST=1        outlook: the latest Day 1 outlook, whatever its time; recap: post even on a quiet day;
+ *                          seasonal: the latest outlook, however old
  *   SHORTS_SKIP_QUIET=true outlook: no video on days without a severe risk
  *   SHORTS_VOICE=false     no narrator (otherwise edge-tts reads a script timed to the scenes; see voice.ts)
  *   SHORTS_VOICE_NAME      the narrator's voice (default en-US-AndrewNeural)
- *   SHORTS_AI=true         livelier narration: a local model (Ollama) rewrites the script, every line checked against the facts (script.ts)
- *   SHORTS_AI_MODEL        the Ollama model (default gemma3:12b)
+ *   SHORTS_AI=true         livelier narration: a model rewrites the script, every line checked against the facts (script.ts)
+ *   ANTHROPIC_API_KEY      the model is Claude (SHORTS_CLAUDE_MODEL, default claude-haiku-5-5) instead of Ollama
+ *   SHORTS_AI_MODEL        the Ollama model, without a Claude key (default gemma3:12b)
  *   OLLAMA_HOST            where Ollama listens (default 127.0.0.1:11434)
  *   SHORTS_AI_COMPARE=1    also save each video with the plain narration, as <key>-plain.mp4
  *   SHORTS_TROPICAL_MAX    tropical: at most this many storms (default 2, strongest first)
@@ -48,6 +51,7 @@ import { fireKind } from "./kinds/fire";
 import { lessonKind } from "./kinds/lesson";
 import { outlookKind } from "./kinds/outlook";
 import { recapKind } from "./kinds/recap";
+import { seasonalKind } from "./kinds/seasonal";
 import { tropicalKind } from "./kinds/tropical";
 import { weeklyKind } from "./kinds/weekly";
 import { narration, type Cue } from "./narration";
@@ -58,13 +62,15 @@ import { addVoice, DEFAULT_VOICE, seconds } from "./voice";
 import { accessToken, addToPlaylist, credentialsFromEnv, setThumbnail, uploadVideo, YouTubeError, type VideoMeta } from "./youtube";
 
 const env = process.env;
-const KINDS: Record<string, Kind> = { outlook: outlookKind, recap: recapKind, weekly: weeklyKind, tropical: tropicalKind, fire: fireKind, breaking: breakingKind, lesson: lessonKind };
+const KINDS: Record<string, Kind> = { outlook: outlookKind, recap: recapKind, weekly: weeklyKind, tropical: tropicalKind, fire: fireKind, breaking: breakingKind, lesson: lessonKind, seasonal: seasonalKind };
 const PLAYLIST_ABOUT: Record<string, string> = {
   "Daily Severe Weather Outlook": "Every morning: the day's severe weather outlook from NOAA's Storm Prediction Center, on a map.",
   "Storm Reports": "On active severe weather days: the day's tornado, wind and hail reports from the National Weather Service.",
   "Severe Weather: Week Ahead": "Every Sunday: the severe weather outlook for the next eight days.",
   "Tropical Updates": "Hurricane and tropical storm updates from the National Hurricane Center, while storms are active.",
   "Wildfire Updates": "Updates on significant US wildfires from the National Interagency Fire Center: size, growth and containment.",
+  "Seasonal Outlooks":
+    "Every month: NOAA's outlook for the next three months, where a warmer, colder, wetter or drier than normal season is more likely, from the Climate Prediction Center.",
   "Radar School": "A free weekly series on reading weather radar: how it works, the colors, velocity, hook echoes, debris signatures and more, with simulated radar examples.",
   "Breaking Severe Weather":
     "Tornado and flash flood emergencies, PDS tornado warnings and watches, and High Risk days, as they're issued. Not an official warning source; follow the National Weather Service.",
@@ -127,7 +133,8 @@ async function main() {
       // Breaking news reads the warning's facts as written (no AI rewording of life-threatening warnings),
       // and Radar School its hand-checked lesson script.
       if (env.SHORTS_AI === "true" && plain.length && v.template !== "breaking.html" && v.template !== "lesson.html") {
-        cues = await livelyNarration(v, plain, await seconds(out), { host: env.OLLAMA_HOST, model: env.SHORTS_AI_MODEL || undefined }).catch((err: unknown) => {
+        const writer = { anthropicKey: env.ANTHROPIC_API_KEY || undefined, claudeModel: env.SHORTS_CLAUDE_MODEL || undefined, host: env.OLLAMA_HOST, model: env.SHORTS_AI_MODEL || undefined };
+        cues = await livelyNarration(v, plain, await seconds(out), writer).catch((err: unknown) => {
           console.warn(`::warning::The AI narrator failed; using the plain script: ${err instanceof Error ? err.message : err}`);
           return plain;
         });

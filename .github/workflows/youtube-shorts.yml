@@ -8,6 +8,7 @@
 #   recap     late evening, the day's storm reports (active days only)
 #   fire      mid afternoon, the most significant active wildfire (when there is one)
 #   lesson    Wednesdays, Radar School: a full-length (16:9) lesson on reading radar, not a Short
+#   seasonal  the third Thursday of each month, NOAA's three-month outlook (runs every Thursday, posts only a new one)
 #
 # Scheduled runs happen only when the repository variable SHORTS_ENABLED is
 # "true" (and SHORTS_KINDS, when set, lists the kind). "Run workflow" renders
@@ -43,12 +44,16 @@ on:
     # recap: 03:15 UTC (11:15 PM EDT, 10:15 PM CDT). Backup 03:55.
     - cron: "15 3 * * *"
     - cron: "55 3 * * *"
+    # seasonal: Thursdays 14:45 UTC (10:45 AM EDT), after CPC's 8:30 AM Eastern update on the third Thursday;
+    # the other Thursdays find no new outlook and post nothing. Backup 15:25.
+    - cron: "45 14 * * 4"
+    - cron: "25 15 * * 4"
   workflow_dispatch:
     inputs:
       kind:
         description: Which Short
         type: choice
-        options: [outlook, recap, weekly, tropical, fire, lesson]
+        options: [outlook, recap, weekly, tropical, fire, lesson, seasonal]
         default: outlook
       upload:
         description: Upload to YouTube (otherwise only render it, to download from this run)
@@ -69,7 +74,7 @@ on:
 
 concurrency:
   # One run of a kind at a time (the backup waits for the first, then sees its posted marker).
-  group: youtube-shorts-${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || ((github.event.schedule == '30 20 * * *' || github.event.schedule == '10 21 * * *') && 'fire') || ((github.event.schedule == '20 17 * * 3' || github.event.schedule == '0 18 * * 3') && 'lesson') || 'outlook' }}
+  group: youtube-shorts-${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || ((github.event.schedule == '30 20 * * *' || github.event.schedule == '10 21 * * *') && 'fire') || ((github.event.schedule == '20 17 * * 3' || github.event.schedule == '0 18 * * 3') && 'lesson') || ((github.event.schedule == '45 14 * * 4' || github.event.schedule == '25 15 * * 4') && 'seasonal') || 'outlook' }}
   cancel-in-progress: false
 
 permissions:
@@ -85,16 +90,24 @@ jobs:
       # Manual runs: the "AI narration" box. Scheduled runs (and outside schedulers): the SHORTS_AI variable, on by default.
       SHORTS_AI: ${{ (github.event_name == 'workflow_dispatch' && !inputs.scheduled) && (inputs.ai && 'true' || 'false') || vars.SHORTS_AI || 'true' }}
       SHORTS_AI_MODEL: ${{ vars.SHORTS_AI_MODEL || 'gemma3:12b' }}
-      SHORTS_KIND: ${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || ((github.event.schedule == '30 20 * * *' || github.event.schedule == '10 21 * * *') && 'fire') || ((github.event.schedule == '20 17 * * 3' || github.event.schedule == '0 18 * * 3') && 'lesson') || 'outlook' }}
+      # With the ANTHROPIC_API_KEY secret, Claude (Haiku unless SHORTS_CLAUDE_MODEL says otherwise) writes the narration
+      # in seconds and Ollama isn't installed; without it, the local model on the runner does.
+      HAS_CLAUDE: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+      SHORTS_KIND: ${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || ((github.event.schedule == '30 20 * * *' || github.event.schedule == '10 21 * * *') && 'fire') || ((github.event.schedule == '20 17 * * 3' || github.event.schedule == '0 18 * * 3') && 'lesson') || ((github.event.schedule == '45 14 * * 4' || github.event.schedule == '25 15 * * 4') && 'seasonal') || 'outlook' }}
     steps:
       # The Short's day, in Eastern time and running 4 hours behind (the day ends at 4 AM), so a
       # run GitHub starts hours late still counts for the day it was meant for: the fire backup
       # once started at 8:16 PM EDT, after midnight UTC, and posted that day's fire a second time.
       # The recap's day is the storm day it covers (12Z to 12Z, kinds/recap.ts), because its 11:15 PM
-      # run started 5 hours late, past 4 AM, and posted Oct 20's recap a second time.
+      # run started 5 hours late, past 4 AM, and posted Oct 20's recap a second time. The seasonal
+      # outlook is once a month.
       - id: today
         run: |
-          if [ "$SHORTS_KIND" = recap ]; then day=$(date -u -d '-12 hours' +%F); else day=$(TZ=America/New_York date -d '-4 hours' +%F); fi
+          case "$SHORTS_KIND" in
+            recap) day=$(date -u -d '-12 hours' +%F) ;;
+            seasonal) day=$(TZ=America/New_York date +%Y-%m) ;;
+            *) day=$(TZ=America/New_York date -d '-4 hours' +%F) ;;
+          esac
           echo "date=$day" >> "$GITHUB_OUTPUT"
       # Scheduled kinds can be switched off one by one with SHORTS_KINDS ("outlook,recap").
       - id: on
@@ -130,20 +143,35 @@ jobs:
         timeout-minutes: 20
         run: |
           npm install --prefix "$RUNNER_TEMP/shorts" --no-audit --no-fund playwright-core@1.56.1
-          # apt waits forever on a package mirror that stops answering (on Oct 22, 2026 two outlook runs hung here for
-          # hours): give up on a mirror after 30 s, and try the whole install twice before failing the run.
-          echo 'Acquire::http::Timeout "30"; Acquire::https::Timeout "30"; Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/99-timeouts >/dev/null
-          for try in 1 2; do
-            timeout 480 "$RUNNER_TEMP/shorts/node_modules/.bin/playwright-core" install --with-deps chromium && break
-            [ "$try" = 2 ] && exit 1
-            echo "::warning::Installing Chromium failed or took over 8 minutes; trying again."
-          done
-          command -v ffmpeg || (timeout 300 sudo apt-get update -qq; timeout 300 sudo apt-get install -y -qq ffmpeg)
+          # Chromium itself comes from Playwright's CDN. GitHub's runner image already has the libraries it needs (Chrome is
+          # installed), so apt, which some days crawls or hangs on Azure's mirror (2.5 hours once), runs only when one is
+          # missing: with timeouts, two tries, and the second waiting for the first one's lock.
+          PW="$RUNNER_TEMP/shorts/node_modules/.bin/playwright-core"
+          "$PW" install chromium
+          if find ~/.cache/ms-playwright -type f \( -name chrome -o -name headless_shell \) -exec ldd {} \; | grep -q "not found"; then
+            echo 'Acquire::http::Timeout "30"; Acquire::https::Timeout "30"; Acquire::Retries "3"; DPkg::Lock::Timeout "600";' | sudo tee /etc/apt/apt.conf.d/99-timeouts >/dev/null
+            for try in 1 2; do
+              timeout 480 "$PW" install-deps chromium && break
+              [ "$try" = 2 ] && exit 1
+              echo "::warning::Installing Chromium's libraries failed or took over 8 minutes; trying again."
+            done
+          fi
+          # The runner has no ffmpeg: a static build (seconds), and apt (minutes, or stuck, some days) only if that fails.
+          if ! command -v ffmpeg >/dev/null; then
+            mkdir -p "$RUNNER_TEMP/ffmpeg"
+            if curl -fsSL --retry 3 -m 180 https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz | tar -xJ -C "$RUNNER_TEMP/ffmpeg" --strip-components=1; then
+              sudo install -m 755 "$RUNNER_TEMP/ffmpeg/ffmpeg" "$RUNNER_TEMP/ffmpeg/ffprobe" /usr/local/bin/
+            else
+              echo "::warning::No static ffmpeg build; installing it with apt."
+              timeout 300 sudo apt-get update -qq; timeout 300 sudo apt-get install -y -qq ffmpeg
+            fi
+          fi
+          ffmpeg -hide_banner -version | head -1
           pipx install edge-tts==7.3.1 || echo "::warning::Couldn't install edge-tts; the Short will have no narration."
       # The AI narrator runs on the runner's CPU (4 cores, 16 GB): no GPU or API key. If this fails, the plain script is read.
       - name: Start the AI narrator (Ollama)
         # Radar School reads its hand-checked script as written, so it needs no model.
-        if: steps.go.outputs.go == 'true' && env.SHORTS_AI == 'true' && env.SHORTS_KIND != 'lesson'
+        if: steps.go.outputs.go == 'true' && env.SHORTS_AI == 'true' && env.SHORTS_KIND != 'lesson' && env.HAS_CLAUDE != 'true'
         continue-on-error: true
         timeout-minutes: 15
         run: |
@@ -171,6 +199,8 @@ jobs:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SHORTS_CLAUDE_MODEL: ${{ vars.SHORTS_CLAUDE_MODEL }}
           SHORTS_UPLOAD: ${{ (github.event_name == 'schedule' || inputs.upload || inputs.scheduled) && '1' || '0' }}
           SHORTS_LATEST: ${{ (github.event_name == 'workflow_dispatch' && !inputs.scheduled) && '1' || '0' }}
           SHORTS_PRIVACY: ${{ vars.SHORTS_PRIVACY || 'public' }}
