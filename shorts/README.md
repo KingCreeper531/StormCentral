@@ -219,14 +219,17 @@ as "UPGRADED". Each post has where, until when, the NWS's description of the
 storm, the threats, what to do, a link to the app, and a reminder that Storm
 Central isn't an official warning source. Meta's Graph API is free.
 
-1. **Secrets** (Settings → Secrets and variables → Actions):
-   `FB_PAGE_ID` (the Page's id) and `FB_PAGE_TOKEN` (the Page's own access
-   token, one that never expires: get a user token in the Graph API Explorer
-   with `pages_show_list`, `pages_manage_posts`, `pages_read_engagement` and
-   `pages_manage_metadata`, extend it in the Access Token Debugger, then
-   read the Page's `access_token` from `me/accounts`).
-2. **Test:** Actions → Facebook warnings → Run workflow → `check`. It reads
-   the Page's name, makes a hidden post and deletes it. `dry-run` shows what
+1. **Secret** (Settings → Secrets and variables → Actions): `FB_PAGE_TOKEN`,
+   the Page's own access token, one that never expires. In the app, add the
+   "Manage everything on your Page" use case and, under Customize, the
+   `pages_show_list`, `pages_read_engagement` and `pages_manage_posts`
+   permissions. Then in the Graph API Explorer get a user token with those
+   three, extend it in the Access Token Debugger, run `me/accounts` with it
+   and copy the Page's `access_token` (it starts with `EAA`; not the App
+   Secret). The Page is the token's own, so `FB_PAGE_ID` is optional; if set,
+   the check warns when it's something else (the App ID, say).
+2. **Test:** Actions → Facebook warnings → Run workflow → `check`. It finds
+   the token's Page, makes a hidden post and deletes it. `dry-run` shows what
    it would post right now without posting.
 3. It then runs every 5 minutes on its own, and every 3 with cron-job.org
    (run "Set up cron-job.org" again to add that job).

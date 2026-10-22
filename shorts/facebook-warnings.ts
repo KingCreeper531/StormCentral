@@ -4,26 +4,35 @@
  * .github/workflows/facebook-warnings.yml with the posted ones kept in the
  * Actions cache.
  *
- *   node facebook-warnings.mjs          post what's new (FB_PAGE_ID, FB_PAGE_TOKEN, FB_POSTS_PER_HOUR, FB_SEVERE)
- *   node facebook-warnings.mjs check    test the token: read the Page's name, make a hidden post and delete it
+ *   node facebook-warnings.mjs          post what's new (FB_PAGE_TOKEN, FB_POSTS_PER_HOUR, FB_SEVERE)
+ *   node facebook-warnings.mjs check    test the token: find its Page, make a hidden post and delete it
  *   FB_DRY_RUN=1                        print the posts instead of posting them
  *
  * FB_STATE_DIR is where the posted warnings are kept (default shorts/.state).
  */
 import type { RawAlertFeature } from "../src/lib/alerts";
-import { deletePost, pageFromEnv, pageInfo, postToPage, secretProblems } from "./facebook";
+import { deletePost, pageFromEnv, postToPage, resolvePage, secretProblems, type FacebookPage } from "./facebook";
 import { USER_AGENT } from "./source";
 import { loadPostState, savePostState, warningPosts, WARNING_EVENTS, withinCap } from "./warning-posts";
 
 const env = process.env;
 const dir = env.FB_STATE_DIR || "shorts/.state";
 
+const NO_TOKEN = "Set the FB_PAGE_TOKEN secret (shorts/README.md, Facebook).";
+
+/** The token's Page, with a warning when FB_PAGE_ID names something else. */
+async function thePage(): Promise<FacebookPage> {
+  const given = pageFromEnv(env);
+  if (!given) throw new Error(NO_TOKEN);
+  const { page, name, link, mismatch } = await resolvePage(given);
+  console.log(`The token is the Page "${name}"'s${link ? ` (${link})` : ""}.`);
+  if (mismatch) console.log("::warning::FB_PAGE_ID isn't this Page's id (it may be the App ID); posting to the token's Page. You can delete FB_PAGE_ID.");
+  return page;
+}
+
 async function check() {
   for (const p of secretProblems(env.FB_PAGE_ID, env.FB_PAGE_TOKEN)) console.log(`::warning::${p}`);
-  const page = pageFromEnv(env);
-  if (!page) throw new Error("Set the FB_PAGE_ID and FB_PAGE_TOKEN secrets (shorts/README.md, Facebook).");
-  const info = await pageInfo(page);
-  console.log(`The token works for the Page "${info.name}"${info.link ? ` (${info.link})` : ""}.`);
+  const page = await thePage();
   // A hidden post, deleted at once: proves the token can post without anyone seeing it.
   const id = await postToPage(page, "Storm Central test post (hidden, deleted right away).", { published: false });
   console.log("Made a hidden test post; deleting it.");
@@ -33,8 +42,7 @@ async function check() {
 
 async function post() {
   const dry = env.FB_DRY_RUN === "1";
-  const page = pageFromEnv(env);
-  if (!page && !dry) throw new Error("Set the FB_PAGE_ID and FB_PAGE_TOKEN secrets (shorts/README.md, Facebook).");
+  const page = dry ? null : await thePage();
   const url = `https://api.weather.gov/alerts/active?status=actual&event=${encodeURIComponent(WARNING_EVENTS.join(","))}`;
   const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/geo+json" }, signal: AbortSignal.timeout(30_000) });
   if (!res.ok) throw new Error(`NWS alerts: ${res.status}`);
