@@ -14,6 +14,7 @@
  *   lesson    Radar School: a full-length (16:9) lesson on reading radar (Wednesdays)
  *   seasonal  NOAA's three-month temperature and precipitation outlook (the third Thursday of each month)
  *   snow      the past 24 hours of snowfall reports (mornings after a real snow)
+ *   review    the weather week in review: a full-length (16:9) video of the week's storm reports, the busiest days on radar and the snow (Sundays)
  *   breaking  a Tornado or Flash Flood Emergency, Extreme Wind Warning, PDS tornado warning or watch, or SPC High Risk
  *             (checked every 10 minutes by .github/workflows/youtube-breaking.yml)
  *
@@ -27,6 +28,7 @@
  *   SHORTS_LATEST=1        outlook: the latest Day 1 outlook, whatever its time; recap: post even on a quiet day;
  *                          seasonal: the latest outlook, however old; snow: post even without a real snow
  *   SHORTS_SNOW_UNTIL      snow: end the 24 hours at this past time (ISO) instead of now, to make an old storm's (testing)
+ *   SHORTS_REVIEW_UNTIL    review: end the week at this past time (ISO) instead of now, to make an old week's (testing)
  *   SHORTS_SKIP_QUIET=true outlook: no video on days without a severe risk
  *   SHORTS_VOICE=false     no narrator (otherwise edge-tts reads a script timed to the scenes; see voice.ts)
  *   SHORTS_VOICE_NAME      the narrator's voice (default en-US-AndrewNeural)
@@ -53,6 +55,7 @@ import { fireKind } from "./kinds/fire";
 import { lessonKind } from "./kinds/lesson";
 import { outlookKind } from "./kinds/outlook";
 import { recapKind } from "./kinds/recap";
+import { reviewKind } from "./kinds/review";
 import { seasonalKind } from "./kinds/seasonal";
 import { snowKind } from "./kinds/snow";
 import { tropicalKind } from "./kinds/tropical";
@@ -65,13 +68,15 @@ import { addVoice, DEFAULT_VOICE, seconds } from "./voice";
 import { accessToken, addToPlaylist, credentialsFromEnv, setThumbnail, uploadVideo, YouTubeError, type VideoMeta } from "./youtube";
 
 const env = process.env;
-const KINDS: Record<string, Kind> = { outlook: outlookKind, recap: recapKind, weekly: weeklyKind, tropical: tropicalKind, fire: fireKind, breaking: breakingKind, lesson: lessonKind, seasonal: seasonalKind, snow: snowKind };
+const KINDS: Record<string, Kind> = { outlook: outlookKind, recap: recapKind, weekly: weeklyKind, tropical: tropicalKind, fire: fireKind, breaking: breakingKind, lesson: lessonKind, seasonal: seasonalKind, snow: snowKind, review: reviewKind };
 const PLAYLIST_ABOUT: Record<string, string> = {
   "Daily Severe Weather Outlook": "Every morning: the day's severe weather outlook from NOAA's Storm Prediction Center, on a map.",
   "Storm Reports": "On active severe weather days: the day's tornado, wind and hail reports from the National Weather Service.",
   "Severe Weather: Week Ahead": "Every Sunday: the severe weather outlook for the next eight days.",
   "Tropical Updates": "Hurricane and tropical storm updates from the National Hurricane Center, while storms are active.",
   "Wildfire Updates": "Updates on significant US wildfires from the National Interagency Fire Center: size, growth and containment.",
+  "Week in Review":
+    "Every Sunday: the past week in weather, from the National Weather Service's storm reports, with the busiest storm days replayed on radar and the week's snow.",
   "Snow Totals": "After every real snowstorm: the past 24 hours of snowfall reports from the National Weather Service, on a map, with the biggest totals.",
   "Seasonal Outlooks":
     "Every month: NOAA's outlook for the next three months, where a warmer, colder, wetter or drier than normal season is more likely, from the Climate Prediction Center.",
@@ -120,7 +125,7 @@ async function main() {
     const started = Date.now();
     // One video failing to render doesn't stop the others either; the run still fails at the end.
     try {
-      await renderShort(v.template, v.data, out, v.size ?? {});
+      await renderShort(v.template, v.data, out, { ...v.size, cors: v.cors });
     } catch (err) {
       console.error(`Rendering ${v.key} failed: ${err instanceof Error ? err.message : err}`);
       failed = err;
@@ -129,7 +134,7 @@ async function main() {
     console.log(`Rendered ${out} in ${Math.round((Date.now() - started) / 1000)} s.`);
     // Full-length videos get their own thumbnail (kept with the video, so a test run shows it too).
     const thumb = v.thumbnailAt != null ? join(outDir, `${v.key}-thumbnail.jpg`) : null;
-    if (thumb) await renderStill(v.template, v.data, v.thumbnailAt!, thumb, v.size ?? {}).catch((err: unknown) => console.warn(`::warning::No thumbnail: ${err instanceof Error ? err.message : err}`));
+    if (thumb) await renderStill(v.template, v.data, v.thumbnailAt!, thumb, { ...v.size, cors: v.cors }).catch((err: unknown) => console.warn(`::warning::No thumbnail: ${err instanceof Error ? err.message : err}`));
     if (env.SHORTS_VOICE !== "false") {
       const voice = env.SHORTS_VOICE_NAME || DEFAULT_VOICE;
       const plain = narration(v);

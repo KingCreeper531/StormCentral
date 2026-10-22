@@ -13,6 +13,7 @@ to the Storm Central YouTube channel. Nothing runs on your PC.
 | **Wildfire update**: the large active fires on the US map, then a zoom to the most significant one with its mapped perimeter, acres burned, containment, and how much it grew since the day before | Every day at 4:30 PM Eastern, when a fire is at least 5,000 acres and no more than 80% contained, or grew 1,000+ acres in a day; none otherwise | Wildfire Updates |
 | **Breaking news**: a Tornado Emergency, Flash Flood Emergency, Extreme Wind Warning, PDS tornado warning or watch, or SPC High Risk, with the polygon over radar, the counties, the end time, the damage tags and what to do | Within about 10 to 20 minutes of the NWS issuing it (checked every 10 minutes), at most 2 a day | Breaking Severe Weather |
 | **Seasonal outlook**: NOAA Climate Prediction Center's odds of a warmer or colder, then wetter or drier, than normal three months on the US map, with the regions where each is favored. The next winter, spring, summer or fall when it starts within two months (October's is the Winter Outlook), otherwise the next three months | The third Thursday of each month, after CPC's 8:30 AM Eastern update (the runs go every Thursday at 10:45 AM Eastern and post only a new outlook) | Seasonal Outlooks |
+| **Week in Review** (a full-length 16:9 video, not a Short): the past seven storm days of NWS storm reports on the US map with a day-by-day chart, then the busiest storm days (up to 3) replayed on the archived national radar composite over their busiest six hours, with the reports popping up as they came in and the day's numbers beside it, then the week's snow; narrated, with chapters and a thumbnail | Sundays 2:30 PM Eastern, when the week had a storm day (a tornado report or 15 severe reports) or 6 inches of snow somewhere | Week in Review |
 | **Radar School** (a full-length 16:9 video, not a Short): a lesson on reading weather radar, in chapters, with real storms from NOAA's NEXRAD archive (Moore 2013, Mayfield 2021, Rolling Fork 2023, the 2020 Iowa derecho), labelled simulated examples and tours of Storm Central's Professional mode on live data, YouTube chapters and a thumbnail | Wednesdays 1:20 PM Eastern, one lesson a week while there's one scheduled | Radar School |
 
 Every video ends with stormcentralwx.com. Each upload has a Spanish title
@@ -84,7 +85,7 @@ In this repository on GitHub: **Settings → Secrets and variables → Actions
 
 **Actions → YouTube Shorts → Run workflow.**
 
-- Pick the **kind** (outlook, recap, weekly, tropical, fire, lesson, seasonal or snow). For snow, **until** makes the Short for a past storm (the 24 hours ending then), to try it out of season.
+- Pick the **kind** (outlook, recap, weekly, tropical, fire, lesson, seasonal, snow or review). For snow and review, **until** makes the video for a past storm or week (the 24 hours, or the seven storm days, ending then), to try it out of season.
 - With **Upload** unticked, it renders it from the latest data. Download
   the video from the run's **Artifacts** to check it.
 - With **Upload** ticked, it also uploads it.
@@ -261,6 +262,7 @@ GitHub often starts scheduled runs late or drops them. For posts on time, let a 
 | lesson (Radar School) | 1:20 PM Wednesdays |
 | seasonal | 10:45 AM Thursdays (posts only on the third, when NOAA updates it) |
 | snow | 9:50 AM daily (posts only after a real snow) |
+| review (week in review) | 2:30 PM Sundays |
 | recap | 11:15 PM daily |
 | breaking | every 10 minutes (`youtube-breaking.yml`, body `{"ref":"main","inputs":{"scheduled":"true"}}`) |
 | facebook | every 3 minutes (`facebook-warnings.yml`, body `{"ref":"main","inputs":{"scheduled":"true"}}`) |

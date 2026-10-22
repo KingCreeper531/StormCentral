@@ -193,6 +193,15 @@ function seasonal(d: SeasonalData): Cue[] {
   ];
 }
 
+interface ReviewData {
+  beats: { start: number; say: string }[];
+}
+
+/** The week in review: each beat's line as it comes on screen (kinds/review.ts times the beats to them). */
+function review(d: ReviewData): Cue[] {
+  return d.beats.map((b) => ({ at: b.start + 0.3, text: b.say }));
+}
+
 interface SnowData {
   date: string;
   counts: { total: number; inch: number; six: number; foot: number };
@@ -221,6 +230,7 @@ const BY_TEMPLATE: Record<string, (d: never) => Cue[]> = {
   "fire.html": fire,
   "outlook.html": outlook,
   "recap.html": recap,
+  "review.html": review,
   "seasonal.html": seasonal,
   "snow.html": snow,
   "weekly.html": weekly,
