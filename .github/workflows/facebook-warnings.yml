@@ -7,8 +7,10 @@
 #
 # Needs the secret FB_PAGE_TOKEN, the Page's own token (shorts/README.md, Facebook); the Page is
 # the token's, so FB_PAGE_ID is optional.
+# Each post carries a picture of the warning (its polygon on radar, warning-card.html).
 # Repository variables: FB_WARNINGS = false to pause it, FB_SEVERE = all for
-# every Severe Thunderstorm Warning, FB_POSTS_PER_HOUR (default 12).
+# every Severe Thunderstorm Warning, FB_POSTS_PER_HOUR (default 12), FB_CARDS =
+# false for text and a link without the picture.
 name: Facebook warnings
 
 on:
@@ -17,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "post: post new warnings now · check: test the token (a hidden post, deleted at once) · dry-run: show what would be posted"
+        description: "post: post new warnings now · check: test the token (a hidden post, deleted at once) · dry-run: show the posts and pictures for the warnings out now, without posting"
         type: choice
         options: [check, dry-run, post]
         default: check
@@ -37,8 +39,9 @@ permissions:
 jobs:
   post:
     if: (github.event_name == 'workflow_dispatch' && !inputs.scheduled) || vars.FB_WARNINGS != 'false'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Not ubuntu-latest: GitHub is moving it to Ubuntu 26.04, where Playwright won't install Chromium (Oct 2026).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     env:
       MODE: ${{ (github.event_name == 'workflow_dispatch' && !inputs.scheduled) && inputs.mode || 'post' }}
       HAS_PAGE: ${{ secrets.FB_PAGE_TOKEN != '' }}
@@ -53,15 +56,32 @@ jobs:
         if: env.HAS_PAGE == 'true' || env.MODE == 'dry-run'
         with:
           node-version: 22
+      # A dry run starts fresh: it shows the posts and pictures for every warning out now.
       - uses: actions/cache/restore@v4
-        if: env.HAS_PAGE == 'true' || env.MODE == 'dry-run'
+        if: env.HAS_PAGE == 'true' && env.MODE != 'dry-run'
         with:
           path: shorts/.state
           key: facebook-warnings-state-${{ github.run_id }}
           restore-keys: facebook-warnings-state-
       - name: Build
         if: env.HAS_PAGE == 'true' || env.MODE == 'dry-run'
-        run: npx --yes esbuild@0.28.2 shorts/facebook-warnings.ts --bundle --platform=node --format=esm --target=node22 --outfile="$RUNNER_TEMP/fb.mjs" --log-level=warning
+        run: npx --yes esbuild@0.28.2 shorts/facebook-warnings.ts --bundle --platform=node --format=esm --target=node22 --external:playwright-core --outfile="$RUNNER_TEMP/fb/fb.mjs" --log-level=warning
+      # Each post's picture (the polygon on radar) is drawn in Chromium: installed only when there's something to post.
+      - name: Anything to post?
+        id: plan
+        if: (env.HAS_PAGE == 'true' && env.MODE == 'post') || env.MODE == 'dry-run'
+        env:
+          FB_SEVERE: ${{ vars.FB_SEVERE }}
+          FB_POSTS_PER_HOUR: ${{ vars.FB_POSTS_PER_HOUR }}
+        run: node "$RUNNER_TEMP/fb/fb.mjs" plan
+      - name: Install Chromium for the pictures
+        if: steps.plan.outputs.due != '' && steps.plan.outputs.due != '0' && vars.FB_CARDS != 'false'
+        # Without it the posts still go up, as text and a link.
+        continue-on-error: true
+        timeout-minutes: 6
+        run: |
+          npm install --prefix "$RUNNER_TEMP/fb" --no-audit --no-fund --silent playwright-core@1.56.1
+          "$RUNNER_TEMP/fb/node_modules/.bin/playwright-core" install chromium
       - name: Post
         id: post
         if: env.HAS_PAGE == 'true' || env.MODE == 'dry-run'
@@ -70,8 +90,17 @@ jobs:
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           FB_SEVERE: ${{ vars.FB_SEVERE }}
           FB_POSTS_PER_HOUR: ${{ vars.FB_POSTS_PER_HOUR }}
+          FB_CARDS: ${{ vars.FB_CARDS }}
           FB_DRY_RUN: ${{ env.MODE == 'dry-run' && '1' || '' }}
-        run: node "$RUNNER_TEMP/fb.mjs" ${{ env.MODE == 'check' && 'check' || '' }}
+          FB_OUT_DIR: ${{ runner.temp }}/fb-out
+        run: node "$RUNNER_TEMP/fb/fb.mjs" ${{ env.MODE == 'check' && 'check' || '' }}
+      - uses: actions/upload-artifact@v4
+        # A dry run's pictures, to look at.
+        if: env.MODE == 'dry-run' && hashFiles(format('{0}/fb-out/*.jpg', runner.temp)) != ''
+        with:
+          name: facebook-warning-pictures
+          path: ${{ runner.temp }}/fb-out/*.jpg
+          retention-days: 7
       - uses: actions/cache/save@v4
         # always(): a run where one post failed still records the ones it made.
         if: always() && env.MODE == 'post' && hashFiles('shorts/.state/facebook-warnings.json') != ''

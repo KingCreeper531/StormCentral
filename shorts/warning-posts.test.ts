@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import type { RawAlertFeature } from "../src/lib/alerts";
-import { deletePost, pageFromEnv, pageInfo, postToPage, resolvePage, secretProblems } from "./facebook";
+import { deletePost, pageFromEnv, pageInfo, postPhoto, postToPage, resolvePage, secretProblems } from "./facebook";
 import { postedLastHour, warningPosts, withinCap, type PostState } from "./warning-posts";
 
 // The saved Moore scenario: a PDS tornado warning upgraded to a Tornado Emergency, and a plain tornado warning in Creek County.
@@ -115,5 +115,32 @@ describe("the token's Page", () => {
     expect((await resolvePage({ id: "999", token: "t" }, reply({ id: "555", name: "Storm Central", metadata: { type: "page" } }))).mismatch).toBe(true);
     const err = await resolvePage({ id: "", token: "t" }, reply({ id: "7", name: "Someone", metadata: { type: "user" } })).catch((e: Error) => e);
     expect(String(err)).toMatch(/FB_PAGE_TOKEN is a user token .*me\/accounts/);
+  });
+});
+
+describe("the post's picture", () => {
+  it("carries the warning's facts, colour and polygon for the card", () => {
+    const [emergency, creek] = warningPosts(FEATURES, {}, { now: NOW });
+    expect(emergency!.card).toMatchObject({ title: "TORNADO EMERGENCY", color: "#ff2bd6", where: "Cleveland, McClain and Oklahoma counties in Oklahoma", until: "8:30 PM CDT", issuer: "National Weather Service in Norman, OK" });
+    expect(emergency!.card.chips).toContainEqual({ label: "Tornado", value: "observed" });
+    expect(emergency!.card.geometry?.type).toBe("Polygon");
+    expect(creek!.card.color).toBe("#ff1f1f");
+    expect(warningPosts(FEATURES, { [EMERGENCY]: 3 }, { now: NOW })[0]!.card.title).toBe("UPGRADED: TORNADO EMERGENCY");
+  });
+
+  it("uploads the picture with the text as a photo post", async () => {
+    let sent: FormData | null = null;
+    let url = "";
+    const f = vi.fn(async (u: string | URL | Request, init?: RequestInit) => {
+      url = String(u);
+      sent = init?.body as FormData;
+      return Response.json({ id: "999", post_id: "123_999" });
+    });
+    const id = await postPhoto({ id: "123", token: "page-token" }, Buffer.from([0xff, 0xd8, 0xff]), "TORNADO WARNING for Creek county", {}, f as unknown as typeof fetch);
+    expect(id).toBe("123_999");
+    expect(url).toMatch(/\/123\/photos$/);
+    expect(sent!.get("message")).toBe("TORNADO WARNING for Creek county");
+    expect((sent!.get("source") as Blob).type).toBe("image/jpeg");
+    expect(sent!.get("published")).toBeNull();
   });
 });

@@ -86,4 +86,21 @@ export const pageInfo = (page: FacebookPage, f?: Fetch) => graph<{ id: string; n
 export const postToPage = (page: FacebookPage, message: string, { link, published = true }: { link?: string; published?: boolean } = {}, f?: Fetch) =>
   graph<{ id: string }>(page, "POST", `${page.id}/feed`, { message, ...(link ? { link } : {}), ...(published ? {} : { published: "false" }) }, f).then((r) => r.id);
 
+/**
+ * A photo post on the Page (the picture uploaded with the post, `message`
+ * under it); returns the post's id. `published: false` hides it (testing).
+ */
+export async function postPhoto(page: FacebookPage, image: Buffer, message: string, { published = true }: { published?: boolean } = {}, f: Fetch = fetch): Promise<string> {
+  const form = new FormData();
+  form.set("source", new Blob([new Uint8Array(image)], { type: "image/jpeg" }), "warning.jpg");
+  form.set("message", message);
+  if (!published) form.set("published", "false");
+  form.set("access_token", page.token);
+  const res = await f(`${GRAPH}/${page.id}/photos`, { method: "POST", body: form, signal: AbortSignal.timeout(60_000) });
+  const json = (await res.json().catch(() => ({}))) as { id?: string; post_id?: string; error?: { message?: string } };
+  if (!res.ok || json.error || !json.id) throw new FacebookError(`Facebook POST photos failed (${res.status}): ${json.error?.message ?? "no details"}`, res.status);
+  // The feed post (page_postid) when Facebook gives it; else the photo, which is a post too.
+  return json.post_id ?? json.id;
+}
+
 export const deletePost = (page: FacebookPage, postId: string, f?: Fetch) => graph<{ success?: boolean }>(page, "DELETE", postId, {}, f);

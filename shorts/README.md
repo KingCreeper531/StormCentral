@@ -218,7 +218,11 @@ destructive damage threat (80 mph winds or baseball-size hail). A warning
 posts once; one upgraded later (to PDS or a Tornado Emergency) posts again
 as "UPGRADED". Each post has where, until when, the NWS's description of the
 storm, the threats, what to do, a link to the app, and a reminder that Storm
-Central isn't an official warning source. Meta's Graph API is free.
+Central isn't an official warning source, with a picture of the warning: its
+polygon over the radar, its title, area, end time and threats
+(`warning-card.html`). Chromium is installed only on runs with something to
+post; if the picture can't be made, the post goes up as text and a link.
+Meta's Graph API is free.
 
 1. **Secret** (Settings → Secrets and variables → Actions): `FB_PAGE_TOKEN`,
    the Page's own access token, one that never expires. In the app, add the
@@ -230,8 +234,9 @@ Central isn't an official warning source. Meta's Graph API is free.
    Secret). The Page is the token's own, so `FB_PAGE_ID` is optional; if set,
    the check warns when it's something else (the App ID, say).
 2. **Test:** Actions → Facebook warnings → Run workflow → `check`. It finds
-   the token's Page, makes a hidden post and deletes it. `dry-run` shows what
-   it would post right now without posting.
+   the token's Page, makes a hidden post and deletes it. `dry-run` shows the posts
+   and pictures for every warning out now (the pictures are in the run's
+   artifacts), without posting.
 3. It then runs every 5 minutes on its own, and every 3 with cron-job.org
    (run "Set up cron-job.org" again to add that job).
 
@@ -240,6 +245,7 @@ Central isn't an official warning source. Meta's Graph API is free.
 | `FB_WARNINGS` | on | `false` to pause the posts |
 | `FB_SEVERE` | destructive only | `all` for every Severe Thunderstorm Warning (hundreds a day in spring) |
 | `FB_POSTS_PER_HOUR` | `12` | at most this many an hour; on a big outbreak the rest are skipped, the most dangerous posted first |
+| `FB_CARDS` | on | `false` to post text and a link without the picture |
 
 ## A reliable schedule (cron-job.org)
 

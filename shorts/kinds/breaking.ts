@@ -556,7 +556,11 @@ export function breakingText(e: BreakingEvent, lines: BreakingLines) {
  * its corners. Warnings only (a few dozen miles across, where Web Mercator
  * and the page's conic map line up); null when it can't be had.
  */
-export async function radarBackdrop(ctx: KindContext, shapes: GeoCollection): Promise<{ url: string; west: number; south: number; east: number; north: number } | null> {
+export async function radarBackdrop(
+  ctx: KindContext,
+  shapes: GeoCollection,
+  { width = 1000, height = 690, frac = 0.45 } = {},
+): Promise<{ url: string; west: number; south: number; east: number; north: number } | null> {
   if (ctx.fixtures || !shapes.features.length) return null;
   const pts: [number, number][] = [];
   const walk = (c: unknown) => {
@@ -569,12 +573,12 @@ export async function radarBackdrop(ctx: KindContext, shapes: GeoCollection): Pr
   const [w0, e0, s0, n0] = [Math.min(...lons), Math.max(...lons), Math.min(...lats), Math.max(...lats)];
   const lat = (s0 + n0) / 2, lon = (w0 + e0) / 2;
   const cos = Math.cos((lat * Math.PI) / 180);
-  // Cover the zoomed map (1000 x 690, the polygon in about 45% of it) with room to spare.
-  const degPerPx = Math.max(((e0 - w0) * cos) / 1000, (n0 - s0) / 690, 0.02 / 690) / 0.45 * 1.3;
-  const box = { west: lon - (degPerPx * 500) / cos, east: lon + (degPerPx * 500) / cos, south: lat - degPerPx * 345, north: lat + degPerPx * 345 };
+  // Cover the zoomed map (width x height, the polygon in about `frac` of it) with room to spare.
+  const degPerPx = (Math.max(((e0 - w0) * cos) / width, (n0 - s0) / height, 0.02 / height) / frac) * 1.3;
+  const box = { west: lon - (degPerPx * width) / 2 / cos, east: lon + (degPerPx * width) / 2 / cos, south: lat - (degPerPx * height) / 2, north: lat + (degPerPx * height) / 2 };
   const merc = (lo: number, la: number) => [(lo * 20037508.34) / 180, (Math.log(Math.tan(((90 + la) * Math.PI) / 360)) / (Math.PI / 180)) * (20037508.34 / 180)];
   const [x0, y0] = merc(box.west, box.south), [x1, y1] = merc(box.east, box.north);
-  const url = `${IEM}/cgi-bin/wms/nexrad/n0q.cgi?service=WMS&version=1.1.1&request=GetMap&layers=nexrad-n0q-900913&styles=&srs=EPSG:3857&bbox=${[x0, y0, x1, y1].map((v) => v!.toFixed(0)).join(",")}&width=1000&height=690&format=image/png&transparent=true`;
+  const url = `${IEM}/cgi-bin/wms/nexrad/n0q.cgi?service=WMS&version=1.1.1&request=GetMap&layers=nexrad-n0q-900913&styles=&srs=EPSG:3857&bbox=${[x0, y0, x1, y1].map((v) => v!.toFixed(0)).join(",")}&width=${width}&height=${height}&format=image/png&transparent=true`;
   try {
     const res = await fetch(url, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(20_000) });
     if (!res.ok || !res.headers.get("content-type")?.includes("image/png")) return null;
