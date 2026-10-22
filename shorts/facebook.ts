@@ -1,7 +1,8 @@
 /**
  * Posting to the Storm Central Facebook Page through Meta's Graph API, with
  * the Page's own access token (FB_PAGE_TOKEN, a Page token that doesn't
- * expire) and its id (FB_PAGE_ID). Free; Meta only rate-limits it.
+ * expire). The Page is the token's own (resolvePage), so FB_PAGE_ID is
+ * optional, only checked. Free; Meta only rate-limits it.
  */
 
 const GRAPH = "https://graph.facebook.com/v25.0";
@@ -21,10 +22,10 @@ export class FacebookError extends Error {
   }
 }
 
+/** The token, and FB_PAGE_ID when set (resolvePage finds the real id from the token). */
 export function pageFromEnv(env: Record<string, string | undefined> = process.env): FacebookPage | null {
-  const id = env.FB_PAGE_ID?.trim();
   const token = env.FB_PAGE_TOKEN?.trim();
-  return id && token ? { id, token } : null;
+  return token ? { id: env.FB_PAGE_ID?.trim() ?? "", token } : null;
 }
 
 /**
@@ -42,7 +43,7 @@ export function secretProblems(id: string | undefined, token: string | undefined
   else if (/^\d+$/.test(t.trim())) out.push("FB_PAGE_TOKEN is only digits: that's an id, not a token (a token starts with EAA).");
   else if (t.trim() && !/^["']?EAA/.test(t.trim())) out.push(`FB_PAGE_TOKEN doesn't start with "EAA" (${t.trim().length} characters): it may be the App Secret or another value, not the Page token.`);
   if (/^["']?EAA/.test(t.trim()) && t.trim().length < 100) out.push(`FB_PAGE_TOKEN is only ${t.trim().length} characters: it was probably cut off when copied.`);
-  if (i.trim() && !/^\d+$/.test(i.trim()) && !/^EAA/.test(i.trim())) out.push("FB_PAGE_ID isn't only digits: use the Page's numeric id from me/accounts.");
+  if (i.trim() && !/^\d+$/.test(i.trim()) && !/^EAA/.test(i.trim())) out.push("FB_PAGE_ID isn't only digits (it's optional: the Page comes from the token).");
   return out;
 }
 
@@ -56,6 +57,23 @@ async function graph<T>(page: FacebookPage, method: "GET" | "POST" | "DELETE", p
   // The token never goes in a message: Meta's errors don't repeat it, and the URL isn't logged.
   if (!res.ok || json.error) throw new FacebookError(`Facebook ${method} ${path.split("?")[0]} failed (${res.status}): ${json.error?.message ?? "no details"}`, res.status);
   return json;
+}
+
+/**
+ * The Page the token belongs to (a Page token's "me" is the Page), with a
+ * clear error for the wrong kind of token: a user token from "Generate Access
+ * Token" or an app token can't post as the Page. `mismatch` is set when
+ * FB_PAGE_ID names something else (it once held the App ID).
+ */
+export async function resolvePage(page: FacebookPage, f?: Fetch): Promise<{ page: FacebookPage; name: string; link?: string; mismatch: boolean }> {
+  const me = await graph<{ id: string; name: string; link?: string; metadata?: { type?: string } }>(page, "GET", "me", { fields: "id,name,link", metadata: "1" }, f);
+  const type = me.metadata?.type;
+  if (type && type !== "page")
+    throw new FacebookError(
+      `FB_PAGE_TOKEN is a ${type} token ("${me.name}"), not the Page's: in the Graph API Explorer, run me/accounts with it and use the Page's own access_token (shorts/README.md, Facebook).`,
+      400,
+    );
+  return { page: { id: me.id, token: page.token }, name: me.name, link: me.link, mismatch: !!page.id && page.id !== me.id };
 }
 
 /** The Page's name and link: checks the token works and is the Page's own. */
