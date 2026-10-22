@@ -93,7 +93,9 @@ In this repository on GitHub: **Settings → Secrets and variables → Actions
 variable**: `SHORTS_ENABLED` = `true`. From then on each kind runs on its
 schedule (the table at the top) and posts at most once a day. The day is
 Eastern time, ending at 4 AM, so a run GitHub starts hours late (even past
-midnight UTC) still counts for the day it was meant for.
+midnight UTC) still counts for the day it was meant for. The recap's day is
+the storm day it covers (12:00 to 12:00 UTC), so a late start after 4 AM
+doesn't post the same recap again.
 
 ## Private until Google's audit
 

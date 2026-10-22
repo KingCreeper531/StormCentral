@@ -90,8 +90,12 @@ jobs:
       # The Short's day, in Eastern time and running 4 hours behind (the day ends at 4 AM), so a
       # run GitHub starts hours late still counts for the day it was meant for: the fire backup
       # once started at 8:16 PM EDT, after midnight UTC, and posted that day's fire a second time.
+      # The recap's day is the storm day it covers (12Z to 12Z, kinds/recap.ts), because its 11:15 PM
+      # run started 5 hours late, past 4 AM, and posted Oct 20's recap a second time.
       - id: today
-        run: echo "date=$(TZ=America/New_York date -d '-4 hours' +%F)" >> "$GITHUB_OUTPUT"
+        run: |
+          if [ "$SHORTS_KIND" = recap ]; then day=$(date -u -d '-12 hours' +%F); else day=$(TZ=America/New_York date -d '-4 hours' +%F); fi
+          echo "date=$day" >> "$GITHUB_OUTPUT"
       # Scheduled kinds can be switched off one by one with SHORTS_KINDS ("outlook,recap").
       - id: on
         env:
