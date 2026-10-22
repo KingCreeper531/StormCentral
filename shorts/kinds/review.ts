@@ -23,8 +23,10 @@ const DAY_MS = 86_400_000;
 export const WEEK_DAYS = 7;
 /** A storm day: a tornado report, or this many severe reports. */
 export const STORM_DAY_REPORTS = 15;
-/** At most this many storm days get their own radar segment. */
+/** At most this many storm days get their own radar segment... */
 export const MAX_DAYS = 3;
+/** ...each at least this share of the busiest day's (a 16-report day doesn't stand beside a 1,000-report outbreak). */
+export const MIN_SHARE = 0.15;
 /** The radar loop covers the busiest this-many hours of a day, a frame every FRAME_MIN minutes. */
 export const LOOP_HOURS = 6;
 export const FRAME_MIN = 20;
@@ -63,10 +65,11 @@ export function weekDays(reports: StormReport[], end: number): ReviewDay[] {
 export const isStormDay = (d: ReviewDay) => d.summary.counts.tornado > 0 || d.summary.total >= STORM_DAY_REPORTS;
 const score = (d: ReviewDay) => d.summary.counts.tornado * 4 + d.summary.total;
 
-/** The busiest storm days (up to MAX_DAYS), in the order they happened. */
+/** The busiest storm days (up to MAX_DAYS, each at least MIN_SHARE of the busiest), in the order they happened. */
 export function stormDays(days: ReviewDay[]): ReviewDay[] {
+  const top = Math.max(0, ...days.filter(isStormDay).map(score));
   return days
-    .filter(isStormDay)
+    .filter((d) => isStormDay(d) && score(d) >= top * MIN_SHARE)
     .sort((a, b) => score(b) - score(a) || a.start - b.start)
     .slice(0, MAX_DAYS)
     .sort((a, b) => a.start - b.start);
@@ -170,6 +173,12 @@ export function weekRange(start: number, locale = "en-US"): string {
 }
 
 /** "2 tornado reports, 17 damaging wind reports and 13 large hail reports", leaving out the kinds with none. */
+/** "May 17 to 23", "September 27 to October 3": the week as the narrator says it. */
+export function spokenRange(start: number): string {
+  const last = start + (WEEK_DAYS - 1) * DAY_MS, m = fmt({ month: "long" }), d = fmt({ day: "numeric" });
+  return m(start) === m(last) ? `${m(start)} ${d(start)} to ${d(last)}` : `${m(start)} ${d(start)} to ${m(last)} ${d(last)}`;
+}
+
 const kindsLine = (c: { tornado: number; wind: number; hail: number }) =>
   list(
     [
@@ -218,14 +227,14 @@ export function timeline(scenes: Scene[]) {
   return { chapters, beats, end: t };
 }
 
-export function reviewScenes(days: ReviewDay[], picked: ReviewDay[], snow: SnowSummary | null, range: string): Scene[] {
+export function reviewScenes(days: ReviewDay[], picked: ReviewDay[], snow: SnowSummary | null): Scene[] {
   const total = { tornado: 0, wind: 0, hail: 0 };
   for (const d of days) for (const k of ["tornado", "wind", "hail"] as const) total[k] += d.summary.counts[k];
   const severe = total.tornado + total.wind + total.hail;
   const floods = days.reduce((s, d) => s + d.floods, 0);
   const busiest = days.reduce<ReviewDay | null>((b, d) => (d.summary.total > (b?.summary.total ?? 0) ? d : b), null);
   const scenes: Scene[] = [
-    { type: "intro", title: "Intro", beats: [{ say: `Here's your weather week in review, for ${range.replace(/–/g, " to ").replace(/, (\d{4})$/, "")}.`, min: 5 }] },
+    { type: "intro", title: "Intro", beats: [{ say: `Here's your weather week in review, for ${spokenRange(days[0]!.start)}.`, min: 5 }] },
     {
       type: "overview",
       title: "The week",
@@ -306,7 +315,7 @@ export const reviewKind: Kind = async (ctx) => {
   }
 
   const range = weekRange(start);
-  const scenes = reviewScenes(days, picked, snow, range);
+  const scenes = reviewScenes(days, picked, snow);
   const tl = timeline(scenes);
   const chapterLines = tl.chapters.map((c) => `${stamp(c.start)} ${c.title}`).concat(`${stamp(tl.end)} End`);
   const tornado = days.reduce((s, d) => s + d.summary.counts.tornado, 0);

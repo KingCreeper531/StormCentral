@@ -33,6 +33,10 @@ async function withPage<T>(template: string, data: Record<string, unknown>, opts
     const page = await browser.newPage({ viewport: { width, height } });
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
+    // Pages report what's worth a line in the log ("SC: ...").
+    page.on("console", (m) => {
+      if (m.text().startsWith("SC: ")) console.log(m.text().slice(4));
+    });
     for (const glob of opts.cors ?? [])
       await page.route(glob, async (route) => {
         try {

@@ -9,6 +9,7 @@ import {
   radarView,
   reviewScenes,
   reviewTitle,
+  spokenRange,
   stormDays,
   timeline,
   weekDays,
@@ -63,6 +64,9 @@ describe("week in review", () => {
     expect(days[5]!.floods).toBe(1);
     expect(days.map(isStormDay)).toEqual([false, false, true, false, true, false, false]);
     expect(picked.map((d) => new Date(d.start).toISOString().slice(0, 10))).toEqual(["2026-05-19", "2026-05-21"]);
+    // A small storm day beside a big outbreak isn't replayed.
+    const outbreak = weekDays([...REPORTS, ...Array.from({ length: 150 }, (_, i) => report({ magnitude: 1.25, place: `${i} W ENID`, time: at(2, 9 + i * 0.02) }))], END);
+    expect(stormDays(outbreak).map((d) => new Date(d.start).toISOString().slice(0, 10))).toEqual(["2026-05-19"]);
   });
 
   it("loops the radar over the busiest hours, on the archive's 5-minute marks", () => {
@@ -92,11 +96,12 @@ describe("week in review", () => {
   it("names the week, and writes the scenes and lines from the reports", () => {
     expect(weekRange(START)).toBe("May 17–23, 2026");
     expect(weekRange(Date.parse("2026-09-27T12:00:00Z"))).toBe("Sep 27 – Oct 3, 2026");
-    const scenes = reviewScenes(days, picked, null, weekRange(START));
+    const scenes = reviewScenes(days, picked, null);
     expect(scenes.map((s) => s.type)).toEqual(["intro", "overview", "day", "day", "intro"]);
     expect(scenes.map((s) => s.title)).toEqual(["Intro", "The week", "Tuesday, May 19", "Thursday, May 21", "That's the week"]);
     const lines = scenes.flatMap((s) => s.beats.map((b) => b.say));
     expect(lines[0]).toBe("Here's your weather week in review, for May 17 to 23.");
+    expect(spokenRange(Date.parse("2026-09-27T12:00:00Z"))).toBe("September 27 to October 3");
     expect(lines).toContain("32 severe weather reports came in this week: 2 tornado reports, 17 damaging wind reports and 13 large hail reports.");
     expect(lines).toContain("The busiest day was Thursday, with 16 reports.");
     expect(lines).toContain("There was also 1 flood report.");
@@ -108,7 +113,7 @@ describe("week in review", () => {
   });
 
   it("gives every storm day at least 18 seconds of radar, and times the narration to the beats", () => {
-    const tl = timeline(reviewScenes(days, picked, null, weekRange(START)));
+    const tl = timeline(reviewScenes(days, picked, null));
     for (const c of tl.chapters.filter((x) => x.type === "day")) expect(c.end - c.start).toBeGreaterThanOrEqual(18);
     const cues = narration({ template: "review.html", data: { beats: tl.beats } });
     expect(cues).toHaveLength(tl.beats.length);

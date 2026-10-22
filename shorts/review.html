@@ -165,7 +165,11 @@ for (const d of D.days) {
         tileImg.set(url, im);
       }
 }
-window.READY = Promise.all([...tileImg.values()].map((im) => im.decode().catch(() => {})));
+window.READY = Promise.all([...tileImg.values()].map((im) => im.decode().catch(() => {}))).then(() => {
+  // For the log (render.ts passes on "SC:" lines): a blank radar shows up here.
+  const ok = [...tileImg.values()].filter((im) => im.naturalWidth).length;
+  if (tileImg.size) console.log(`SC: radar tiles loaded: ${ok} of ${tileImg.size}`);
+});
 
 function drawRadar(d, f, proj, alpha = 0.9) {
   const v = d.view, n = 2 ** v.z, k = proj.scale(), size = (k * 2 * Math.PI) / n;
