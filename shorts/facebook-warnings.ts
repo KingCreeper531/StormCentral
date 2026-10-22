@@ -42,7 +42,7 @@ async function check() {
 
 async function post() {
   const dry = env.FB_DRY_RUN === "1";
-  const page = dry ? null : await thePage();
+  if (!dry && !pageFromEnv(env)) throw new Error(NO_TOKEN);
   const url = `https://api.weather.gov/alerts/active?status=actual&event=${encodeURIComponent(WARNING_EVENTS.join(","))}`;
   const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/geo+json" }, signal: AbortSignal.timeout(30_000) });
   if (!res.ok) throw new Error(`NWS alerts: ${res.status}`);
@@ -53,6 +53,8 @@ async function post() {
   const perHour = Math.max(1, Number(env.FB_POSTS_PER_HOUR) || 12);
   const { post: due, skip } = withinCap(posts, state, perHour, now);
   console.log(`${features.length} warnings out; ${posts.length} new to post${skip.length ? `, ${skip.length} over the ${perHour}-an-hour cap (skipped)` : ""}.`);
+  // Facebook is asked which Page the token is only when there's something to post (runs come every few minutes).
+  const page = !dry && due.length ? await thePage() : null;
   let failed: unknown = null;
   for (const p of due) {
     if (dry) {
