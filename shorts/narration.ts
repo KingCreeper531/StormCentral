@@ -207,9 +207,9 @@ function snow(d: SnowData): Cue[] {
   const [first, ...rest] = d.top;
   const next = rest.slice(0, 2);
   return [
-    { at: 0.4, text: `Here are the snow totals from the past 24 hours.` },
+    { at: 0.4, text: "Here are the snow totals reported in the past 24 hours." },
     { at: 5.2, text: `${plural(c.inch, "place", "places")} reported an inch or more${c.six ? `, and ${c.six} of them 6 inches or more` : ""}.` },
-    ...(d.topStates.length ? [{ at: 9.0, text: `Most of the snow fell in ${join(d.topStates)}.` }] : []),
+    ...(d.topStates.length ? [{ at: 9.0, text: `The most reports came from ${join(d.topStates)}.` }] : []),
     ...(first ? [{ at: 13.0, text: `The biggest total: ${inches(first.inches)}, near ${first.place}.` }] : []),
     ...(next.length ? [{ at: 16.8, text: `Then ${join(next.map((r) => `${inches(r.inches)} near ${r.place}`))}.` }] : []),
   ];

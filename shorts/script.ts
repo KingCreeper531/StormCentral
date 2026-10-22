@@ -24,7 +24,7 @@ const ABOUT: Record<string, string> = {
   "weekly.html": "the severe weather outlook for the next eight days, posted Sunday mornings",
   "tropical.html": "the latest National Hurricane Center advisory on a tropical storm or hurricane",
   "fire.html": "the latest on a large wildfire, from the National Interagency Fire Center",
-  "snow.html": "the past 24 hours of snowfall reports from the National Weather Service, posted the morning after a snowstorm",
+  "snow.html": "the snowfall reports sent to the National Weather Service in the past 24 hours, posted the morning after a snowstorm (some are storm totals covering more than a day, so never say the snow all fell in 24 hours)",
   "seasonal.html": "NOAA's Climate Prediction Center outlook for the next three months: where a warmer, colder, wetter or drier than normal season is more likely (odds, not a forecast of amounts), updated once a month",
 };
 

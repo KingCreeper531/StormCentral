@@ -104,9 +104,9 @@ describe("snow totals", () => {
       topStates: ["Louisiana", "Florida", "Texas"],
     };
     expect(narration({ template: "snow.html", data }).map((c) => c.text)).toEqual([
-      "Here are the snow totals from the past 24 hours.",
+      "Here are the snow totals reported in the past 24 hours.",
       "9 places reported an inch or more, and 6 of them 6 inches or more.",
-      "Most of the snow fell in Louisiana, Florida and Texas.",
+      "The most reports came from Louisiana, Florida and Texas.",
       "The biggest total: 10.5 inches, near Rayne, Louisiana.",
       "Then 9.8 inches near Milton, Florida and 8 inches near New Orleans, Louisiana.",
     ]);

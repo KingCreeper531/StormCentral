@@ -1,6 +1,7 @@
 /**
- * Snow totals: the past 24 hours of snowfall reports (NWS local storm reports
- * via the Iowa Environmental Mesonet), posted mid-morning after a real snow:
+ * Snow totals: the snowfall reports of the past 24 hours (NWS local storm
+ * reports via the Iowa Environmental Mesonet; some are storm totals covering
+ * more than a day, as lake-effect ones often are), posted mid-morning after a real snow:
  * a total of 6 inches or more and at least 8 reports of an inch or more.
  * Each place counts once, at its biggest report (spotters update a total as
  * the snow keeps falling).
@@ -117,9 +118,9 @@ export function snowDescription(s: SnowSummary): string {
   const where = s.states.length ? `, most of them in ${list(stateNames(s.states))}` : "";
   const top = s.top.map((r, i) => `${i + 1}. ${amount(r.inches)} in near ${r.place}`).join("\n");
   return [
-    `Snow totals from the past 24 hours, from the National Weather Service: ${n(s.inch, "place", "places")} reported an inch or more${where}${s.six ? `, and ${s.six} reported 6 inches or more` : ""}.`,
+    `Snow totals reported to the National Weather Service in the past 24 hours: ${n(s.inch, "place", "places")} reported an inch or more${where}${s.six ? `, and ${s.six} reported 6 inches or more` : ""}.`,
     `The biggest totals:\n${top}`,
-    "These are preliminary local storm reports from trained spotters, observers and the public, via the Iowa Environmental Mesonet. Totals change as reports come in and are reviewed.",
+    "These are preliminary local storm reports from trained spotters, observers and the public, via the Iowa Environmental Mesonet. Some are storm totals covering more than a day. Totals change as reports come in and are reviewed.",
     LINK_LINE,
     DISCLAIMER,
     "#weather #snow #snowtotals #winterstorm #shorts",
@@ -134,9 +135,9 @@ export function snowEs(s: SnowSummary, day: number): { title: string; descriptio
   return {
     title: fitTitle(`${base}: hasta ${amount(top.inches)} in (${cm(top.inches)} cm) #shorts`, `${base} #shorts`),
     description: [
-      `Nieve acumulada en las últimas 24 horas, ${longDayEs(day, "America/New_York")}, según el Servicio Meteorológico Nacional: ${n(s.inch, "lugar reportó", "lugares reportaron")} una pulgada (2.5 cm) o más${where}.`,
+      `Nieve acumulada reportada al Servicio Meteorológico Nacional en las últimas 24 horas, ${longDayEs(day, "America/New_York")}: ${n(s.inch, "lugar reportó", "lugares reportaron")} una pulgada (2.5 cm) o más${where}.`,
       `Los mayores acumulados:\n${s.top.map((r, i) => `${i + 1}. ${amount(r.inches)} in (${cm(r.inches)} cm) cerca de ${r.place}`).join("\n")}`,
-      "Son reportes preliminares de observadores entrenados y el público, vía el Iowa Environmental Mesonet. Las cifras pueden cambiar al revisarse.",
+      "Son reportes preliminares de observadores entrenados y el público, vía el Iowa Environmental Mesonet. Algunos son totales de tormentas de más de un día. Las cifras pueden cambiar al revisarse.",
       LINK_LINE_ES,
       DISCLAIMER_ES,
       "#clima #nieve #tormentainvernal #shorts",
