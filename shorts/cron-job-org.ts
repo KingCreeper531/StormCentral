@@ -93,14 +93,25 @@ export function desiredJobs(repo: string, token: string): CronJob[] {
 
 type Fetch = typeof fetch;
 
-/** Creates the jobs that don't exist yet and updates the rest. cron-job.org allows about 1 write a second. */
-export async function syncJobs(apiKey: string, jobs: CronJob[], { fetchImpl = fetch as Fetch, pauseMs = 1_200, log = console.log } = {}) {
+/**
+ * Creates the jobs that don't exist yet and updates the rest. cron-job.org
+ * allows about 1 write a second, and only 5 new jobs a minute: a 429 waits
+ * (Retry-After, else a minute) and tries again.
+ */
+export async function syncJobs(apiKey: string, jobs: CronJob[], { fetchImpl = fetch as Fetch, pauseMs = 1_200, retryMs = 65_000, log = console.log } = {}) {
   const call = async (method: string, path: string, body?: unknown) => {
-    const res = await fetchImpl(`${API}${path}`, {
-      method,
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    let res: Response;
+    for (let attempt = 1; ; attempt++) {
+      res = await fetchImpl(`${API}${path}`, {
+        method,
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (res.status !== 429 || attempt >= 5) break;
+      const wait = Number(res.headers.get("retry-after")) * 1000 || retryMs;
+      log(`cron-job.org's rate limit; waiting ${Math.round(wait / 1000)} s.`);
+      await new Promise((r) => setTimeout(r, wait));
+    }
     const text = await res.text();
     if (!res.ok) throw new Error(`cron-job.org ${method} ${path}: ${res.status} ${text.slice(0, 200)}`);
     return text ? (JSON.parse(text) as unknown) : null;

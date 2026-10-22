@@ -53,6 +53,20 @@ describe("cron-job.org setup", () => {
     expect(calls.some((c) => c.includes("/jobs/9"))).toBe(false);
   });
 
+  it("waits out cron-job.org's rate limit and carries on", async () => {
+    let puts = 0;
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === "GET") return Response.json({ jobs: [] });
+      // The sixth new job in a minute is refused once.
+      if (init?.method === "PUT" && ++puts === 6) return new Response("", { status: 429 });
+      return Response.json({ jobId: puts });
+    });
+    const waits: string[] = [];
+    const r = await syncJobs("key", jobs, { fetchImpl: fetchImpl as typeof fetch, pauseMs: 0, retryMs: 1, log: (m: string) => waits.push(m) });
+    expect(r).toEqual({ created: 10, updated: 0 });
+    expect(waits.filter((m) => m.includes("rate limit"))).toHaveLength(1);
+  });
+
   it("stops with cron-job.org's error", async () => {
     const fetchImpl = vi.fn(async () => new Response("Unauthorized", { status: 401 }));
     await expect(syncJobs("bad", jobs, { fetchImpl: fetchImpl as typeof fetch, pauseMs: 0, log: () => {} })).rejects.toThrow(/401 Unauthorized/);
