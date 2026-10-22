@@ -20,7 +20,8 @@ env:
   BRANCH: ${{ github.head_ref || github.ref_name }}
 jobs:
   stream:
-    runs-on: ubuntu-latest
+    # Not ubuntu-latest: GitHub is moving it to Ubuntu 26.04, where Playwright won't install Chromium (Oct 2026).
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
