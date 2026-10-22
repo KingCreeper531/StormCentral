@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { liveBroadcast } from "./youtube";
+import { addToPlaylist, liveBroadcast } from "./youtube";
 
 // Shapes from the YouTube Data API's liveStreams.list and liveBroadcasts.list.
 const STREAMS = {
@@ -59,5 +59,33 @@ describe("liveBroadcast", () => {
     expect(urls.some((u) => u.includes("/liveStreams?"))).toBe(false);
     api(STREAMS, { items: [] });
     expect(await liveBroadcast("token")).toBeNull();
+  });
+});
+
+describe("addToPlaylist", () => {
+  /** fetch finding the playlist, then answering the inserts with `statuses` in turn. */
+  function playlist(statuses: number[]) {
+    const inserts: number[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      if (url.includes("/playlists?")) return new Response(JSON.stringify({ items: [{ id: "PL1", snippet: { title: "Daily Severe Weather Outlook" } }] }), { status: 200 });
+      const status = statuses[inserts.length] ?? 200;
+      inserts.push(status);
+      return new Response(JSON.stringify(status === 200 ? { id: "item" } : { error: { message: "The operation was aborted." } }), { status });
+    });
+    return inserts;
+  }
+
+  it("tries again when YouTube aborts the insert", async () => {
+    const inserts = playlist([409, 503]);
+    await addToPlaylist("vid", "Daily Severe Weather Outlook", "", "token", [0, 0]);
+    expect(inserts).toEqual([409, 503, 200]);
+  });
+
+  it("gives up after the retries, and at once on other errors", async () => {
+    expect(playlist([409, 409, 409])).toBeDefined();
+    await expect(addToPlaylist("vid", "Daily Severe Weather Outlook", "", "token", [0, 0])).rejects.toThrow("(409)");
+    const inserts = playlist([403]);
+    await expect(addToPlaylist("vid", "Daily Severe Weather Outlook", "", "token", [0, 0])).rejects.toThrow("(403)");
+    expect(inserts).toEqual([403]);
   });
 });

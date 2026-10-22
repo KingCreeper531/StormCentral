@@ -11,6 +11,7 @@ to the Storm Central YouTube channel. Nothing runs on your PC.
 | **Hurricane update**: the National Hurricane Center's cone, track and forecast, with winds, pressure and movement | Every day at 11:40 AM Eastern, one per named storm (up to 2, strongest first); none when the tropics are quiet | Tropical Updates |
 | **Wildfire update**: the large active fires on the US map, then a zoom to the most significant one with its mapped perimeter, acres burned, containment, and how much it grew since the day before | Every day at 4:30 PM Eastern, when a fire is at least 5,000 acres and no more than 80% contained, or grew 1,000+ acres in a day; none otherwise | Wildfire Updates |
 | **Breaking news**: a Tornado Emergency, Flash Flood Emergency, Extreme Wind Warning, PDS tornado warning or watch, or SPC High Risk, with the polygon over radar, the counties, the end time, the damage tags and what to do | Within about 10 to 20 minutes of the NWS issuing it (checked every 10 minutes), at most 2 a day | Breaking Severe Weather |
+| **Seasonal outlook**: NOAA Climate Prediction Center's odds of a warmer or colder, then wetter or drier, than normal three months on the US map, with the regions where each is favored. The next winter, spring, summer or fall when it starts within two months (October's is the Winter Outlook), otherwise the next three months | The third Thursday of each month, after CPC's 8:30 AM Eastern update (the runs go every Thursday at 10:45 AM Eastern and post only a new outlook) | Seasonal Outlooks |
 | **Radar School** (a full-length 16:9 video, not a Short): a lesson on reading weather radar, in chapters, with real storms from NOAA's NEXRAD archive (Moore 2013, Mayfield 2021, Rolling Fork 2023, the 2020 Iowa derecho), labelled simulated examples and tours of Storm Central's Professional mode on live data, YouTube chapters and a thumbnail | Wednesdays 1:20 PM Eastern, one lesson a week while there's one scheduled | Radar School |
 
 Every video ends with stormcentralwx.com. Each upload has a Spanish title
@@ -123,7 +124,8 @@ usually takes a few weeks.
 | `SHORTS_VOICE_NAME` | `en-US-AndrewNeural` | another Microsoft neural voice for the narrator |
 | `SHORTS_PLAYLISTS` | `true` | `false` to leave videos out of playlists |
 | `SHORTS_AI` | `true` | `false` for the plain narration (AI narration, below) |
-| `SHORTS_AI_MODEL` | `gemma3:12b` | the Ollama model that writes it (and drafts Radar School lessons) |
+| `SHORTS_AI_MODEL` | `gemma3:12b` | the Ollama model that writes it without a Claude key (and drafts Radar School lessons) |
+| `SHORTS_CLAUDE_MODEL` | `claude-haiku-5-5` | the Claude model that writes it when the `ANTHROPIC_API_KEY` secret is set |
 | `REVIEW_MODEL` | `qwen3:8b` | the second model that reviews every line of a Radar School draft |
 
 ## Livelier narration with AI
@@ -131,9 +133,15 @@ usually takes a few weeks.
 The narrator's plain script is filled in from the data ("The tornado
 threat peaks at 10 percent."). With AI narration (on by default), a language
 model rewrites each line the way an upbeat TV meteorologist would say it,
-using only that line's facts. It runs in [Ollama](https://ollama.com) on
-the GitHub runner itself: free, no API key, no GPU, about 3 to 5 extra
-minutes per run.
+using only that line's facts. Two ways to run it:
+
+- **Claude** (repository secret `ANTHROPIC_API_KEY`, from
+  platform.claude.com → API Keys): Claude Haiku writes it in a few seconds.
+  A Short's narration is about 2,000 to 5,000 tokens in and 500 to 1,500 out,
+  roughly a tenth of a cent at Haiku's prices.
+- **Ollama** (no secret): a model in [Ollama](https://ollama.com) on the
+  GitHub runner itself writes it: free, no API key, no GPU, about 3 to 5
+  extra minutes per run.
 
 Every rewritten line is checked against the data before it's used: its
 numbers, places, days, risk level, hazards, times of day and directions
@@ -141,7 +149,7 @@ must all come from the facts, a "no" or "not" has to stay (and can't be
 added), and alarm words ("outbreak", "deadly", "baseball-size") and advice
 ("take cover") are only allowed when the source says them. A line that
 fails, or runs too long for its scene, is read the plain way instead; if
-Ollama can't start, the whole plain script is read. The run's log shows
+Claude or Ollama can't answer, the whole plain script is read. The run's log shows
 every line the model wrote and why any was turned down.
 
 - **Try it:** Run workflow (**AI narration** is ticked). The artifact has
@@ -199,6 +207,35 @@ official warning source.
   with body `{"ref":"main","inputs":{"scheduled":"true"}}` (same token and
   headers as below).
 
+## Warnings on Facebook
+
+`.github/workflows/facebook-warnings.yml` posts warnings to the Storm Central
+Facebook Page as the NWS issues them: every Tornado Warning, Extreme Wind
+Warning and Flash Flood Emergency, and the Severe Thunderstorm Warnings with a
+destructive damage threat (80 mph winds or baseball-size hail). A warning
+posts once; one upgraded later (to PDS or a Tornado Emergency) posts again
+as "UPGRADED". Each post has where, until when, the NWS's description of the
+storm, the threats, what to do, a link to the app, and a reminder that Storm
+Central isn't an official warning source. Meta's Graph API is free.
+
+1. **Secrets** (Settings → Secrets and variables → Actions):
+   `FB_PAGE_ID` (the Page's id) and `FB_PAGE_TOKEN` (the Page's own access
+   token, one that never expires: get a user token in the Graph API Explorer
+   with `pages_show_list`, `pages_manage_posts`, `pages_read_engagement` and
+   `pages_manage_metadata`, extend it in the Access Token Debugger, then
+   read the Page's `access_token` from `me/accounts`).
+2. **Test:** Actions → Facebook warnings → Run workflow → `check`. It reads
+   the Page's name, makes a hidden post and deletes it. `dry-run` shows what
+   it would post right now without posting.
+3. It then runs every 5 minutes on its own, and every 3 with cron-job.org
+   (run "Set up cron-job.org" again to add that job).
+
+| Variable | Default | |
+|---|---|---|
+| `FB_WARNINGS` | on | `false` to pause the posts |
+| `FB_SEVERE` | destructive only | `all` for every Severe Thunderstorm Warning (hundreds a day in spring) |
+| `FB_POSTS_PER_HOUR` | `12` | at most this many an hour; on a big outbreak the rest are skipped, the most dangerous posted first |
+
 ## A reliable schedule (cron-job.org)
 
 GitHub often starts scheduled runs late or drops them. For posts on time, let a free outside scheduler start the workflows instead (the GitHub schedules stay as a backup; each kind still posts once a day, and each breaking event once).
@@ -218,8 +255,10 @@ GitHub often starts scheduled runs late or drops them. For posts on time, let a 
 | fire | 4:30 PM daily |
 | weekly | 9:40 AM Sundays |
 | lesson (Radar School) | 1:20 PM Wednesdays |
+| seasonal | 10:45 AM Thursdays (posts only on the third, when NOAA updates it) |
 | recap | 11:15 PM daily |
 | breaking | every 10 minutes (`youtube-breaking.yml`, body `{"ref":"main","inputs":{"scheduled":"true"}}`) |
+| facebook | every 3 minutes (`facebook-warnings.yml`, body `{"ref":"main","inputs":{"scheduled":"true"}}`) |
 
 ## Notes
 

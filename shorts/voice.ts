@@ -31,6 +31,9 @@ async function speak(text: string, voice: string, out: string) {
   }
 }
 
+/** Shorter than this (seconds) can't be the whole line read aloud: about a third of the narrator's pace. */
+export const tooShort = (text: string) => text.split(/\s+/).filter(Boolean).length * 0.12;
+
 /** When each line starts: at its cue, or just after the line before it ends, whichever is later. */
 export function layout(cues: Cue[], lengths: number[]): number[] {
   let end = 0;
@@ -67,6 +70,15 @@ export async function addVoice(video: string, lines: Cue[], voice = DEFAULT_VOIC
     const files = cues.map((_, i) => join(dir, `${i}.mp3`));
     for (const [i, c] of cues.entries()) await speak(c.text, voice, files[i]!);
     const lengths = await Promise.all(files.map(seconds));
+    // The voice service now and then sends back a clip of a fraction of a second for a whole line (the Winter
+    // Outlook test lost one that way): say it again.
+    for (const [i, c] of cues.entries()) {
+      for (let tries = 0; lengths[i]! < tooShort(c.text) && tries < 2; tries++) {
+        console.log(`  The voice came back ${lengths[i]!.toFixed(1)} s long; again: ${c.text}`);
+        await speak(c.text, voice, files[i]!);
+        lengths[i] = await seconds(files[i]!);
+      }
+    }
     const total = await seconds(video);
     for (let i = longestRewrite(cues, lengths, total); i >= 0; i = longestRewrite(cues, lengths, total)) {
       console.log(`  Too long to fit; back to the plain line: ${cues[i]!.text}`);

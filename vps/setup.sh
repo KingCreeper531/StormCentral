@@ -287,7 +287,7 @@ RuntimeDirectory=stormcentral-stream
 RuntimeDirectoryMode=0700
 ExecStart=$SRC/stream/run.sh
 Restart=always
-RestartSec=15
+RestartSec=3
 # The stream gets the CPU first; Ollama and the Pro server wait.
 Nice=-5
 CPUWeight=400
@@ -373,7 +373,7 @@ RuntimeDirectory=stormcentral-stream-vertical
 RuntimeDirectoryMode=0700
 ExecStart=$SRC/stream/run.sh
 Restart=always
-RestartSec=15
+RestartSec=3
 # After the main stream for the CPU, still ahead of Ollama and the Pro server.
 Nice=0
 CPUWeight=200

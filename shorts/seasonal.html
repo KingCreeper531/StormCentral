@@ -1,0 +1,128 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="short.css" />
+<script src="vendor/d3-array.min.js"></script>
+<script src="vendor/d3-geo.min.js"></script>
+<script src="vendor/topojson-client.min.js"></script>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script src="common.js"></script>
+<script>
+/*
+ * The seasonal outlook (32 s): CPC's temperature odds on the US map, then
+ * precipitation, then what the colors mean. DATA:
+ *   { states, logo, issued: "October 15, 2026",
+ *     season: { name: "Winter" | null, range: "Dec 2026 – Feb 2027", spoken, years },
+ *     temp: { features, panel: ["Warmer: Pacific Northwest, ..."], lines },
+ *     prcp: { features, panel, lines } }
+ * Each feature: { cat: "Above" | "Below" | "Normal", prob: 33 | 40 | 50 ... }, lowest odds first.
+ */
+const { ctx, D, C, PANEL, seg, easeOut, easeInOut, rr, text, fitText, fitSize } = SC;
+const map = SC.makeMap(SC.usProjection(), { source: "Source: NOAA Climate Prediction Center" });
+
+// CPC's own colour scheme: oranges and reds for warmer, blues for colder, greens for wetter, browns for drier.
+const SCALE = {
+  temp: {
+    Above: ["#FDD49E", "#FDBB84", "#FC8D59", "#EF6548", "#D7301F", "#B30000", "#7F0000"],
+    Below: ["#C6DBEF", "#9ECAE1", "#6BAED6", "#4292C6", "#2171B5", "#08519C", "#08306B"],
+  },
+  prcp: {
+    Above: ["#C7E9C0", "#A1D99B", "#74C476", "#41AB5D", "#238B45", "#006D2C", "#00441B"],
+    Below: ["#F6E8C3", "#DFC27D", "#C9A260", "#BF812D", "#A0661F", "#8C510A", "#543005"],
+  },
+};
+const NORMAL = "#A3A9B5";
+const BANDS = [33, 40, 50, 60, 70, 80, 90];
+const band = (p) => Math.max(0, BANDS.findLastIndex((b) => p >= b));
+const colour = (v, f) => (f.properties.cat === "Normal" ? NORMAL : SCALE[v][f.properties.cat][band(f.properties.prob)]);
+
+const T0 = 3.4, P0 = 15.4, S0 = 27.4, END = 31.6;
+const name = D.season.name ? `${D.season.name} outlook` : "3-month outlook";
+
+function layer(v, alpha, t0) {
+  return {
+    features: D[v].features.features, alpha,
+    // Each band of odds fades in after the one below it.
+    featureAlpha: (f) => easeOut(seg(t0 == null ? 99 : t0, 0.3 + band(f.properties.prob) * 0.35, 0.9 + band(f.properties.prob) * 0.35)) * 0.92,
+    fill: (f) => colour(v, f), stroke: () => "rgba(3,6,13,0.35)", lineWidth: 1,
+  };
+}
+
+function legend(v, x, y, w, a) {
+  ctx.save(); ctx.globalAlpha *= a;
+  const half = (w - 24) / 2, n = 5, sw = half / n;
+  const row = (cat, x0, label) => {
+    for (let i = 0; i < n; i++) { rr(x0 + i * sw + 2, y, sw - 4, 22, 6); ctx.fillStyle = SCALE[v][cat][i]; ctx.fill(); }
+    text(label, x0, y + 58, { size: 26, weight: 600, color: C.ink2 });
+    text("33% → 70%+", x0 + half, y + 58, { size: 22, weight: 500, color: C.ink3, align: "right" });
+  };
+  row("Below", x, v === "temp" ? "Colder" : "Drier");
+  row("Above", x + half + 24, v === "temp" ? "Warmer" : "Wetter");
+  ctx.restore();
+}
+
+function variablePanel(t, v, t0, t1, title) {
+  const a = easeOut(seg(t, t0 + 0.2, t0 + 0.8)) * (1 - easeOut(seg(t, t1 - 0.4, t1)));
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  const y = PANEL.y + (1 - easeOut(seg(t, t0 + 0.2, t0 + 0.8))) * 18;
+  text(title, PANEL.x + 10, y + 64, { size: 64, weight: 800 });
+  text(`${D.season.range} · odds vs. normal`, PANEL.x + 10, y + 112, { size: 30, weight: 500, color: C.ink3 });
+  let yy = y + 172;
+  for (const line of D[v].panel) {
+    const [head, rest] = line.includes(": ") ? line.split(": ") : [line, ""];
+    const colourOf = /^(Warmer|Wetter)/.test(head) ? SCALE[v].Above[3] : /^(Colder|Drier)/.test(head) ? SCALE[v].Below[3] : C.ink;
+    if (!rest) { text(head, PANEL.x + 10, yy, { size: 40, weight: 800, color: colourOf }); yy += 60; continue; }
+    // "Warmer" in its colour, then the regions after it, wrapping under it (three lines at most).
+    ctx.font = `800 38px "SC Inter"`;
+    const hw = ctx.measureText(`${head} `).width;
+    text(head, PANEL.x + 10, yy, { size: 38, weight: 800, color: colourOf });
+    const f = fitText(rest, PANEL.w - 30 - hw, D[v].panel.length > 1 ? 80 : 130, { max: 34, min: 24, weight: 600, leading: 1.28 });
+    f.lines.forEach((l, i) => text(l, PANEL.x + 10 + hw, yy + i * f.size * 1.28, { size: f.size, weight: 600 }));
+    yy += f.lines.length * f.size * 1.28 + 22;
+  }
+  legend(v, PANEL.x + 10, PANEL.y + 318, PANEL.w - 20, easeOut(seg(t, t0 + 0.8, t0 + 1.4)));
+  ctx.restore();
+}
+
+function summary(t) {
+  const a = easeOut(seg(t, S0, S0 + 0.6)) * (1 - easeOut(seg(t, END - 0.3, END)));
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  const y = PANEL.y;
+  text("These are odds, not amounts", PANEL.x + 10, y + 64, { size: fitSize("These are odds, not amounts", PANEL.w - 20, 56, 800), weight: 800 });
+  const f = fitText("Colors show where one outcome is more likely than the usual 1 in 3. Uncolored land: equal chances. Updated every month.", PANEL.w - 20, 170, { max: 38, min: 30, weight: 500 });
+  f.lines.forEach((l, i) => text(l, PANEL.x + 10, y + 130 + i * f.size * 1.3, { size: f.size, weight: 500, color: C.ink2 }));
+  text(`Issued ${D.issued}`, PANEL.x + 10, y + 350, { size: 30, weight: 600, color: C.ink3 });
+  ctx.restore();
+}
+
+window.render = function (t) {
+  SC.background();
+  SC.introRadar(t);
+  const ma = easeOut(seg(t, 2.8, 3.6)) * (1 - easeOut(seg(t, END - 0.3, END)));
+  if (ma > 0) {
+    ctx.save(); ctx.globalAlpha = ma;
+    // Temperature, then precipitation (which stays up, a little dimmer, behind the closing note).
+    const toP = easeInOut(seg(t, P0 - 0.5, P0 + 0.3));
+    const dim = 1 - 0.35 * easeOut(seg(t, S0, S0 + 0.6));
+    const layers = [
+      layer("temp", 1 - toP, t >= T0 ? t - T0 + 0.6 : null),
+      layer("prcp", toP * dim, t >= P0 ? t - P0 + 0.9 : null),
+    ];
+    map.draw(map.home, layers, (c) => map.cities(c, 0.75 * dim));
+    ctx.restore();
+  }
+  SC.header(t, { kicker: "NOAA OUTLOOK", lines: D.season.name ? [D.season.name, "outlook"] : ["3-month", "outlook"], title: `NOAA ${name.toLowerCase()} ${D.season.years}`, date: D.season.range });
+  variablePanel(t, "temp", T0, P0, "Temperature");
+  variablePanel(t, "prcp", P0, S0, "Precipitation");
+  summary(t);
+  SC.endCard(t, END, "Follow for NOAA's outlook every month");
+};
+window.DUR = Math.ceil(END + 6);
+</script>
+</body>
+</html>

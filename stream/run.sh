@@ -70,12 +70,13 @@ for _ in $(seq 50); do pactl info >/dev/null 2>&1 && break; sleep 0.1; done
 pactl load-module module-null-sink sink_name=stream sink_properties=device.description=stream >/dev/null
 pactl set-default-sink stream
 
-# The director: Chromium and the scenes. Give it time to put the first scene up. A step below ffmpeg and the
+# The director: Chromium and the scenes. Give it a few seconds to put the first scene up (not longer: while
+# YouTube gets no video, it may end the broadcast and start a new one at the next connection). A step below ffmpeg and the
 # sound: when the CPU is short, Chromium draws a few frames fewer, rather than the encoder falling behind and
 # YouTube's picture stalling.
 nice -n 5 node "$RUNTIME/director.mjs" &
 pids+=($!)
-sleep "${STREAM_WARMUP:-25}"
+sleep "${STREAM_WARMUP:-10}"
 
 # Out to YouTube: H.264 at a constant bitrate, a keyframe every 2 seconds, AAC stereo (YouTube's live settings),
 # the sound kept in sync with the picture and limited so alerts never clip. Under it, noise at -90 dB (far below
@@ -94,6 +95,7 @@ if [ "${STREAM_CLIPS_DAILY_MAX:-1}" != "0" ] || [ -n "${STREAM_CLIPS_DRY:-}" ]; 
   segs="|[f=segment:segment_time=6:segment_wrap=40:reset_timestamps=1:onfail=ignore]$STREAM_SEGMENTS/seg%02d.ts"
 fi
 # ffmpeg names an output that fails (YouTube turning the stream away), key and all: the keys are hidden from the log.
+send() {
 ffmpeg -hide_banner -loglevel warning -nostdin \
   -thread_queue_size 1024 -f x11grab -draw_mouse 0 -framerate "$FPS" -video_size "${W}x${H}" -i "$DISPLAY.0+0,0" \
   -thread_queue_size 1024 -f pulse -i stream.monitor \
@@ -102,8 +104,29 @@ ffmpeg -hide_banner -loglevel warning -nostdin \
   -g "$((FPS * 2))" -keyint_min "$((FPS * 2))" -sc_threshold 0 -pix_fmt yuv420p \
   -c:a aac -b:a 160k -ar 48000 -ac 2 -flags +global_header \
   "${limit[@]}" -f tee "[f=$fmt:onfail=abort]$OUT$segs$extra" \
-  2> >(sed -Eu "s#(rtmps?://[^/ |']+/[^/ |']+/)[^ |']+#\1<key>#g" >&2) &
+  2> >(sed -Eu "s#(rtmps?://[^/ |']+/[^/ |']+/)[^ |']+#\1<key>#g" >&2)
+}
+# Losing YouTube's connection (a network blip, or YouTube dropping it: ffmpeg exits 224, a broken pipe, which systemd
+# reads as "224/PAM") reconnects ffmpeg alone, in 2 seconds, while Chromium carries on. Restarting everything left
+# YouTube without video for most of a minute. Five drops in ten minutes (a wrong key, say) stops the stream instead,
+# and systemd starts it all again.
+(
+  drops=()
+  until send; do
+    code=$?
+    now=$(date +%s)
+    drops+=("$now")
+    recent=0
+    for d in "${drops[@]}"; do [ $((now - d)) -lt 600 ] && recent=$((recent + 1)); done
+    if [ "$recent" -ge 5 ]; then
+      echo "ffmpeg stopped $recent times in 10 minutes (code $code); restarting the stream." >&2
+      exit "$code"
+    fi
+    echo "ffmpeg stopped (code $code; YouTube's connection dropped?); reconnecting in 2 seconds." >&2
+    sleep 2
+  done
+) &
 pids+=($!)
 
-# Whichever stops first (ffmpeg losing YouTube, Chromium crashing) ends the stream; systemd restarts it.
+# Whichever stops for good first (ffmpeg, Chromium crashing) ends the stream; systemd restarts it.
 wait -n "${pids[@]}"

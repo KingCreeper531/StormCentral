@@ -143,12 +143,23 @@ export async function playlistId(title: string, description: string, token: stri
  * youtube scope, not just youtube.upload: without it this throws a 403
  * YouTubeError (insufficient scopes), which callers treat as a warning.
  */
-export async function addToPlaylist(videoId: string, title: string, description: string, token: string): Promise<void> {
+export async function addToPlaylist(videoId: string, title: string, description: string, token: string, retryMs = [5_000, 15_000]): Promise<void> {
   const id = await playlistId(title, description, token);
-  await api(token, "playlistItems?part=snippet", "Adding to the playlist", {
-    method: "POST",
-    body: { snippet: { playlistId: id, resourceId: { kind: "youtube#video", videoId } } },
-  });
+  // Right after an upload YouTube sometimes answers 409 "The operation was aborted" (or a 5xx), which its docs say to
+  // retry; the outlook of Oct 22, 2026 missed its playlist that way.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await api(token, "playlistItems?part=snippet", "Adding to the playlist", {
+        method: "POST",
+        body: { snippet: { playlistId: id, resourceId: { kind: "youtube#video", videoId } } },
+      });
+      return;
+    } catch (err) {
+      const retry = err instanceof YouTubeError && (err.status === 409 || err.status >= 500) && attempt < retryMs.length;
+      if (!retry) throw err;
+      await new Promise((r) => setTimeout(r, retryMs[attempt]));
+    }
+  }
 }
 
 /**
