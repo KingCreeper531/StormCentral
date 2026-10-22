@@ -165,11 +165,13 @@ const weekday = fmt({ weekday: "long" });
 const monthDay = fmt({ month: "short", day: "numeric" });
 const longDay = fmt({ weekday: "long", month: "long", day: "numeric" });
 
-/** "Oct 12–18, 2026", or "Sep 28 – Oct 4, 2026" across months. */
+/** "Oct 12–18, 2026", or "Sep 28 – Oct 4, 2026" across months; in Spanish "12–18 oct 2026", "28 sept – 4 oct 2026". */
 export function weekRange(start: number, locale = "en-US"): string {
   const last = start + (WEEK_DAYS - 1) * DAY_MS;
   const m = fmt({ month: "short" }, locale), d = fmt({ day: "numeric" }, locale), y = fmt({ year: "numeric" }, locale);
-  return m(start) === m(last) ? `${m(start)} ${d(start)}–${d(last)}, ${y(last)}` : `${m(start)} ${d(start)} – ${m(last)} ${d(last)}, ${y(last)}`;
+  const same = m(start) === m(last);
+  if (locale.startsWith("es")) return same ? `${d(start)}–${d(last)} ${m(last)} ${y(last)}` : `${d(start)} ${m(start)} – ${d(last)} ${m(last)} ${y(last)}`;
+  return same ? `${m(start)} ${d(start)}–${d(last)}, ${y(last)}` : `${m(start)} ${d(start)} – ${m(last)} ${d(last)}, ${y(last)}`;
 }
 
 /** "2 tornado reports, 17 damaging wind reports and 13 large hail reports", leaving out the kinds with none. */

@@ -96,6 +96,7 @@ describe("week in review", () => {
   it("names the week, and writes the scenes and lines from the reports", () => {
     expect(weekRange(START)).toBe("May 17–23, 2026");
     expect(weekRange(Date.parse("2026-09-27T12:00:00Z"))).toBe("Sep 27 – Oct 3, 2026");
+    expect(weekRange(START, "es-MX")).toMatch(/^17–23 may\.? 2026$/);
     const scenes = reviewScenes(days, picked, null);
     expect(scenes.map((s) => s.type)).toEqual(["intro", "overview", "day", "day", "intro"]);
     expect(scenes.map((s) => s.title)).toEqual(["Intro", "The week", "Tuesday, May 19", "Thursday, May 21", "That's the week"]);
