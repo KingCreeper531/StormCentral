@@ -9,6 +9,7 @@
 #   fire      mid afternoon, the most significant active wildfire (when there is one)
 #   lesson    Wednesdays, Radar School: a full-length (16:9) lesson on reading radar, not a Short
 #   seasonal  the third Thursday of each month, NOAA's three-month outlook (runs every Thursday, posts only a new one)
+#   snow      mid morning, the past 24 hours of snowfall reports (only after a real snow)
 #
 # Scheduled runs happen only when the repository variable SHORTS_ENABLED is
 # "true" (and SHORTS_KINDS, when set, lists the kind). "Run workflow" renders
@@ -48,12 +49,15 @@ on:
     # the other Thursdays find no new outlook and post nothing. Backup 15:25.
     - cron: "45 14 * * 4"
     - cron: "25 15 * * 4"
+    # snow: 14:50 UTC (9:50 AM EST), once the morning's storm totals are in. Backup 15:30.
+    - cron: "50 14 * * *"
+    - cron: "30 15 * * *"
   workflow_dispatch:
     inputs:
       kind:
         description: Which Short
         type: choice
-        options: [outlook, recap, weekly, tropical, fire, lesson, seasonal]
+        options: [outlook, recap, weekly, tropical, fire, lesson, seasonal, snow]
         default: outlook
       upload:
         description: Upload to YouTube (otherwise only render it, to download from this run)
@@ -67,6 +71,10 @@ on:
         description: "Radar School only: which lesson (number or id); empty for this week's, or the newest"
         type: string
         default: ""
+      until:
+        description: "Snow totals only: end the 24 hours at this past time instead of now, to test with an old storm (e.g. 2025-01-22T12:00Z)"
+        type: string
+        default: ""
       ai:
         description: AI narration (Ollama rewrites the script livelier; the run also keeps a copy with the plain narration to compare)
         type: boolean
@@ -74,7 +82,7 @@ on:
 
 concurrency:
   # One run of a kind at a time (the backup waits for the first, then sees its posted marker).
-  group: youtube-shorts-${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || ((github.event.schedule == '30 20 * * *' || github.event.schedule == '10 21 * * *') && 'fire') || ((github.event.schedule == '20 17 * * 3' || github.event.schedule == '0 18 * * 3') && 'lesson') || ((github.event.schedule == '45 14 * * 4' || github.event.schedule == '25 15 * * 4') && 'seasonal') || 'outlook' }}
+  group: youtube-shorts-${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || ((github.event.schedule == '30 20 * * *' || github.event.schedule == '10 21 * * *') && 'fire') || ((github.event.schedule == '20 17 * * 3' || github.event.schedule == '0 18 * * 3') && 'lesson') || ((github.event.schedule == '45 14 * * 4' || github.event.schedule == '25 15 * * 4') && 'seasonal') || ((github.event.schedule == '50 14 * * *' || github.event.schedule == '30 15 * * *') && 'snow') || 'outlook' }}
   cancel-in-progress: false
 
 permissions:
@@ -93,7 +101,7 @@ jobs:
       # With the ANTHROPIC_API_KEY secret, Claude (Haiku unless SHORTS_CLAUDE_MODEL says otherwise) writes the narration
       # in seconds and Ollama isn't installed; without it, the local model on the runner does.
       HAS_CLAUDE: ${{ secrets.ANTHROPIC_API_KEY != '' }}
-      SHORTS_KIND: ${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || ((github.event.schedule == '30 20 * * *' || github.event.schedule == '10 21 * * *') && 'fire') || ((github.event.schedule == '20 17 * * 3' || github.event.schedule == '0 18 * * 3') && 'lesson') || ((github.event.schedule == '45 14 * * 4' || github.event.schedule == '25 15 * * 4') && 'seasonal') || 'outlook' }}
+      SHORTS_KIND: ${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || ((github.event.schedule == '30 20 * * *' || github.event.schedule == '10 21 * * *') && 'fire') || ((github.event.schedule == '20 17 * * 3' || github.event.schedule == '0 18 * * 3') && 'lesson') || ((github.event.schedule == '45 14 * * 4' || github.event.schedule == '25 15 * * 4') && 'seasonal') || ((github.event.schedule == '50 14 * * *' || github.event.schedule == '30 15 * * *') && 'snow') || 'outlook' }}
     steps:
       # The Short's day, in Eastern time and running 4 hours behind (the day ends at 4 AM), so a
       # run GitHub starts hours late still counts for the day it was meant for: the fire backup
@@ -211,6 +219,7 @@ jobs:
           SHORTS_TROPICAL_MAX: ${{ vars.SHORTS_TROPICAL_MAX || '2' }}
           SHORTS_FIRE_MAX: ${{ vars.SHORTS_FIRE_MAX || '1' }}
           SHORTS_LESSON: ${{ inputs.lesson }}
+          SHORTS_SNOW_UNTIL: ${{ inputs.until }}
           SHORTS_AI_COMPARE: ${{ (github.event_name == 'workflow_dispatch' && !inputs.scheduled && inputs.ai) && '1' || '0' }}
         run: node "$RUNNER_TEMP/shorts/shorts.mjs"
       - uses: actions/cache/save@v4

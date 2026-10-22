@@ -68,7 +68,7 @@ interface TropicalData {
   storm: { title: string; stage: string; windMph: number | null; moving: string | null; ahead: string | null; forecast: { stage: string; windMph: number | null; when: string }[] };
 }
 
-// Timings follow the pages: outlook.html, recap.html, weekly.html, tropical.html and seasonal.html.
+// Timings follow the pages: outlook.html, recap.html, weekly.html, tropical.html, seasonal.html and snow.html.
 
 function outlook(d: OutlookData): Cue[] {
   const o = d.outlook;
@@ -193,6 +193,28 @@ function seasonal(d: SeasonalData): Cue[] {
   ];
 }
 
+interface SnowData {
+  date: string;
+  counts: { total: number; inch: number; six: number; foot: number };
+  top: { value: string; inches: number; place: string }[];
+  topStates: string[];
+}
+
+/** Snow totals (snow.html: the map fills in over 5-12 s, then the biggest totals from 12.8 s). */
+function snow(d: SnowData): Cue[] {
+  const c = d.counts;
+  const inches = (v: number) => `${Math.round(v * 10) / 10} ${v === 1 ? "inch" : "inches"}`;
+  const [first, ...rest] = d.top;
+  const next = rest.slice(0, 2);
+  return [
+    { at: 0.4, text: `Here are the snow totals from the past 24 hours.` },
+    { at: 5.2, text: `${plural(c.inch, "place", "places")} reported an inch or more${c.six ? `, and ${c.six} of them 6 inches or more` : ""}.` },
+    ...(d.topStates.length ? [{ at: 9.0, text: `Most of the snow fell in ${join(d.topStates)}.` }] : []),
+    ...(first ? [{ at: 13.0, text: `The biggest total: ${inches(first.inches)}, near ${first.place}.` }] : []),
+    ...(next.length ? [{ at: 16.8, text: `Then ${join(next.map((r) => `${inches(r.inches)} near ${r.place}`))}.` }] : []),
+  ];
+}
+
 const BY_TEMPLATE: Record<string, (d: never) => Cue[]> = {
   "breaking.html": breaking,
   "lesson.html": lesson,
@@ -200,6 +222,7 @@ const BY_TEMPLATE: Record<string, (d: never) => Cue[]> = {
   "outlook.html": outlook,
   "recap.html": recap,
   "seasonal.html": seasonal,
+  "snow.html": snow,
   "weekly.html": weekly,
   "tropical.html": tropical,
 };

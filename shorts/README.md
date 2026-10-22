@@ -7,6 +7,7 @@ to the Storm Central YouTube channel. Nothing runs on your PC.
 |---|---|---|
 | **Severe weather outlook**: the US map with SPC's risk areas, a zoom into the highest risk, the tornado, wind and hail odds, and SPC's summary | Every morning, once SPC's 13Z Day 1 outlook is out (about 8:15 AM Central) | Daily Severe Weather Outlook |
 | **Storm report recap**: the day's tornado, wind and hail reports popping up on the map in time order, the totals, then the biggest hail, strongest gust and tornado states | 10:15 PM Central (9:15 PM in winter), on active days only: at least one tornado report or 15 severe reports | Storm Reports |
+| **Snow totals**: the past 24 hours of NWS snowfall reports filling in the US map in NWS storm-total colours, smallest to biggest, the count of places with an inch, 6 inches and a foot or more, then the five biggest totals with a zoom to the top one. Each place counts once, at its biggest report | Every morning at 9:50 AM Eastern, after a real snow only: a total of 6 inches or more and at least 8 places with an inch or more | Snow Totals |
 | **Week ahead**: SPC's outlook for each of the next eight days, then the most active day | Sunday mornings | Severe Weather: Week Ahead |
 | **Hurricane update**: the National Hurricane Center's cone, track and forecast, with winds, pressure and movement | Every day at 11:40 AM Eastern, one per named storm (up to 2, strongest first); none when the tropics are quiet | Tropical Updates |
 | **Wildfire update**: the large active fires on the US map, then a zoom to the most significant one with its mapped perimeter, acres burned, containment, and how much it grew since the day before | Every day at 4:30 PM Eastern, when a fire is at least 5,000 acres and no more than 80% contained, or grew 1,000+ acres in a day; none otherwise | Wildfire Updates |
@@ -83,7 +84,7 @@ In this repository on GitHub: **Settings → Secrets and variables → Actions
 
 **Actions → YouTube Shorts → Run workflow.**
 
-- Pick the **kind** (outlook, recap, weekly, tropical, fire or lesson).
+- Pick the **kind** (outlook, recap, weekly, tropical, fire, lesson, seasonal or snow). For snow, **until** makes the Short for a past storm (the 24 hours ending then), to try it out of season.
 - With **Upload** unticked, it renders it from the latest data. Download
   the video from the run's **Artifacts** to check it.
 - With **Upload** ticked, it also uploads it.
@@ -256,6 +257,7 @@ GitHub often starts scheduled runs late or drops them. For posts on time, let a 
 | weekly | 9:40 AM Sundays |
 | lesson (Radar School) | 1:20 PM Wednesdays |
 | seasonal | 10:45 AM Thursdays (posts only on the third, when NOAA updates it) |
+| snow | 9:50 AM daily (posts only after a real snow) |
 | recap | 11:15 PM daily |
 | breaking | every 10 minutes (`youtube-breaking.yml`, body `{"ref":"main","inputs":{"scheduled":"true"}}`) |
 | facebook | every 3 minutes (`facebook-warnings.yml`, body `{"ref":"main","inputs":{"scheduled":"true"}}`) |
