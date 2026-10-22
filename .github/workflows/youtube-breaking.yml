@@ -91,8 +91,9 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/shorts" --no-audit --no-fund playwright-core@1.56.1
           # apt waits forever on a package mirror that stops answering (on Oct 22, 2026 two outlook runs hung here for
-          # hours): give up on a mirror after 30 s, and try the whole install twice before failing the run.
-          echo 'Acquire::http::Timeout "30"; Acquire::https::Timeout "30"; Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/99-timeouts >/dev/null
+          # hours): give up on a mirror after 30 s, and try the whole install twice before failing the run. A slow mirror
+          # can outlast the first try, whose apt-get carries on: the second waits for its lock instead of failing at once.
+          echo 'Acquire::http::Timeout "30"; Acquire::https::Timeout "30"; Acquire::Retries "3"; DPkg::Lock::Timeout "600";' | sudo tee /etc/apt/apt.conf.d/99-timeouts >/dev/null
           for try in 1 2; do
             timeout 480 "$RUNNER_TEMP/shorts/node_modules/.bin/playwright-core" install --with-deps chromium && break
             [ "$try" = 2 ] && exit 1
