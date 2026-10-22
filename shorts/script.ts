@@ -24,6 +24,7 @@ const ABOUT: Record<string, string> = {
   "weekly.html": "the severe weather outlook for the next eight days, posted Sunday mornings",
   "tropical.html": "the latest National Hurricane Center advisory on a tropical storm or hurricane",
   "fire.html": "the latest on a large wildfire, from the National Interagency Fire Center",
+  "review.html": "a full-length weather week in review: the past seven days of National Weather Service storm reports, the busiest storm days replayed on radar, and the week's snow, posted Sunday afternoons",
   "snow.html": "the snowfall reports sent to the National Weather Service in the past 24 hours, posted the morning after a snowstorm (some are storm totals covering more than a day, so never say the snow all fell in 24 hours)",
   "seasonal.html": "NOAA's Climate Prediction Center outlook for the next three months: where a warmer, colder, wetter or drier than normal season is more likely (odds, not a forecast of amounts), updated once a month",
 };
@@ -71,6 +72,12 @@ export function background(v: Pick<Video, "template" | "data">): string[] {
     for (const k of ["temp", "prcp"]) {
       const panel = obj(d[k]).panel;
       if (Array.isArray(panel)) out.push(...panel.filter((x): x is string => typeof x === "string").map((x) => `${k === "temp" ? "Temperature" : "Precipitation"}, ${x}.`));
+    }
+  } else if (v.template === "review.html") {
+    if (typeof d.range === "string") out.push(`The week: ${d.range}.`);
+    for (const day of Array.isArray(d.days) ? d.days.map(obj) : []) {
+      const hl = Array.isArray(day.highlights) ? day.highlights.map(obj) : [];
+      if (typeof day.title === "string" && hl.length) out.push(`${day.title}: ${hl.map((h) => `${h.label} ${h.value}${h.place ? ` (${h.place})` : ""}`).join("; ")}.`);
     }
   } else if (v.template === "snow.html") {
     const top = Array.isArray(d.top) ? d.top.map(obj) : [];

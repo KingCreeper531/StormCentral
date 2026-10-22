@@ -62,6 +62,8 @@ const PLANS: Plan[] = [
   { name: "lesson", workflow: "youtube-shorts.yml", inputs: { kind: "lesson" }, hours: [13], minutes: [20], wdays: [3] },
   // Every Thursday; only the third Thursday's (CPC's monthly update at 8:30 AM) finds a new outlook to post.
   { name: "seasonal", workflow: "youtube-shorts.yml", inputs: { kind: "seasonal" }, hours: [10], minutes: [45], wdays: [4] },
+  // Sundays: the week in review (a full-length video).
+  { name: "review", workflow: "youtube-shorts.yml", inputs: { kind: "review" }, hours: [14], minutes: [30], wdays: [0] },
   // Every morning; only a real snow (kinds/snow.ts) posts.
   { name: "snow", workflow: "youtube-shorts.yml", inputs: { kind: "snow" }, hours: [9], minutes: [50] },
   // Five minutes after GitHub's own every-10-minutes schedule, so together they look every 5.

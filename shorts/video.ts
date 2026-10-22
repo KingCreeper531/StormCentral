@@ -24,6 +24,8 @@ export interface Video extends Localized {
   size?: { width: number; height: number };
   /** For full-length videos: render the page's thumbnail (render(t, true)) and set it on YouTube. */
   thumbnailAt?: number;
+  /** URL globs the page loads images from that it draws on its canvas (render.ts serves them with CORS). */
+  cors?: string[];
 }
 
 export interface KindContext {
