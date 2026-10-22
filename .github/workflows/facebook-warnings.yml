@@ -92,14 +92,14 @@ jobs:
           FB_POSTS_PER_HOUR: ${{ vars.FB_POSTS_PER_HOUR }}
           FB_CARDS: ${{ vars.FB_CARDS }}
           FB_DRY_RUN: ${{ env.MODE == 'dry-run' && '1' || '' }}
-          FB_OUT_DIR: ${{ runner.temp }}/fb-out
+          FB_OUT_DIR: shorts/fb-out
         run: node "$RUNNER_TEMP/fb/fb.mjs" ${{ env.MODE == 'check' && 'check' || '' }}
       - uses: actions/upload-artifact@v4
         # A dry run's pictures, to look at.
-        if: env.MODE == 'dry-run' && hashFiles(format('{0}/fb-out/*.jpg', runner.temp)) != ''
+        if: env.MODE == 'dry-run' && hashFiles('shorts/fb-out/*.jpg') != ''
         with:
           name: facebook-warning-pictures
-          path: ${{ runner.temp }}/fb-out/*.jpg
+          path: shorts/fb-out/*.jpg
           retention-days: 7
       - uses: actions/cache/save@v4
         # always(): a run where one post failed still records the ones it made.
