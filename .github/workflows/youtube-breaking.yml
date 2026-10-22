@@ -41,7 +41,8 @@ permissions:
 jobs:
   breaking:
     if: (github.event_name == 'workflow_dispatch' && !inputs.scheduled) || vars.SHORTS_ENABLED == 'true'
-    runs-on: ubuntu-latest
+    # Not ubuntu-latest: GitHub is moving it to Ubuntu 26.04, where Playwright won't install Chromium (Oct 2026).
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
       MANUAL: ${{ github.event_name == 'workflow_dispatch' && !inputs.scheduled }}

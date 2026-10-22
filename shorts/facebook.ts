@@ -27,6 +27,25 @@ export function pageFromEnv(env: Record<string, string | undefined> = process.en
   return id && token ? { id, token } : null;
 }
 
+/**
+ * What's wrong with the secrets' shape, without printing them: a Page token
+ * starts with "EAA" and is 100-400 characters, a Page id is digits only.
+ */
+export function secretProblems(id: string | undefined, token: string | undefined): string[] {
+  const out: string[] = [];
+  const t = token ?? "";
+  const i = id ?? "";
+  if (/^["']|["']$/.test(t.trim())) out.push("FB_PAGE_TOKEN has quotes around it: paste the token alone.");
+  if (/\s/.test(t.trim())) out.push("FB_PAGE_TOKEN has spaces or line breaks inside it: copy it again in one piece.");
+  if (/^(bearer|access_token)/i.test(t.trim())) out.push('FB_PAGE_TOKEN starts with "Bearer" or "access_token": paste the token alone.');
+  if (/^\d+$/.test(t.trim()) && /^EAA/.test(i.trim())) out.push("FB_PAGE_ID and FB_PAGE_TOKEN look swapped: the id is the number, the token starts with EAA.");
+  else if (/^\d+$/.test(t.trim())) out.push("FB_PAGE_TOKEN is only digits: that's an id, not a token (a token starts with EAA).");
+  else if (t.trim() && !/^["']?EAA/.test(t.trim())) out.push(`FB_PAGE_TOKEN doesn't start with "EAA" (${t.trim().length} characters): it may be the App Secret or another value, not the Page token.`);
+  if (/^["']?EAA/.test(t.trim()) && t.trim().length < 100) out.push(`FB_PAGE_TOKEN is only ${t.trim().length} characters: it was probably cut off when copied.`);
+  if (i.trim() && !/^\d+$/.test(i.trim()) && !/^EAA/.test(i.trim())) out.push("FB_PAGE_ID isn't only digits: use the Page's numeric id from me/accounts.");
+  return out;
+}
+
 type Fetch = typeof fetch;
 
 async function graph<T>(page: FacebookPage, method: "GET" | "POST" | "DELETE", path: string, params: Record<string, string> = {}, f: Fetch = fetch): Promise<T> {

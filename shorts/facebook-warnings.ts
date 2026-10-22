@@ -11,7 +11,7 @@
  * FB_STATE_DIR is where the posted warnings are kept (default shorts/.state).
  */
 import type { RawAlertFeature } from "../src/lib/alerts";
-import { deletePost, pageFromEnv, pageInfo, postToPage } from "./facebook";
+import { deletePost, pageFromEnv, pageInfo, postToPage, secretProblems } from "./facebook";
 import { USER_AGENT } from "./source";
 import { loadPostState, savePostState, warningPosts, WARNING_EVENTS, withinCap } from "./warning-posts";
 
@@ -19,6 +19,7 @@ const env = process.env;
 const dir = env.FB_STATE_DIR || "shorts/.state";
 
 async function check() {
+  for (const p of secretProblems(env.FB_PAGE_ID, env.FB_PAGE_TOKEN)) console.log(`::warning::${p}`);
   const page = pageFromEnv(env);
   if (!page) throw new Error("Set the FB_PAGE_ID and FB_PAGE_TOKEN secrets (shorts/README.md, Facebook).");
   const info = await pageInfo(page);
