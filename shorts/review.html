@@ -1,0 +1,470 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="short.css" />
+<script src="vendor/d3-array.min.js"></script>
+<script src="vendor/d3-geo.min.js"></script>
+<script src="vendor/topojson-client.min.js"></script>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script src="common.js"></script>
+<script>
+/*
+ * The weather week in review (16:9, a few minutes; kinds/review.ts builds DATA
+ * and times the scenes to the narration). Chapters: the intro, the week on the
+ * US map with a day-by-day chart, each busy storm day on archived national
+ * radar with its reports popping up as they came in, the week's snow, and the
+ * close; then a silent end screen. render(t, true) draws the thumbnail. DATA:
+ *   { states, logo, range, chapters: [{ title, start, end, type, day? }], beats: [{ say, bullet?, start, dur, chapter }], end,
+ *     week: { days: [{ short, counts, total, storm }], reports: [{ k, lat, lon, d }], totals: { severe, tornado, floods } },
+ *     days: [{ title, short, counts, total, states, view: { west, east, south, north, z, x0, x1, y0, y1 },
+ *              frames: [{ t, tiles, label }], reports: [{ k, t, lat, lon }], highlights: [{ label, value, place, kind }] }],
+ *     snow: { six, foot, reports: [{ in, lat, lon }], top: [{ value, inches, place, lat, lon }] } | null,
+ *     thumb: { lines, stat } }
+ */
+const W = 1920, H = 1080;
+const ctx = document.getElementById("c").getContext("2d");
+const D = window.DATA;
+const logo = new Image();
+logo.src = D.logo;
+const FONT = "SC Inter";
+const C = {
+  bg: "#03060d", panel: "#0b1120", line: "rgba(255,255,255,0.10)", ink: "#f2f4f8", ink2: "#a9b1bf", ink3: "#7d8594",
+  accent: "#5b9cf6", warn: "#ffd60a", land: "#111a2c", state: "rgba(200,215,240,0.28)",
+  tornado: "#ff453a", wind: "#4c8dff", hail: "#30d158",
+};
+const KIND_COLOR = { tornado: C.tornado, wind: C.wind, hail: C.hail };
+const KINDS = [["tornado", "Tornado"], ["wind", "Damaging wind"], ["hail", "Large hail"]];
+const VIEW = { x: 60, y: 130, w: 1180, h: 800 };
+const SIDE = { x: 1290, y: 130, w: 570, h: 800 };
+
+// ── helpers ──────────────────────────────────────────────────────────────
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function text(s, x, y, { size = 32, weight = 600, color = C.ink, align = "left", alpha = 1, spacing = 0 } = {}) {
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.font = `${weight} ${size}px "${FONT}"`;
+  ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = "alphabetic";
+  if (spacing) ctx.letterSpacing = `${spacing}px`;
+  ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function fitSize(s, maxW, size, weight = 700) {
+  ctx.font = `${weight} ${size}px "${FONT}"`;
+  const w = ctx.measureText(s).width;
+  return w <= maxW ? size : Math.max(14, Math.floor((size * maxW) / w));
+}
+function wrap(s, maxW, size, weight = 600) {
+  ctx.font = `${weight} ${size}px "${FONT}"`;
+  const words = String(s).split(/\s+/), lines = [];
+  let line = "";
+  for (const w of words) {
+    const next = line ? `${line} ${w}` : w;
+    if (line && ctx.measureText(next).width > maxW) { lines.push(line); line = w; } else line = next;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+/** Wrapped text from the top at (x, y); returns the height used. */
+function block(s, x, y, maxW, { size = 30, weight = 600, color = C.ink, leading = 1.25 } = {}) {
+  const lines = wrap(s, maxW, size, weight);
+  lines.forEach((l, i) => text(l, x, y + size + i * size * leading, { size, weight, color }));
+  return lines.length * size * leading;
+}
+function pill(s, x, y, { size = 26, color = "#06101f", fill = C.warn } = {}) {
+  ctx.font = `800 ${size}px "${FONT}"`;
+  const w = ctx.measureText(s).width + size * 1.1;
+  rr(x, y - size * 1.05, w, size * 1.5, size * 0.4); ctx.fillStyle = fill; ctx.fill();
+  text(s, x + size * 0.55, y, { size, weight: 800, color });
+  return w;
+}
+
+// ── the US map (overview, snow) ──────────────────────────────────────────
+const statesFc = topojson.feature(D.states, D.states.objects.states).features.filter((f) => !["02", "15", "72", "78", "60", "66", "69"].includes(f.id));
+const conus = { type: "FeatureCollection", features: statesFc };
+const stateMesh = topojson.mesh(D.states, D.states.objects.states, (a, b) => a !== b);
+const usProj = d3.geoConicConformal().parallels([33, 45]).rotate([96, 0]).fitExtent([[VIEW.x + 30, VIEW.y + 30], [VIEW.x + VIEW.w - 30, VIEW.y + VIEW.h - 30]], conus);
+
+/** The map in the radar box with projection `proj`, `overlay` drawn on top inside the box. */
+function mapFrame(proj, overlay, { landAlpha = 1 } = {}) {
+  const path = d3.geoPath(proj, ctx);
+  ctx.save();
+  rr(VIEW.x, VIEW.y, VIEW.w, VIEW.h, 24); ctx.fillStyle = C.panel; ctx.fill(); ctx.clip();
+  ctx.globalAlpha = landAlpha;
+  ctx.beginPath(); path(conus); ctx.fillStyle = C.land; ctx.fill();
+  ctx.globalAlpha = 1;
+  if (overlay) overlay(proj);
+  ctx.beginPath(); path(stateMesh); ctx.strokeStyle = C.state; ctx.lineWidth = 1.6; ctx.stroke();
+  ctx.restore();
+}
+
+function marker(x, y, k, s, a = 1, pop = 1) {
+  ctx.save(); ctx.globalAlpha *= a;
+  const r = s * (1 + 0.8 * (1 - pop));
+  if (pop < 1) {
+    ctx.save(); ctx.globalAlpha *= 1 - pop;
+    ctx.beginPath(); ctx.arc(x, y, r + 26 * pop, 0, Math.PI * 2); ctx.strokeStyle = KIND_COLOR[k]; ctx.lineWidth = 3; ctx.stroke();
+    ctx.restore();
+  }
+  ctx.beginPath();
+  if (k === "tornado") { ctx.moveTo(x, y + r); ctx.lineTo(x - r * 1.05, y - r * 0.75); ctx.lineTo(x + r * 1.05, y - r * 0.75); ctx.closePath(); }
+  else ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = KIND_COLOR[k] || "#fff"; ctx.fill();
+  ctx.lineWidth = k === "tornado" ? 2.5 : 1.5; ctx.strokeStyle = k === "tornado" ? "#fff" : "rgba(0,0,0,0.55)"; ctx.stroke();
+  ctx.restore();
+}
+
+function cityLabels(proj, alpha = 0.9, inside = VIEW) {
+  ctx.save(); ctx.globalAlpha *= alpha;
+  ctx.font = `600 24px "${FONT}"`;
+  const placed = [];
+  for (const [name, lon, lat] of SC.CITIES) {
+    const p = proj([lon, lat]);
+    if (!p) continue;
+    const [x, y] = p, w = ctx.measureText(name).width, box = [x - 8, y - 28, x + w + 16, y + 10];
+    if (box[0] < inside.x + 10 || box[2] > inside.x + inside.w - 10 || box[1] < inside.y + 60 || box[3] > inside.y + inside.h - 50) continue;
+    if (placed.some((b) => !(box[2] < b[0] || box[0] > b[2] || box[3] < b[1] || box[1] > b[3]))) continue;
+    placed.push(box);
+    ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
+    ctx.lineWidth = 6; ctx.strokeStyle = "rgba(3,6,13,0.85)"; ctx.lineJoin = "round"; ctx.strokeText(name, x + 11, y - 7);
+    ctx.fillStyle = "#fff"; ctx.fillText(name, x + 11, y - 7);
+  }
+  ctx.restore();
+}
+
+// ── radar (the storm days) ───────────────────────────────────────────────
+const rad = (d) => (d * Math.PI) / 180;
+const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + rad(lat) / 2));
+/** A day's view: Web Mercator mapping its bounds onto the radar box exactly (review.ts matched the shape). */
+function dayProjection(v) {
+  const k = VIEW.w / (rad(v.east) - rad(v.west));
+  return d3.geoMercator().scale(k).translate([VIEW.x - k * rad(v.west), VIEW.y + k * mercY(v.north)]);
+}
+// Every tile of every frame, loaded before the first frame (render.ts serves them with CORS).
+const tileImg = new Map();
+for (const d of D.days) {
+  const v = d.view;
+  for (const f of d.frames)
+    for (let x = v.x0; x <= v.x1; x++)
+      for (let y = v.y0; y <= v.y1; y++) {
+        const url = f.tiles.replace("{z}", v.z).replace("{x}", x).replace("{y}", y);
+        if (tileImg.has(url)) continue;
+        const im = new Image();
+        im.crossOrigin = "anonymous";
+        im.src = url;
+        tileImg.set(url, im);
+      }
+}
+window.READY = Promise.all([...tileImg.values()].map((im) => im.decode().catch(() => {}))).then(() => {
+  // For the log (render.ts passes on "SC:" lines): a blank radar shows up here.
+  const ok = [...tileImg.values()].filter((im) => im.naturalWidth).length;
+  if (tileImg.size) console.log(`SC: radar tiles loaded: ${ok} of ${tileImg.size}`);
+});
+
+function drawRadar(d, f, proj, alpha = 0.9) {
+  const v = d.view, n = 2 ** v.z, k = proj.scale(), size = (k * 2 * Math.PI) / n;
+  ctx.save(); ctx.globalAlpha *= alpha;
+  ctx.imageSmoothingEnabled = true;
+  for (let x = v.x0; x <= v.x1; x++)
+    for (let y = v.y0; y <= v.y1; y++) {
+      const im = tileImg.get(f.tiles.replace("{z}", v.z).replace("{x}", x).replace("{y}", y));
+      if (!im || !im.complete || !im.naturalWidth) continue;
+      const lon = (x / n) * 360 - 180, lat = (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / n))) * 180) / Math.PI;
+      const [px, py] = proj([lon, lat]);
+      ctx.drawImage(im, px, py, size + 0.5, size + 0.5);
+    }
+  ctx.restore();
+}
+
+/** The frame showing at `u` seconds into a day's chapter of `dur`: the loop plays once, then holds. */
+function frameAt(d, u, dur) {
+  const p = seg(u, 0.6, Math.max(1.6, dur - 1.8));
+  return Math.min(d.frames.length - 1, Math.floor(p * d.frames.length));
+}
+
+function dayVisual(d, u, dur) {
+  const proj = dayProjection(d.view), path = d3.geoPath(proj, ctx);
+  const fi = frameAt(d, u, dur), f = d.frames[fi];
+  ctx.save();
+  rr(VIEW.x, VIEW.y, VIEW.w, VIEW.h, 24); ctx.fillStyle = C.panel; ctx.fill(); ctx.clip();
+  ctx.beginPath(); path(conus); ctx.fillStyle = C.land; ctx.fill();
+  drawRadar(d, f, proj);
+  ctx.beginPath(); path(stateMesh); ctx.strokeStyle = "rgba(220,230,250,0.45)"; ctx.lineWidth = 1.8; ctx.stroke();
+  cityLabels(proj, 0.85);
+  // Reports up to this frame's time; the newest ones pop.
+  for (const pass of ["hail", "wind", "tornado"])
+    for (const r of d.reports) {
+      if (r.k !== pass || r.t > f.t + 60_000) continue;
+      const p = proj([r.lon, r.lat]);
+      const age = (f.t - r.t) / 1_200_000;
+      marker(p[0], p[1], r.k, r.k === "tornado" ? 11 : 7, 1, clamp(age + 0.25));
+    }
+  ctx.restore();
+  // The time, and where the radar comes from.
+  pill(f.label, VIEW.x + 22, VIEW.y + 52, { size: 28, fill: "rgba(3,6,13,0.82)", color: C.ink });
+  // The source at the top right, clear of the key at the bottom.
+  ctx.save(); rr(VIEW.x + VIEW.w - 600, VIEW.y + 16, 584, 40, 12); ctx.fillStyle = "rgba(3,6,13,0.72)"; ctx.fill(); ctx.restore();
+  text("Radar: NEXRAD national composite (Iowa Environmental Mesonet)", VIEW.x + VIEW.w - 30, VIEW.y + 44, { size: 20, weight: 500, color: C.ink2, align: "right" });
+  // Key.
+  let kx = VIEW.x + 24;
+  const ky = VIEW.y + VIEW.h - 26;
+  ctx.save(); rr(VIEW.x + 10, ky - 30, 560, 44, 12); ctx.fillStyle = "rgba(3,6,13,0.78)"; ctx.fill(); ctx.restore();
+  for (const [k, name] of KINDS) {
+    marker(kx + 10, ky - 8, k, k === "tornado" ? 10 : 8);
+    text(name, kx + 28, ky, { size: 22, weight: 600, color: C.ink2 });
+    ctx.font = `600 22px "${FONT}"`;
+    kx += 52 + ctx.measureText(name).width;
+  }
+}
+
+// ── side panels ──────────────────────────────────────────────────────────
+function countBoxes(counts, y, a = 1) {
+  ctx.save(); ctx.globalAlpha *= a;
+  KINDS.forEach(([k, name], i) => {
+    const w = (SIDE.w - 24) / 3, x = SIDE.x + i * (w + 12);
+    rr(x, y, w, 140, 18); ctx.fillStyle = "rgba(255,255,255,0.05)"; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.line; ctx.stroke();
+    marker(x + 28, y + 36, k, k === "tornado" ? 11 : 9);
+    text({ tornado: "Tornado", wind: "Wind", hail: "Hail" }[k], x + 48, y + 46, { size: 24, weight: 600, color: C.ink2 });
+    text(String(counts[k]), x + 20, y + 118, { size: 60, weight: 800, color: KIND_COLOR[k] });
+  });
+  ctx.restore();
+}
+
+/** The chapter's bullets so far, from y down. */
+function bullets(t, chapter, y) {
+  for (const b of D.beats.filter((x) => x.chapter === chapter && x.start <= t && x.bullet)) {
+    const a = easeOut(seg(t, b.start, b.start + 0.5));
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.beginPath(); ctx.arc(SIDE.x + 12, y + 22, 8, 0, Math.PI * 2); ctx.fillStyle = C.accent; ctx.fill();
+    const h = block(b.bullet, SIDE.x + 36, y - 6, SIDE.w - 36, { size: 30, weight: 600 });
+    ctx.restore();
+    y += h + 18;
+    if (y > SIDE.y + SIDE.h - 40) break;
+  }
+  return y;
+}
+
+function weekChart(t, ch, y) {
+  const days = D.week.days, max = Math.max(1, ...days.map((d) => d.total));
+  const h = 230, bw = (SIDE.w - 6 * 14) / 7, grow = easeOut(seg(t, ch.start + 0.5, ch.start + 3.5));
+  text("Severe reports by day", SIDE.x, y, { size: 24, weight: 600, color: C.ink2 });
+  const base = y + 30 + h;
+  days.forEach((d, i) => {
+    const x = SIDE.x + i * (bw + 14);
+    let top = base;
+    for (const [k] of [["hail"], ["wind"], ["tornado"]]) {
+      const hh = (d.counts[k] / max) * h * grow;
+      if (hh <= 0) continue;
+      ctx.fillStyle = KIND_COLOR[k]; ctx.fillRect(x, top - hh, bw, hh);
+      top -= hh + (hh > 3 ? 2 : 0);
+    }
+    // The days replayed on radar: underlined.
+    if (d.storm) { ctx.fillStyle = C.accent; ctx.fillRect(x + 6, base + 46, bw - 12, 4); }
+    text(d.short, x + bw / 2, base + 34, { size: 24, weight: d.storm ? 800 : 600, color: d.storm ? C.ink : C.ink2, align: "center" });
+    if (d.total && grow > 0.9) text(String(d.total), x + bw / 2, top - 10, { size: 22, weight: 700, color: C.ink, align: "center" });
+  });
+  return base + 60;
+}
+
+function sidePanel(t, ch, ci) {
+  const label = ch.type === "day" ? "STORM DAY" : ch.type === "snow" ? "SNOW" : "THE WEEK";
+  text(label, SIDE.x, SIDE.y + 30, { size: 22, weight: 800, color: C.accent, spacing: 4 });
+  text(ch.title, SIDE.x, SIDE.y + 86, { size: fitSize(ch.title, SIDE.w, 46, 800), weight: 800 });
+  let y = SIDE.y + 130;
+  if (ch.type === "overview") {
+    countBoxes({ tornado: D.week.days.reduce((s, d) => s + d.counts.tornado, 0), wind: D.week.days.reduce((s, d) => s + d.counts.wind, 0), hail: D.week.days.reduce((s, d) => s + d.counts.hail, 0) }, y, easeOut(seg(t, ch.start, ch.start + 0.6)));
+    y = weekChart(t, ch, y + 200);
+    bullets(t, ci, y);
+  } else if (ch.type === "day") {
+    const d = D.days[ch.day];
+    countBoxes(d.counts, y, easeOut(seg(t, ch.start, ch.start + 0.6)));
+    bullets(t, ci, y + 180);
+  } else if (ch.type === "snow") {
+    const s = D.snow;
+    text("Biggest totals", SIDE.x, y + 10, { size: 26, weight: 600, color: C.ink2 });
+    s.top.forEach((r, i) => {
+      const a = easeOut(seg(t, ch.start + 0.6 + i * 0.5, ch.start + 1.1 + i * 0.5));
+      const ry = y + 40 + i * 74;
+      ctx.save(); ctx.globalAlpha = a;
+      if (i === 0) { rr(SIDE.x, ry, SIDE.w, 64, 14); ctx.fillStyle = "rgba(255,255,255,0.07)"; ctx.fill(); }
+      ctx.beginPath(); ctx.arc(SIDE.x + 28, ry + 32, 12, 0, Math.PI * 2); ctx.fillStyle = snowColor(r.inches); ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = "rgba(255,255,255,0.75)"; ctx.stroke();
+      text(r.value, SIDE.x + 56, ry + 45, { size: 38, weight: 800 });
+      text(`near ${r.place}`, SIDE.x + 210, ry + 44, { size: fitSize(`near ${r.place}`, SIDE.w - 220, 30, 600), weight: 600, color: i ? C.ink2 : C.ink });
+      ctx.restore();
+    });
+  }
+}
+
+// ── overview and snow maps ───────────────────────────────────────────────
+function overviewVisual(t, ch) {
+  // The week's reports appear day by day over the chapter's first two thirds.
+  const shown = 7 * seg(t, ch.start + 0.4, ch.start + Math.max(3, (ch.end - ch.start) * 0.66));
+  mapFrame(usProj, (proj) => {
+    for (const pass of ["hail", "wind", "tornado"])
+      for (const r of D.week.reports) {
+        if (r.k !== pass || r.d + 1 > shown + 0.999) continue;
+        const p = proj([r.lon, r.lat]);
+        if (p) marker(p[0], p[1], r.k, r.k === "tornado" ? 9 : 5.5, 1, clamp(shown - r.d));
+      }
+    cityLabels(proj, 0.5 * easeOut(seg(t, ch.end - 3, ch.end - 1.5)));
+  });
+}
+
+const SNOW_SCALE = [[0.1, "#bdd7e7"], [1, "#6baed6"], [2, "#3182bd"], [3, "#08519c"], [4, "#082694"], [6, "#ffff96"], [8, "#ffc400"], [12, "#ff8700"], [18, "#db1400"], [24, "#9e0000"], [30, "#690000"], [36, "#360000"], [48, "#cccbff"]];
+const snowColor = (v) => { let c = SNOW_SCALE[0][1]; for (const [at, col] of SNOW_SCALE) if (v >= at) c = col; return c; };
+let snowProj = null;
+function snowVisual(t, ch) {
+  const s = D.snow;
+  if (!snowProj) {
+    const pts = s.reports.length ? s.reports : s.top;
+    const lons = pts.map((r) => r.lon).sort((a, b) => a - b), lats = pts.map((r) => r.lat).sort((a, b) => a - b);
+    const qq = (arr, p) => arr[Math.round((arr.length - 1) * p)];
+    const lo = pts.length > 12 ? 0.04 : 0;
+    const box = { type: "MultiPoint", coordinates: [[qq(lons, lo) - 1.5, qq(lats, lo) - 1], [qq(lons, 1 - lo) + 1.5, qq(lats, 1 - lo) + 1]] };
+    snowProj = d3.geoConicConformal().parallels([33, 45]).rotate([96, 0]).fitExtent([[VIEW.x + 60, VIEW.y + 80], [VIEW.x + VIEW.w - 60, VIEW.y + VIEW.h - 60]], box);
+  }
+  const fill = seg(t, ch.start + 0.3, ch.start + 4);
+  mapFrame(snowProj, (proj) => {
+    const n = Math.floor(fill * s.reports.length);
+    for (let i = 0; i < n; i++) {
+      const r = s.reports[i], p = proj([r.lon, r.lat]);
+      if (!p) continue;
+      ctx.beginPath(); ctx.arc(p[0], p[1], r.in >= 12 ? 10 : r.in >= 6 ? 8.5 : 7, 0, Math.PI * 2); ctx.fillStyle = snowColor(r.in); ctx.fill();
+      ctx.lineWidth = 1.6; ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.stroke();
+    }
+    cityLabels(proj, 0.8);
+    const top = s.top[0], p = top && proj([top.lon, top.lat]);
+    if (p && fill >= 1) {
+      const pulse = ((t - ch.start) % 1.1) / 1.1;
+      ctx.beginPath(); ctx.arc(p[0], p[1], 24, 0, Math.PI * 2); ctx.lineWidth = 5; ctx.strokeStyle = "#fff"; ctx.stroke();
+      ctx.save(); ctx.globalAlpha = 1 - pulse; ctx.beginPath(); ctx.arc(p[0], p[1], 24 + pulse * 40, 0, Math.PI * 2); ctx.lineWidth = 4; ctx.strokeStyle = snowColor(top.inches); ctx.stroke(); ctx.restore();
+    }
+  });
+  text("Source: NWS local storm reports via IEM", VIEW.x + VIEW.w - 18, VIEW.y + VIEW.h - 18, { size: 20, weight: 500, color: C.ink2, align: "right" });
+}
+
+// ── frame ────────────────────────────────────────────────────────────────
+function background() {
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  const g = ctx.createRadialGradient(W * 0.35, 380, 60, W * 0.35, 380, 1500);
+  g.addColorStop(0, "#0b1a36"); g.addColorStop(1, C.bg);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+
+function topBar(ch) {
+  if (logo.complete) { ctx.save(); rr(60, 34, 64, 64, 14); ctx.clip(); ctx.drawImage(logo, 60, 34, 64, 64); ctx.restore(); }
+  text("WEEK IN REVIEW", 142, 62, { size: 22, weight: 800, color: C.accent, spacing: 4 });
+  text(D.range, 142, 96, { size: 30, weight: 700 });
+  text(ch.title, W - 60, 82, { size: 26, weight: 600, color: C.ink2, align: "right" });
+}
+
+function chapterBar(t) {
+  const x0 = 60, x1 = W - 60, y = 978, total = D.end;
+  D.chapters.forEach((c, i) => {
+    const a = x0 + ((x1 - x0) * c.start) / total + (i ? 4 : 0), b = x0 + ((x1 - x0) * c.end) / total - 4;
+    rr(a, y, Math.max(4, b - a), 8, 4); ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.fill();
+    const f = clamp((t - c.start) / (c.end - c.start));
+    if (f > 0) { rr(a, y, Math.max(4, (b - a) * f), 8, 4); ctx.fillStyle = t < c.end ? C.accent : "rgba(91,156,246,0.55)"; ctx.fill(); }
+    if (t >= c.start && t < c.end) text(c.title, a, y + 44, { size: 22, weight: 600, color: C.ink2 });
+  });
+}
+
+function titleCard(t, ch, first) {
+  const u = t - ch.start, cx = W / 2;
+  const a = easeOut(seg(u, 0.1, 0.8));
+  if (logo.complete) { ctx.save(); ctx.globalAlpha = a; rr(cx - 70, 260, 140, 140, 30); ctx.clip(); ctx.drawImage(logo, cx - 70, 260, 140, 140); ctx.restore(); }
+  text("STORM CENTRAL", cx, 470, { size: 36, weight: 800, color: C.accent, align: "center", spacing: 10, alpha: a });
+  text(first ? "Weather Week in Review" : "That's the week", cx, 590, { size: 92, weight: 800, align: "center", alpha: easeOut(seg(u, 0.4, 1.1)) });
+  text(D.range, cx, 670, { size: 44, weight: 500, color: C.ink2, align: "center", alpha: easeOut(seg(u, 0.7, 1.4)) });
+  if (first) text("Storm reports from the National Weather Service, and the radar", cx, 760, { size: 30, weight: 500, color: C.ink3, align: "center", alpha: easeOut(seg(u, 1.0, 1.7)) });
+}
+
+/** The silent end screen, with room for YouTube's end-screen elements. */
+function endScreen(u) {
+  const a = easeOut(seg(u, 0, 0.8));
+  ctx.save(); ctx.globalAlpha = a;
+  text("See you next Sunday", W / 2, 150, { size: 54, weight: 800, align: "center" });
+  text("A new week in review every Sunday", W / 2, 215, { size: 36, weight: 600, color: C.accent, align: "center" });
+  rr(160, 300, 760, 428, 24); ctx.strokeStyle = "rgba(255,255,255,0.18)"; ctx.lineWidth = 3; ctx.setLineDash([14, 10]); ctx.stroke();
+  rr(1000, 300, 760, 428, 24); ctx.stroke(); ctx.setLineDash([]);
+  text("Watch next", 540, 530, { size: 34, weight: 600, color: C.ink3, align: "center" });
+  text("Week in Review playlist", 1380, 530, { size: 34, weight: 600, color: C.ink3, align: "center" });
+  if (logo.complete) { ctx.save(); rr(W / 2 - 70, 780, 140, 140, 30); ctx.clip(); ctx.drawImage(logo, W / 2 - 70, 780, 140, 140); ctx.restore(); }
+  text("Live radar and alerts, free: stormcentralwx.com", W / 2, 990, { size: 36, weight: 700, align: "center" });
+  text("Storm reports: NWS via the Iowa Environmental Mesonet. Radar: NEXRAD composite archive (IEM).", W / 2, 1040, { size: 24, weight: 500, color: C.ink3, align: "center" });
+  ctx.restore();
+}
+
+function thumbnail() {
+  background();
+  const rect = { x: 760, y: 60, w: 1100, h: 960 };
+  const d = D.days[0];
+  ctx.save(); rr(rect.x, rect.y, rect.w, rect.h, 24); ctx.clip();
+  if (d) {
+    // The first storm day's radar at the middle of its loop, filling the right side.
+    const v = d.view, k0 = VIEW.w / (rad(v.east) - rad(v.west)), k = k0 * (rect.h / VIEW.h);
+    const proj = d3.geoMercator().scale(k).translate([rect.x + rect.w / 2 - k * ((rad(v.west) + rad(v.east)) / 2), rect.y + rect.h / 2 + k * ((mercY(v.north) + mercY(v.south)) / 2)]);
+    ctx.fillStyle = C.panel; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    ctx.beginPath(); d3.geoPath(proj, ctx)(conus); ctx.fillStyle = C.land; ctx.fill();
+    drawRadar(d, d.frames[Math.floor(d.frames.length * 0.6)], proj, 1);
+    ctx.beginPath(); d3.geoPath(proj, ctx)(stateMesh); ctx.strokeStyle = "rgba(220,230,250,0.5)"; ctx.lineWidth = 2; ctx.stroke();
+    for (const r of d.reports) { const p = proj([r.lon, r.lat]); if (p) marker(p[0], p[1], r.k, r.k === "tornado" ? 14 : 8); }
+  } else {
+    ctx.fillStyle = C.panel; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  }
+  ctx.restore();
+  rr(rect.x, rect.y, rect.w, rect.h, 24); ctx.lineWidth = 6; ctx.strokeStyle = C.warn; ctx.stroke();
+  if (logo.complete) { ctx.save(); rr(70, 80, 110, 110, 24); ctx.clip(); ctx.drawImage(logo, 70, 80, 110, 110); ctx.restore(); }
+  text("STORM CENTRAL", 200, 152, { size: 44, weight: 900, color: C.accent, spacing: 6 });
+  D.thumb.lines.forEach((l, i) => {
+    const size = fitSize(l, 660, 150, 900);
+    ctx.save();
+    ctx.font = `900 ${size}px "${FONT}"`;
+    ctx.lineWidth = 16; ctx.strokeStyle = "#03060d"; ctx.lineJoin = "round";
+    ctx.strokeText(l, 70, 400 + i * (size + 20));
+    ctx.fillStyle = i === D.thumb.lines.length - 1 ? C.warn : "#ffffff";
+    ctx.fillText(l, 70, 400 + i * (size + 20));
+    ctx.restore();
+  });
+  text(D.range, 74, 790, { size: fitSize(D.range, 660, 56, 800), weight: 800 });
+  pill(D.thumb.stat, 74, 930, { size: fitSize(D.thumb.stat, 600, 44, 800) });
+}
+
+// ── render ───────────────────────────────────────────────────────────────
+const chapterAt = (t) => {
+  let i = 0;
+  D.chapters.forEach((c, j) => { if (c.start <= t) i = j; });
+  return i;
+};
+
+window.render = function (t, still) {
+  if (still) return thumbnail();
+  background();
+  if (t >= D.end) { endScreen(t - D.end); return; }
+  const ci = chapterAt(t), ch = D.chapters[ci], u = t - ch.start, dur = ch.end - ch.start;
+  if (ch.type === "intro") { titleCard(t, ch, ci === 0); return; }
+  topBar(ch);
+  ctx.save();
+  ctx.globalAlpha = easeOut(seg(u, 0, 0.4));
+  if (ch.type === "overview") overviewVisual(t, ch);
+  else if (ch.type === "day") dayVisual(D.days[ch.day], u, dur);
+  else if (ch.type === "snow") snowVisual(t, ch);
+  ctx.restore();
+  sidePanel(t, ch, ci);
+  chapterBar(t);
+};
+window.DUR = Math.ceil(D.end + 20);
+</script>
+</body>
+</html>

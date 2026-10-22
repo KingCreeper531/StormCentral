@@ -16,6 +16,12 @@ interface PageOptions {
   /** The canvas size: 1080x1920 (a Short) unless the page is landscape. */
   width?: number;
   height?: number;
+  /**
+   * URL globs of images the page draws (review.html's radar tiles): fetched
+   * and handed over with an Access-Control-Allow-Origin header, so drawing
+   * them doesn't taint the canvas the frames are read from.
+   */
+  cors?: string[];
 }
 
 /** Opens `template` with `data` as window.DATA, fonts loaded, and draws with it. */
@@ -27,6 +33,19 @@ async function withPage<T>(template: string, data: Record<string, unknown>, opts
     const page = await browser.newPage({ viewport: { width, height } });
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
+    // Pages report what's worth a line in the log ("SC: ...").
+    page.on("console", (m) => {
+      if (m.text().startsWith("SC: ")) console.log(m.text().slice(4));
+    });
+    for (const glob of opts.cors ?? [])
+      await page.route(glob, async (route) => {
+        try {
+          const res = await route.fetch({ timeout: 30_000 });
+          await route.fulfill({ response: res, headers: { ...res.headers(), "access-control-allow-origin": "*" } });
+        } catch {
+          await route.abort().catch(() => {});
+        }
+      });
     await page.addInitScript(`window.DATA = ${JSON.stringify(pageData)};`);
     await page.goto(`file://${resolve(dir, template)}`);
     await page.evaluate(async () => {

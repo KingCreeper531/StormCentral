@@ -13,6 +13,7 @@ describe("cron-job.org setup", () => {
       "Storm Central: recap",
       "Storm Central: lesson",
       "Storm Central: seasonal",
+      "Storm Central: review",
       "Storm Central: snow",
       "Storm Central: breaking",
       "Storm Central: facebook",
@@ -46,10 +47,10 @@ describe("cron-job.org setup", () => {
       return new Response("{}");
     });
     const r = await syncJobs("key", jobs, { fetchImpl: fetchImpl as typeof fetch, pauseMs: 0, log: () => {} });
-    expect(r).toEqual({ created: 9, updated: 1 });
+    expect(r).toEqual({ created: 10, updated: 1 });
     expect(calls[0]).toBe("GET /jobs");
     expect(calls).toContain("PATCH /jobs/7");
-    expect(calls.filter((c) => c === "PUT /jobs")).toHaveLength(9);
+    expect(calls.filter((c) => c === "PUT /jobs")).toHaveLength(10);
     expect(calls.some((c) => c.includes("/jobs/9"))).toBe(false);
   });
 
@@ -63,7 +64,7 @@ describe("cron-job.org setup", () => {
     });
     const waits: string[] = [];
     const r = await syncJobs("key", jobs, { fetchImpl: fetchImpl as typeof fetch, pauseMs: 0, retryMs: 1, log: (m: string) => waits.push(m) });
-    expect(r).toEqual({ created: 10, updated: 0 });
+    expect(r).toEqual({ created: 11, updated: 0 });
     expect(waits.filter((m) => m.includes("rate limit"))).toHaveLength(1);
   });
 
