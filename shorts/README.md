@@ -11,6 +11,7 @@ to the Storm Central YouTube channel. Nothing runs on your PC.
 | **Hurricane update**: the National Hurricane Center's cone, track and forecast, with winds, pressure and movement | Every day at 11:40 AM Eastern, one per named storm (up to 2, strongest first); none when the tropics are quiet | Tropical Updates |
 | **Wildfire update**: the large active fires on the US map, then a zoom to the most significant one with its mapped perimeter, acres burned, containment, and how much it grew since the day before | Every day at 4:30 PM Eastern, when a fire is at least 5,000 acres and no more than 80% contained, or grew 1,000+ acres in a day; none otherwise | Wildfire Updates |
 | **Breaking news**: a Tornado Emergency, Flash Flood Emergency, Extreme Wind Warning, PDS tornado warning or watch, or SPC High Risk, with the polygon over radar, the counties, the end time, the damage tags and what to do | Within about 10 to 20 minutes of the NWS issuing it (checked every 10 minutes), at most 2 a day | Breaking Severe Weather |
+| **Seasonal outlook**: NOAA Climate Prediction Center's odds of a warmer or colder, then wetter or drier, than normal three months on the US map, with the regions where each is favored. The next winter, spring, summer or fall when it starts within two months (October's is the Winter Outlook), otherwise the next three months | The third Thursday of each month, after CPC's 8:30 AM Eastern update (the runs go every Thursday at 10:45 AM Eastern and post only a new outlook) | Seasonal Outlooks |
 | **Radar School** (a full-length 16:9 video, not a Short): a lesson on reading weather radar, in chapters, with real storms from NOAA's NEXRAD archive (Moore 2013, Mayfield 2021, Rolling Fork 2023, the 2020 Iowa derecho), labelled simulated examples and tours of Storm Central's Professional mode on live data, YouTube chapters and a thumbnail | Wednesdays 1:20 PM Eastern, one lesson a week while there's one scheduled | Radar School |
 
 Every video ends with stormcentralwx.com. Each upload has a Spanish title
@@ -218,6 +219,7 @@ GitHub often starts scheduled runs late or drops them. For posts on time, let a 
 | fire | 4:30 PM daily |
 | weekly | 9:40 AM Sundays |
 | lesson (Radar School) | 1:20 PM Wednesdays |
+| seasonal | 10:45 AM Thursdays (posts only on the third, when NOAA updates it) |
 | recap | 11:15 PM daily |
 | breaking | every 10 minutes (`youtube-breaking.yml`, body `{"ref":"main","inputs":{"scheduled":"true"}}`) |
 

@@ -12,6 +12,7 @@ describe("cron-job.org setup", () => {
       "Storm Central: weekly",
       "Storm Central: recap",
       "Storm Central: lesson",
+      "Storm Central: seasonal",
       "Storm Central: breaking",
     ]);
     expect(jobs.find((j) => j.title.endsWith("lesson"))!.schedule).toMatchObject({ hours: [13], minutes: [20], wdays: [3] });
@@ -22,6 +23,7 @@ describe("cron-job.org setup", () => {
     expect(recap.extendedData.headers.Authorization).toBe("Bearer ghp_x");
     expect(recap.schedule).toMatchObject({ timezone: "America/New_York", hours: [23], minutes: [15], wdays: [-1] });
     expect(jobs.find((j) => j.title.endsWith("weekly"))!.schedule.wdays).toEqual([0]);
+    expect(jobs.find((j) => j.title.endsWith("seasonal"))!.schedule).toMatchObject({ hours: [10], minutes: [45], wdays: [4] });
     const breaking = jobs.find((j) => j.title.endsWith("breaking"))!;
     expect(breaking.url).toContain("/youtube-breaking.yml/dispatches");
     expect(JSON.parse(breaking.extendedData.body)).toEqual({ ref: "main", inputs: { scheduled: "true" } });
@@ -39,10 +41,10 @@ describe("cron-job.org setup", () => {
       return new Response("{}");
     });
     const r = await syncJobs("key", jobs, { fetchImpl: fetchImpl as typeof fetch, pauseMs: 0, log: () => {} });
-    expect(r).toEqual({ created: 6, updated: 1 });
+    expect(r).toEqual({ created: 7, updated: 1 });
     expect(calls[0]).toBe("GET /jobs");
     expect(calls).toContain("PATCH /jobs/7");
-    expect(calls.filter((c) => c === "PUT /jobs")).toHaveLength(6);
+    expect(calls.filter((c) => c === "PUT /jobs")).toHaveLength(7);
     expect(calls.some((c) => c.includes("/jobs/9"))).toBe(false);
   });
 

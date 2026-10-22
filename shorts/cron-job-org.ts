@@ -60,6 +60,8 @@ const PLANS: Plan[] = [
   { name: "weekly", workflow: "youtube-shorts.yml", inputs: { kind: "weekly" }, hours: [9], minutes: [40], wdays: [0] },
   { name: "recap", workflow: "youtube-shorts.yml", inputs: { kind: "recap" }, hours: [23], minutes: [15] },
   { name: "lesson", workflow: "youtube-shorts.yml", inputs: { kind: "lesson" }, hours: [13], minutes: [20], wdays: [3] },
+  // Every Thursday; only the third Thursday's (CPC's monthly update at 8:30 AM) finds a new outlook to post.
+  { name: "seasonal", workflow: "youtube-shorts.yml", inputs: { kind: "seasonal" }, hours: [10], minutes: [45], wdays: [4] },
   // Five minutes after GitHub's own every-10-minutes schedule, so together they look every 5.
   { name: "breaking", workflow: "youtube-breaking.yml", inputs: {}, hours: EVERY, minutes: [5, 15, 25, 35, 45, 55] },
 ];

@@ -68,7 +68,7 @@ interface TropicalData {
   storm: { title: string; stage: string; windMph: number | null; moving: string | null; ahead: string | null; forecast: { stage: string; windMph: number | null; when: string }[] };
 }
 
-// Timings follow the pages: outlook.html, recap.html, weekly.html and tropical.html.
+// Timings follow the pages: outlook.html, recap.html, weekly.html, tropical.html and seasonal.html.
 
 function outlook(d: OutlookData): Cue[] {
   const o = d.outlook;
@@ -174,12 +174,32 @@ function lesson(d: LessonData): Cue[] {
   return d.beats.map((b) => ({ at: b.start + 0.3, text: b.say }));
 }
 
+interface SeasonalData {
+  season: { name: string | null; spoken: string };
+  temp: { lines: string[] };
+  prcp: { lines: string[] };
+}
+
+/** The seasonal outlook (kinds/seasonal.ts writes each map's two lines from where the odds lean). */
+function seasonal(d: SeasonalData): Cue[] {
+  const s = d.season;
+  return [
+    { at: 0.4, text: s.name ? `Here's NOAA's ${s.name.toLowerCase()} outlook, for ${s.spoken}.` : `Here's NOAA's outlook for ${s.spoken}.` },
+    { at: 3.9, text: d.temp.lines[0] ?? "" },
+    { at: 9.6, text: d.temp.lines[1] ?? "" },
+    { at: 15.9, text: d.prcp.lines[0] ?? "" },
+    { at: 21.6, text: d.prcp.lines[1] ?? "" },
+    { at: 27.7, text: "These are odds, not amounts. Everywhere else, the chances are about equal." },
+  ];
+}
+
 const BY_TEMPLATE: Record<string, (d: never) => Cue[]> = {
   "breaking.html": breaking,
   "lesson.html": lesson,
   "fire.html": fire,
   "outlook.html": outlook,
   "recap.html": recap,
+  "seasonal.html": seasonal,
   "weekly.html": weekly,
   "tropical.html": tropical,
 };

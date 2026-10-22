@@ -24,6 +24,7 @@ const ABOUT: Record<string, string> = {
   "weekly.html": "the severe weather outlook for the next eight days, posted Sunday mornings",
   "tropical.html": "the latest National Hurricane Center advisory on a tropical storm or hurricane",
   "fire.html": "the latest on a large wildfire, from the National Interagency Fire Center",
+  "seasonal.html": "NOAA's Climate Prediction Center outlook for the next three months: where a warmer, colder, wetter or drier than normal season is more likely (odds, not a forecast of amounts), updated once a month",
 };
 
 const SYSTEM = `You are the narrator of Storm Central, a weather channel on YouTube. You write the voice-over for its Shorts: short vertical videos drawn from NOAA data. Each Short already has a plain script, one line per scene, and the video shows each scene while its line is read.
@@ -62,6 +63,14 @@ export function background(v: Pick<Video, "template" | "data">): string[] {
     if (fc.length) out.push(`Forecast: ${fc.map((p) => `${p.when}, ${p.stage}${typeof p.windMph === "number" ? ` with ${p.windMph} mph winds` : ""}`).join("; ")}.`);
     if (typeof s.windMph === "number" && typeof last?.windMph === "number" && last.windMph !== s.windMph)
       out.push(last.windMph > s.windMph ? "It is forecast to strengthen." : "It is forecast to weaken.");
+  } else if (v.template === "seasonal.html") {
+    const s = obj(d.season);
+    if (typeof d.issued === "string") out.push(`Issued ${d.issued} by NOAA's Climate Prediction Center.`);
+    if (typeof s.range === "string") out.push(`It covers ${s.range}.`);
+    for (const k of ["temp", "prcp"]) {
+      const panel = obj(d[k]).panel;
+      if (Array.isArray(panel)) out.push(...panel.filter((x): x is string => typeof x === "string").map((x) => `${k === "temp" ? "Temperature" : "Precipitation"}, ${x}.`));
+    }
   } else if (v.template === "fire.html") {
     const f = obj(d.fire);
     if (typeof f.name === "string") out.push(`The fire: the ${f.name}.`);
