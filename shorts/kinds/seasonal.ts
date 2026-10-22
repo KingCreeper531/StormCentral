@@ -14,8 +14,8 @@ import type { Kind, KindContext, Video } from "../video";
 
 /** CPC's outlook polygons as a NOAA map service, one layer per lead (layer 0 = lead 1). */
 const SERVICES = "https://mapservices.weather.noaa.gov/vector/rest/services/outlooks";
-/** About 3 km: plenty for a 1080-pixel US map, and a few hundred KB instead of 12 MB a layer. */
-const SIMPLIFY = "&outSR=4326&maxAllowableOffset=0.03&geometryPrecision=3";
+/** About 5 km, a pixel of the 1080-pixel US map: a few hundred KB instead of 12 MB a layer, and quick to draw. */
+const SIMPLIFY = "&outSR=4326&maxAllowableOffset=0.05&geometryPrecision=3";
 /** A scheduled run posts the update only while it's this fresh. */
 const FRESH_MS = 3 * 86_400_000;
 
@@ -178,16 +178,29 @@ export function regionLeans(fc: OutlookCollection, regions = REGIONS): Lean[] {
   return out;
 }
 
-/** "north", "south", "west" or "east" when (nearly) all of these regions lie that way; null otherwise. */
-export function sideOf(regions: Region[]): "north" | "south" | "west" | "east" | null {
+export type Side = "north" | "south" | "west" | "east" | "south and east" | "south and west" | "north and east" | "north and west";
+
+/**
+ * Which part of the country these regions are in: "north", "south", "west" or "east" when (nearly) all of them
+ * lie that way, or two sides ("south and east": NOAA's "southern tier and East Coast") when those cover nearly
+ * all of them; null otherwise.
+ */
+export function sideOf(regions: Region[]): Side | null {
   if (regions.length < 3) return null;
   const centre = (r: Region) => [r.points.reduce((s, p) => s + p[0], 0) / r.points.length, r.points.reduce((s, p) => s + p[1], 0) / r.points.length] as const;
   const tests = { north: (r: Region) => centre(r)[1] >= 38.5, south: (r: Region) => centre(r)[1] <= 37.5, west: (r: Region) => centre(r)[0] <= -104, east: (r: Region) => centre(r)[0] >= -90 };
-  for (const [side, test] of Object.entries(tests)) if (regions.filter(test).length >= regions.length * 0.7) return side as "north" | "south" | "west" | "east";
+  const share = (...sides: (keyof typeof tests)[]) => regions.filter((r) => sides.some((s) => tests[s](r))).length / regions.length;
+  for (const side of ["north", "south", "west", "east"] as const) if (share(side) >= 0.7) return side;
+  for (const ns of ["south", "north"] as const) for (const we of ["east", "west"] as const) if (share(ns, we) >= 0.85) return `${ns} and ${we}`;
   return null;
 }
 
-const SIDE_ES = { north: "el norte", south: "el sur", west: "el oeste", east: "el este" };
+const SIDE_ES: Record<Side, string> = {
+  north: "el norte", south: "el sur", west: "el oeste", east: "el este",
+  "south and east": "el sur y el este", "south and west": "el sur y el oeste", "north and east": "el norte y el este", "north and west": "el norte y el oeste",
+};
+/** "South and East" for titles. */
+const sideTitle = (side: Side) => side.replace(/\b(north|south|east|west)\b/g, (w) => cap(w));
 const WORD: Record<Variable, Record<"Above" | "Below", { en: string; es: string; adj: string }>> = {
   temp: { Above: { en: "Warmer", es: "Más cálido", adj: "warmer" }, Below: { en: "Colder", es: "Más frío", adj: "colder" } },
   prcp: { Above: { en: "Wetter", es: "Más húmedo", adj: "wetter" }, Below: { en: "Drier", es: "Más seco", adj: "drier" } },
@@ -205,14 +218,14 @@ function whereEn(leans: Lean[]): string {
   const side = sideOf(leans.map((l) => l.region));
   const top = strongest(leans).slice(0, 3).map((l) => l.region.the);
   if (side) return `across much of the ${side}, including ${list(top)}`;
-  return leans.length >= REGIONS.length * 0.6 ? `across most of the country, especially ${list(top)}` : `across ${list(top)} and ${leans.length - 3} more regions`;
+  return leans.length >= REGIONS.length * 0.6 ? `across most of the country, especially ${list(top)}` : `across ${top.join(", ")} and ${leans.length - 3} more regions`;
 }
 function whereEs(leans: Lean[]): string {
   if (leans.length <= 4) return `en ${list(inOrder(leans).map((l) => l.region.es), "y")}`;
   const side = sideOf(leans.map((l) => l.region));
   const top = strongest(leans).slice(0, 3).map((l) => l.region.es);
   if (side) return `en gran parte de ${SIDE_ES[side]}, incluidos ${list(top, "y")}`;
-  return leans.length >= REGIONS.length * 0.6 ? `en la mayor parte del país, sobre todo ${list(top, "y")}` : `en ${list(top, "y")} y ${leans.length - 3} regiones más`;
+  return leans.length >= REGIONS.length * 0.6 ? `en la mayor parte del país, sobre todo ${list(top, "y")}` : `en ${top.join(", ")} y ${leans.length - 3} regiones más`;
 }
 
 export interface VariableSummary {
@@ -263,7 +276,7 @@ export function summarize(variable: Variable, fc: OutlookCollection, season: Sea
     ]
       .filter(Boolean)
       .join(" "),
-    headline: lead ? `${lead.en} ${side ? cap(side) : strongest(first)[0]!.region.name}` : null,
+    headline: lead ? `${lead.en} ${side ? sideTitle(side) : strongest(first)[0]!.region.name}` : null,
     headlineEs: lead ? `${lead.es} en ${side ? SIDE_ES[side] : strongest(first)[0]!.region.es}` : null,
   };
 }

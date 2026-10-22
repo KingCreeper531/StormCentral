@@ -51,6 +51,9 @@ describe("seasonal outlook", () => {
     expect(sideOf(leans.map((l) => l.region))).toBe("north");
     expect(sideOf(REGIONS.filter((r) => ["Southwest", "Southern Plains", "Florida"].includes(r.name)))).toBe("south");
     expect(sideOf(REGIONS.slice(0, 2))).toBeNull();
+    // NOAA's 2026-27 winter: wetter across the southern tier and up the East Coast.
+    const wet = REGIONS.filter((r) => ["California", "Southwest", "Southern Plains", "Southeast", "Florida", "Mid-Atlantic", "Northeast", "Ohio Valley"].includes(r.name));
+    expect(sideOf(wet)).toBe("south and east");
   });
 
   it("writes the lines, the panel and the headline from the leans", () => {
