@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import type { RawAlertFeature } from "../src/lib/alerts";
-import { deletePost, pageInfo, postToPage } from "./facebook";
+import { deletePost, pageInfo, postToPage, secretProblems } from "./facebook";
 import { postedLastHour, warningPosts, withinCap, type PostState } from "./warning-posts";
 
 // The saved Moore scenario: a PDS tornado warning upgraded to a Tornado Emergency, and a plain tornado warning in Creek County.
@@ -83,5 +83,20 @@ describe("Facebook Graph API", () => {
     const err = await postToPage(page, "Hello", {}, f as unknown as typeof fetch).catch((e: Error) => e);
     expect(String(err)).toContain("Invalid OAuth access token.");
     expect(String(err)).not.toContain("page-token");
+  });
+});
+
+describe("Facebook secrets' shape", () => {
+  const token = `EAA${"x".repeat(180)}`;
+  it("finds nothing wrong with a Page token and a numeric id", () => {
+    expect(secretProblems("1234567890", token)).toEqual([]);
+  });
+  it("names quotes, swapped secrets, an App Secret, a cut-off token and a bad id, without the token", () => {
+    expect(secretProblems("1234567890", `"${token}"`)[0]).toMatch(/quotes/);
+    expect(secretProblems(token, "1234567890")[0]).toMatch(/swapped/);
+    expect(secretProblems("1234567890", "0123456789abcdef0123456789abcdef")[0]).toMatch(/doesn't start with "EAA" \(32 characters\)/);
+    expect(secretProblems("1234567890", "EAAabc")[0]).toMatch(/cut off/);
+    expect(secretProblems("storm-central", token)[0]).toMatch(/numeric id/);
+    for (const bad of [`"${token}"`, "EAAabc"]) for (const p of secretProblems("1", bad)) expect(p).not.toContain(bad.replace(/"/g, ""));
   });
 });
