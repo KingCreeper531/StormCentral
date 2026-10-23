@@ -1,0 +1,37 @@
+# The daily health check (shorts/health.ts): the Facebook Page token (valid,
+# not expiring within 10 days), the YouTube refresh token and the latest
+# upload, the Claude key, the website and app, and failed posting runs. A
+# problem fails the run, so GitHub sends one email; the run's summary lists
+# every check. Checks whose secrets aren't set are skipped.
+name: Health check
+
+on:
+  schedule:
+    # 12:40 UTC: 8:40 AM EDT / 7:40 AM EST, before the morning outlook.
+    - cron: "40 12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Build
+        run: npx --yes esbuild@0.28.2 shorts/health.ts --bundle --platform=node --format=esm --target=node22 --outfile="$RUNNER_TEMP/health.mjs" --log-level=warning
+      - name: Check
+        env:
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node "$RUNNER_TEMP/health.mjs"

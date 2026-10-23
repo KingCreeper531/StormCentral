@@ -1,0 +1,55 @@
+# Nightly backup of the database (scripts/backup-db.ts): the schema and every
+# row as SQL, gzipped and encrypted with BACKUP_PASSPHRASE, kept as this run's
+# artifact for 30 days. Needs the secrets DATABASE_URL and DATABASE_AUTH_TOKEN
+# (the same Turso values the site uses on Vercel) and BACKUP_PASSPHRASE (any
+# long passphrase; keep a copy somewhere safe: without it a backup can't be
+# opened). Restore: download the artifact, then
+#   BACKUP_PASSPHRASE=... node backup-db.mjs decrypt backup.sql.gz.enc
+#   turso db shell <database> < backup.sql
+name: Database backup
+
+on:
+  schedule:
+    # 07:20 UTC, the quietest hour for the US.
+    - cron: "20 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      HAS_DB: ${{ secrets.DATABASE_URL != '' && secrets.BACKUP_PASSPHRASE != '' }}
+    steps:
+      - name: Without the database secrets there's nothing to do
+        if: env.HAS_DB != 'true'
+        run: echo "::notice::Add the DATABASE_URL, DATABASE_AUTH_TOKEN and BACKUP_PASSPHRASE secrets to back up the database (see this workflow's header)."
+      - uses: actions/checkout@v5
+        if: env.HAS_DB == 'true'
+      - uses: actions/setup-node@v5
+        if: env.HAS_DB == 'true'
+        with:
+          node-version: 22
+      - name: Build
+        if: env.HAS_DB == 'true'
+        run: |
+          npm install --prefix "$RUNNER_TEMP/backup" --no-audit --no-fund --silent @libsql/client@0.18.0
+          npx --yes esbuild@0.28.2 scripts/backup-db.ts --bundle --platform=node --format=esm --target=node22 --external:@libsql/client --outfile="$RUNNER_TEMP/backup/backup-db.mjs" --log-level=warning
+      - name: Back up
+        if: env.HAS_DB == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          BACKUP_OUT: backup.sql.gz.enc
+        run: node "$RUNNER_TEMP/backup/backup-db.mjs"
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_DB == 'true'
+        with:
+          name: database-backup-${{ github.run_id }}
+          path: backup.sql.gz.enc
+          retention-days: 30
+          if-no-files-found: error
