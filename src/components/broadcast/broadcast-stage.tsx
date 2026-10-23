@@ -94,9 +94,13 @@ export function BroadcastStage({
   const scene = tour.current;
   const lower = useMemo<LowerThird>(() => {
     if (activeAlert) return warningLowerThird(activeAlert, timeZone, t);
-    if (scene) return { title: scene.name.toUpperCase(), subtitle: title, color: s.accent, ends: null };
-    return { title: (placeName || title).toUpperCase(), subtitle: title, color: s.accent, ends: null };
-  }, [activeAlert, scene, title, placeName, timeZone, t, s.accent]);
+    // A warning keeps its own words and colour; otherwise the look's title, subtitle and bar colour apply.
+    const L = s.look;
+    const subtitle = L.lowerSubtitle.trim() || title;
+    const color = L.lowerColor ?? s.accent;
+    if (scene) return { title: scene.name.toUpperCase(), subtitle, color, ends: null };
+    return { title: (L.lowerTitle.trim() || placeName || title).toUpperCase(), subtitle, color, ends: null };
+  }, [activeAlert, scene, title, placeName, timeZone, t, s.accent, s.look]);
   const lowerKey = activeAlert?.id ?? scene?.id ?? "view";
 
   // The logo, decoded once for exported frames.
@@ -120,11 +124,12 @@ export function BroadcastStage({
           accent: s.accent,
           logo: logo.current?.complete && logo.current.naturalWidth ? logo.current : null,
           parts: { bug: s.parts.bug, clock: s.parts.clock, lower: s.parts.lower, ticker: s.parts.ticker },
+          look: s.look,
           lower,
           ticker: tickerItems(warnings, timeZone, t),
           // Frames that aren't observed say what they are, like the radar legend.
           timeLabel: frame.nowcast ? t("Extrapolated").toLocaleUpperCase(t.locale) : frame.forecast ? t("HRRR forecast").toLocaleUpperCase(t.locale) : t("RADAR"),
-          tickerLabel: t("WARNINGS"),
+          tickerLabel: s.look.tickerLabel.trim() || t("WARNINGS"),
           liveLabel: t("LIVE"),
         },
         frame.time,

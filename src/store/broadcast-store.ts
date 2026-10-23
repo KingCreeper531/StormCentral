@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { cleanLook, DEFAULT_LOOK, type BroadcastLook } from "@/lib/broadcast/look";
 
 /**
  * Broadcast mode's settings (components/broadcast): the station's name, tag
@@ -37,12 +38,16 @@ export interface BroadcastSettings {
   scenes: BroadcastScene[];
   /** Seconds on each scene during a tour. */
   tourSeconds: number;
+  /** How the lower third and the ticker look. */
+  look: BroadcastLook;
   /** Open in Broadcast mode when the app starts (this device only: not synced). */
   boot: boolean;
 }
 
 interface BroadcastState extends BroadcastSettings {
-  set: (patch: Partial<Omit<BroadcastSettings, "parts" | "scenes">>) => void;
+  set: (patch: Partial<Omit<BroadcastSettings, "parts" | "scenes" | "look">>) => void;
+  setLook: (patch: Partial<BroadcastLook>) => void;
+  resetLook: (keys: readonly (keyof BroadcastLook)[]) => void;
   setPart: (part: keyof BroadcastParts, on: boolean) => void;
   addScene: (scene: Omit<BroadcastScene, "id">) => void;
   removeScene: (id: string) => void;
@@ -64,6 +69,7 @@ const DEFAULTS: BroadcastSettings = {
   parts: { bug: true, clock: true, counts: true, lower: true, ticker: true },
   scenes: [],
   tourSeconds: 15,
+  look: DEFAULT_LOOK,
   boot: false,
 };
 
@@ -87,6 +93,8 @@ export const useBroadcastStore = create<BroadcastState>()(
           logo: patch.logo === undefined ? s.logo : patch.logo && patch.logo.length <= MAX_LOGO_CHARS && patch.logo.startsWith("data:image/png") ? patch.logo : null,
           tourSeconds: patch.tourSeconds != null && (TOUR_SECONDS as readonly number[]).includes(patch.tourSeconds) ? patch.tourSeconds : s.tourSeconds,
         })),
+      setLook: (patch) => set((s) => ({ look: cleanLook(patch, s.look) })),
+      resetLook: (keys) => set((s) => ({ look: { ...s.look, ...Object.fromEntries(keys.map((k) => [k, DEFAULT_LOOK[k]])) } })),
       setPart: (part, on) => set((s) => ({ parts: { ...s.parts, [part]: on } })),
       addScene: (scene) =>
         set((s) => ({ scenes: [...s.scenes, { ...scene, name: scene.name.slice(0, 40), id: Math.random().toString(36).slice(2, 10) }].slice(-MAX_SCENES) })),
@@ -105,7 +113,7 @@ export const useBroadcastStore = create<BroadcastState>()(
       name: "stormcentral:broadcast:v1",
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: ({ name, tagline, logo, accent, live, parts, scenes, tourSeconds, boot }) => ({ name, tagline, logo, accent, live, parts, scenes, tourSeconds, boot }),
+      partialize: ({ name, tagline, logo, accent, live, parts, scenes, tourSeconds, look, boot }) => ({ name, tagline, logo, accent, live, parts, scenes, tourSeconds, look, boot }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<BroadcastSettings>;
         const parts = { ...DEFAULTS.parts };
@@ -120,6 +128,7 @@ export const useBroadcastStore = create<BroadcastState>()(
           parts,
           scenes: (Array.isArray(p.scenes) ? p.scenes.filter(validScene) : []).slice(0, MAX_SCENES),
           tourSeconds: (TOUR_SECONDS as readonly number[]).includes(p.tourSeconds as number) ? (p.tourSeconds as number) : DEFAULTS.tourSeconds,
+          look: cleanLook(p.look),
           boot: p.boot === true,
         };
       },
