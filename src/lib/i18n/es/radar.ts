@@ -453,4 +453,5 @@ export const RADAR: Record<string, string> = {
   "Stop drawing": "Dejar de dibujar",
   "Label text": "Texto de la etiqueta",
   "Type, then Enter": "Escribe y pulsa Enter",
+  "Layers and plugins": "Capas y plugins",
 };

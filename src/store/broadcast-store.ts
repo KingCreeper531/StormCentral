@@ -37,6 +37,8 @@ export interface BroadcastSettings {
   scenes: BroadcastScene[];
   /** Seconds on each scene during a tour. */
   tourSeconds: number;
+  /** Open in Broadcast mode when the app starts (this device only: not synced). */
+  boot: boolean;
 }
 
 interface BroadcastState extends BroadcastSettings {
@@ -62,6 +64,7 @@ const DEFAULTS: BroadcastSettings = {
   parts: { bug: true, clock: true, counts: true, lower: true, ticker: true },
   scenes: [],
   tourSeconds: 15,
+  boot: false,
 };
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -102,7 +105,7 @@ export const useBroadcastStore = create<BroadcastState>()(
       name: "stormcentral:broadcast:v1",
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: ({ name, tagline, logo, accent, live, parts, scenes, tourSeconds }) => ({ name, tagline, logo, accent, live, parts, scenes, tourSeconds }),
+      partialize: ({ name, tagline, logo, accent, live, parts, scenes, tourSeconds, boot }) => ({ name, tagline, logo, accent, live, parts, scenes, tourSeconds, boot }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<BroadcastSettings>;
         const parts = { ...DEFAULTS.parts };
@@ -117,6 +120,7 @@ export const useBroadcastStore = create<BroadcastState>()(
           parts,
           scenes: (Array.isArray(p.scenes) ? p.scenes.filter(validScene) : []).slice(0, MAX_SCENES),
           tourSeconds: (TOUR_SECONDS as readonly number[]).includes(p.tourSeconds as number) ? (p.tourSeconds as number) : DEFAULTS.tourSeconds,
+          boot: p.boot === true,
         };
       },
     },
