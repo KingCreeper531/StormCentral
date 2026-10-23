@@ -30,9 +30,10 @@ describe("health check", () => {
       if (String(url).includes("stormcentralwx.com")) return new Response("ok");
       throw new Error("network down");
     });
-    const checks = await runChecks({}, f as unknown as typeof fetch, NOW);
+    const checks = await runChecks({ ANTHROPIC_API_KEY: "k" }, f as unknown as typeof fetch, NOW);
     expect(checks.find((c) => c.name === "Facebook Page token")?.level).toBe("skip");
     expect(checks.find((c) => c.name === "YouTube")?.level).toBe("skip");
+    expect(checks.find((c) => c.name.startsWith("Anthropic"))?.level).toBe("warn");
     expect(checks.filter((c) => c.name.includes("stormcentralwx.com")).map((c) => c.level)).toEqual(["ok", "ok"]);
     expect(report(checks)).toMatch(/^## All good/);
   });

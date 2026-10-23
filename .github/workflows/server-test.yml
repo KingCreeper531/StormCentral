@@ -133,7 +133,7 @@ jobs:
       - name: Answers for setup.sh
         run: |
           sudo mkdir -p /etc/stormcentral
-          printf 'DOMAIN=\nYT_STREAM_KEY=ci-dummy-key\nYT_VERTICAL_STREAM_KEY=ci-dummy-vertical\nYT_CLIENT_ID=\nYT_CLIENT_SECRET=\nYT_REFRESH_TOKEN=\nGEMINI_API_KEY=\nSTREAM_EXTRA_OUTPUTS=\nAI=yes\nAPP_DOMAIN=\nWATCHER_IP=\nWATCH_DOMAIN=\nWATCH_IP=\nCF_API_TOKEN=\nBACKUP_HOST=storm-central-pi.vercel.app\nNTFY_TOPIC=\n' | sudo tee /etc/stormcentral/setup.env > /dev/null
+          printf 'DOMAIN=\nYT_STREAM_KEY=ci-dummy-key\nYT_VERTICAL_STREAM_KEY=ci-dummy-vertical\nYT_CLIENT_ID=\nYT_CLIENT_SECRET=\nYT_REFRESH_TOKEN=\nANTHROPIC_API_KEY=\nGEMINI_API_KEY=\nSTREAM_EXTRA_OUTPUTS=\nAI=yes\nAPP_DOMAIN=\nWATCHER_IP=\nWATCH_DOMAIN=\nWATCH_IP=\nCF_API_TOKEN=\nBACKUP_HOST=storm-central-pi.vercel.app\nNTFY_TOPIC=\n' | sudo tee /etc/stormcentral/setup.env > /dev/null
       - name: Install the stream and the local AI with vps/setup.sh
         run: sudo STORMCENTRAL_BRANCH="$BRANCH" bash vps/setup.sh < /dev/null
       - name: Everything the stream needs is in place, and it starts

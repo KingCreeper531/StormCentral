@@ -15,7 +15,7 @@
  * - Commentary: every few minutes during warnings, the storm's position,
  *   motion, the towns in its path with arrival times, and nearby reports,
  *   worked out exactly (analysis.ts) and put into words by the best AI
- *   available (llm.ts: Gemini, an OpenAI-compatible API, the local
+ *   available (llm.ts: the Anthropic API, Gemini, an OpenAI-compatible API, the local
  *   model), each version fact-checked before it's read; a briefing every 20
  *   minutes when it's quiet.
  * - YouTube: the title follows what's happening, and each warning read out

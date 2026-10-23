@@ -6,6 +6,7 @@
  *   - the Facebook Page token (valid, and not expiring within EXPIRY_DAYS;
  *     a 1-hour token once took the warning posts down)
  *   - the YouTube refresh token, and that a Short went up in the last day
+ *   - the Anthropic API key the Shorts' narration uses
  *   - the website and the app answering
  *   - failed runs of the posting workflows in the last day
  *
@@ -14,6 +15,7 @@
  * isn't set.
  */
 import { appendFileSync } from "node:fs";
+import { ANTHROPIC_API, ANTHROPIC_VERSION } from "./anthropic";
 import { pageFromEnv } from "./facebook";
 import { accessToken, credentialsFromEnv } from "./youtube";
 
@@ -96,6 +98,14 @@ async function youtube(env: Record<string, string | undefined>, f: Fetch): Promi
   return [...out, uploadCheck(items.items?.[0]?.contentDetails?.videoPublishedAt ?? null)];
 }
 
+async function anthropicKey(env: Record<string, string | undefined>, f: Fetch): Promise<Check> {
+  const name = "Anthropic API key (Shorts narration)";
+  if (!env.ANTHROPIC_API_KEY) return { name, level: "skip", detail: "ANTHROPIC_API_KEY isn't set (the Shorts use the plain script)." };
+  // Listing models costs nothing and proves the key works.
+  const res = await f(`${ANTHROPIC_API}/models?limit=1`, { headers: { "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": ANTHROPIC_VERSION }, signal: AbortSignal.timeout(20_000) });
+  return res.ok ? { name, level: "ok", detail: "Works." } : { name, level: "warn", detail: `Rejected (${res.status}); the Shorts fall back to the plain script.` };
+}
+
 async function sites(f: Fetch): Promise<Check[]> {
   return Promise.all(
     ["https://www.stormcentralwx.com", "https://app.stormcentralwx.com"].map(async (url) => {
@@ -152,6 +162,7 @@ export async function runChecks(env: Record<string, string | undefined> = proces
     await Promise.all([
       safe("Facebook Page token", facebook(env, f)),
       safe("YouTube", youtube(env, f)),
+      safe("Anthropic API key", anthropicKey(env, f)),
       safe("Sites", sites(f)),
       safe("Posting workflows", workflows(env, f, now)),
     ])

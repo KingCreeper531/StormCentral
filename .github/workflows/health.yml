@@ -1,6 +1,6 @@
 # The daily health check (shorts/health.ts): the Facebook Page token (valid,
 # not expiring within 10 days), the YouTube refresh token and the latest
-# upload, the website and app, and failed posting runs. A
+# upload, the Anthropic key, the website and app, and failed posting runs. A
 # problem fails the run, so GitHub sends one email; the run's summary lists
 # every check. Checks whose secrets aren't set are skipped.
 name: Health check
@@ -32,5 +32,6 @@ jobs:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         run: node "$RUNNER_TEMP/health.mjs"

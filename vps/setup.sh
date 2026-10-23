@@ -36,7 +36,7 @@ warn() { printf '\033[1;33m!!  %s\033[0m\n' "$*"; }
 # ── Your settings ───────────────────────────────────────────────────────────
 mkdir -p "$CONF"
 chmod 755 "$CONF"
-DOMAIN="" YT_STREAM_KEY="" YT_VERTICAL_STREAM_KEY="" YT_CLIENT_ID="" YT_CLIENT_SECRET="" YT_REFRESH_TOKEN="" GEMINI_API_KEY="" STREAM_EXTRA_OUTPUTS="" AI="no" APP_DOMAIN="" WATCHER_IP="" WATCH_DOMAIN="" WATCH_IP="" CF_API_TOKEN="" NTFY_TOPIC="" BACKUP_HOST="storm-central-pi.vercel.app"
+DOMAIN="" YT_STREAM_KEY="" YT_VERTICAL_STREAM_KEY="" YT_CLIENT_ID="" YT_CLIENT_SECRET="" YT_REFRESH_TOKEN="" ANTHROPIC_API_KEY="" GEMINI_API_KEY="" STREAM_EXTRA_OUTPUTS="" AI="no" APP_DOMAIN="" WATCHER_IP="" WATCH_DOMAIN="" WATCH_IP="" CF_API_TOKEN="" NTFY_TOPIC="" BACKUP_HOST="storm-central-pi.vercel.app"
 # shellcheck disable=SC1090
 [ -f "$SETTINGS" ] && . "$SETTINGS"
 
@@ -75,6 +75,7 @@ if [ -n "$YT_STREAM_KEY" ]; then
 fi
 if [ -n "$YT_STREAM_KEY" ]; then
   echo "Optional: the AI that words the stream's commentary, best first. Each is fact-checked before it's read."
+  ask ANTHROPIC_API_KEY "Anthropic API key (Haiku, a few dollars a month; empty to skip)" secret
   ask GEMINI_API_KEY "Google AI Studio API key (Gemini, free tier; empty to skip)" secret
   ask STREAM_EXTRA_OUTPUTS "Other platforms, RTMP URLs with keys, space-separated (Twitch, Kick…)"
 fi
@@ -102,7 +103,7 @@ if [ -n "$APP_DOMAIN" ] && [ -n "$WATCH_DOMAIN" ]; then
   exit 1
 fi
 umask 077
-for v in DOMAIN YT_STREAM_KEY YT_VERTICAL_STREAM_KEY YT_CLIENT_ID YT_CLIENT_SECRET YT_REFRESH_TOKEN GEMINI_API_KEY STREAM_EXTRA_OUTPUTS AI APP_DOMAIN WATCHER_IP WATCH_DOMAIN WATCH_IP CF_API_TOKEN BACKUP_HOST NTFY_TOPIC; do printf '%s=%q\n' "$v" "${!v}"; done >"$SETTINGS"
+for v in DOMAIN YT_STREAM_KEY YT_VERTICAL_STREAM_KEY YT_CLIENT_ID YT_CLIENT_SECRET YT_REFRESH_TOKEN ANTHROPIC_API_KEY GEMINI_API_KEY STREAM_EXTRA_OUTPUTS AI APP_DOMAIN WATCHER_IP WATCH_DOMAIN WATCH_IP CF_API_TOKEN BACKUP_HOST NTFY_TOPIC; do printf '%s=%q\n' "$v" "${!v}"; done >"$SETTINGS"
 umask 022
 
 # The web app's settings: the same environment variables as on Vercel (Settings → Environment Variables).
@@ -246,13 +247,14 @@ if [ -n "$YT_STREAM_KEY" ]; then
 
   umask 027
   # The answers and paths are rewritten; any other setting already in the file (changed by hand) is kept.
-  local answered="YT_STREAM_KEY YT_CLIENT_ID YT_CLIENT_SECRET YT_REFRESH_TOKEN GEMINI_API_KEY STREAM_EXTRA_OUTPUTS STREAM_PLACES OLLAMA_MODEL STREAM_RUNTIME PLAYWRIGHT_BROWSERS_PATH"
+  local answered="YT_STREAM_KEY YT_CLIENT_ID YT_CLIENT_SECRET YT_REFRESH_TOKEN ANTHROPIC_API_KEY GEMINI_API_KEY STREAM_EXTRA_OUTPUTS STREAM_PLACES OLLAMA_MODEL STREAM_RUNTIME PLAYWRIGHT_BROWSERS_PATH"
   {
     cat <<EOF
 YT_STREAM_KEY=$YT_STREAM_KEY
 YT_CLIENT_ID=$YT_CLIENT_ID
 YT_CLIENT_SECRET=$YT_CLIENT_SECRET
 YT_REFRESH_TOKEN=$YT_REFRESH_TOKEN
+ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
 GEMINI_API_KEY=$GEMINI_API_KEY
 STREAM_EXTRA_OUTPUTS=$STREAM_EXTRA_OUTPUTS
 STREAM_PLACES=$RUNTIME/places.tsv

@@ -190,6 +190,27 @@ describe("livelyNarration", () => {
     expect(await livelyNarration(v, plain, 20, { fetch, log: quiet })).toEqual(plain);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
+
+  it("asks the Anthropic API instead when there's a key, for JSON in the script's shape", async () => {
+    const lines = ["Monday, October 19: let's talk storms!", "Tornado odds top out at 10 percent.", "Damaging winds, up to 15 percent."];
+    const fetch = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
+      Response.json({ content: [{ type: "text", text: JSON.stringify({ lines }) }], stop_reason: "end_turn" }),
+    );
+    const cues = await livelyNarration(v, plain, 20, { fetch: fetch as unknown as typeof globalThis.fetch, anthropicKey: "sk-test", log: quiet });
+    expect(cues.map((c) => c.text)).toEqual(lines);
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(url).toBe("https://api.anthropic.com/v1/messages");
+    expect((init.headers as Record<string, string>)["x-api-key"]).toBe("sk-test");
+    const body = JSON.parse(init.body as string);
+    expect(body).toMatchObject({ model: "claude-haiku-5-5", thinking: { type: "disabled" }, output_config: { format: { type: "json_schema" } } });
+    expect(body.temperature).toBeUndefined();
+  });
+
+  it("reads the plain script when the Anthropic API turns the key away, without asking twice", async () => {
+    const fetch = vi.fn(async () => new Response('{"error":{"message":"invalid x-api-key"}}', { status: 401 }));
+    expect(await livelyNarration(v, plain, 20, { fetch, anthropicKey: "bad", log: quiet })).toEqual(plain);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("longestRewrite", () => {
