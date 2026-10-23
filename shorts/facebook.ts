@@ -103,4 +103,32 @@ export async function postPhoto(page: FacebookPage, image: Buffer, message: stri
   return json.post_id ?? json.id;
 }
 
+/**
+ * A Reel on the Page from a vertical video (the Shorts: 1080x1920, 3 to 90
+ * seconds): Meta's three steps, start (a video id and an upload address),
+ * the bytes, then finish with the description and published. Returns the id.
+ */
+export async function postReel(page: FacebookPage, video: Buffer, description: string, f: Fetch = fetch): Promise<string> {
+  const start = await graph<{ video_id?: string; upload_url?: string }>(page, "POST", `${page.id}/video_reels`, { upload_phase: "start" }, f);
+  if (!start.video_id || !start.upload_url) throw new FacebookError("Facebook didn't give a Reel upload address", 500);
+  const up = await f(start.upload_url, {
+    method: "POST",
+    headers: { Authorization: `OAuth ${page.token}`, offset: "0", file_size: String(video.length), "Content-Type": "application/octet-stream" },
+    body: new Uint8Array(video),
+    signal: AbortSignal.timeout(300_000),
+  });
+  const upJson = (await up.json().catch(() => ({}))) as { success?: boolean; debug_info?: { message?: string } };
+  if (!up.ok || upJson.success === false) throw new FacebookError(`Facebook Reel upload failed (${up.status}): ${upJson.debug_info?.message ?? "no details"}`, up.status);
+  const done = await graph<{ success?: boolean }>(page, "POST", `${page.id}/video_reels`, { upload_phase: "finish", video_id: start.video_id, video_state: "PUBLISHED", description }, f);
+  if (done.success === false) throw new FacebookError("Facebook didn't publish the Reel", 500);
+  return start.video_id;
+}
+
+/** A Short's YouTube title and description as a Reel's: the title without #shorts, the first paragraph, the site and the hashtags. */
+export function reelDescription(title: string, description: string): string {
+  const paras = description.split(/\n\n+/);
+  const tags = paras.find((p) => /^#\w/.test(p.trim()))?.replace(/\s*#shorts\b/gi, "").trim();
+  return [title.replace(/\s*#shorts\b/gi, "").trim(), paras[0]?.trim(), "Live radar and alerts, free: https://www.stormcentralwx.com", tags].filter(Boolean).join("\n\n");
+}
+
 export const deletePost = (page: FacebookPage, postId: string, f?: Fetch) => graph<{ success?: boolean }>(page, "DELETE", postId, {}, f);

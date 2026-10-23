@@ -32,6 +32,7 @@
  *   SHORTS_SKIP_QUIET=true outlook: no video on days without a severe risk
  *   SHORTS_VOICE=false     no narrator (otherwise edge-tts reads a script timed to the scenes; see voice.ts)
  *   SHORTS_VOICE_NAME      the narrator's voice (default en-US-AndrewNeural)
+ *   FB_PAGE_TOKEN          also post each uploaded Short as a Reel on the Facebook Page (FB_REELS=false to stop)
  *   SHORTS_AI=true         livelier narration: a model rewrites the script, every line checked against the facts (script.ts)
  *   ANTHROPIC_API_KEY      the model is Claude (SHORTS_CLAUDE_MODEL, default claude-haiku-5-5) instead of Ollama
  *   SHORTS_AI_MODEL        the Ollama model, without a Claude key (default gemma3:12b)
@@ -48,7 +49,7 @@
  *   SHORTS_FIXTURES        a folder of saved source files to use instead of fetching (testing)
  *   SHORTS_SAVE            a folder to save the fetched source files into (to make fixtures)
  */
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { breakingKind } from "./kinds/breaking";
 import { fireKind } from "./kinds/fire";
@@ -61,6 +62,7 @@ import { snowKind } from "./kinds/snow";
 import { tropicalKind } from "./kinds/tropical";
 import { weeklyKind } from "./kinds/weekly";
 import { narration, type Cue } from "./narration";
+import { pageFromEnv, postReel, reelDescription, resolvePage } from "./facebook";
 import { renderShort, renderStill } from "./render";
 import { livelyNarration } from "./script";
 import type { Kind, Video } from "./video";
@@ -195,6 +197,18 @@ async function main() {
     } catch (err) {
       console.error(`Uploading ${v.key} failed: ${err instanceof Error ? err.message : err}`);
       failed = err;
+      continue;
+    }
+    // The Shorts also go up as Reels on the Facebook Page (with FB_PAGE_TOKEN; FB_REELS=false to stop). A Reel that
+    // fails is a warning only: the YouTube upload is what the run is for.
+    const fb = pageFromEnv(env);
+    if (fb && !v.size && env.FB_REELS !== "false") {
+      await resolvePage(fb)
+        .then(({ page }) => postReel(page, readFileSync(out), reelDescription(v.title, v.description)))
+        .then(
+          (id) => console.log(`Posted to Facebook as a Reel (${id}).`),
+          (err: unknown) => console.warn(`::warning::Couldn't post the Reel: ${err instanceof Error ? err.message : err}`),
+        );
     }
   }
 

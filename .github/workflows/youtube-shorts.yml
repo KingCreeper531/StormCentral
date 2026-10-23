@@ -212,6 +212,9 @@ jobs:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          # Each uploaded Short also goes up as a Reel on the Facebook Page (FB_REELS = false to stop).
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          FB_REELS: ${{ vars.FB_REELS }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SHORTS_CLAUDE_MODEL: ${{ vars.SHORTS_CLAUDE_MODEL }}
           SHORTS_UPLOAD: ${{ (github.event_name == 'schedule' || inputs.upload || inputs.scheduled) && '1' || '0' }}

@@ -246,6 +246,7 @@ Meta's Graph API is free.
 | `FB_SEVERE` | destructive only | `all` for every Severe Thunderstorm Warning (hundreds a day in spring) |
 | `FB_POSTS_PER_HOUR` | `12` | at most this many an hour; on a big outbreak the rest are skipped, the most dangerous posted first |
 | `FB_CARDS` | on | `false` to post text and a link without the picture |
+| `FB_REELS` | on | `false` to stop posting each Short to the Page as a Reel too (`youtube-shorts.yml`, `youtube-breaking.yml`; full-length videos never are) |
 
 ## A reliable schedule (cron-job.org)
 
