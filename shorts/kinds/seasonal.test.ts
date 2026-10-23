@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { narration } from "../narration";
-import { oddsAt, pickLead, REGIONS, regionLeans, rewind, seasonalText, seasonOf, sideOf, summarize, type OutlookCollection, type OutlookFeature } from "./seasonal";
+import { drawn, oddsAt, pickLead, REGIONS, regionLeans, rewind, seasonalText, seasonOf, sideOf, summarize, withoutSpecks, type OutlookCollection, type OutlookFeature } from "./seasonal";
 
 /** A lon/lat box as a CPC outlook polygon. */
 const box = (cat: string, prob: number, [w, s, e, n]: [number, number, number, number], holes: number[][][] = []): OutlookFeature => ({
@@ -21,14 +21,31 @@ describe("seasonal outlook", () => {
     const mainland = [[-150, 60], [-140, 60], [-140, 65], [-150, 65], [-150, 60]];
     expect(rewind([mainland])[0]).toEqual([...mainland].reverse());
     expect(rewind([[...mainland].reverse()])[0]).toEqual([...mainland].reverse());
-    // The Aleutians, 170°E to 165°W, counterclockwise. Measured the long way round this ring
-    // looked clockwise and was left as it was, which d3 drew as the whole globe but Alaska:
-    // the Winter Outlook's all-orange map.
+    // The Aleutians, 170°E to 165°W, counterclockwise: measured the long way round this ring
+    // would look clockwise and be left as it was, which d3 would draw as the whole globe.
     const aleutians = [[170, 50], [-165, 50], [-165, 56], [170, 56], [170, 50]];
     expect(rewind([aleutians])[0]).toEqual([...aleutians].reverse());
     // Holes go the other way.
     const hole = [[-145, 61], [-145, 63], [-142, 63], [-142, 61], [-145, 61]];
     expect(rewind([mainland, hole])[1]).toEqual([...hole].reverse());
+  });
+
+  it("drops the specks CPC's simplified shapes are full of (one drew the Winter Outlook all orange)", () => {
+    const square = (x: number, y: number, k: number) => [[x, y], [x + k, y], [x + k, y + k], [x, y + k], [x, y]];
+    // Flattened to a line along a parallel: no area, so no telling which way round it goes.
+    const flat = [[-150, 60], [-149.95, 60], [-149.9, 60], [-150, 60]];
+    expect(withoutSpecks([[square(-150, 60, 1)], [flat], [square(-140, 60, 0.01)], [[[-150, 60], [-149, 61], [-150, 60]]]])).toEqual([[square(-150, 60, 1)]]);
+    // A speck of a hole goes; a real hole stays; a polygon whose outer ring is a speck goes with its holes.
+    expect(withoutSpecks([[square(-100, 30, 10), square(-96, 34, 1), square(-90, 35, 0.001)]])).toEqual([[square(-100, 30, 10), square(-96, 34, 1)]]);
+    // Like the real Alaska piece: hundreds of fragments with specks among them. Every polygon left is wound
+    // clockwise for d3 (negative planar area) and the shape is drawn as a MultiPolygon.
+    const pieces = [[square(-147, 60, 0.5)], [flat], [square(-145, 61, 0.3)], [[[-146, 62], [-145.9, 62], [-145.8, 62], [-146, 62]]]];
+    const out = drawn(fc({ type: "Feature", geometry: { type: "MultiPolygon", coordinates: pieces }, properties: { cat: "Above", prob: 50 } }, { type: "Feature", geometry: { type: "Polygon", coordinates: [flat] }, properties: { cat: "Below", prob: 40 } }));
+    expect(out.features).toHaveLength(1);
+    const polys = out.features[0]!.geometry.coordinates;
+    expect(polys).toHaveLength(2);
+    const planar = (r: number[][]) => r.reduce((t, [x, y], i) => t + x! * r[(i + 1) % r.length]![1]! - r[(i + 1) % r.length]![0]! * y!, 0);
+    for (const p of polys) expect(planar(p[0]!)).toBeLessThan(0);
   });
 
   it("reads CPC's seasons, across the new year too", () => {
