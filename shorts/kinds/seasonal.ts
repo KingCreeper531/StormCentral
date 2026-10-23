@@ -324,8 +324,23 @@ export function seasonalText(season: Season, temp: VariableSummary, prcp: Variab
   };
 }
 
-/** Twice the ring's area in lon/lat, positive when it runs counterclockwise. */
-const signedArea = (ring: number[][]) => ring.reduce((sum, [x, y], i) => sum + x! * ring[(i + 1) % ring.length]![1]! - ring[(i + 1) % ring.length]![0]! * y!, 0);
+/**
+ * Twice the ring's area in lon/lat, positive when it runs counterclockwise. Longitudes are
+ * unwrapped first, so a ring across the 180th meridian (the Aleutians: 172°E next to 165°W)
+ * is measured the short way round, as d3 draws it; measured the long way its direction comes
+ * out backwards, and the "fixed" ring then covers the whole globe but Alaska.
+ */
+function signedArea(ring: number[][]): number {
+  const pts: number[][] = [];
+  for (const [x, y] of ring) {
+    const prev = pts[pts.length - 1];
+    let lon = x!;
+    if (prev) while (lon - prev[0]! > 180) lon -= 360;
+    if (prev) while (prev[0]! - lon > 180) lon += 360;
+    pts.push([lon, y!]);
+  }
+  return pts.reduce((sum, [x, y], i) => sum + x! * pts[(i + 1) % pts.length]![1]! - pts[(i + 1) % pts.length]![0]! * y!, 0);
+}
 /**
  * d3-geo takes a polygon's outer ring clockwise and its holes counterclockwise (on the sphere,
  * either way round is a valid polygon, so the other order is the whole globe but this shape),
