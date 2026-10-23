@@ -176,6 +176,8 @@ export interface PostState {
   levels: Record<string, number>;
   /** Warning → when it was last posted (ms), for the hourly cap and forgetting old ones. */
   at: Record<string, number>;
+  /** When a run last failed because Facebook turned the token down (ms), so that fails once a day, not every run. */
+  tokenFailedAt?: number;
 }
 
 const FILE = "facebook-warnings.json";
@@ -183,7 +185,7 @@ const FILE = "facebook-warnings.json";
 export function loadPostState(dir: string): PostState {
   try {
     const v = JSON.parse(readFileSync(join(dir, FILE), "utf8")) as Partial<PostState>;
-    return { levels: v.levels ?? {}, at: v.at ?? {} };
+    return { levels: v.levels ?? {}, at: v.at ?? {}, ...(typeof v.tokenFailedAt === "number" ? { tokenFailedAt: v.tokenFailedAt } : {}) };
   } catch {
     return { levels: {}, at: {} };
   }
@@ -197,6 +199,17 @@ export function savePostState(dir: string, s: PostState, now = Date.now()) {
     }
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, FILE), JSON.stringify(s, null, 2));
+}
+
+const DAY = 86_400_000;
+
+/**
+ * Whether a run that Facebook turned down for the token should fail (and
+ * email): the first time, then once a day while it stays broken. Runs come
+ * every few minutes, and the daily health check reports the token too.
+ */
+export function failForToken(s: PostState, now = Date.now()): boolean {
+  return s.tokenFailedAt == null || now - s.tokenFailedAt >= DAY;
 }
 
 export const postedLastHour = (s: PostState, now = Date.now()) => Object.values(s.at).filter((at) => now - at < 3_600_000).length;

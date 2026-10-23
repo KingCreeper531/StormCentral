@@ -1,8 +1,10 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { RawAlertFeature } from "../src/lib/alerts";
-import { deletePost, pageFromEnv, pageInfo, postPhoto, postReel, postToPage, reelDescription, resolvePage, secretProblems } from "./facebook";
-import { postedLastHour, warningPosts, withinCap, type PostState } from "./warning-posts";
+import { deletePost, FacebookError, isTokenProblem, pageFromEnv, pageInfo, postPhoto, postReel, postToPage, reelDescription, resolvePage, secretProblems } from "./facebook";
+import { failForToken, loadPostState, postedLastHour, savePostState, warningPosts, withinCap, type PostState } from "./warning-posts";
 
 // The saved Moore scenario: a PDS tornado warning upgraded to a Tornado Emergency, and a plain tornado warning in Creek County.
 const FEATURES = (JSON.parse(readFileSync("shorts/fixtures/breaking/tornado-emergency/nws-active.json", "utf8")) as { features: RawAlertFeature[] }).features;
@@ -165,5 +167,29 @@ describe("Reels", () => {
     expect(reelDescription("Snow Totals, Wed, Jan 22: Up to 10.5 in near Rayne, LA #shorts", "Snow totals reported in the past 24 hours.\n\nThe biggest totals:\n1. 10.5 in\n\n#weather #snow #shorts")).toBe(
       "Snow Totals, Wed, Jan 22: Up to 10.5 in near Rayne, LA\n\nSnow totals reported in the past 24 hours.\n\nLive radar and alerts, free: https://www.stormcentralwx.com\n\n#weather #snow",
     );
+  });
+});
+
+describe("a token Facebook turns down", () => {
+  it("is told apart from other failures", () => {
+    const permission = "Any of the pages_read_engagement, pages_manage_metadata, pages_read_user_content, pages_manage_ads, pages_show_list or pages_messaging permission(s) must be granted before impersonating a user's page.";
+    expect(isTokenProblem(new FacebookError(`Facebook GET me failed (400): ${permission}`, 400))).toBe(true);
+    expect(isTokenProblem(new FacebookError("Facebook GET me failed (400): Error validating access token: Session has expired", 400, 190))).toBe(true);
+    expect(isTokenProblem(new FacebookError("Facebook POST photos failed (403): (#200) Not allowed", 403, 200))).toBe(true);
+    expect(isTokenProblem(new FacebookError("Facebook POST photos failed (500): An unexpected error has occurred", 500, 2))).toBe(false);
+    expect(isTokenProblem(new Error("NWS alerts: 503"))).toBe(false);
+  });
+
+  it("fails the run once, then once a day while it stays broken, and the time is kept between runs", () => {
+    const s: PostState = { levels: {}, at: {} };
+    expect(failForToken(s, NOW)).toBe(true);
+    s.tokenFailedAt = NOW;
+    expect(failForToken(s, NOW + 3 * 60_000)).toBe(false);
+    expect(failForToken(s, NOW + 23 * 3_600_000)).toBe(false);
+    expect(failForToken(s, NOW + 24 * 3_600_000)).toBe(true);
+    const dir = mkdtempSync(join(tmpdir(), "fb-state-"));
+    savePostState(dir, s, NOW);
+    expect(loadPostState(dir).tokenFailedAt).toBe(NOW);
+    expect(loadPostState(join(dir, "none")).tokenFailedAt).toBeUndefined();
   });
 });
