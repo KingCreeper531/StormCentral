@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ModerationQueue } from "@/components/community/moderation-queue";
+import { RolesPanel } from "@/components/community/roles-panel";
 import { SubpageShell } from "@/components/shell/subpage-shell";
 import { T } from "@/components/ui/t";
 import { getSessionUser } from "@/lib/auth/session";
@@ -22,6 +23,9 @@ export default async function ModerationPage() {
         </p>
       </header>
       <ModerationQueue />
+      <div className="mt-8">
+        <RolesPanel />
+      </div>
     </SubpageShell>
   );
 }

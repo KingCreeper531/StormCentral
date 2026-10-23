@@ -1,6 +1,7 @@
 import "server-only";
 import { and, desc, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
-import { isDeveloper, isTrustedSpotter } from "../auth/session";
+import { isDeveloper } from "../auth/session";
+import { grantedTrusted, isTrusted } from "./roles-repo";
 import { CHASER_MAX_AGE_MS, MAX_SHARE_MS, parseStream, roundCoord, type ChaserDto, type PositionInput } from "../chasers";
 import { avatarUrl } from "../community";
 import { getDb } from "../db/client";
@@ -68,6 +69,7 @@ export async function listChasers(viewerId: string, now = Date.now()): Promise<C
     )
     .orderBy(desc(chaserPositions.updatedAt))
     .limit(500);
+  const trusted = await grantedTrusted();
   return rows.map((r) => ({
     username: r.username,
     displayName: r.displayName,
@@ -75,7 +77,7 @@ export async function listChasers(viewerId: string, now = Date.now()): Promise<C
     avatarUrl: avatarUrl(r.avatarMediaId),
     reputation: Number(r.reputation),
     developer: isDeveloper(r.username),
-    trusted: isTrustedSpotter(r.username),
+    trusted: isTrusted(r.username, trusted),
     lat: r.p.lat,
     lon: r.p.lon,
     heading: r.p.heading,

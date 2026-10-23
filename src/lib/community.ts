@@ -175,6 +175,47 @@ export const moderationActionSchema = z.discriminatedUnion("action", [
 ]);
 export type ModerationAction = z.infer<typeof moderationActionSchema>;
 
+/**
+ * Roles a moderator can give or take away in the app (stored in user_roles),
+ * lowest first. Trusted Spotter: any moderator. WarnGen (issuing spotter
+ * warnings) and Moderator: only the moderators named in MODERATORS, so a
+ * moderator appointed in the app can't hand out the higher roles.
+ */
+export const GRANTABLE_ROLES = ["trusted", "warngen", "moderator"] as const;
+export type GrantableRole = (typeof GRANTABLE_ROLES)[number];
+export const ROLE_LABELS: Record<GrantableRole, string> = { trusted: "Trusted Spotter", warngen: "WarnGen", moderator: "Moderator" };
+
+export const roleChangeSchema = z.object({ username, role: z.enum(GRANTABLE_ROLES), on: z.boolean() });
+export type RoleChange = z.infer<typeof roleChangeSchema>;
+
+/** One account's roles, for the moderators' Roles panel. */
+export interface RoleInfoDto {
+  username: string;
+  displayName: string;
+  /** Roles from the code or the environment (MODERATORS, WARNGEN_ISSUERS, TRUSTED_SPOTTERS, DEVELOPERS): shown, never changed in the app. */
+  builtIn: { moderator: boolean; warngen: boolean; trusted: boolean; developer: boolean };
+  /** Roles given in the app, with who gave them and when. */
+  granted: { role: GrantableRole; by: string | null; at: number }[];
+  /** Which roles the viewer may change for this account. */
+  canChange: Record<GrantableRole, boolean>;
+}
+
+/** The Roles panel's list: every role given in the app, newest first, and what the viewer may change. */
+export interface GrantedListDto {
+  granted: GrantedRoleDto[];
+  canChange: Record<GrantableRole, boolean>;
+  /** The viewer's username: nobody changes their own roles. */
+  you: string;
+}
+
+export interface GrantedRoleDto {
+  username: string;
+  displayName: string;
+  role: GrantableRole;
+  by: string | null;
+  at: number;
+}
+
 /** "This account is suspended until Oct 20, 2026." / "This account has been suspended." for permanent suspensions. */
 export function suspensionText(until: number, t: Translator = translator("en")) {
   if (until >= PERMANENT_SUSPENSION) return t("This account has been suspended.");
