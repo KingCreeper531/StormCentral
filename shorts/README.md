@@ -126,8 +126,7 @@ usually takes a few weeks.
 | `SHORTS_VOICE_NAME` | `en-US-AndrewNeural` | another Microsoft neural voice for the narrator |
 | `SHORTS_PLAYLISTS` | `true` | `false` to leave videos out of playlists |
 | `SHORTS_AI` | `true` | `false` for the plain narration (AI narration, below) |
-| `SHORTS_AI_MODEL` | `gemma3:12b` | the Ollama model that writes it without a Claude key (and drafts Radar School lessons) |
-| `SHORTS_CLAUDE_MODEL` | `claude-haiku-5-5` | the Claude model that writes it when the `ANTHROPIC_API_KEY` secret is set |
+| `SHORTS_AI_MODEL` | `gemma3:12b` | the Ollama model that writes it (and drafts Radar School lessons) |
 | `REVIEW_MODEL` | `qwen3:8b` | the second model that reviews every line of a Radar School draft |
 
 ## Livelier narration with AI
@@ -135,15 +134,9 @@ usually takes a few weeks.
 The narrator's plain script is filled in from the data ("The tornado
 threat peaks at 10 percent."). With AI narration (on by default), a language
 model rewrites each line the way an upbeat TV meteorologist would say it,
-using only that line's facts. Two ways to run it:
-
-- **Claude** (repository secret `ANTHROPIC_API_KEY`, from
-  platform.claude.com → API Keys): Claude Haiku writes it in a few seconds.
-  A Short's narration is about 2,000 to 5,000 tokens in and 500 to 1,500 out,
-  roughly a tenth of a cent at Haiku's prices.
-- **Ollama** (no secret): a model in [Ollama](https://ollama.com) on the
-  GitHub runner itself writes it: free, no API key, no GPU, about 3 to 5
-  extra minutes per run.
+using only that line's facts. A model in [Ollama](https://ollama.com) on the
+GitHub runner itself writes it: free, no API key, no GPU, about 3 to 5
+extra minutes per run.
 
 Every rewritten line is checked against the data before it's used: its
 numbers, places, days, risk level, hazards, times of day and directions
@@ -151,7 +144,7 @@ must all come from the facts, a "no" or "not" has to stay (and can't be
 added), and alarm words ("outbreak", "deadly", "baseball-size") and advice
 ("take cover") are only allowed when the source says them. A line that
 fails, or runs too long for its scene, is read the plain way instead; if
-Claude or Ollama can't answer, the whole plain script is read. The run's log shows
+Ollama can't answer, the whole plain script is read. The run's log shows
 every line the model wrote and why any was turned down.
 
 - **Try it:** Run workflow (**AI narration** is ticked). The artifact has

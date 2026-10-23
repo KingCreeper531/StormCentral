@@ -34,8 +34,7 @@
  *   SHORTS_VOICE_NAME      the narrator's voice (default en-US-AndrewNeural)
  *   FB_PAGE_TOKEN          also post each uploaded Short as a Reel on the Facebook Page (FB_REELS=false to stop)
  *   SHORTS_AI=true         livelier narration: a model rewrites the script, every line checked against the facts (script.ts)
- *   ANTHROPIC_API_KEY      the model is Claude (SHORTS_CLAUDE_MODEL, default claude-haiku-5-5) instead of Ollama
- *   SHORTS_AI_MODEL        the Ollama model, without a Claude key (default gemma3:12b)
+ *   SHORTS_AI_MODEL        the Ollama model that writes it (default gemma3:12b)
  *   OLLAMA_HOST            where Ollama listens (default 127.0.0.1:11434)
  *   SHORTS_AI_COMPARE=1    also save each video with the plain narration, as <key>-plain.mp4
  *   SHORTS_TROPICAL_MAX    tropical: at most this many storms (default 2, strongest first)
@@ -144,7 +143,7 @@ async function main() {
       // Breaking news reads the warning's facts as written (no AI rewording of life-threatening warnings),
       // and Radar School its hand-checked lesson script.
       if (env.SHORTS_AI === "true" && plain.length && v.template !== "breaking.html" && v.template !== "lesson.html") {
-        const writer = { anthropicKey: env.ANTHROPIC_API_KEY || undefined, claudeModel: env.SHORTS_CLAUDE_MODEL || undefined, host: env.OLLAMA_HOST, model: env.SHORTS_AI_MODEL || undefined };
+        const writer = { host: env.OLLAMA_HOST, model: env.SHORTS_AI_MODEL || undefined };
         cues = await livelyNarration(v, plain, await seconds(out), writer).catch((err: unknown) => {
           console.warn(`::warning::The AI narrator failed; using the plain script: ${err instanceof Error ? err.message : err}`);
           return plain;

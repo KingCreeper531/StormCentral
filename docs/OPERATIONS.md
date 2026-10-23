@@ -14,7 +14,6 @@ workflow**. It checks:
 | Facebook Page token | it's invalid, or it expires (or its data access does) within 10 days |
 | YouTube refresh token | Google rejects it |
 | Latest YouTube upload | nothing went up in the last 30 hours |
-| Claude API key | rejected (a warning only: the Shorts fall back to the plain script) |
 | www and app sites | they don't answer 2xx |
 | Posting workflows | 3 or more failed runs of the Shorts, breaking news or Facebook workflows in 24 hours (1 or 2 is a warning) |
 

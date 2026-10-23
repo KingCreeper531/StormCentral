@@ -14,7 +14,7 @@
 #                        a little less sharp at the same bitrate), veryfast otherwise
 #   STREAM_RUNTIME       where director.mjs and playwright-core live (/opt/stormcentral/stream)
 #   STREAM_EXTRA_OUTPUTS other platforms too, space-separated RTMP URLs with their keys (Twitch, Kick, Facebook…)
-#   ANTHROPIC_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY + OPENAI_MODEL, OLLAMA_MODEL
+#   GEMINI_API_KEY, OPENAI_API_KEY + OPENAI_MODEL, OLLAMA_MODEL
 #                        the AI that words the commentary (best first; see llm.ts); none = the facts as written
 #   STREAM_WIDTH, STREAM_HEIGHT  1280x720; 720x1280 is the vertical stream for the Shorts feed (portrait layout)
 #

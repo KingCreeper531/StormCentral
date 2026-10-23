@@ -6,7 +6,6 @@
  *   - the Facebook Page token (valid, and not expiring within EXPIRY_DAYS;
  *     a 1-hour token once took the warning posts down)
  *   - the YouTube refresh token, and that a Short went up in the last day
- *   - the Claude API key the Shorts' narration uses
  *   - the website and the app answering
  *   - failed runs of the posting workflows in the last day
  *
@@ -97,14 +96,6 @@ async function youtube(env: Record<string, string | undefined>, f: Fetch): Promi
   return [...out, uploadCheck(items.items?.[0]?.contentDetails?.videoPublishedAt ?? null)];
 }
 
-async function claude(env: Record<string, string | undefined>, f: Fetch): Promise<Check> {
-  const name = "Claude API key (Shorts narration)";
-  if (!env.ANTHROPIC_API_KEY) return { name, level: "skip", detail: "ANTHROPIC_API_KEY isn't set (the Shorts use the plain script)." };
-  // Listing models costs nothing and proves the key works.
-  const res = await f("https://api.anthropic.com/v1/models?limit=1", { headers: { "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" }, signal: AbortSignal.timeout(20_000) });
-  return res.ok ? { name, level: "ok", detail: "Works." } : { name, level: "warn", detail: `Rejected (${res.status}); the Shorts fall back to the plain script.` };
-}
-
 async function sites(f: Fetch): Promise<Check[]> {
   return Promise.all(
     ["https://www.stormcentralwx.com", "https://app.stormcentralwx.com"].map(async (url) => {
@@ -161,7 +152,6 @@ export async function runChecks(env: Record<string, string | undefined> = proces
     await Promise.all([
       safe("Facebook Page token", facebook(env, f)),
       safe("YouTube", youtube(env, f)),
-      safe("Claude API key", claude(env, f)),
       safe("Sites", sites(f)),
       safe("Posting workflows", workflows(env, f, now)),
     ])
