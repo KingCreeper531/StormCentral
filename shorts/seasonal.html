@@ -42,14 +42,14 @@ const colour = (v, f) => (f.properties.cat === "Normal" ? NORMAL : SCALE[v][f.pr
 const T0 = 3.4, P0 = 15.4, S0 = 27.4, END = 31.6;
 const name = D.season.name ? `${D.season.name} outlook` : "3-month outlook";
 
-// Safety net for the winding (kinds/seasonal.ts rewinds every ring): a shape d3 reads as
-// covering more than half the globe is inside out, so it's turned the right way round
-// instead of painting the whole map.
+// Safety net for the winding (kinds/seasonal.ts drops specks and rewinds every ring): a polygon
+// d3 reads as covering more than half the globe is inside out, so it's turned the right way
+// round, each polygon on its own (one bad piece mustn't flip a shape's hundreds of good ones).
+const flip = (rings) => rings.map((r) => [...r].reverse());
 const rightWayRound = (f) => {
-  if (d3.geoArea(f) <= 2 * Math.PI) return f;
-  const flip = (rings) => rings.map((r) => [...r].reverse());
-  const g = f.geometry;
-  return { ...f, geometry: { ...g, coordinates: g.type === "Polygon" ? flip(g.coordinates) : g.coordinates.map(flip) } };
+  const polys = f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates;
+  const fixed = polys.map((rings) => (d3.geoArea({ type: "Polygon", coordinates: rings }) > 2 * Math.PI ? flip(rings) : rings));
+  return { ...f, geometry: { type: "MultiPolygon", coordinates: fixed } };
 };
 for (const v of ["temp", "prcp"]) D[v].features.features = D[v].features.features.map(rightWayRound);
 
