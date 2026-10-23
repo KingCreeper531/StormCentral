@@ -327,8 +327,8 @@ export function seasonalText(season: Season, temp: VariableSummary, prcp: Variab
 /**
  * Twice the ring's area in lon/lat, positive when it runs counterclockwise. Longitudes are
  * unwrapped first, so a ring across the 180th meridian (the Aleutians: 172°E next to 165°W)
- * is measured the short way round, as d3 draws it; measured the long way its direction comes
- * out backwards, and the "fixed" ring then covers the whole globe but Alaska.
+ * is measured the short way round, as d3 draws it; measured the long way its direction would
+ * come out backwards, and the "fixed" ring would cover the whole globe but that shape.
  */
 function signedArea(ring: number[][]): number {
   const pts: number[][] = [];
@@ -350,7 +350,23 @@ export function rewind(rings: number[][][]): number[][][] {
   return rings.map((ring, i) => ((i === 0) === signedArea(ring) > 0 ? [...ring].reverse() : ring));
 }
 
-/** Only what the map draws, highest odds last so they're on top, wound the way d3 draws them. */
+/**
+ * Square degrees under which a ring is smaller than a pixel on the map. CPC's simplified shapes
+ * (maxAllowableOffset) are full of specks like that, many flattened to a line along a parallel:
+ * with no area their direction can't be told, and d3 draws a backwards one as the whole globe
+ * (the Winter Outlook's all-orange map). They're dropped; nothing visible goes with them.
+ */
+export const MIN_RING_AREA = 0.002;
+const ringArea = (ring: number[][]) => Math.abs(signedArea(ring)) / 2;
+
+/** A shape's polygons without the specks: a polygon goes when its outer ring is one, a hole when it is. */
+export function withoutSpecks(polys: number[][][][]): number[][][][] {
+  return polys
+    .filter((rings) => rings[0] && rings[0].length >= 4 && ringArea(rings[0]) >= MIN_RING_AREA)
+    .map((rings) => [rings[0]!, ...rings.slice(1).filter((r) => r.length >= 4 && ringArea(r) >= MIN_RING_AREA)]);
+}
+
+/** Only what the map draws, highest odds last so they're on top, without specks, wound the way d3 draws them. */
 export const drawn = (fc: OutlookCollection) => ({
   type: "FeatureCollection",
   features: fc.features
@@ -358,9 +374,10 @@ export const drawn = (fc: OutlookCollection) => ({
     .sort((a, b) => a.properties.prob - b.properties.prob)
     .map((f) => {
       const g = f.geometry!;
-      const geometry = g.type === "Polygon" ? { type: g.type, coordinates: rewind(g.coordinates) } : { type: g.type, coordinates: g.coordinates.map(rewind) };
-      return { type: "Feature", geometry, properties: { cat: f.properties.cat, prob: f.properties.prob } };
-    }),
+      const polys = withoutSpecks(g.type === "Polygon" ? [g.coordinates as number[][][]] : (g.coordinates as number[][][][])).map(rewind);
+      return { type: "Feature", geometry: { type: "MultiPolygon", coordinates: polys }, properties: { cat: f.properties.cat, prob: f.properties.prob } };
+    })
+    .filter((f) => f.geometry.coordinates.length > 0),
 });
 
 const query = (svc: string, lead: number, geometry: boolean) =>
