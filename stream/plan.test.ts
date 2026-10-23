@@ -10,6 +10,10 @@ import {
   announcement,
   briefingFacts,
   clipText,
+  dayReports,
+  deniesTornadoes,
+  reportsSentence,
+  stormDayStart,
   countsOf,
   cycle,
   isMajor,
@@ -116,6 +120,33 @@ describe("the briefing", () => {
   it("states the counts and the outlook", () => {
     expect(facts).toBe("Right now there are 2 tornado warnings in effect. The Storm Prediction Center has a Moderate Risk of severe storms today, level 4 of 5, for the Southern Plains.");
     expect(briefingFacts([], null)).toBe("Right now there are no tornado, severe thunderstorm or flash flood warnings in effect. The Storm Prediction Center doesn't expect organized severe storms today.");
+  });
+
+  it("leads with the day's storm reports, so no warnings right now isn't heard as no tornadoes today", () => {
+    // 05:30 UTC on Oct 23 is still the storm day that began at 12 UTC on Oct 22 (7 AM Central, daylight time).
+    const now = Date.parse("2026-10-23T05:30:00Z");
+    expect(new Date(stormDayStart(now)).toISOString()).toBe("2026-10-22T12:00:00.000Z");
+    expect(new Date(stormDayStart(Date.parse("2026-10-23T12:00:00Z"))).toISOString()).toBe("2026-10-23T12:00:00.000Z");
+    const r = (kind: string, time: string) => ({ kind, time }) as never;
+    const day = dayReports([r("tornado", "2026-10-22T21:10:00Z"), r("tornado", "2026-10-22T23:40:00Z"), r("tornado", "2026-10-22T11:59:00Z"), r("hail", "2026-10-22T20:00:00Z"), r("wind-damage", "2026-10-23T01:00:00Z"), r("wind", "2026-10-23T02:00:00Z"), r("flood", "2026-10-23T03:00:00Z")], now);
+    expect(day).toEqual({ tornado: 2, hail: 1, wind: 2, since: "7 AM Central" });
+    expect(dayReports([], Date.parse("2027-01-15T18:00:00Z")).since).toBe("6 AM Central");
+    expect(reportsSentence(day)).toBe("Since 7 AM Central, the National Weather Service has 2 tornado reports, 1 hail report and 2 wind reports across the country.");
+    expect(reportsSentence({ tornado: 0, hail: 0, wind: 0, since: "7 AM Central" })).toBe("Since 7 AM Central, the National Weather Service has no tornado, hail or wind reports.");
+    expect(reportsSentence({ tornado: 1, hail: 0, wind: 0, since: "7 AM Central" })).toBe("Since 7 AM Central, the National Weather Service has 1 tornado report across the country.");
+
+    const quiet = briefingFacts([], null, day);
+    expect(quiet.startsWith("Since 7 AM Central, the National Weather Service has 2 tornado reports")).toBe(true);
+    const check = (t: string) => checkAgainst(t, quiet, { maxWords: 65 });
+    // The fact check passes a rewording that keeps the numbers, and turns one that changes them away.
+    expect(check("Two tornado reports so far today since 7 AM Central, plus hail and wind reports. No warnings are in effect right now.")).not.toBeNull();
+    expect(check("Three tornado reports so far today.")).toBeNull();
+    // A version that says there were no tornadoes is turned away on a day that had tornado reports.
+    expect(deniesTornadoes("No tornadoes so far today, and no warnings right now.", day)).toBe(true);
+    expect(deniesTornadoes("There were no reports of a tornado.", day)).toBe(true);
+    expect(deniesTornadoes("No tornado warnings are in effect right now.", day)).toBe(false);
+    expect(deniesTornadoes("Two tornado reports so far today.", day)).toBe(false);
+    expect(deniesTornadoes("No tornadoes today.", { ...day, tornado: 0 })).toBe(false);
   });
 
   it("only lets the AI's version through when it sticks to the facts", () => {

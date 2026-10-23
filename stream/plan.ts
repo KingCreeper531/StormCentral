@@ -11,6 +11,7 @@
  */
 import { normalizeAlert, type RawAlertFeature } from "../src/lib/alerts";
 import type { StormMotion, WeatherAlert } from "../src/lib/api/types";
+import type { StormReport } from "../src/lib/feeds/storm-reports";
 import type { Shape } from "../src/lib/draw/shapes";
 import { destination } from "../src/lib/geo";
 import { chipsOf, clockText, parseAreas, placesText, placesTitle, situationOf, vtecOf, zoneFor, type Area } from "../shorts/kinds/breaking";
@@ -253,13 +254,57 @@ function counts(ws: StreamWarning[]): string {
 }
 
 /** The facts, as the plain sentences read when there's no AI (or its version fails the check). */
-export function briefingFacts(ws: StreamWarning[], outlook: Outlook | null): string {
+/** The storm day's NWS storm reports so far (the day starts at 12 UTC, like the SPC's), for the briefing. */
+export interface DayReports {
+  tornado: number;
+  hail: number;
+  wind: number;
+  /** When the day started, as said aloud: "7 AM Central". */
+  since: string;
+}
+
+/** The start of the storm day `now` is in: the last 12:00 UTC. */
+export function stormDayStart(now = Date.now()): number {
+  const d = new Date(now);
+  d.setUTCHours(12, 0, 0, 0);
+  return d.getTime() > now ? d.getTime() - 86_400_000 : d.getTime();
+}
+
+/** Counts the reports since the storm day began (wind damage counts as wind). */
+export function dayReports(reports: readonly Pick<StormReport, "kind" | "time">[], now = Date.now()): DayReports {
+  const start = stormDayStart(now);
+  const today = reports.filter((r) => Date.parse(r.time) >= start);
+  const n = (...kinds: string[]) => today.filter((r) => kinds.includes(r.kind)).length;
+  const hour = new Intl.DateTimeFormat("en-US", { hour: "numeric", timeZone: "America/Chicago" }).format(start);
+  return { tornado: n("tornado"), hail: n("hail"), wind: n("wind", "wind-damage"), since: `${hour} Central` };
+}
+
+/** "Since 7 AM Central, the National Weather Service has 3 tornado reports, 41 hail reports and 60 wind reports." */
+export function reportsSentence(d: DayReports): string {
+  const parts = ([[d.tornado, "tornado report"], [d.hail, "hail report"], [d.wind, "wind report"]] as const)
+    .filter(([n]) => n > 0)
+    .map(([n, what]) => `${n} ${what}${n === 1 ? "" : "s"}`);
+  if (!parts.length) return `Since ${d.since}, the National Weather Service has no tornado, hail or wind reports.`;
+  return `Since ${d.since}, the National Weather Service has ${parts.join(", ").replace(/, ([^,]*)$/, " and $1")} across the country.`;
+}
+
+/** Whether `text` says there were no tornadoes on a day with tornado reports ("no tornado warnings" is fine). */
+export function deniesTornadoes(text: string, day: DayReports | null): boolean {
+  return !!day?.tornado && /\b(no|zero|without( any)?) tornado(e?s)?\b(?! (warning|watch))|\bno reports? of (a )?tornado/i.test(text);
+}
+
+/**
+ * The quiet-time briefing's facts: the day's storm reports, the warnings in effect right now, and
+ * the SPC outlook. The reports come first, so "no warnings right now" can't be heard as "no
+ * tornadoes today" on a day that had them.
+ */
+export function briefingFacts(ws: StreamWarning[], outlook: Outlook | null, day: DayReports | null = null): string {
   const now = ws.length ? `Right now there ${ws.length === 1 ? "is" : "are"} ${counts(ws).replace(/ · /g, ", ").replace(/, ([^,]*)$/, " and $1").toLowerCase()} in effect.` : "Right now there are no tornado, severe thunderstorm or flash flood warnings in effect.";
   const risk =
     outlook?.risk && RISK_WORDS[outlook.risk]
       ? `The Storm Prediction Center has a ${RISK_WORDS[outlook.risk]} Risk of severe storms today, level ${RISK_LEVEL[outlook.risk]} of 5${outlook.region ? `, for the ${outlook.region}` : ""}.`
       : "The Storm Prediction Center doesn't expect organized severe storms today.";
-  return `${now} ${risk}`;
+  return day ? `${reportsSentence(day)} ${now} ${risk}` : `${now} ${risk}`;
 }
 
 // ── The live title and clips ──────────────────────────────────────────────
