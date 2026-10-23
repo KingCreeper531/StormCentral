@@ -54,7 +54,7 @@ export function isPresenter(user: Pick<SessionUser, "username" | "moderator" | "
 }
 
 /** Spotters given the Trusted Spotter rank by hand, whatever their confirmations. */
-const GRANTED_TRUSTED_SPOTTERS = "zenitsu132";
+const GRANTED_TRUSTED_SPOTTERS = "zenitsu132,zenwx";
 
 /**
  * Accounts that rank at least Trusted Spotter (badge, profile and WarnGen)
