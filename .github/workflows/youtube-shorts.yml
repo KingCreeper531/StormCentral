@@ -103,9 +103,9 @@ jobs:
       # Manual runs: the "AI narration" box. Scheduled runs (and outside schedulers): the SHORTS_AI variable, on by default.
       SHORTS_AI: ${{ (github.event_name == 'workflow_dispatch' && !inputs.scheduled) && (inputs.ai && 'true' || 'false') || vars.SHORTS_AI || 'true' }}
       SHORTS_AI_MODEL: ${{ vars.SHORTS_AI_MODEL || 'gemma3:12b' }}
-      # With the ANTHROPIC_API_KEY secret, Claude (Haiku unless SHORTS_CLAUDE_MODEL says otherwise) writes the narration
+      # With the ANTHROPIC_API_KEY secret, the Anthropic API (Haiku unless the ANTHROPIC_MODEL variable says otherwise) writes the narration
       # in seconds and Ollama isn't installed; without it, the local model on the runner does.
-      HAS_CLAUDE: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_ANTHROPIC: ${{ secrets.ANTHROPIC_API_KEY != '' }}
       SHORTS_KIND: ${{ inputs.kind || ((github.event.schedule == '15 3 * * *' || github.event.schedule == '55 3 * * *') && 'recap') || ((github.event.schedule == '40 13 * * 0' || github.event.schedule == '20 14 * * 0') && 'weekly') || ((github.event.schedule == '40 15 * * *' || github.event.schedule == '20 16 * * *') && 'tropical') || ((github.event.schedule == '30 20 * * *' || github.event.schedule == '10 21 * * *') && 'fire') || ((github.event.schedule == '20 17 * * 3' || github.event.schedule == '0 18 * * 3') && 'lesson') || ((github.event.schedule == '45 14 * * 4' || github.event.schedule == '25 15 * * 4') && 'seasonal') || ((github.event.schedule == '50 14 * * *' || github.event.schedule == '30 15 * * *') && 'snow') || ((github.event.schedule == '30 18 * * 0' || github.event.schedule == '10 19 * * 0') && 'review') || 'outlook' }}
     steps:
       # The Short's day, in Eastern time and running 4 hours behind (the day ends at 4 AM), so a
@@ -184,7 +184,7 @@ jobs:
       # The AI narrator runs on the runner's CPU (4 cores, 16 GB): no GPU or API key. If this fails, the plain script is read.
       - name: Start the AI narrator (Ollama)
         # Radar School reads its hand-checked script as written, so it needs no model.
-        if: steps.go.outputs.go == 'true' && env.SHORTS_AI == 'true' && env.SHORTS_KIND != 'lesson' && env.HAS_CLAUDE != 'true'
+        if: steps.go.outputs.go == 'true' && env.SHORTS_AI == 'true' && env.SHORTS_KIND != 'lesson' && env.HAS_ANTHROPIC != 'true'
         continue-on-error: true
         timeout-minutes: 15
         run: |
@@ -212,8 +212,11 @@ jobs:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          # Each uploaded Short also goes up as a Reel on the Facebook Page (FB_REELS = false to stop).
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          FB_REELS: ${{ vars.FB_REELS }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          SHORTS_CLAUDE_MODEL: ${{ vars.SHORTS_CLAUDE_MODEL }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
           SHORTS_UPLOAD: ${{ (github.event_name == 'schedule' || inputs.upload || inputs.scheduled) && '1' || '0' }}
           SHORTS_LATEST: ${{ (github.event_name == 'workflow_dispatch' && !inputs.scheduled) && '1' || '0' }}
           SHORTS_PRIVACY: ${{ vars.SHORTS_PRIVACY || 'public' }}

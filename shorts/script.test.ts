@@ -191,7 +191,7 @@ describe("livelyNarration", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("asks Claude instead when there's a key, for JSON in the script's shape", async () => {
+  it("asks the Anthropic API instead when there's a key, for JSON in the script's shape", async () => {
     const lines = ["Monday, October 19: let's talk storms!", "Tornado odds top out at 10 percent.", "Damaging winds, up to 15 percent."];
     const fetch = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
       Response.json({ content: [{ type: "text", text: JSON.stringify({ lines }) }], stop_reason: "end_turn" }),
@@ -206,7 +206,7 @@ describe("livelyNarration", () => {
     expect(body.temperature).toBeUndefined();
   });
 
-  it("reads the plain script when Claude turns the key away, without asking twice", async () => {
+  it("reads the plain script when the Anthropic API turns the key away, without asking twice", async () => {
     const fetch = vi.fn(async () => new Response('{"error":{"message":"invalid x-api-key"}}', { status: 401 }));
     expect(await livelyNarration(v, plain, 20, { fetch, anthropicKey: "bad", log: quiet })).toEqual(plain);
     expect(fetch).toHaveBeenCalledTimes(1);

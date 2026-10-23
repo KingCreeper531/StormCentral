@@ -25,9 +25,10 @@ describe("roles", () => {
     expect(isModerator("alice")).toBe(false);
   });
 
-  it("grants Trusted Spotter to zenitsu132 and anyone in TRUSTED_SPOTTERS", () => {
+  it("grants Trusted Spotter to zenitsu132, ZenWX and anyone in TRUSTED_SPOTTERS", () => {
     delete process.env.TRUSTED_SPOTTERS;
     expect(isTrustedSpotter("Zenitsu132")).toBe(true);
+    expect(isTrustedSpotter("ZenWX")).toBe(true);
     expect(isTrustedSpotter("someone")).toBe(false);
     process.env.TRUSTED_SPOTTERS = "someone, other";
     expect(isTrustedSpotter("Someone")).toBe(true);

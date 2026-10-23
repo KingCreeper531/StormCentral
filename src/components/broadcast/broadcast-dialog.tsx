@@ -10,6 +10,7 @@ import { DEFAULT_ACCENT, logoFromFile, MAX_SCENES, TOUR_SECONDS, useBroadcastSto
 import { Button, IconButton } from "../ui/button";
 import { Toggle } from "../ui/misc";
 import { Segmented } from "../ui/segmented";
+import { LowerThirdControls, TickerControls } from "./broadcast-look-controls";
 import { StationLogo } from "./broadcast-overlay";
 
 const noSubscribe = () => () => {};
@@ -183,6 +184,9 @@ function Panel({ onClose, currentView }: BroadcastDialogProps) {
             <Toggle key={p.key} label={t(p.label)} checked={s.parts[p.key]} onChange={(on) => s.setPart(p.key, on)} />
           ))}
         </section>
+
+        {s.parts.lower && <LowerThirdControls />}
+        {s.parts.ticker && <TickerControls />}
 
         <section className="space-y-3">
           <div>

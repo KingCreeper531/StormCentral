@@ -1,5 +1,5 @@
 /**
- * The live stream's AI writers, best first: Claude (ANTHROPIC_API_KEY),
+ * The live stream's AI writers, best first: the Anthropic API (ANTHROPIC_API_KEY),
  * Gemini (GEMINI_API_KEY, which has a free tier), any OpenAI-compatible API
  * (OPENAI_API_KEY with OPENAI_MODEL, and OPENAI_BASE_URL for Groq,
  * OpenRouter and the like), then the local model (OLLAMA_MODEL). Whatever
@@ -8,6 +8,8 @@
  * caller reads the facts as written. The AI words things; it never decides
  * what's urgent or adds facts.
  */
+
+import { ANTHROPIC_API, ANTHROPIC_VERSION, DEFAULT_ANTHROPIC_MODEL } from "../shorts/anthropic";
 
 export interface Writer {
   name: string;
@@ -23,16 +25,16 @@ async function post<T>(url: string, headers: Record<string, string>, body: unkno
   return (await res.json()) as T;
 }
 
-function claude(key: string, model: string): Writer {
+function anthropic(key: string, model: string): Writer {
   return {
-    name: `Claude (${model})`,
+    name: `Anthropic (${model})`,
     async write(system, prompt, maxTokens) {
       // Haiku thinks by default, and thinking counts against max_tokens: a two-sentence line doesn't need it.
       // Models that can't turn it off get room for it instead.
       const haiku = /haiku/.test(model);
       const r = await post<{ content?: { type: string; text?: string }[]; stop_reason?: string }>(
-        "https://api.anthropic.com/v1/messages",
-        { "x-api-key": key, "anthropic-version": "2023-06-01" },
+        `${ANTHROPIC_API}/messages`,
+        { "x-api-key": key, "anthropic-version": ANTHROPIC_VERSION },
         {
           model,
           max_tokens: haiku ? maxTokens : maxTokens + 4096,
@@ -102,7 +104,7 @@ function ollama(host: string, model: string): Writer {
 /** The writers configured in the environment, best first. */
 export function writersFromEnv(env: Env = process.env): Writer[] {
   const out: Writer[] = [];
-  if (env.ANTHROPIC_API_KEY) out.push(claude(env.ANTHROPIC_API_KEY, env.ANTHROPIC_MODEL || "claude-haiku-5-5"));
+  if (env.ANTHROPIC_API_KEY) out.push(anthropic(env.ANTHROPIC_API_KEY, env.ANTHROPIC_MODEL || DEFAULT_ANTHROPIC_MODEL));
   if (env.GEMINI_API_KEY) out.push(gemini(env.GEMINI_API_KEY, env.GEMINI_MODEL || "gemini-flash-latest"));
   if (env.OPENAI_API_KEY && env.OPENAI_MODEL) out.push(openaiCompatible(env.OPENAI_API_KEY, env.OPENAI_MODEL, env.OPENAI_BASE_URL || "https://api.openai.com/v1"));
   if (env.OLLAMA_MODEL) out.push(ollama(env.OLLAMA_HOST || "http://127.0.0.1:11434", env.OLLAMA_MODEL));

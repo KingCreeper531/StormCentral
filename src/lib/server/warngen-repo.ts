@@ -1,11 +1,12 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, count, desc, eq, gt, isNull, lte, max, or, sql } from "drizzle-orm";
-import { isDeveloper, isTrustedSpotter, type SessionUser } from "../auth/session";
+import { isDeveloper, isWarnGenIssuer, type SessionUser } from "../auth/session";
+import { grantedTrusted, isTrusted, rolesOf } from "./roles-repo";
 import { getDb } from "../db/client";
 import { spotterWarnings, users } from "../db/schema";
 import { ringBounds, type Ring } from "../warngen/geometry";
-import { DEFAULT_ISSUE_REPUTATION, isWarnKind, WARN_BASES, WARN_THREATS, type WarnBasis, type WarnThreat } from "../warngen/products";
+import { isWarnKind, WARN_BASES, WARN_THREATS, type WarnBasis, type WarnThreat } from "../warngen/products";
 import type { IssueRequest, SpotterWarningDto, UpdateRequest } from "../warngen/schema";
 import { notBlocked, reputationSql as reputation } from "./community-repo";
 
@@ -14,24 +15,29 @@ const RECENT_MS = 30 * 60_000;
 /** Active warnings one spotter may have at once. */
 export const MAX_ACTIVE_PER_USER = 6;
 
-/** WARNGEN_MIN_REPUTATION (0 opens WarnGen to every member), else Trusted Spotter rank. */
-export function issueReputation(): number {
-  const v = Number(process.env.WARNGEN_MIN_REPUTATION);
-  return Number.isInteger(v) && v >= 0 ? v : DEFAULT_ISSUE_REPUTATION;
+/** WARNGEN_MIN_REPUTATION: confirmations that open WarnGen without the role (0 opens it to every member); unset, only the role does. */
+export function issueReputation(): number | null {
+  const raw = process.env.WARNGEN_MIN_REPUTATION;
+  const v = Number(raw);
+  return raw != null && raw.trim() !== "" && Number.isInteger(v) && v >= 0 ? v : null;
 }
+
+export const NEEDS_WARNGEN_ROLE = "WarnGen is for spotters a moderator has given the WarnGen role. Ask a moderator if you'd like it.";
 
 /** Whether `user` may issue warnings, and if not, why. */
 export async function issuePermission(user: SessionUser): Promise<{ ok: boolean; reason: string | null }> {
   if (user.suspendedUntil != null) return { ok: false, reason: "Your account is suspended." };
-  if (user.moderator || isDeveloper(user.username) || isTrustedSpotter(user.username)) return { ok: true, reason: null };
+  if (user.moderator || isDeveloper(user.username) || isWarnGenIssuer(user.username)) return { ok: true, reason: null };
+  if ((await rolesOf(user.id)).has("warngen")) return { ok: true, reason: null };
   const need = issueReputation();
+  if (need == null) return { ok: false, reason: NEEDS_WARNGEN_ROLE };
   if (need === 0) return { ok: true, reason: null };
   const db = await getDb();
   const [row] = await db.select({ rep: reputation }).from(users).where(eq(users.id, user.id));
   const rep = Number(row?.rep ?? 0);
   return rep >= need
     ? { ok: true, reason: null }
-    : { ok: false, reason: `WarnGen opens at the Trusted Spotter rank: ${need} confirmations of your reports by other spotters (you have ${rep}).` };
+    : { ok: false, reason: `WarnGen opens at ${need} confirmations of your reports by other spotters (you have ${rep}), or with the WarnGen role from a moderator.` };
 }
 
 function parseJson<T>(raw: string | null, ok: (v: unknown) => v is T): T | null {
@@ -51,7 +57,7 @@ const isNames = (v: unknown): v is string[] => Array.isArray(v) && v.every((s) =
 
 type Row = typeof spotterWarnings.$inferSelect & { username: string; displayName: string; reputation: number };
 
-function toDto(r: Row, viewerId: string, now: number): SpotterWarningDto {
+function toDto(r: Row, viewerId: string, now: number, trusted: ReadonlySet<string>): SpotterWarningDto {
   return {
     id: r.id,
     number: r.number,
@@ -78,7 +84,7 @@ function toDto(r: Row, viewerId: string, now: number): SpotterWarningDto {
       displayName: r.displayName,
       reputation: Number(r.reputation),
       developer: isDeveloper(r.username),
-      trusted: isTrustedSpotter(r.username),
+      trusted: isTrusted(r.username, trusted),
     },
     mine: r.userId === viewerId,
   };
@@ -109,13 +115,14 @@ export async function listWarnings(viewerId: string, now = Date.now()): Promise<
     )
     .orderBy(desc(spotterWarnings.issuedAt), desc(spotterWarnings.number))
     .limit(200);
-  return rows.map(({ w, ...u }) => toDto({ ...w, ...u }, viewerId, now));
+  const trusted = await grantedTrusted();
+  return rows.map(({ w, ...u }) => toDto({ ...w, ...u }, viewerId, now, trusted));
 }
 
 export async function getWarning(id: string, viewerId: string, now = Date.now()): Promise<SpotterWarningDto | null> {
   const db = await getDb();
   const [row] = await db.select(selection).from(spotterWarnings).innerJoin(users, eq(users.id, spotterWarnings.userId)).where(eq(spotterWarnings.id, id)).limit(1);
-  return row ? toDto({ ...row.w, username: row.username, displayName: row.displayName, reputation: row.reputation }, viewerId, now) : null;
+  return row ? toDto({ ...row.w, username: row.username, displayName: row.displayName, reputation: row.reputation }, viewerId, now, await grantedTrusted()) : null;
 }
 
 export async function activeCount(userId: string, now = Date.now()): Promise<number> {

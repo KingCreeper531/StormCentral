@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { selectActiveTheme, useAddonsStore } from "@/store/addons-store";
 import { UNIT_PRESETS, type DistanceUnit, type HeightUnit, type PrecipUnit, type PressureUnit, type TempUnit, type UnitPrefs, type WindUnit } from "@/lib/weather/units";
 import { MAX_GAUGE_RADIUS_KM, RADIUS_KM, RADIUS_MI, useAppStore } from "@/store/app-store";
+import { useBroadcastStore } from "@/store/broadcast-store";
 import { useProStore } from "@/store/pro-store";
 import { useForecast, useSession } from "@/hooks/queries";
 import { Button, buttonClass } from "../ui/button";
@@ -448,6 +449,23 @@ function LocationPanel() {
 }
 
 /** Professional mode: adds the Pro workspace to the modes. */
+/** Broadcast mode's page, and opening the app straight into it (this device only). */
+function BroadcastPanel() {
+  const boot = useBroadcastStore((s) => s.boot);
+  const set = useBroadcastStore((s) => s.set);
+  const t = useT();
+  return (
+    <Panel title={t("Broadcast mode")}>
+      <Toggle label={t("Boot into Broadcast mode")} checked={boot} onChange={(on) => set({ boot: on })} />
+      <p className="label mt-1">{t("Opens Broadcast mode whenever the app starts on this device, for a screen that's always on air. Leaving Broadcast mode still opens the radar.")}</p>
+      <Link href="/broadcast" className={buttonClass("secondary", "sm", "mt-3")}>
+        <Radio className="size-4" aria-hidden />
+        {t("Open Broadcast mode")}
+      </Link>
+    </Panel>
+  );
+}
+
 function ProfessionalPanel() {
   const on = useAppStore((s) => s.professional);
   const setOn = useAppStore((s) => s.setProfessional);
@@ -581,7 +599,7 @@ export function AppSettings() {
             <RadiusPanel />
             <ProfessionalPanel />
             {/* Broadcast mode has a page of its own, off the radar. */}
-            <LinkRow href="/broadcast" icon={<Radio className="size-4" aria-hidden />} title={t("Broadcast mode")} sub={t("On-air graphics for streaming the radar")} />
+            <BroadcastPanel />
           </>
         )}
         {current === "alerts" && (

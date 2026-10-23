@@ -3,7 +3,7 @@ import { verifyPassword } from "@/lib/auth/password";
 import { destroySession, getSessionUser } from "@/lib/auth/session";
 import { deleteAccountSchema, firstIssue, profileSchema } from "@/lib/community";
 import { getDb } from "@/lib/db/client";
-import { blocks, chaserPositions, comments, flags, media, passwordResets, posts, sessions, spotterWarnings, users, userSettings, verifications } from "@/lib/db/schema";
+import { blocks, chaserPositions, comments, flags, media, passwordResets, posts, sessions, spotterWarnings, userRoles, users, userSettings, verifications } from "@/lib/db/schema";
 import { forbidden, sameOrigin, suspended, tooMany, unauthorized } from "@/lib/server/guard";
 import { rateLimit } from "@/lib/server/rate-limit";
 
@@ -71,6 +71,7 @@ export async function DELETE(req: Request) {
     db.delete(userSettings).where(eq(userSettings.userId, user.id)),
     db.delete(spotterWarnings).where(eq(spotterWarnings.userId, user.id)),
     db.delete(sessions).where(eq(sessions.userId, user.id)),
+    db.delete(userRoles).where(eq(userRoles.userId, user.id)),
     db.delete(users).where(eq(users.id, user.id)),
   ]);
   await destroySession();

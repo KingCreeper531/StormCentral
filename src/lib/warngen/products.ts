@@ -117,8 +117,6 @@ export const hailName = (inches: number) => HAIL_SIZES.find((h) => h.inches === 
 export const SEVERE_HAIL = 1;
 export const SEVERE_WIND = 58;
 
-/** Who may issue: Trusted Spotter rank (25 confirmations) unless WARNGEN_MIN_REPUTATION says otherwise. */
-export const DEFAULT_ISSUE_REPUTATION = 25;
 
 /** Limits that keep a polygon a storm-scale warning. */
 export const POLYGON_LIMITS = { minVertices: 3, maxVertices: 24, minAreaKm2: 20, maxAreaKm2: 12_000 } as const;

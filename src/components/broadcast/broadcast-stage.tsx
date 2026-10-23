@@ -1,5 +1,6 @@
 "use client";
 
+import { Layers } from "lucide-react";
 import type { Map as MlMap, MapMouseEvent } from "maplibre-gl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNow } from "@/hooks/use-now";
@@ -11,8 +12,10 @@ import { useT } from "@/lib/i18n/use-t";
 import type { ExportLoopOptions } from "@/lib/radar/export-loop";
 import { useBroadcastStore } from "@/store/broadcast-store";
 import { ExportLoopButton } from "../radar/export-loop-dialog";
+import { IconButton } from "../ui/button";
 import { BroadcastControls, useSceneTour } from "./broadcast-controls";
 import { BroadcastDialog } from "./broadcast-dialog";
+import { BroadcastLayers } from "./broadcast-layers";
 import { BroadcastOverlay } from "./broadcast-overlay";
 
 /** The map's view as a scene to save. */
@@ -25,8 +28,9 @@ const viewOf = (map: MlMap | null, name: string) => {
 /**
  * Broadcast mode on the radar map (the /broadcast page): the app's chrome
  * hidden, on-air graphics over the map, a control bar that hides itself,
- * scenes and tours, and loop exports with the same graphics. Picking a
- * warning on the map puts it in the lower third with a countdown.
+ * scenes and tours, loop exports with the same graphics, and a layers and
+ * plugins menu. Picking a warning on the map puts it in the lower third with
+ * a countdown.
  */
 export function BroadcastStage({
   map,
@@ -39,6 +43,7 @@ export function BroadcastStage({
   timeZone,
   onExit,
   extra,
+  layers,
 }: {
   map: MlMap | null;
   loop: RadarLoop;
@@ -53,12 +58,15 @@ export function BroadcastStage({
   onExit: () => void;
   /** More buttons for the control bar (drawing). */
   extra?: React.ReactNode;
+  /** The map's layer controls, for the layers and plugins menu. */
+  layers: React.ReactNode;
 }) {
   const t = useT();
   const now = useNow(30_000);
   const s = useBroadcastStore();
   const tour = useSceneTour(map);
   const [settings, setSettings] = useState(false);
+  const [layersOpen, setLayersOpen] = useState(false);
 
   // No app chrome while on air.
   useEffect(() => {
@@ -86,9 +94,13 @@ export function BroadcastStage({
   const scene = tour.current;
   const lower = useMemo<LowerThird>(() => {
     if (activeAlert) return warningLowerThird(activeAlert, timeZone, t);
-    if (scene) return { title: scene.name.toUpperCase(), subtitle: title, color: s.accent, ends: null };
-    return { title: (placeName || title).toUpperCase(), subtitle: title, color: s.accent, ends: null };
-  }, [activeAlert, scene, title, placeName, timeZone, t, s.accent]);
+    // A warning keeps its own words and colour; otherwise the look's title, subtitle and bar colour apply.
+    const L = s.look;
+    const subtitle = L.lowerSubtitle.trim() || title;
+    const color = L.lowerColor ?? s.accent;
+    if (scene) return { title: scene.name.toUpperCase(), subtitle, color, ends: null };
+    return { title: (L.lowerTitle.trim() || placeName || title).toUpperCase(), subtitle, color, ends: null };
+  }, [activeAlert, scene, title, placeName, timeZone, t, s.accent, s.look]);
   const lowerKey = activeAlert?.id ?? scene?.id ?? "view";
 
   // The logo, decoded once for exported frames.
@@ -112,11 +124,12 @@ export function BroadcastStage({
           accent: s.accent,
           logo: logo.current?.complete && logo.current.naturalWidth ? logo.current : null,
           parts: { bug: s.parts.bug, clock: s.parts.clock, lower: s.parts.lower, ticker: s.parts.ticker },
+          look: s.look,
           lower,
           ticker: tickerItems(warnings, timeZone, t),
           // Frames that aren't observed say what they are, like the radar legend.
           timeLabel: frame.nowcast ? t("Extrapolated").toLocaleUpperCase(t.locale) : frame.forecast ? t("HRRR forecast").toLocaleUpperCase(t.locale) : t("RADAR"),
-          tickerLabel: t("WARNINGS"),
+          tickerLabel: s.look.tickerLabel.trim() || t("WARNINGS"),
           liveLabel: t("LIVE"),
         },
         frame.time,
@@ -135,11 +148,15 @@ export function BroadcastStage({
         onExit={onExit}
         extra={
           <>
+            <IconButton size="sm" label={t("Layers and plugins")} aria-pressed={layersOpen} onClick={() => setLayersOpen(!layersOpen)}>
+              <Layers className="size-4" aria-hidden />
+            </IconButton>
             {extra}
             <ExportLoopButton size="sm" map={map} loop={loop} speed={speed} title={title} subtitle={placeName} timeZone={timeZone} overlay={overlay} />
           </>
         }
       />
+      <BroadcastLayers open={layersOpen} onClose={() => setLayersOpen(false)} layers={layers} />
       <BroadcastDialog open={settings} onClose={() => setSettings(false)} currentView={() => viewOf(map, t("Scene {n}", { n: s.scenes.length + 1 }))} />
     </>
   );
