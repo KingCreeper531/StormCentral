@@ -8,6 +8,7 @@
  * used as is. voice.ts also swaps a rewrite for the plain line when it runs
  * too long to fit the video.
  */
+import { ANTHROPIC_API, ANTHROPIC_VERSION, DEFAULT_ANTHROPIC_MODEL } from "./anthropic";
 import { spoken, STATE_NAMES, type Cue } from "./narration";
 import type { Video } from "./video";
 
@@ -263,10 +264,10 @@ export function checkLine(line: string, f: LineFacts): string | null {
 // ── Asking the model ────────────────────────────────────────────────────────
 
 export interface WriterOptions {
-  /** Claude instead of Ollama (ANTHROPIC_API_KEY): faster and better than a model on the runner's CPU. */
+  /** The Anthropic API instead of Ollama (ANTHROPIC_API_KEY): faster and better than a model on the runner's CPU. */
   anthropicKey?: string;
-  /** The Claude model (SHORTS_CLAUDE_MODEL), default claude-haiku-5-5. */
-  claudeModel?: string;
+  /** Its model (ANTHROPIC_MODEL), default DEFAULT_ANTHROPIC_MODEL. */
+  anthropicModel?: string;
   /** Ollama's address (OLLAMA_HOST), default http://127.0.0.1:11434. */
   host?: string;
   model?: string;
@@ -294,17 +295,16 @@ export function parseLines(reply: string, n: number): string[] {
   return lines.map((l) => l.replace(/\s+/g, " ").trim());
 }
 
-export const DEFAULT_CLAUDE_MODEL = "claude-haiku-5-5";
 /** Which model writes the drafts, for the log. */
-export const writerName = (o: WriterOptions) => (o.anthropicKey ? o.claudeModel || DEFAULT_CLAUDE_MODEL : o.model || DEFAULT_MODEL);
+export const writerName = (o: WriterOptions) => (o.anthropicKey ? o.anthropicModel || DEFAULT_ANTHROPIC_MODEL : o.model || DEFAULT_MODEL);
 
-/** One draft from Claude's Messages API, as JSON in the shape the prompt asks for. */
-async function claudeDraft(prompt: string, n: number, o: WriterOptions): Promise<string[]> {
-  const res = await (o.fetch ?? fetch)("https://api.anthropic.com/v1/messages", {
+/** One draft from the Anthropic Messages API, as JSON in the shape the prompt asks for. */
+async function anthropicDraft(prompt: string, n: number, o: WriterOptions): Promise<string[]> {
+  const res = await (o.fetch ?? fetch)(`${ANTHROPIC_API}/messages`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": o.anthropicKey!, "anthropic-version": "2023-06-01" },
+    headers: { "Content-Type": "application/json", "x-api-key": o.anthropicKey!, "anthropic-version": ANTHROPIC_VERSION },
     body: JSON.stringify({
-      model: o.claudeModel || DEFAULT_CLAUDE_MODEL,
+      model: o.anthropicModel || DEFAULT_ANTHROPIC_MODEL,
       max_tokens: 80 * n + 256,
       // A few lines of voice-over don't need reasoning (and Haiku's would count against max_tokens), as on the live stream.
       thinking: { type: "disabled" },
@@ -316,16 +316,16 @@ async function claudeDraft(prompt: string, n: number, o: WriterOptions): Promise
     }),
     signal: AbortSignal.timeout(o.timeoutMs ?? 60_000),
   });
-  if (!res.ok) throw new Error(`Claude answered ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  if (!res.ok) throw new Error(`Anthropic API answered ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const r = (await res.json()) as { content?: { type: string; text?: string }[]; stop_reason?: string };
   // A cut-off reply isn't a whole script.
-  if (r.stop_reason !== "end_turn") throw new Error(`Claude stopped: ${r.stop_reason}`);
+  if (r.stop_reason !== "end_turn") throw new Error(`The model stopped: ${r.stop_reason}`);
   return parseLines((r.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join(""), n);
 }
 
 /** One draft of the script from Ollama's chat API (streamed, so a slow model can't hit an HTTP timeout). */
 async function draft(prompt: string, n: number, o: WriterOptions): Promise<string[]> {
-  if (o.anthropicKey) return claudeDraft(prompt, n, o);
+  if (o.anthropicKey) return anthropicDraft(prompt, n, o);
   const model = o.model || DEFAULT_MODEL;
   // Thinking models write faster with thinking off; the rest don't take the setting.
   const think = /^(qwen3|gemma4|deepseek-r1|magistral)/.test(model) ? { think: false } : {};
@@ -396,7 +396,7 @@ export async function livelyNarration(v: Pick<Video, "template" | "data">, plain
     } catch (err) {
       const why = `${err instanceof Error ? err.message : err}${err instanceof Error && err.cause ? ` (${err.cause})` : ""}`;
       log(`AI draft ${attempt} failed: ${why}`);
-      // No point asking again when Ollama isn't running or doesn't have the model, or Claude turns the key away.
+      // No point asking again when Ollama isn't running or doesn't have the model, or the Anthropic API turns the key away.
       if (/ECONNREFUSED|fetch failed|not found|answered 40[13]/i.test(why)) break;
       continue;
     }

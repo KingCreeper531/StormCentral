@@ -254,6 +254,19 @@ export const userSettings = sqliteTable("user_settings", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+/** Roles a moderator gave in the app (Trusted Spotter, Moderator); built-in roles live in the code and environment. */
+export const userRoles = sqliteTable(
+  "user_roles",
+  {
+    userId: text("user_id").notNull(),
+    role: text("role").notNull(),
+    /** The moderator who gave it (no foreign key: the record stays if they delete their account). */
+    grantedBy: text("granted_by"),
+    grantedAt: integer("granted_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.role] })],
+);
+
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
@@ -395,6 +408,13 @@ CREATE TABLE IF NOT EXISTS live_drawing (
   user_id TEXT,
   updated_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS user_roles (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL,
+  granted_by TEXT,
+  granted_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, role)
+);
 CREATE TABLE IF NOT EXISTS user_settings (
   user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   data TEXT NOT NULL,
@@ -403,7 +423,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
 );
 `;
 
-export const schema = { users, sessions, passwordResets, media, posts, verifications, comments, blocks, flags, spotterWarnings, chaserPositions, liveDrawing, userSettings };
+export const schema = { users, sessions, passwordResets, media, posts, verifications, comments, blocks, flags, spotterWarnings, chaserPositions, liveDrawing, userSettings, userRoles };
 
 /**
  * Columns added after a table first shipped. CREATE TABLE IF NOT EXISTS

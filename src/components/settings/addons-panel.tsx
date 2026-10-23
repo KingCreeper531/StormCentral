@@ -312,15 +312,49 @@ function ThemeRow({ theme }: { theme: ThemeAddon }) {
 }
 
 /** Ready-made themes and plugins, installed with one tap (bundled, no download). */
+/** The featured plugins, each with an Add button. */
+function FeaturedPlugins() {
+  const install = useAddonsStore((s) => s.install);
+  const plugins = useAddonsStore((s) => s.plugins);
+  const t = useT();
+  const addPlugin = (p: PluginAddon) => install(p);
+  return (
+    <ul className="divide-y divide-line">
+      {FEATURED_PLUGINS.map((p) => {
+        const added = plugins.some((x) => x.id === p.id);
+        return (
+          <li key={p.id} className="flex items-center gap-3 py-2.5">
+            <span className="grid size-8 shrink-0 place-items-center rounded-[var(--radius-control)] bg-surface-2 text-ink-2">
+              <Layers className="size-4" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-medium text-ink">{p.name}</span>
+              <span className="block text-xs text-ink-3">{p.description}</span>
+              <span className="block truncate text-[11px] text-ink-3">{p.layers.map((l) => l.name).join(" · ")}</span>
+            </span>
+            <Button size="sm" variant={added ? "ghost" : "secondary"} disabled={added} onClick={() => addPlugin(p)}>
+              {added ? (
+                <>
+                  <Check className="size-4" aria-hidden /> {t("Added")}
+                </>
+              ) : (
+                t("Add")
+              )}
+            </Button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function FeaturedPanel() {
   const install = useAddonsStore((s) => s.install);
   const setActive = useAddonsStore((s) => s.setActiveTheme);
   const themes = useAddonsStore((s) => s.themes);
   const active = useAddonsStore((s) => s.activeTheme);
-  const plugins = useAddonsStore((s) => s.plugins);
   const t = useT();
   const wearTheme = (th: ThemeAddon) => (themes.some((x) => x.id === th.id) ? setActive(th.id) : install(th));
-  const addPlugin = (p: PluginAddon) => install(p);
   return (
     <Panel title={t("Featured")} subtitle={t("Made for Storm Central. Tap a theme to wear it; add a plugin, then choose what it shows.")}>
       <p className="label mb-2">{t("Themes")}</p>
@@ -350,33 +384,33 @@ function FeaturedPanel() {
       <p className="label mt-1.5">{t("Tap the theme in use again to go back to Storm Central's own colours.")}</p>
 
       <p className="label mt-5 mb-1">{t("Plugins")}</p>
-      <ul className="divide-y divide-line">
-        {FEATURED_PLUGINS.map((p) => {
-          const added = plugins.some((x) => x.id === p.id);
-          return (
-            <li key={p.id} className="flex items-center gap-3 py-2.5">
-              <span className="grid size-8 shrink-0 place-items-center rounded-[var(--radius-control)] bg-surface-2 text-ink-2">
-                <Layers className="size-4" aria-hidden />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium text-ink">{p.name}</span>
-                <span className="block text-xs text-ink-3">{p.description}</span>
-                <span className="block truncate text-[11px] text-ink-3">{p.layers.map((l) => l.name).join(" · ")}</span>
-              </span>
-              <Button size="sm" variant={added ? "ghost" : "secondary"} disabled={added} onClick={() => addPlugin(p)}>
-                {added ? (
-                  <>
-                    <Check className="size-4" aria-hidden /> {t("Added")}
-                  </>
-                ) : (
-                  t("Add")
-                )}
-              </Button>
-            </li>
-          );
-        })}
-      </ul>
+      <FeaturedPlugins />
     </Panel>
+  );
+}
+
+/** Installed plugins to switch on and off, the featured ones to add, and installing from GitHub (Broadcast mode's menu). */
+export function PluginsManager() {
+  const plugins = useAddonsStore((s) => s.plugins);
+  const t = useT();
+  return (
+    <div className="space-y-4">
+      <Panel title={t("Your plugins")} subtitle={t("Extra map layers on the Radar and Air maps")}>
+        {plugins.length ? (
+          <ul className="-my-3 divide-y divide-line">
+            {plugins.map((p) => (
+              <PluginRow key={p.id} p={p} />
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-ink-3">{t("No plugins yet. Add one below.")}</p>
+        )}
+      </Panel>
+      <Panel title={t("Featured")} subtitle={t("Made for Storm Central. Add a plugin, then choose what it shows.")}>
+        <FeaturedPlugins />
+      </Panel>
+      <InstallForm />
+    </div>
   );
 }
 

@@ -1,0 +1,153 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="short.css" />
+<script src="vendor/d3-array.min.js"></script>
+<script src="vendor/d3-geo.min.js"></script>
+<script src="vendor/topojson-client.min.js"></script>
+</head>
+<body>
+<canvas id="c" width="1080" height="1350"></canvas>
+<script src="common.js"></script>
+<script>
+/*
+ * The picture on a warning's Facebook post (warning-card.ts renders it; 4:5,
+ * the shape Facebook shows largest in the feed): the warning's colour and
+ * title, the polygon over the radar with the cities, then the NWS's facts.
+ * DATA: { states, logo, card: { title, color, where, until, situation, chips: [{ label, value }], safety, issuer, geometry },
+ *         radar: { url, west, south, east, north } | null }
+ */
+const W = 1080, H = 1350;
+const ctx = document.getElementById("c").getContext("2d");
+const D = window.DATA, K = D.card;
+const logo = new Image(); logo.src = D.logo;
+const FONT = "SC Inter";
+const C = { bg: "#03060d", panel: "#0b1120", land: "#111a2c", line: "rgba(255,255,255,0.10)", ink: "#f2f4f8", ink2: "#a9b1bf", ink3: "#7d8594" };
+const MAP = { x: 0, y: 190, w: W, h: 700 };
+
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function text(s, x, y, { size = 32, weight = 600, color = C.ink, align = "left" } = {}) {
+  ctx.font = `${weight} ${size}px "${FONT}"`; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = "alphabetic";
+  ctx.fillText(s, x, y);
+}
+function fitSize(s, maxW, size, weight = 800) {
+  ctx.font = `${weight} ${size}px "${FONT}"`;
+  const w = ctx.measureText(s).width;
+  return w <= maxW ? size : Math.max(16, Math.floor((size * maxW) / w));
+}
+function lines(s, maxW, size, weight, max) {
+  ctx.font = `${weight} ${size}px "${FONT}"`;
+  const out = []; let line = "";
+  for (const w of String(s).split(/\s+/)) {
+    const next = line ? `${line} ${w}` : w;
+    if (line && ctx.measureText(next).width > maxW) { out.push(line); line = w; } else line = next;
+  }
+  if (line) out.push(line);
+  if (out.length > max) { out.length = max; out[max - 1] = out[max - 1].replace(/\s*\S*$/, "…"); }
+  return out;
+}
+
+// The polygon's box, and the map around it (the radar image's corners when there is one, Web Mercator like the image).
+const geo = K.geometry && { type: "Feature", geometry: K.geometry, properties: {} };
+const rad = (d) => (d * Math.PI) / 180;
+const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + rad(lat) / 2));
+let box = D.radar;
+if (!box && geo) {
+  const [[w0, s0], [e0, n0]] = d3.geoBounds(geo), pad = Math.max(e0 - w0, n0 - s0) * 0.55 + 0.15;
+  box = { west: w0 - pad * 1.4, east: e0 + pad * 1.4, south: s0 - pad, north: n0 + pad };
+}
+box = box || { west: -105, east: -90, south: 30, north: 40 };
+/** Lon/lat to the map box, linear in Web Mercator (exactly as the radar image is laid out). */
+const proj = d3.geoTransform({
+  point(lon, lat) {
+    this.stream.point(MAP.x + ((lon - box.west) / (box.east - box.west)) * MAP.w, MAP.y + ((mercY(box.north) - mercY(lat)) / (mercY(box.north) - mercY(box.south))) * MAP.h);
+  },
+});
+const toXY = ([lon, lat]) => [MAP.x + ((lon - box.west) / (box.east - box.west)) * MAP.w, MAP.y + ((mercY(box.north) - mercY(lat)) / (mercY(box.north) - mercY(box.south))) * MAP.h];
+const path = d3.geoPath(proj, ctx);
+const states = topojson.feature(D.states, D.states.objects.states);
+const mesh = topojson.mesh(D.states, D.states.objects.states, (a, b) => a !== b);
+const radarImg = new Image();
+if (D.radar) radarImg.src = D.radar.url;
+window.READY = D.radar ? radarImg.decode().catch(() => {}) : Promise.resolve();
+
+function draw() {
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+
+  // Title band in the warning's colour.
+  ctx.fillStyle = K.color; ctx.fillRect(0, 0, W, 190);
+  const g = ctx.createLinearGradient(0, 0, 0, 190); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.25)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, 190);
+  if (logo.complete) { ctx.save(); rr(40, 34, 56, 56, 12); ctx.clip(); ctx.drawImage(logo, 40, 34, 56, 56); ctx.restore(); }
+  text("STORM CENTRAL", 112, 72, { size: 26, weight: 800, color: "rgba(255,255,255,0.92)" });
+  text(`Until ${K.until}`, W - 40, 72, { size: 30, weight: 700, color: "#fff", align: "right" });
+  text(K.title, 40, 158, { size: fitSize(K.title, W - 80, 64), weight: 900, color: "#fff" });
+
+  // The map: land, radar, state lines, the polygon, cities.
+  ctx.save();
+  ctx.beginPath(); ctx.rect(MAP.x, MAP.y, MAP.w, MAP.h); ctx.clip();
+  ctx.fillStyle = C.panel; ctx.fillRect(MAP.x, MAP.y, MAP.w, MAP.h);
+  ctx.beginPath(); path(states); ctx.fillStyle = C.land; ctx.fill();
+  if (D.radar && radarImg.complete && radarImg.naturalWidth) { ctx.globalAlpha = 0.92; ctx.drawImage(radarImg, MAP.x, MAP.y, MAP.w, MAP.h); ctx.globalAlpha = 1; }
+  ctx.beginPath(); path(mesh); ctx.strokeStyle = "rgba(220,230,250,0.5)"; ctx.lineWidth = 2; ctx.stroke();
+  if (geo) {
+    ctx.beginPath(); path(geo); ctx.fillStyle = `${K.color}33`; ctx.fill();
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 11; ctx.strokeStyle = "rgba(0,0,0,0.55)"; ctx.stroke();
+    ctx.lineWidth = 6; ctx.strokeStyle = K.color; ctx.stroke();
+  }
+  // Cities in view, not on top of each other.
+  ctx.font = `600 26px "${FONT}"`;
+  const placed = [];
+  for (const [name, lon, lat] of SC.CITIES.concat(SC.TROPICAL_CITIES || [])) {
+    const [x, y] = toXY([lon, lat]);
+    const w = ctx.measureText(name).width, b = [x - 8, y - 30, x + w + 16, y + 10];
+    if (b[0] < MAP.x + 10 || b[2] > MAP.x + MAP.w - 10 || b[1] < MAP.y + 50 || b[3] > MAP.y + MAP.h - 40) continue;
+    if (placed.some((p) => !(b[2] < p[0] || b[0] > p[2] || b[3] < p[1] || b[1] > p[3]))) continue;
+    placed.push(b);
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
+    ctx.lineWidth = 6; ctx.strokeStyle = "rgba(3,6,13,0.85)"; ctx.lineJoin = "round"; ctx.strokeText(name, x + 12, y - 8);
+    ctx.fillStyle = "#fff"; ctx.fillText(name, x + 12, y - 8);
+  }
+  ctx.restore();
+  ctx.save(); rr(MAP.x + 16, MAP.y + MAP.h - 50, 470, 36, 10); ctx.fillStyle = "rgba(3,6,13,0.75)"; ctx.fill(); ctx.restore();
+  text(D.radar ? "Radar: NEXRAD composite (Iowa Environmental Mesonet)" : "Warning area from the National Weather Service", MAP.x + 30, MAP.y + MAP.h - 25, { size: 20, weight: 500, color: C.ink2 });
+
+  // The facts.
+  let y = MAP.y + MAP.h + 66;
+  for (const l of lines(K.where, W - 80, 40, 800, 2)) { text(l, 40, y, { size: 40, weight: 800 }); y += 50; }
+  y += 6;
+  if (K.situation) for (const l of lines(K.situation, W - 80, 30, 500, 3)) { text(l, 40, y, { size: 30, weight: 500, color: C.ink2 }); y += 40; }
+  if (K.chips.length) {
+    y += 14;
+    let x = 40;
+    for (const c of K.chips.slice(0, 3)) {
+      const s = `${c.label}: ${c.value}`;
+      ctx.font = `700 28px "${FONT}"`;
+      const w = ctx.measureText(s).width + 36;
+      if (x + w > W - 40) break;
+      rr(x, y - 34, w, 50, 14); ctx.fillStyle = "rgba(255,255,255,0.07)"; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = K.color; ctx.stroke();
+      text(s, x + 18, y + 1, { size: 28, weight: 700 });
+      x += w + 14;
+    }
+    y += 40;
+  }
+
+  // Footer: who issued it, where to follow it, the reminder.
+  ctx.fillStyle = "#070c18"; ctx.fillRect(0, H - 132, W, 132);
+  ctx.fillStyle = K.color; ctx.fillRect(0, H - 132, W, 5);
+  text(`Issued by ${K.issuer}`, 40, H - 82, { size: fitSize(`Issued by ${K.issuer}`, W - 80, 26, 600), weight: 600, color: C.ink2 });
+  text("Live radar: app.stormcentralwx.com", 40, H - 40, { size: 30, weight: 800 });
+  text("Not an official warning source", W - 40, H - 40, { size: 22, weight: 500, color: C.ink3, align: "right" });
+}
+
+window.render = function () { draw(); };
+window.DUR = 1;
+</script>
+</body>
+</html>

@@ -6,6 +6,7 @@
  * same colours as the on-screen graphics (components/broadcast).
  */
 import type { LowerThird, TickerItem } from "./graphics";
+import { DEFAULT_LOOK, lowerScale, withAlpha, type BroadcastLook } from "./look";
 
 export interface BroadcastFrame {
   name: string;
@@ -15,6 +16,8 @@ export interface BroadcastFrame {
   /** The station logo, already decoded. */
   logo: CanvasImageSource | null;
   parts: { bug: boolean; clock: boolean; lower: boolean; ticker: boolean };
+  /** The lower third's and ticker's colours, size and wording (the default look when left out). */
+  look?: BroadcastLook;
   lower: LowerThird;
   ticker: readonly TickerItem[];
   /** Small caps label over the frame time ("RADAR", or "HRRR FORECAST" for a forecast frame). */
@@ -27,7 +30,6 @@ const PANEL_TOP = "rgba(14, 20, 36, 0.95)";
 const PANEL_BOTTOM = "rgba(7, 11, 22, 0.95)";
 const INK = "#f4f6fb";
 const MUTED = "#9aa4b8";
-const SOFT = "#cfd5e2";
 
 function rounded(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
@@ -67,7 +69,8 @@ export function drawBroadcast(ctx: CanvasRenderingContext2D, w: number, h: numbe
   ctx.save();
   ctx.textBaseline = "alphabetic";
 
-  const tickerH = g.parts.ticker ? px(36) : 0;
+  const L = g.look ?? DEFAULT_LOOK;
+  const tickerH = g.parts.ticker ? px(L.tickerLarge ? 46 : 36) : 0;
 
   if (g.parts.bug) {
     const bh = px(56);
@@ -120,49 +123,71 @@ export function drawBroadcast(ctx: CanvasRenderingContext2D, w: number, h: numbe
   }
 
   if (g.parts.lower) {
-    const lh = px(78);
+    const k = lowerScale(L.lowerSize);
+    const lh = px(78 * k);
     const ly = h - tickerH - px(g.parts.ticker ? 10 : 18) - lh;
-    panel(ctx, m, ly, w - m * 2, lh, px(14));
+    const lw = L.lowerCompact ? Math.min((w - m * 2) * 0.6, px(720)) : w - m * 2;
+    const r = L.lowerSquare ? 0 : px(14);
+    rounded(ctx, m, ly, lw, lh, r);
+    ctx.fillStyle = withAlpha(L.lowerBg, L.lowerOpacity);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.09)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
     ctx.save();
-    rounded(ctx, m, ly, w - m * 2, lh, px(14));
+    rounded(ctx, m, ly, lw, lh, r);
     ctx.clip();
     ctx.fillStyle = g.lower.color;
     ctx.fillRect(m, ly, px(10), lh);
     ctx.restore();
-    const inner = w - m * 2 - px(46);
-    ctx.font = font(900, 27);
-    ctx.fillStyle = INK;
-    ctx.fillText(fit(ctx, g.lower.title, inner), m + px(28), ly + px(37));
-    ctx.font = font(600, 16.5);
-    ctx.fillStyle = SOFT;
-    ctx.fillText(fit(ctx, g.lower.subtitle, inner), m + px(28), ly + px(62));
+    const inner = lw - px(46);
+    ctx.font = font(900, 27 * k);
+    ctx.fillStyle = L.lowerText;
+    ctx.fillText(fit(ctx, g.lower.title, inner), m + px(28), ly + lh * 0.47);
+    ctx.font = font(600, 16.5 * k);
+    ctx.globalAlpha = 0.8;
+    ctx.fillText(fit(ctx, g.lower.subtitle, inner), m + px(28), ly + lh * 0.79);
+    ctx.globalAlpha = 1;
   }
 
   if (g.parts.ticker) {
     const ty = h - tickerH;
-    ctx.fillStyle = "#050810";
+    const big = L.tickerLarge;
+    const mid = ty + tickerH / 2;
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = L.tickerBg;
     ctx.fillRect(0, ty, w, tickerH);
-    ctx.font = font(900, 12);
+    ctx.font = font(900, big ? 14 : 12);
     const labW = ctx.measureText(g.tickerLabel).width + px(28);
-    ctx.fillStyle = g.accent;
+    ctx.fillStyle = L.tickerLabelColor ?? g.accent;
     ctx.fillRect(0, ty, labW, tickerH);
     ctx.fillStyle = "#ffffff";
-    ctx.fillText(g.tickerLabel, px(14), ty + px(23));
+    ctx.fillText(g.tickerLabel, px(14), mid);
     let x = labW + px(14);
+    const message = L.tickerMessage.trim();
+    if (message) {
+      ctx.font = font(700, big ? 19 : 15);
+      ctx.fillStyle = L.tickerText;
+      const text = fit(ctx, message, w - x - px(16));
+      ctx.fillText(text, x, mid);
+      x += ctx.measureText(text).width + px(34);
+    }
     for (const it of g.ticker) {
       if (x > w - px(40)) break;
-      ctx.font = font(900, 11);
-      const cw = ctx.measureText(it.code).width + px(12);
-      rounded(ctx, x, ty + px(9), cw, px(18), px(4));
-      ctx.fillStyle = it.color;
-      ctx.fill();
-      ctx.fillStyle = "#0a0d14";
-      ctx.fillText(it.code, x + px(6), ty + px(22));
-      x += cw + px(8);
-      ctx.font = font(600, 15);
-      ctx.fillStyle = "#e8ecf4";
+      if (L.tickerCodes) {
+        ctx.font = font(900, 11);
+        const cw = ctx.measureText(it.code).width + px(12);
+        rounded(ctx, x, mid - px(9), cw, px(18), px(4));
+        ctx.fillStyle = it.color;
+        ctx.fill();
+        ctx.fillStyle = "#0a0d14";
+        ctx.fillText(it.code, x + px(6), mid + px(0.5));
+        x += cw + px(8);
+      }
+      ctx.font = font(600, big ? 19 : 15);
+      ctx.fillStyle = L.tickerText;
       const text = fit(ctx, it.text, w - x - px(16));
-      ctx.fillText(text, x, ty + px(24));
+      ctx.fillText(text, x, mid);
       x += ctx.measureText(text).width + px(34);
     }
   }

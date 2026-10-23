@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, lt, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { getDb } from "../db/client";
 import { avatarUrl } from "../community";
@@ -26,7 +26,7 @@ export interface SessionUser {
   displayName: string;
   avatarHue: number;
   avatarUrl: string | null;
-  /** Listed in MODERATORS and not suspended: sees the moderation queue and can act on it. */
+  /** Listed in MODERATORS or made a moderator in the app, and not suspended: sees the moderation queue and can act on it. */
   moderator: boolean;
   /** Set while a moderator has suspended the account. */
   suspendedUntil: number | null;
@@ -54,10 +54,10 @@ export function isPresenter(user: Pick<SessionUser, "username" | "moderator" | "
 }
 
 /** Spotters given the Trusted Spotter rank by hand, whatever their confirmations. */
-const GRANTED_TRUSTED_SPOTTERS = "zenitsu132";
+const GRANTED_TRUSTED_SPOTTERS = "zenitsu132,zenwx";
 
 /**
- * Accounts that rank at least Trusted Spotter (badge, profile and WarnGen)
+ * Accounts that rank at least Trusted Spotter (badge and profile)
  * however few confirmations they have: the ones granted here, plus
  * TRUSTED_SPOTTERS (comma-separated usernames).
  */
@@ -65,11 +65,16 @@ export function isTrustedSpotter(username: string) {
   return usernames(`${GRANTED_TRUSTED_SPOTTERS},${process.env.TRUSTED_SPOTTERS ?? ""}`).includes(username.toLowerCase());
 }
 
+/** Spotters who may issue WarnGen warnings, named in WARNGEN_ISSUERS (comma-separated); moderators give the role in the app too. */
+export function isWarnGenIssuer(username: string) {
+  return usernames(process.env.WARNGEN_ISSUERS).includes(username.toLowerCase());
+}
+
 /**
  * Roles come with these usernames, so nobody can sign up as one: not on a fresh
  * database, and not after the account that had it is deleted.
  */
-export const isReservedUsername = (username: string) => isModerator(username) || isDeveloper(username) || isTrustedSpotter(username);
+export const isReservedUsername = (username: string) => isModerator(username) || isDeveloper(username) || isWarnGenIssuer(username) || isTrustedSpotter(username);
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
@@ -112,6 +117,8 @@ export async function getSessionUser(opts: { refresh?: boolean } = {}): Promise<
       avatarHue: users.avatarHue,
       avatarMediaId: users.avatarMediaId,
       suspendedUntil: users.suspendedUntil,
+      // Made a moderator in the app (lib/server/roles-repo.ts), read fresh each time so taking it away works at once.
+      grantedModerator: sql<number>`EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = ${users.id} AND r.role = 'moderator')`,
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
@@ -136,7 +143,7 @@ export async function getSessionUser(opts: { refresh?: boolean } = {}): Promise<
     avatarHue: row.avatarHue,
     avatarUrl: avatarUrl(row.avatarMediaId),
     // A suspended moderator has no moderator powers (and so can't lift their own suspension).
-    moderator: isModerator(row.username) && suspendedUntil == null,
+    moderator: (isModerator(row.username) || Number(row.grantedModerator) === 1) && suspendedUntil == null,
     suspendedUntil,
   };
 }

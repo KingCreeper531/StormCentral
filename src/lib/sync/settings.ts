@@ -93,7 +93,7 @@ export const SECTIONS: readonly SectionDef[] = [
       return { ...local, layers: [...files, ...synced.layers] };
     },
   },
-  { id: "broadcast", key: "stormcentral:broadcast:v1", version: 1, ...plain("name", "tagline", "accent", "parts", "scenes", "tourSeconds") },
+  { id: "broadcast", key: "stormcentral:broadcast:v1", version: 1, ...plain("name", "tagline", "accent", "parts", "scenes", "tourSeconds", "look") },
 ];
 
 export interface SyncedSettings {

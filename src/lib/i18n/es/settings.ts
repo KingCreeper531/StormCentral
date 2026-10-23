@@ -268,4 +268,9 @@ export const SETTINGS: Record<string, string> = {
   "Remove the settings kept on your account": "Quitar los ajustes guardados en tu cuenta",
   "Removed the settings kept on your account. Each device keeps its own.": "Se quitaron los ajustes guardados en tu cuenta. Cada dispositivo conserva los suyos.",
   "On-air graphics for streaming the radar": "Gráficos al aire para transmitir el radar",
+  "No plugins yet. Add one below.": "Aún no hay plugins. Añade uno abajo.",
+  "Made for Storm Central. Add a plugin, then choose what it shows.": "Hechos para Storm Central. Añade un plugin y elige lo que muestra.",
+  "Boot into Broadcast mode": "Iniciar en modo transmisión",
+  "Opens Broadcast mode whenever the app starts on this device, for a screen that's always on air. Leaving Broadcast mode still opens the radar.": "Abre el modo transmisión cada vez que la app se inicia en este dispositivo, para una pantalla siempre al aire. Al salir del modo transmisión se abre el radar.",
+  "Open Broadcast mode": "Abrir el modo transmisión",
 };

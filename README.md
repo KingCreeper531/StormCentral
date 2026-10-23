@@ -31,6 +31,7 @@ Without a database setting, accounts and spotter reports use a local SQLite file
 - How it fits together: [ARCHITECTURE.md](ARCHITECTURE.md). Design system: [docs/DESIGN.md](docs/DESIGN.md).
 - YouTube Shorts and Radar School: [shorts/README.md](shorts/README.md).
 - Pro data server: [pro-server/README.md](pro-server/README.md).
+- Daily health check and nightly database backups: [docs/OPERATIONS.md](docs/OPERATIONS.md).
 - Your own server (Pro data server, 24/7 YouTube live stream, local AI) in one command: [vps/README.md](vps/README.md).
 
 ## Themes and plugins

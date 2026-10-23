@@ -29,6 +29,21 @@ const APP = "https://app.stormcentralwx.com";
 /** How serious, for upgrades and for who goes first when there are too many. */
 export type Level = 1 | 2 | 3 | 4;
 
+/** What the post's picture shows (warning-card.html): the polygon on radar with the warning's text. */
+export interface WarningCard {
+  title: string;
+  /** The warning's colour (NWS map colours; emergencies magenta). */
+  color: string;
+  where: string;
+  /** "8:30 PM CDT". */
+  until: string;
+  situation: string | null;
+  chips: { label: string; value: string }[];
+  safety: string;
+  issuer: string;
+  geometry: WeatherAlert["geometry"];
+}
+
 export interface WarningPost {
   /** The warning across its updates: office, product, number and year. */
   base: string;
@@ -41,6 +56,7 @@ export interface WarningPost {
   ends: string;
   sent: string;
   message: string;
+  card: WarningCard;
 }
 
 /** The warning's level, or null when it isn't posted (a plain flash flood warning, an ordinary severe thunderstorm warning). */
@@ -60,6 +76,12 @@ export function levelOf(a: WeatherAlert, severe: "destructive" | "all" = "destru
   return null;
 }
 
+/** The NWS warning colours, emergencies in magenta (as the app draws them). */
+export function cardColor(event: string, level: Level): string {
+  if (level === 4 && event !== "Extreme Wind Warning") return "#ff2bd6";
+  return ({ "Tornado Warning": "#ff1f1f", "Extreme Wind Warning": "#ff8c00", "Flash Flood Warning": "#8b0000", "Severe Thunderstorm Warning": "#ffa500" } as Record<string, string>)[event] ?? "#ff1f1f";
+}
+
 const SAFETY: Record<string, string> = {
   "Tornado Warning": "If you're in the warned area, go to a basement or an interior room on the lowest floor now, away from windows.",
   "Extreme Wind Warning": "If you're in the warned area, take shelter now in an interior room on the lowest floor, as if for a tornado.",
@@ -71,14 +93,27 @@ const SAFETY: Record<string, string> = {
 const hashtags = (a: WeatherAlert, areas: Area[]) =>
   [`#${a.event.replace(/\s+/g, "")}`, ...[...new Set(areas.map((x) => x.state))].filter((s) => STATE_NAMES[s]).map((s) => `#${s.toLowerCase()}wx`)].join(" ");
 
+/** The facts the post and its picture share. */
+function facts(a: WeatherAlert, areas: Area[], ends: string) {
+  const zone = zoneFor(areas[0]?.state, ends);
+  return {
+    where: placesText(areas, 8) || a.areaDesc,
+    until: clockText(ends, zone).short,
+    situation: situationOf(a.description),
+    chips: chipsOf(a).map((c) => ({ label: `${c.label.charAt(0)}${c.label.slice(1).toLowerCase()}`, value: c.value.toLowerCase() })),
+    issuer: a.sender.replace(/^NWS\s+/, "the National Weather Service in ").replace(/\s([A-Z]{2})$/, ", $1"),
+  };
+}
+
+export function warningCard(a: WeatherAlert, title: string, level: Level, areas: Area[], ends: string): WarningCard {
+  const f = facts(a, areas, ends);
+  return { title, color: cardColor(a.event, level), ...f, issuer: f.issuer.replace(/^the /, ""), safety: SAFETY[a.event] ?? "", geometry: a.geometry };
+}
+
 /** The post's text: what, where, until when, the NWS's situation sentence and threats, what to do, the link and the reminder. */
 export function warningMessage(a: WeatherAlert, title: string, upgrade: boolean, areas: Area[], ends: string): string {
-  const zone = zoneFor(areas[0]?.state, ends);
-  const where = placesText(areas, 8) || a.areaDesc;
-  const until = clockText(ends, zone).short;
-  const situation = situationOf(a.description);
-  const chips = chipsOf(a).map((c) => `${c.label.charAt(0)}${c.label.slice(1).toLowerCase()}: ${c.value.toLowerCase()}`);
-  const issuer = a.sender.replace(/^NWS\s+/, "the National Weather Service in ").replace(/\s([A-Z]{2})$/, ", $1");
+  const { where, until, situation, issuer } = facts(a, areas, ends);
+  const chips = facts(a, areas, ends).chips.map((c) => `${c.label}: ${c.value}`);
   return [
     `${upgrade ? "UPGRADED: " : ""}${title} for ${where} until ${until}.`,
     situation,
@@ -119,7 +154,17 @@ export function warningPosts(features: RawAlertFeature[], posted: Record<string,
     if (before != null && before >= l.level) continue;
     const upgrade = before != null;
     const areas = parseAreas(a.areaDesc);
-    out.push({ base, level: l.level, title: l.title, upgrade, areas, ends, sent: a.sent, message: warningMessage(a, l.title, upgrade, areas, ends) });
+    out.push({
+      base,
+      level: l.level,
+      title: l.title,
+      upgrade,
+      areas,
+      ends,
+      sent: a.sent,
+      message: warningMessage(a, l.title, upgrade, areas, ends),
+      card: warningCard(a, upgrade ? `UPGRADED: ${l.title}` : l.title, l.level, areas, ends),
+    });
   }
   return out.sort((x, y) => y.level - x.level || Date.parse(y.sent) - Date.parse(x.sent));
 }

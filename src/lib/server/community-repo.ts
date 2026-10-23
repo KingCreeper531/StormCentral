@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, gt, gte, inArray, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import type { ActivityItem, CommentDto, ConditionsSnapshot, FeedResponse, PostDto } from "../community";
 import { avatarUrl, conditionsSchema } from "../community";
-import { isDeveloper, isTrustedSpotter } from "../auth/session";
+import { isDeveloper } from "../auth/session";
+import { grantedTrusted, isTrusted } from "./roles-repo";
 import { getDb } from "../db/client";
 import { comments, flags, media, posts, users, verifications } from "../db/schema";
 import { haversineKm, type BBox, type LatLon } from "../geo";
@@ -119,6 +120,7 @@ export async function listPosts(q: FeedQuery, viewerId: string | null, moderator
       )
     : new Set<string>();
 
+  const trusted = await grantedTrusted();
   let out: PostDto[] = page.map((r) => ({
     id: r.post.id,
     body: r.post.body,
@@ -137,7 +139,7 @@ export async function listPosts(q: FeedQuery, viewerId: string | null, moderator
       avatarUrl: avatarUrl(r.avatarMediaId),
       reputation: Number(r.reputation),
       developer: isDeveloper(r.username),
-      trusted: isTrustedSpotter(r.username),
+      trusted: isTrusted(r.username, trusted),
     },
     verifications: Number(r.verifications),
     comments: Number(r.comments),
@@ -353,6 +355,7 @@ export async function listComments(postId: string, viewerId: string | null): Pro
     .where(and(eq(comments.postId, postId), visible(viewerId, comments.hidden, comments.userId, Date.now()), notBlocked(viewerId, comments.userId)))
     .orderBy(desc(comments.createdAt), desc(comments.id))
     .limit(200);
+  const trusted = await grantedTrusted();
   return rows.reverse().map((r) => ({
     id: r.c.id,
     body: r.c.body,
@@ -363,7 +366,7 @@ export async function listComments(postId: string, viewerId: string | null): Pro
       avatarHue: r.avatarHue,
       avatarUrl: avatarUrl(r.avatarMediaId),
       developer: isDeveloper(r.username),
-      trusted: isTrustedSpotter(r.username),
+      trusted: isTrusted(r.username, trusted),
     },
     isOwn: r.c.userId === viewerId,
     hidden: r.c.hidden !== 0,
@@ -423,6 +426,6 @@ export async function getProfile(username: string) {
     posts: Number(row.posts),
     nwsConfirmed: Number(row.nwsConfirmed),
     developer: isDeveloper(row.username),
-    trusted: isTrustedSpotter(row.username),
+    trusted: isTrusted(row.username, await grantedTrusted()),
   };
 }

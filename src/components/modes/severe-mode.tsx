@@ -696,17 +696,23 @@ export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {})
     </>
   );
 
+  // The radar's layers and the map style: the Radar tab, and Broadcast mode's layers menu.
+  const layerControls = (
+    <>
+      <RadarControls settings={radar} onChange={setRadar} site={site} available={available} location={loc} />
+      <section className="mt-5 space-y-4 border-t border-line pt-4">
+        <h3 className="text-[13px] font-semibold text-ink">{t("Map style")}</h3>
+        <MapStyleControls />
+      </section>
+    </>
+  );
   const sheetBody =
     tab === "radar" ? (
       <div className="p-4">
         {archived && radar.source === "site" && (
           <p className="mb-4 text-xs text-ink-3">{t("Looking back shows the national mosaic. Professional mode has each radar's own scans.")}</p>
         )}
-        <RadarControls settings={radar} onChange={setRadar} site={site} available={available} location={loc} />
-        <section className="mt-5 space-y-4 border-t border-line pt-4">
-          <h3 className="text-[13px] font-semibold text-ink">{t("Map style")}</h3>
-          <MapStyleControls />
-        </section>
+        {layerControls}
         <section className="mt-5 space-y-4 border-t border-line pt-4">
           <h3 className="text-[13px] font-semibold text-ink">{t("Radar archive")}</h3>
           <ArchivePicker timeZone={timeZone} onEvent={showEvent} />
@@ -873,6 +879,7 @@ export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {})
           timeZone={timeZone}
           onExit={studio.onExit}
           extra={drawButton}
+          layers={layerControls}
         />
       )}
       {drawOpen && <DrawCanvas map={map} />}

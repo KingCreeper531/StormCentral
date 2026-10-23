@@ -50,24 +50,40 @@ const request = (kind: IssueRequest["kind"] = "SVR"): IssueRequest => ({
 });
 
 describe("who may issue", () => {
-  it("takes Trusted Spotter rank by default, or WARNGEN_MIN_REPUTATION", async () => {
+  it("needs the WarnGen role: Trusted Spotter alone isn't enough", async () => {
     delete process.env.WARNGEN_MIN_REPUTATION;
-    expect((await r.issuePermission(user(ALICE))).ok).toBe(false);
-    expect((await r.issuePermission(user(ALICE))).reason).toContain("(you have 3)");
-    process.env.WARNGEN_MIN_REPUTATION = "3";
-    expect((await r.issuePermission(user(ALICE))).ok).toBe(true);
+    const p = await r.issuePermission(user(ALICE));
+    expect(p.ok).toBe(false);
+    expect(p.reason).toBe(r.NEEDS_WARNGEN_ROLE);
+    // zenitsu132 is a built-in Trusted Spotter, which no longer opens WarnGen.
+    expect((await r.issuePermission(user("u-zenitsu132"))).ok).toBe(false);
+    process.env.TRUSTED_SPOTTERS = BOB.slice(2);
     expect((await r.issuePermission(user(BOB))).ok).toBe(false);
-    expect((await r.issuePermission(user(BOB, { moderator: true }))).ok).toBe(true);
-    expect((await r.issuePermission(user(ALICE, { suspendedUntil: Date.now() + 1000 }))).ok).toBe(false);
-    delete process.env.WARNGEN_MIN_REPUTATION;
+    delete process.env.TRUSTED_SPOTTERS;
   });
 
-  it("lets a granted Trusted Spotter issue without the confirmations", async () => {
-    expect((await r.issuePermission(user("u-zenitsu132"))).ok).toBe(true);
-    expect((await r.issuePermission(user(BOB))).ok).toBe(false);
-    process.env.TRUSTED_SPOTTERS = BOB.slice(2);
+  it("opens with the role given in the app or in WARNGEN_ISSUERS, and always for moderators", async () => {
+    const roles = await import("./roles-repo");
+    await roles.setRole(BOB, "warngen", true, ALICE);
     expect((await r.issuePermission(user(BOB))).ok).toBe(true);
-    delete process.env.TRUSTED_SPOTTERS;
+    await roles.setRole(BOB, "warngen", false, ALICE);
+    expect((await r.issuePermission(user(BOB))).ok).toBe(false);
+    process.env.WARNGEN_ISSUERS = "Bob";
+    expect((await r.issuePermission(user(BOB))).ok).toBe(true);
+    delete process.env.WARNGEN_ISSUERS;
+    expect((await r.issuePermission(user(BOB, { moderator: true }))).ok).toBe(true);
+    expect((await r.issuePermission(user(BOB, { moderator: true, suspendedUntil: Date.now() + 1000 }))).ok).toBe(false);
+  });
+
+  it("can open by confirmations instead when WARNGEN_MIN_REPUTATION is set", async () => {
+    process.env.WARNGEN_MIN_REPUTATION = "3";
+    expect((await r.issuePermission(user(ALICE))).ok).toBe(true);
+    const bob = await r.issuePermission(user(BOB));
+    expect(bob.ok).toBe(false);
+    expect(bob.reason).toContain("(you have 0)");
+    process.env.WARNGEN_MIN_REPUTATION = "0";
+    expect((await r.issuePermission(user(BOB))).ok).toBe(true);
+    delete process.env.WARNGEN_MIN_REPUTATION;
   });
 });
 

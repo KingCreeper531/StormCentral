@@ -75,7 +75,7 @@ if [ -n "$YT_STREAM_KEY" ]; then
 fi
 if [ -n "$YT_STREAM_KEY" ]; then
   echo "Optional: the AI that words the stream's commentary, best first. Each is fact-checked before it's read."
-  ask ANTHROPIC_API_KEY "Anthropic API key (Claude Haiku, a few dollars a month; empty to skip)" secret
+  ask ANTHROPIC_API_KEY "Anthropic API key (Haiku, a few dollars a month; empty to skip)" secret
   ask GEMINI_API_KEY "Google AI Studio API key (Gemini, free tier; empty to skip)" secret
   ask STREAM_EXTRA_OUTPUTS "Other platforms, RTMP URLs with keys, space-separated (Twitch, Kick…)"
 fi

@@ -4,7 +4,9 @@ import { useMemo } from "react";
 import { useNow } from "@/hooks/use-now";
 import type { WeatherAlert } from "@/lib/api/types";
 import { countdown, tickerItems, warningCounts, type LowerThird } from "@/lib/broadcast/graphics";
+import { lowerScale, tickerSeconds, withAlpha } from "@/lib/broadcast/look";
 import { useT } from "@/lib/i18n/use-t";
+import { cn } from "@/lib/utils";
 import { fmtIn } from "@/lib/weather/view";
 import { useBroadcastStore } from "@/store/broadcast-store";
 
@@ -54,9 +56,13 @@ export function BroadcastOverlay({ warnings, lower, lowerKey, timeZone }: { warn
   const s = useBroadcastStore();
   const counts = useMemo(() => warningCounts(warnings, t), [warnings, t]);
   const ticker = useMemo(() => tickerItems(warnings, timeZone, t), [warnings, timeZone, t]);
-  const tickerChars = ticker.reduce((n, i) => n + i.text.length + 8, 0);
+  const L = s.look;
+  const tickerChars = ticker.reduce((n, i) => n + i.text.length + 8, 0) + L.tickerMessage.length + 8;
   const tickerOn = s.parts.ticker;
-  const bottom = tickerOn ? 46 : 18;
+  const tickerH = L.tickerLarge ? 46 : 36;
+  const bottom = tickerOn ? tickerH + 10 : 18;
+  const k = lowerScale(L.lowerSize);
+  const tickerFont = L.tickerLarge ? 19 : 15;
 
   return (
     <div className="bc" aria-hidden>
@@ -103,16 +109,27 @@ export function BroadcastOverlay({ warnings, lower, lowerKey, timeZone }: { warn
       )}
 
       {s.parts.lower && (
-        <div key={lowerKey} className="bc-glass bc-rise absolute right-[18px] left-[18px] flex h-[78px] items-stretch overflow-hidden rounded-[14px]" style={{ bottom }}>
+        <div
+          key={lowerKey}
+          className={cn(
+            "bc-rise absolute left-[18px] flex items-stretch overflow-hidden border border-white/[0.09] shadow-[0_10px_30px_rgba(0,0,0,0.45)]",
+            L.lowerCompact ? "w-[min(60%,720px)] max-sm:right-[18px] max-sm:w-auto" : "right-[18px]",
+          )}
+          style={{ bottom, height: Math.round(78 * k), borderRadius: L.lowerSquare ? 0 : 14, background: withAlpha(L.lowerBg, L.lowerOpacity), color: L.lowerText }}
+        >
           <div className="w-2.5 shrink-0" style={{ background: lower.color }} />
-          <div className="min-w-0 flex-1 px-[18px] pt-[11px]">
-            <div className="truncate text-[27px] font-black tracking-[0.6px] max-sm:text-[20px]">{lower.title}</div>
-            <div className="mt-0.5 truncate text-[16.5px] font-semibold text-[#cfd5e2] max-sm:text-[13px]">{lower.subtitle}</div>
+          <div className="flex min-w-0 flex-1 flex-col justify-center px-[18px]">
+            <div className="truncate leading-tight font-black tracking-[0.6px]" style={{ fontSize: `min(${Math.round(27 * k)}px, 6vw)` }}>
+              {lower.title}
+            </div>
+            <div className="mt-0.5 truncate font-semibold opacity-80" style={{ fontSize: `min(${Math.round(16.5 * k)}px, 4vw)` }}>
+              {lower.subtitle}
+            </div>
           </div>
           {lower.ends && (
             <div className="flex flex-col items-end justify-center border-l border-white/[0.07] bg-gradient-to-r from-transparent to-white/[0.05] px-[18px]">
-              <small className="text-[10.5px] font-extrabold tracking-[1.8px] text-[#9aa4b8]">{t("ENDS IN")}</small>
-              <b className="text-[26px] font-black" style={{ color: lower.color }}>
+              <small className="text-[10.5px] font-extrabold tracking-[1.8px] opacity-60">{t("ENDS IN")}</small>
+              <b className="font-black" style={{ color: lower.color, fontSize: Math.round(26 * k) }}>
                 <Countdown until={lower.ends} />
               </b>
             </div>
@@ -121,23 +138,32 @@ export function BroadcastOverlay({ warnings, lower, lowerKey, timeZone }: { warn
       )}
 
       {tickerOn && (
-        <div className="absolute inset-x-0 bottom-0 flex h-9 border-t border-white/[0.08] bg-[#050810]">
-          <div className="z-[1] flex shrink-0 items-center px-3.5 text-[12px] font-black tracking-[2px] shadow-[8px_0_16px_#050810]" style={{ background: s.accent }}>
-            {t("WARNINGS")}
+        <div className="absolute inset-x-0 bottom-0 flex border-t border-white/[0.08]" style={{ height: tickerH, background: L.tickerBg }}>
+          <div
+            className="z-[1] flex shrink-0 items-center px-3.5 font-black tracking-[2px] text-white"
+            style={{ background: L.tickerLabelColor ?? s.accent, boxShadow: `8px 0 16px ${L.tickerBg}`, fontSize: L.tickerLarge ? 14 : 12 }}
+          >
+            {L.tickerLabel.trim() || t("WARNINGS")}
           </div>
           <div className="relative flex-1 overflow-hidden">
-            <div className="bc-run absolute top-0 left-0 flex h-9 items-center whitespace-nowrap" style={{ "--d": `${Math.max(30, Math.round(tickerChars / 9))}s` } as React.CSSProperties}>
+            <div
+              className="bc-run absolute top-0 left-0 flex h-full items-center whitespace-nowrap"
+              style={{ "--d": `${tickerSeconds(tickerChars, L.tickerSpeed)}s`, color: L.tickerText, fontSize: tickerFont } as React.CSSProperties}
+            >
+              {L.tickerMessage.trim() && <span className="mr-[34px] font-bold">{L.tickerMessage.trim()}</span>}
               {ticker.length ? (
                 ticker.map((it, i) => (
-                  <span key={i} className="mr-[34px] inline-flex items-center gap-2 text-[15px] font-semibold text-[#e8ecf4]">
-                    <em className="rounded-[4px] px-1.5 py-0.5 text-[11px] font-black tracking-[1px] text-[#0a0d14] not-italic" style={{ background: it.color }}>
-                      {it.code}
-                    </em>
+                  <span key={i} className="mr-[34px] inline-flex items-center gap-2 font-semibold">
+                    {L.tickerCodes && (
+                      <em className="rounded-[4px] px-1.5 py-0.5 text-[11px] font-black tracking-[1px] text-[#0a0d14] not-italic" style={{ background: it.color }}>
+                        {it.code}
+                      </em>
+                    )}
                     {it.text}
                   </span>
                 ))
               ) : (
-                <span className="mr-[34px] text-[15px] font-semibold text-[#8f99ad]">{t("No tornado, severe thunderstorm or flash flood warnings in effect.")}</span>
+                <span className="mr-[34px] font-semibold opacity-70">{t("No tornado, severe thunderstorm or flash flood warnings in effect.")}</span>
               )}
             </div>
           </div>

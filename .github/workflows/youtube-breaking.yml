@@ -125,6 +125,9 @@ jobs:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          # Each uploaded Short also goes up as a Reel on the Facebook Page (FB_REELS = false to stop).
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          FB_REELS: ${{ vars.FB_REELS }}
           SHORTS_UPLOAD: ${{ !env.FIXTURE && (github.event_name == 'schedule' || inputs.upload || inputs.scheduled) && '1' || '0' }}
           SHORTS_LATEST: ${{ env.MANUAL == 'true' && '1' || '0' }}
           SHORTS_FIXTURES: ${{ env.FIXTURE && format('shorts/fixtures/breaking/{0}', env.FIXTURE) || '' }}

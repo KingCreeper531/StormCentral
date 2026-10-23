@@ -126,8 +126,8 @@ usually takes a few weeks.
 | `SHORTS_VOICE_NAME` | `en-US-AndrewNeural` | another Microsoft neural voice for the narrator |
 | `SHORTS_PLAYLISTS` | `true` | `false` to leave videos out of playlists |
 | `SHORTS_AI` | `true` | `false` for the plain narration (AI narration, below) |
-| `SHORTS_AI_MODEL` | `gemma3:12b` | the Ollama model that writes it without a Claude key (and drafts Radar School lessons) |
-| `SHORTS_CLAUDE_MODEL` | `claude-haiku-5-5` | the Claude model that writes it when the `ANTHROPIC_API_KEY` secret is set |
+| `SHORTS_AI_MODEL` | `gemma3:12b` | the Ollama model that writes it without an Anthropic key (and drafts Radar School lessons) |
+| `ANTHROPIC_MODEL` | `claude-haiku-5-5` | the Anthropic model that writes it when the `ANTHROPIC_API_KEY` secret is set |
 | `REVIEW_MODEL` | `qwen3:8b` | the second model that reviews every line of a Radar School draft |
 
 ## Livelier narration with AI
@@ -137,8 +137,8 @@ threat peaks at 10 percent."). With AI narration (on by default), a language
 model rewrites each line the way an upbeat TV meteorologist would say it,
 using only that line's facts. Two ways to run it:
 
-- **Claude** (repository secret `ANTHROPIC_API_KEY`, from
-  platform.claude.com → API Keys): Claude Haiku writes it in a few seconds.
+- **Anthropic API** (repository secret `ANTHROPIC_API_KEY`, from the
+  Anthropic Console → API Keys): Haiku writes it in a few seconds.
   A Short's narration is about 2,000 to 5,000 tokens in and 500 to 1,500 out,
   roughly a tenth of a cent at Haiku's prices.
 - **Ollama** (no secret): a model in [Ollama](https://ollama.com) on the
@@ -151,7 +151,7 @@ must all come from the facts, a "no" or "not" has to stay (and can't be
 added), and alarm words ("outbreak", "deadly", "baseball-size") and advice
 ("take cover") are only allowed when the source says them. A line that
 fails, or runs too long for its scene, is read the plain way instead; if
-Claude or Ollama can't answer, the whole plain script is read. The run's log shows
+the Anthropic API or Ollama can't answer, the whole plain script is read. The run's log shows
 every line the model wrote and why any was turned down.
 
 - **Try it:** Run workflow (**AI narration** is ticked). The artifact has
@@ -218,7 +218,11 @@ destructive damage threat (80 mph winds or baseball-size hail). A warning
 posts once; one upgraded later (to PDS or a Tornado Emergency) posts again
 as "UPGRADED". Each post has where, until when, the NWS's description of the
 storm, the threats, what to do, a link to the app, and a reminder that Storm
-Central isn't an official warning source. Meta's Graph API is free.
+Central isn't an official warning source, with a picture of the warning: its
+polygon over the radar, its title, area, end time and threats
+(`warning-card.html`). Chromium is installed only on runs with something to
+post; if the picture can't be made, the post goes up as text and a link.
+Meta's Graph API is free.
 
 1. **Secret** (Settings → Secrets and variables → Actions): `FB_PAGE_TOKEN`,
    the Page's own access token, one that never expires. In the app, add the
@@ -230,8 +234,9 @@ Central isn't an official warning source. Meta's Graph API is free.
    Secret). The Page is the token's own, so `FB_PAGE_ID` is optional; if set,
    the check warns when it's something else (the App ID, say).
 2. **Test:** Actions → Facebook warnings → Run workflow → `check`. It finds
-   the token's Page, makes a hidden post and deletes it. `dry-run` shows what
-   it would post right now without posting.
+   the token's Page, makes a hidden post and deletes it. `dry-run` shows the posts
+   and pictures for every warning out now (the pictures are in the run's
+   artifacts), without posting.
 3. It then runs every 5 minutes on its own, and every 3 with cron-job.org
    (run "Set up cron-job.org" again to add that job).
 
@@ -240,6 +245,8 @@ Central isn't an official warning source. Meta's Graph API is free.
 | `FB_WARNINGS` | on | `false` to pause the posts |
 | `FB_SEVERE` | destructive only | `all` for every Severe Thunderstorm Warning (hundreds a day in spring) |
 | `FB_POSTS_PER_HOUR` | `12` | at most this many an hour; on a big outbreak the rest are skipped, the most dangerous posted first |
+| `FB_CARDS` | on | `false` to post text and a link without the picture |
+| `FB_REELS` | on | `false` to stop posting each Short to the Page as a Reel too (`youtube-shorts.yml`, `youtube-breaking.yml`; full-length videos never are) |
 
 ## A reliable schedule (cron-job.org)
 

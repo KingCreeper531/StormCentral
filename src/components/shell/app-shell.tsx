@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import dynamic from "next/dynamic";
 import { useForecast, useLocalAlerts, useNationalAlerts } from "@/hooks/queries";
+import { useBootBroadcast } from "@/hooks/use-boot-broadcast";
 import { useNow } from "@/hooks/use-now";
 import { useMapStyleLink } from "@/hooks/use-map-style-link";
 import { useSettingsSync } from "@/hooks/use-settings-sync";
@@ -56,6 +57,7 @@ export function AppShell() {
   useUrlSync();
   useMapStyleLink();
   useSettingsSync();
+  useBootBroadcast();
   const hydrated = useAppStore((s) => s.hydrated);
   const storeMode = useAppStore((s) => s.mode);
   const professional = useAppStore((s) => s.professional);
