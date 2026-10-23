@@ -37,10 +37,16 @@ export const WATCHED = ["youtube-shorts.yml", "youtube-breaking.yml", "facebook-
 
 type Fetch = typeof fetch;
 
+/** The permissions the warning posts need. */
+export const FB_SCOPES = ["pages_manage_posts", "pages_read_engagement"];
+
 /** What Meta's token debugger says, as a check: invalid, expiring soon, or fine (expires_at 0 = never). */
-export function tokenCheck(data: { is_valid?: boolean; expires_at?: number; data_access_expires_at?: number; error?: { message?: string } } | undefined, now = Date.now()): Check {
+export function tokenCheck(data: { is_valid?: boolean; expires_at?: number; data_access_expires_at?: number; scopes?: string[]; error?: { message?: string } } | undefined, now = Date.now()): Check {
   const name = "Facebook Page token";
   if (!data?.is_valid) return { name, level: "problem", detail: `Not valid${data?.error?.message ? `: ${data.error.message}` : ""}. Make a new one (shorts/README.md, Facebook).` };
+  // Valid but unable to post: a permission was taken away (Facebook then refuses every warning post).
+  const missing = data.scopes ? FB_SCOPES.filter((s) => !data.scopes!.includes(s)) : [];
+  if (missing.length) return { name, level: "problem", detail: `Missing the ${missing.join(" and ")} permission${missing.length > 1 ? "s" : ""}, so it can't post. Make a new one (shorts/README.md, Facebook).` };
   const ends = [data.expires_at, data.data_access_expires_at].filter((t): t is number => !!t && t > 0).map((t) => t * 1000);
   const soonest = ends.length ? Math.min(...ends) : null;
   if (soonest == null) return { name, level: "ok", detail: "Valid, never expires." };

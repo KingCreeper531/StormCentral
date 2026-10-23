@@ -16,10 +16,19 @@ export class FacebookError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** Meta's error code: 190 is a bad token, 10 and 200-299 a missing permission. */
+    readonly code?: number,
   ) {
     super(message);
     this.name = "FacebookError";
   }
+}
+
+/** Whether Facebook turned the token down (expired, revoked or missing a permission): only a new token fixes it. */
+export function isTokenProblem(err: unknown): boolean {
+  if (!(err instanceof FacebookError)) return false;
+  const c = err.code;
+  return c === 190 || c === 102 || c === 10 || (c != null && c >= 200 && c < 300) || err.status === 401 || /access token|permission|session has expired/i.test(err.message);
 }
 
 /** The token, and FB_PAGE_ID when set (resolvePage finds the real id from the token). */
@@ -55,7 +64,7 @@ async function graph<T>(page: FacebookPage, method: "GET" | "POST" | "DELETE", p
   const res = await f(url, { method, ...(method === "POST" ? { body } : {}), signal: AbortSignal.timeout(30_000) });
   const json = (await res.json().catch(() => ({}))) as T & { error?: { message?: string; code?: number } };
   // The token never goes in a message: Meta's errors don't repeat it, and the URL isn't logged.
-  if (!res.ok || json.error) throw new FacebookError(`Facebook ${method} ${path.split("?")[0]} failed (${res.status}): ${json.error?.message ?? "no details"}`, res.status);
+  if (!res.ok || json.error) throw new FacebookError(`Facebook ${method} ${path.split("?")[0]} failed (${res.status}): ${json.error?.message ?? "no details"}`, res.status, json.error?.code);
   return json;
 }
 
@@ -97,8 +106,8 @@ export async function postPhoto(page: FacebookPage, image: Buffer, message: stri
   if (!published) form.set("published", "false");
   form.set("access_token", page.token);
   const res = await f(`${GRAPH}/${page.id}/photos`, { method: "POST", body: form, signal: AbortSignal.timeout(60_000) });
-  const json = (await res.json().catch(() => ({}))) as { id?: string; post_id?: string; error?: { message?: string } };
-  if (!res.ok || json.error || !json.id) throw new FacebookError(`Facebook POST photos failed (${res.status}): ${json.error?.message ?? "no details"}`, res.status);
+  const json = (await res.json().catch(() => ({}))) as { id?: string; post_id?: string; error?: { message?: string; code?: number } };
+  if (!res.ok || json.error || !json.id) throw new FacebookError(`Facebook POST photos failed (${res.status}): ${json.error?.message ?? "no details"}`, res.status, json.error?.code);
   // The feed post (page_postid) when Facebook gives it; else the photo, which is a post too.
   return json.post_id ?? json.id;
 }

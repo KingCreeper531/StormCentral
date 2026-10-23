@@ -11,14 +11,18 @@
  *   FB_DRY_RUN=1                        print the posts and save their pictures in FB_OUT_DIR (default shorts/out) instead of posting
  *
  * FB_STATE_DIR is where the posted warnings are kept (default shorts/.state).
+ *
+ * When Facebook turns the token down (expired, revoked, a permission taken
+ * away), the run fails once and then once a day while it stays that way,
+ * not every few minutes: each failed run emails the repo's owner.
  */
 import type { RawAlertFeature } from "../src/lib/alerts";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { deletePost, pageFromEnv, postPhoto, postToPage, resolvePage, secretProblems, type FacebookPage } from "./facebook";
+import { deletePost, isTokenProblem, pageFromEnv, postPhoto, postToPage, resolvePage, secretProblems, type FacebookPage } from "./facebook";
 import { setOutput } from "./kinds/breaking";
 import { USER_AGENT } from "./source";
-import { loadPostState, savePostState, warningPosts, WARNING_EVENTS, withinCap, type WarningPost } from "./warning-posts";
+import { failForToken, loadPostState, savePostState, warningPosts, WARNING_EVENTS, withinCap, type WarningPost } from "./warning-posts";
 
 const env = process.env;
 const dir = env.FB_STATE_DIR || "shorts/.state";
@@ -82,7 +86,13 @@ async function post() {
   if (!dry && !pageFromEnv(env)) throw new Error(NO_TOKEN);
   const { state, now, due, skip } = await findDue();
   // Facebook is asked which Page the token is only when there's something to post (runs come every few minutes).
-  const page = !dry && due.length ? await thePage() : null;
+  let page: FacebookPage | null = null;
+  try {
+    page = !dry && due.length ? await thePage() : null;
+  } catch (err) {
+    return tokenTrouble(err, state, now);
+  }
+  if (page) delete state.tokenFailedAt;
   let failed: unknown = null;
   for (const p of due) {
     const image = await picture(p);
@@ -113,7 +123,18 @@ async function post() {
     state.at[p.base] = now - 3_600_000; // handled, but not counted against the next hour
   }
   if (!dry) savePostState(dir, state, now);
-  if (failed) throw failed;
+  if (failed) return tokenTrouble(failed, state, now);
+}
+
+/** A failure Facebook blames on the token fails the run once a day; any other failure fails it every time. */
+function tokenTrouble(err: unknown, state: ReturnType<typeof loadPostState>, now: number): void {
+  if (!isTokenProblem(err)) throw err;
+  const fail = failForToken(state, now);
+  if (fail) state.tokenFailedAt = now;
+  savePostState(dir, state, now);
+  const why = err instanceof Error ? err.message : String(err);
+  if (fail) throw new Error(`${why}\nMake a new Page token and put it in the FB_PAGE_TOKEN secret (shorts/README.md, Facebook). Until then this fails once a day, not every run.`);
+  console.log(`::warning::Facebook still turns the token down, so nothing was posted (${why}). Make a new Page token (shorts/README.md, Facebook).`);
 }
 
 ({ check, plan }[process.argv[2] ?? ""] ?? post)().catch((err: unknown) => {

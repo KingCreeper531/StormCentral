@@ -13,6 +13,11 @@ describe("health check", () => {
     expect(tokenCheck({ is_valid: true, expires_at: 0 }, NOW)).toMatchObject({ level: "ok", detail: "Valid, never expires." });
   });
 
+  it("flags a valid token that lost a permission it posts with", () => {
+    expect(tokenCheck({ is_valid: true, expires_at: 0, scopes: ["pages_show_list", "pages_manage_posts"] }, NOW)).toMatchObject({ level: "problem", detail: expect.stringContaining("Missing the pages_read_engagement permission") });
+    expect(tokenCheck({ is_valid: true, expires_at: 0, scopes: ["pages_show_list", "pages_read_engagement", "pages_manage_posts"] }, NOW).level).toBe("ok");
+  });
+
   it("wants a YouTube upload in the last 30 hours", () => {
     expect(uploadCheck("2026-10-22T13:20:00Z", NOW).level).toBe("ok");
     expect(uploadCheck("2026-10-21T13:20:00Z", NOW)).toMatchObject({ level: "problem", detail: expect.stringContaining("47 hours ago") });
