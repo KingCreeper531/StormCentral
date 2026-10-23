@@ -55,6 +55,10 @@ import {
   announcement,
   briefingFacts,
   countsOf,
+  dayReports,
+  deniesTornadoes,
+  stormDayStart,
+  type DayReports,
   cycle,
   isMajor,
   liveTitle,
@@ -140,8 +144,13 @@ async function fetchOutlook(): Promise<Outlook | null> {
   return o ? { risk: o.risk ?? null, region: regionOf(p.productText) } : null;
 }
 
-/** The last hour's NWS storm reports, from Storm Central's own feed. */
-const fetchReports = async () => (await getJson<StormReportsResponse>(`${CONFIG.app}/api/storm-reports?hours=1`)).reports;
+/** The last `hours` hours' NWS storm reports (1 to 24), from Storm Central's own feed. */
+const fetchReports = async (hours = 1) => (await getJson<StormReportsResponse>(`${CONFIG.app}/api/storm-reports?hours=${hours}`)).reports;
+/** The storm day's reports so far (since 12 UTC), for the briefing; null when the feed can't be read. */
+async function fetchDayReports(now = Date.now()): Promise<DayReports | null> {
+  const hours = Math.min(24, Math.max(1, Math.ceil((now - stormDayStart(now)) / 3_600_000)));
+  return dayReports(await fetchReports(hours), now);
+}
 /** Public cameras (traffic, fire, river), from Storm Central's own feed. */
 // Only sources whose owners allow it on the stream (one this build doesn't know is skipped, not shown).
 const fetchCameras = async () =>
@@ -530,8 +539,9 @@ class Director {
   private async maybeBrief() {
     if (this.alerting || this.pending.length || busy || this.warnings.length || Date.now() - this.lastBriefing < CONFIG.briefingMinutes * 60_000) return;
     this.lastBriefing = Date.now();
-    const facts = briefingFacts(this.warnings, this.outlook);
-    const ai = await writeChecked(this.writers, SYSTEM, `Rewrite these facts as a short, friendly spoken update (2 sentences, at most 45 words): ${facts}`, (t) => checkAgainst(t, facts, { maxWords: 50 }), { log });
+    const day = await fetchDayReports().catch((err: unknown) => (log(`briefing: no day reports (${err instanceof Error ? err.message : err})`), null));
+    const facts = briefingFacts(this.warnings, this.outlook, day);
+    const ai = await writeChecked(this.writers, SYSTEM, `Rewrite these facts as a short, friendly spoken update (2 or 3 sentences, at most 60 words): ${facts}`, (t) => (deniesTornadoes(t, day) ? null : checkAgainst(t, facts, { maxWords: 65 })), { log });
     void this.speak(`Storm Central update. ${ai?.text ?? facts}`, "update");
   }
 

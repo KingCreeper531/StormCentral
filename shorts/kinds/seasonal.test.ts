@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { narration } from "../narration";
-import { oddsAt, pickLead, REGIONS, regionLeans, seasonalText, seasonOf, sideOf, summarize, type OutlookCollection, type OutlookFeature } from "./seasonal";
+import { oddsAt, pickLead, REGIONS, regionLeans, rewind, seasonalText, seasonOf, sideOf, summarize, type OutlookCollection, type OutlookFeature } from "./seasonal";
 
 /** A lon/lat box as a CPC outlook polygon. */
 const box = (cat: string, prob: number, [w, s, e, n]: [number, number, number, number], holes: number[][][] = []): OutlookFeature => ({
@@ -16,6 +16,21 @@ const PRCP = fc(box("Above", 33, [-125, 24, -74, 38]), box("Above", 40, [-125, 2
 const WINTER = seasonOf("DJF 2026-2027")!;
 
 describe("seasonal outlook", () => {
+  it("winds rings clockwise for d3, the short way across the 180th meridian too", () => {
+    // GeoJSON order (counterclockwise) is turned round; a clockwise ring is left alone.
+    const mainland = [[-150, 60], [-140, 60], [-140, 65], [-150, 65], [-150, 60]];
+    expect(rewind([mainland])[0]).toEqual([...mainland].reverse());
+    expect(rewind([[...mainland].reverse()])[0]).toEqual([...mainland].reverse());
+    // The Aleutians, 170°E to 165°W, counterclockwise. Measured the long way round this ring
+    // looked clockwise and was left as it was, which d3 drew as the whole globe but Alaska:
+    // the Winter Outlook's all-orange map.
+    const aleutians = [[170, 50], [-165, 50], [-165, 56], [170, 56], [170, 50]];
+    expect(rewind([aleutians])[0]).toEqual([...aleutians].reverse());
+    // Holes go the other way.
+    const hole = [[-145, 61], [-145, 63], [-142, 63], [-142, 61], [-145, 61]];
+    expect(rewind([mainland, hole])[1]).toEqual([...hole].reverse());
+  });
+
   it("reads CPC's seasons, across the new year too", () => {
     expect(WINTER).toMatchObject({ code: "DJF", name: "Winter", month: 11, year: 2026, range: "Dec 2026 – Feb 2027", spoken: "December through February", years: "2026-27" });
     expect(seasonOf("NDJ 2026-2027")).toMatchObject({ name: null, range: "Nov 2026 – Jan 2027", years: "2026-27" });
