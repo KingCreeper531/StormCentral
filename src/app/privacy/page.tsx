@@ -5,9 +5,12 @@ import { GITHUB_REPO } from "@/lib/platform";
 export const metadata: Metadata = {
   title: "Privacy policy",
   description: "What Storm Central handles, why, and the control you have over it.",
+  alternates: { canonical: "/privacy" },
 };
 
-const EFFECTIVE = "October 13, 2026";
+const EFFECTIVE = "October 26, 2026";
+/** Where privacy questions and requests go (GitHub issues are public, so not for personal requests). */
+const CONTACT_EMAIL = "stormcentralwxofficial@gmail.com";
 
 const P = "text-sm leading-relaxed text-ink-2";
 const UL = "list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-ink-2 marker:text-ink-3";
@@ -54,11 +57,23 @@ export default function PrivacyPage() {
 
         <Section title="Information sent to weather data services">
           <p className={P}>
-            To show weather, Storm Central requests data from public weather services such as the U.S. National Weather Service, NOAA and Open-Meteo, and loads
-            map and radar images from map providers. These requests include the coordinates of the places you view and, like any internet request, your IP
-            address. Storm Central doesn&apos;t send your name, account or other personal details with them. Each service handles requests under its own privacy
-            policy.
+            To show weather, Storm Central requests data from public weather services and loads map, radar and camera images from map and data providers. These
+            requests include the coordinates of the places you view and, like any internet request, your IP address. Storm Central doesn&apos;t send your name,
+            account or other personal details with them. Each service handles requests under its own privacy policy. They are:
           </p>
+          <ul className={UL}>
+            <li>
+              Weather data: the U.S. National Weather Service and other NOAA services (Storm Prediction Center, National Hurricane Center, nowCOAST and the
+              National Water Prediction Service), Open-Meteo (forecasts, air quality and place search), the Iowa Environmental Mesonet (radar) and the U.S.
+              Geological Survey (rivers and volcanoes).
+            </li>
+            <li>Place names for your location: BigDataCloud.</li>
+            <li>
+              Maps: CARTO (the base map), NASA GIBS (satellite imagery), EOX (the cloud-free satellite map), Terrain Tiles on Amazon Web Services (terrain
+              shading), and MapTiler if you add your own MapTiler key.
+            </li>
+            <li>Live cameras and streams: public traffic, fire and river cameras from the agencies that run them, and storm chasers&apos; YouTube live streams.</li>
+          </ul>
           <p className={P}>
             On Android, Storm Central checks for weather warnings in the background so it can notify you and update widgets. These checks run on your phone and
             contact the same weather services directly; no Storm Central server is involved.
@@ -91,6 +106,10 @@ export default function PrivacyPage() {
             Photos have their hidden metadata, such as GPS location and camera details, removed when you upload them. Your email address is never shown
             publicly; it is used only to sign you in and to send password reset emails you request.
           </p>
+          <p className={P}>
+            If you choose to also send a report to mPING, the public weather-report project run by NOAA&apos;s National Severe Storms Laboratory and the
+            University of Oklahoma, its report type, time and location are sent there. Your name, account and photo are not.
+          </p>
         </Section>
 
         <Section title="Blocking, reports and moderation">
@@ -111,9 +130,9 @@ export default function PrivacyPage() {
 
         <Section title="Service providers">
           <p className={P}>
-            The Storm Central website and its database are hosted by third-party providers (currently Vercel), which store and process data only to run the
-            service. Password reset emails are sent through an email delivery service. Like most web hosts, the hosting provider may keep basic technical logs,
-            such as IP addresses and request times, for security and reliability.
+            The Storm Central website is hosted by Vercel and its database by Turso, which store and process data only to run the service. Password reset
+            emails are sent through Google&apos;s Gmail. Like most web hosts, the hosting provider may keep basic technical logs, such as IP addresses and
+            request times, for security and reliability.
           </p>
         </Section>
 
@@ -161,11 +180,15 @@ export default function PrivacyPage() {
 
         <Section title="Contact">
           <p className={P}>
-            Questions or requests about privacy can be sent through the project&apos;s GitHub page:{" "}
+            Email questions or requests about privacy, including access, correction and deletion requests, to{" "}
+            <a href={`mailto:${CONTACT_EMAIL}`} className={A}>
+              {CONTACT_EMAIL}
+            </a>
+            . General questions and bug reports can also go on the project&apos;s GitHub page,{" "}
             <a href={issues} target="_blank" rel="noreferrer" className={A}>
               {issues.replace("https://", "")}
             </a>
-            .
+            , but anything posted there is public, so don&apos;t include personal information.
           </p>
         </Section>
       </article>

@@ -6,6 +6,7 @@ import { T } from "@/components/ui/t";
 export const metadata: Metadata = {
   title: "Alerts and places",
   description: "Warning notifications for saved places, and custom forecast alerts.",
+  alternates: { canonical: "/alerts" },
 };
 
 export default function AlertsPage() {

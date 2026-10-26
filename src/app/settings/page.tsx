@@ -6,6 +6,7 @@ import { T } from "@/components/ui/t";
 export const metadata: Metadata = {
   title: "Settings",
   description: "Theme, units, notifications and app options.",
+  alternates: { canonical: "/settings" },
 };
 
 export default function SettingsPage() {

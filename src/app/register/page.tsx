@@ -5,7 +5,7 @@ import { CommunityUnavailable } from "@/components/community/community-unavailab
 import { SubpageShell } from "@/components/shell/subpage-shell";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
 
-export const metadata: Metadata = { title: "Create account" };
+export const metadata: Metadata = { title: "Create account", alternates: { canonical: "/register" } };
 
 export default function RegisterPage() {
   return (

@@ -1,9 +1,10 @@
-import { HttpError, withTimeout } from "../api/http";
+import { HttpError, retryOnce, withTimeout } from "../api/http";
 
 /**
  * Upstream access for the weather feeds. The default transport is `fetch`
  * (the Next.js server). The Android build swaps in native HTTP, because
- * several government APIs don't send CORS headers.
+ * several government APIs don't send CORS headers. A request that fails fast
+ * (a dropped connection, a busy server) is tried once more (retryOnce).
  */
 export const USER_AGENT = process.env.NWS_USER_AGENT ?? "StormCentral/0.1 (github.com/KingCreeper531/StormCentral)";
 
@@ -32,22 +33,25 @@ export function setUpstreamTransport(next: UpstreamTransport) {
 }
 
 export function upstreamJson<T>(url: string, { headers, timeoutMs = 12_000 }: { headers?: Record<string, string>; timeoutMs?: number } = {}) {
-  return transport(url, {
+  const req = {
     // Browsers won't let scripts set User-Agent (and it would force a CORS preflight).
     headers: { ...(typeof window === "undefined" && { "User-Agent": USER_AGENT }), Accept: "application/json", ...headers },
     timeoutMs,
-  }) as Promise<T>;
+  };
+  return retryOnce(() => transport(url, req)) as Promise<T>;
 }
 
 /** A text body (XML capabilities documents). Plain fetch on every platform. */
-export async function upstreamText(url: string, { timeoutMs = 12_000 }: { timeoutMs?: number } = {}): Promise<string> {
-  const res = await fetch(url, {
-    cache: "no-store",
-    headers: typeof window === "undefined" ? { "User-Agent": USER_AGENT } : {},
-    signal: withTimeout(undefined, timeoutMs),
+export function upstreamText(url: string, { timeoutMs = 12_000 }: { timeoutMs?: number } = {}): Promise<string> {
+  return retryOnce(async () => {
+    const res = await fetch(url, {
+      cache: "no-store",
+      headers: typeof window === "undefined" ? { "User-Agent": USER_AGENT } : {},
+      signal: withTimeout(undefined, timeoutMs),
+    });
+    if (!res.ok) throw new HttpError(`Upstream ${res.status} for ${new URL(url).host}`, res.status, url);
+    return res.text();
   });
-  if (!res.ok) throw new HttpError(`Upstream ${res.status} for ${new URL(url).host}`, res.status, url);
-  return res.text();
 }
 
 export function parseLatLon(sp: URLSearchParams): { lat: number; lon: number } | null {

@@ -5,7 +5,7 @@ import { ResetPasswordForm } from "@/components/community/password-forms";
 import { SubpageShell } from "@/components/shell/subpage-shell";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
 
-export const metadata: Metadata = { title: "Choose a new password" };
+export const metadata: Metadata = { title: "Choose a new password", robots: { index: false } };
 
 export default function ResetPasswordPage() {
   return (

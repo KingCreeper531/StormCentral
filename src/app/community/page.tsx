@@ -11,6 +11,7 @@ import { AboutAside, AboutDetails } from "./about";
 export const metadata: Metadata = {
   title: "Spotter network",
   description: "Weather reports from people on the ground, confirmed by other spotters nearby.",
+  alternates: { canonical: "/community" },
 };
 
 export default function CommunityPage() {

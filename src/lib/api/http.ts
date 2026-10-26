@@ -19,6 +19,24 @@ export function isTransient(err: unknown): boolean {
   return err.status === 408 || err.status === 425 || err.status === 429 || err.status >= 500;
 }
 
+/** A request that ran out its time (or was cancelled), as opposed to one that failed fast. */
+export const isTimeout = (err: unknown) => err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+
+/**
+ * Runs `run`, and once more after `delayMs` if it failed fast for a reason
+ * that may pass (a dropped connection, a 5xx or 429). A timeout isn't tried
+ * again: the caller already waited its whole budget, and clients retry later.
+ */
+export async function retryOnce<T>(run: () => Promise<T>, delayMs = 750): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    if (isTimeout(err) || !isTransient(err)) throw err;
+    await new Promise((r) => setTimeout(r, delayMs));
+    return run();
+  }
+}
+
 /** Wait before retry `n` (0-based): 1, 2, 4, 8 … seconds up to 30, with jitter so many tabs don't retry in step. */
 export const retryDelay = (n: number) => Math.min(30_000, 1_000 * 2 ** n) * (0.75 + Math.random() * 0.5);
 

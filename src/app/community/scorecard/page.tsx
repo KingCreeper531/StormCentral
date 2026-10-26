@@ -10,6 +10,7 @@ import { COMMUNITY_ENABLED } from "@/lib/platform";
 export const metadata: Metadata = {
   title: "Forecast scorecard",
   description: "How often the forecast model showed the weather that spotters reported.",
+  alternates: { canonical: "/community/scorecard" },
 };
 
 /**

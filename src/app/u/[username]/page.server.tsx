@@ -16,7 +16,7 @@ type Params = { params: Promise<{ username: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { username } = await params;
-  return { title: `@${username}` };
+  return { title: `@${username}`, alternates: { canonical: `/u/${encodeURIComponent(username)}` } };
 }
 
 export default async function ProfilePage({ params }: Params) {
