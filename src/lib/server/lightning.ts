@@ -1,5 +1,6 @@
 import "server-only";
 import { inflateSync } from "node:zlib";
+import { retryOnce } from "../api/http";
 import { LIGHTNING_WMS } from "../radar/lightning";
 
 /**
@@ -115,8 +116,12 @@ export function lightningBoxUrl(lat: number, lon: number, radiusKm: number, slot
 }
 
 export async function nearestLightningKm(lat: number, lon: number, radiusKm: number, signal?: AbortSignal): Promise<number | null> {
-  const res = await fetch(lightningBoxUrl(lat, lon, radiusKm, Math.floor(Date.now() / 300_000)), { signal, headers: { Accept: "image/png" } });
-  if (!res.ok) throw new Error(`nowCOAST answered ${res.status}`);
-  if (!(res.headers.get("content-type") ?? "").includes("image/png")) throw new Error("nowCOAST didn't return an image");
-  return nearestLit(decodePngAlpha(new Uint8Array(await res.arrayBuffer())), radiusKm);
+  // nowCOAST now and then drops the connection or answers with an error page instead of the PNG: one more try.
+  const png = await retryOnce(async () => {
+    const res = await fetch(lightningBoxUrl(lat, lon, radiusKm, Math.floor(Date.now() / 300_000)), { signal, headers: { Accept: "image/png" } });
+    if (!res.ok) throw new Error(`nowCOAST answered ${res.status}`);
+    if (!(res.headers.get("content-type") ?? "").includes("image/png")) throw new Error("nowCOAST didn't return an image");
+    return new Uint8Array(await res.arrayBuffer());
+  });
+  return nearestLit(decodePngAlpha(png), radiusKm);
 }
