@@ -9,6 +9,13 @@
   the phone is offline, so it explains and retries. scripts/build-native.mjs
   writes the build's addresses into the two meta tags. Same look as the
   desktop app's page (desktop/main.mjs).
+
+  The website's service worker (public/sw.js) shows it too, with an sc-web
+  tag, when the server answers a page with an error (Cloudflare's 52x while
+  it's down). There it checks this address's own /api/health, reloads the
+  page once it's back, and offers the backup with a button but doesn't open
+  it by itself: the backup is another address, so places and settings saved
+  on the device aren't there unless they're synced to an account.
 -->
 <html lang="en">
   <head>
@@ -102,8 +109,10 @@
     <script>
       (() => {
         const meta = (name) => document.querySelector(`meta[name="${name}"]`).content.replace(/\/$/, "");
+        const WEB = !!document.querySelector('meta[name="sc-web"]');
         const APP = meta("sc-app");
-        const BACKUP = meta("sc-backup");
+        // On the backup itself there's nothing to switch to.
+        const BACKUP = WEB && location.origin === meta("sc-backup") ? "" : meta("sc-backup");
         document.body.classList.add("checking");
         const es = /^es\b/i.test(navigator.language || "");
         const T = es
@@ -117,6 +126,12 @@
               switching: "Conectando con el servidor de respaldo…",
               still: "Todavía sin conexión. Se vuelve a intentar solo.",
               backupUp: "El servidor de respaldo responde.",
+              ...(WEB && {
+                title: "El servidor de Storm Central no responde",
+                body: "Suele volver en unos minutos y esta página se recarga sola. El servidor de respaldo tiene la misma app; lo guardado solo en este dispositivo (lugares, ajustes) no está allí salvo que inicies sesión para sincronizarlo.",
+                backup: "Abrir el servidor de respaldo",
+                still: "Todavía no responde. Se vuelve a intentar solo.",
+              }),
             }
           : {
               title: "Can't reach Storm Central",
@@ -128,6 +143,12 @@
               switching: "Connecting to the backup server…",
               still: "Still can't connect. Trying again by itself.",
               backupUp: "The backup server is answering.",
+              ...(WEB && {
+                title: "Storm Central's server isn't answering",
+                body: "It's usually back within a few minutes, and this page reloads by itself when it is. The backup server runs the same app; things saved only on this device (places, settings) aren't there unless you sign in to sync them.",
+                backup: "Open the backup server",
+                still: "Still not answering. Trying again by itself.",
+              }),
             };
         document.documentElement.lang = es ? "es" : "en";
         for (const el of document.querySelectorAll("[data-t]")) el.textContent = T[el.dataset.t];
@@ -135,10 +156,17 @@
         const backupButton = document.getElementById("backup");
         if (!BACKUP) backupButton.hidden = true;
 
+        const timeout = AbortSignal.timeout ? { signal: AbortSignal.timeout(8000) } : {};
         // Whether a server answers at all (an opaque reply is enough).
         const answers = (base) =>
-          fetch(`${base}/api/health?t=${Date.now()}`, { mode: "no-cors", cache: "no-store", ...(AbortSignal.timeout && { signal: AbortSignal.timeout(8000) }) }).then(
+          fetch(`${base}/api/health?t=${Date.now()}`, { mode: "no-cors", cache: "no-store", ...timeout }).then(
             () => true,
+            () => false,
+          );
+        // On the website, Cloudflare answers even while the server is down, so only a real OK counts.
+        const healthy = () =>
+          fetch(`/api/health?t=${Date.now()}`, { cache: "no-store", ...timeout }).then(
+            (r) => r.ok,
             () => false,
           );
         // A server that answers but whose page still fails (an HTTP error) brings the app back here: one opened
@@ -156,11 +184,23 @@
           location.replace(url);
         };
 
+        // The same page on the backup (the address of the page that failed, on the backup's host).
+        const onBackup = () => BACKUP + (WEB ? location.pathname + location.search + location.hash : "");
+
         let busy = false;
         const check = async (byHand) => {
           if (busy) return;
           busy = true;
           if (byHand) status.textContent = T.checking;
+          if (WEB) {
+            const [appUp, backupUp] = await Promise.all([healthy(), BACKUP ? answers(BACKUP) : false]);
+            if (appUp) return location.reload();
+            document.body.classList.remove("checking");
+            backupButton.classList.toggle("primary", backupUp);
+            status.textContent = byHand ? T.still : backupUp ? T.backupUp : "";
+            busy = false;
+            return;
+          }
           const [appUp, backupUp] = await Promise.all([answers(APP), BACKUP ? answers(BACKUP) : false]);
           if (appUp && (byHand || !recent("sc-opened-app"))) return open(APP, "sc-opened-app");
           // The main server can't be reached from here but the backup can (often a VPN or a private DNS): use it.
@@ -174,7 +214,7 @@
           busy = false;
         };
         document.getElementById("retry").addEventListener("click", () => check(true));
-        backupButton.addEventListener("click", () => open(BACKUP, "sc-opened-backup"));
+        backupButton.addEventListener("click", () => open(onBackup(), "sc-opened-backup"));
         // Back by itself once the connection returns.
         setInterval(() => document.visibilityState === "visible" && check(false), 15000);
         window.addEventListener("online", () => check(false));

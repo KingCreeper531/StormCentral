@@ -16,7 +16,16 @@ const IMMUTABLE_TILE = /\/cache\/tile\.py\/1\.0\.0\/ridge::[A-Z]{3,6}-[A-Z0-9]{3
 
 let putsSinceTrim = 0;
 
-self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("install", (event) => {
+  self.skipWaiting();
+  // The "server isn't answering" page has to be on hand before it's needed.
+  event.waitUntil(
+    caches
+      .open(FALLBACK)
+      .then((cache) => cache.addAll(FALLBACK_FILES))
+      .catch(() => {}),
+  );
+});
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
@@ -106,26 +115,43 @@ async function trim(purgeExpired) {
 // cache-first. With no signal the app still opens and shows the forecast the
 // page saved on the device, labelled with when it was saved. API calls are
 // never cached here.
+//
+// When the server answers a page with an error instead (Cloudflare's 52x
+// while it's down), the page is offline.html in its website mode: it says so,
+// reloads once the server is back and has a button to the backup server.
 
 const SHELL = "app-shell-v1";
 const SHELL_MAX = 400;
+const FALLBACK = "fallback-v1";
+const FALLBACK_FILES = ["/offline.html", "/icon.svg"];
 
 async function shellPage(request, event) {
   const cache = await caches.open(SHELL);
+  let response;
   try {
-    const response = await fetch(request);
-    if (response.ok && response.type === "basic") event.waitUntil(cache.put(request, response.clone()));
-    return response;
+    response = await fetch(request);
   } catch (err) {
     const hit = (await cache.match(request, { ignoreSearch: true })) || (await cache.match("/"));
     if (hit) return hit;
     throw err;
   }
+  if (response.ok && response.type === "basic") event.waitUntil(cache.put(request, response.clone()));
+  if (response.status >= 500) return (await serverDownPage()) || response;
+  return response;
+}
+
+/** offline.html marked for the website (sc-web), or null if it isn't cached. */
+async function serverDownPage() {
+  const page = await caches.match("/offline.html", { cacheName: FALLBACK });
+  if (!page) return null;
+  const html = (await page.text()).replace("<head>", '<head>\n    <meta name="sc-web" content="1" />');
+  return new Response(html, { status: 503, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
 }
 
 async function shellAsset(request, event) {
   const cache = await caches.open(SHELL);
-  const hit = await cache.match(request);
+  // The fallback cache holds the icon the "server isn't answering" page shows.
+  const hit = (await cache.match(request)) || (await caches.match(request, { cacheName: FALLBACK }));
   if (hit) return hit;
   const response = await fetch(request);
   if (response.ok && response.type === "basic") {
