@@ -32,6 +32,10 @@ jobs:
             exit 1
           fi
       - uses: actions/checkout@v5
+      # Temporary: check the new features' data sources from GitHub's network.
+      - name: Probe data sources
+        continue-on-error: true
+        run: bash scripts/probe-sources.sh
       - uses: actions/setup-node@v5
         with:
           node-version: 22
