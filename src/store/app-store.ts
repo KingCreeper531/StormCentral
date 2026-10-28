@@ -90,6 +90,10 @@ export interface RadarSettings {
   snow: SnowMap;
   /** The snowfall the WPC chance is of: at least 4, 8 or 12 inches. */
   snowThreshold: SnowThreshold;
+  /** NOAA NDBC buoys and coastal stations, coloured by wave height (lib/feeds/buoys). Off unless turned on. */
+  showBuoys: boolean;
+  /** Open-Meteo's 48-hour wave forecast over the sea (lib/api/open-meteo-marine). Off unless turned on. */
+  showWaves: boolean;
 }
 
 export type RadarHistory = "latest" | "2h" | "4h";
@@ -211,6 +215,8 @@ export const DEFAULT_RADAR: RadarSettings = {
   ringSpokes: false,
   snow: "off",
   snowThreshold: 4,
+  showBuoys: false,
+  showWaves: false,
 };
 
 /** Saved radar settings made whole: defaults for anything a previous version didn't store. */
@@ -229,6 +235,8 @@ export function normalizeRadar(r: RadarSettings): RadarSettings {
     ringSpokes: r.ringSpokes === true,
     snow: isSnowMap(r.snow) ? r.snow : "off",
     snowThreshold: isSnowThreshold(r.snowThreshold) ? r.snowThreshold : 4,
+    showBuoys: r.showBuoys === true,
+    showWaves: r.showWaves === true,
     satelliteMap: r.satelliteMap === true,
     nowcast: r.nowcast !== false,
   };

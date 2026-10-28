@@ -30,6 +30,8 @@ const CONNECT = [
   "https://ensemble-api.open-meteo.com",
   "https://air-quality-api.open-meteo.com",
   "https://geocoding-api.open-meteo.com",
+  // The radar map's wave forecast.
+  "https://marine-api.open-meteo.com",
   "https://mesonet.agron.iastate.edu",
   // GOES satellite imagery (NASA GIBS).
   "https://gibs.earthdata.nasa.gov",

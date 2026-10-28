@@ -1,7 +1,7 @@
 import { HttpError } from "../api/http";
 import { FEEDS } from "../feeds";
-import { setUpstreamTransport } from "../feeds/upstream";
-import { hasNativeHttp, nativeTransport } from "./upstream-transport";
+import { setUpstreamTextTransport, setUpstreamTransport } from "../feeds/upstream";
+import { hasNativeHttp, nativeTextTransport, nativeTransport } from "./upstream-transport";
 
 /**
  * The `/api/*` weather routes, served in-process for the static Android
@@ -9,7 +9,10 @@ import { hasNativeHttp, nativeTransport } from "./upstream-transport";
  * identical. Outside the native app (e.g. previewing the export in a desktop
  * browser) it falls back to `fetch`, where CORS-less feeds may fail.
  */
-if (hasNativeHttp()) setUpstreamTransport(nativeTransport);
+if (hasNativeHttp()) {
+  setUpstreamTransport(nativeTransport);
+  setUpstreamTextTransport(nativeTextTransport);
+}
 
 export async function localApi<T>(url: string, signal?: AbortSignal): Promise<T> {
   const { pathname, searchParams } = new URL(url, "https://localhost");

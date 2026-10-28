@@ -284,6 +284,16 @@ export function RadarControls({
               {t("Traffic cameras in California and Iowa, wildfire cameras across the West, river cameras nationwide and volcano cameras, from Caltrans, Iowa DOT, ALERTCalifornia and USGS. Tap one for its latest picture.")}
             </p>
           )}
+          <Toggle label={t("Buoys")} checked={settings.showBuoys} onChange={(showBuoys) => onChange({ showBuoys })} />
+          {settings.showBuoys && (
+            <p className="label py-2.5">
+              {t("NOAA buoys and coastal stations, coloured by their latest wave height (grey: no wave sensor). Tap one for its waves, wind and water temperature.")}
+            </p>
+          )}
+          <Toggle label={t("Wave forecast (48 h)")} checked={settings.showWaves} onChange={(showWaves) => onChange({ showWaves })} />
+          {settings.showWaves && (
+            <p className="label py-2.5">{t("Wave height and direction over the sea from Open-Meteo's marine forecast. Pick the hour with the slider by the legend.")}</p>
+          )}
           <Toggle label={t("Radar sites")} checked={settings.showSites} onChange={(showSites) => onChange({ showSites })} />
           <Toggle label={t("Range rings")} checked={settings.showRings} onChange={(showRings) => onChange({ showRings })} />
           {settings.showRings && (
