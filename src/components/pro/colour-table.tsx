@@ -16,6 +16,8 @@ const SCALE_NAME: Record<DecodedScaleId, string> = {
   hc: "hydrometeor classes",
   vil: "VIL",
   eet: "echo tops",
+  nrot: "normalized rotation",
+  ptds: "debris probability",
 };
 
 const BUILTIN = new Set(BUILTIN_PALETTES.map((p) => p.id));

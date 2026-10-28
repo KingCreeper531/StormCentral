@@ -32,6 +32,8 @@ export interface Sweep {
   table: Float32Array;
   /** Raw levels with a meaning instead of a value, e.g. range folded. */
   special: { level: number; label: string }[];
+  /** Level II velocity: each radial's Nyquist velocity, in the table's unit (see dealias.ts). */
+  nyquist?: Float32Array;
 }
 
 const R_EARTH_KM = 6371.0088;
