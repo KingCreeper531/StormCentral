@@ -5,6 +5,7 @@ import { nearestSites, type RadarSite } from "@/lib/radar/site-utils";
 import { useFormat } from "@/hooks/use-format";
 import { useT } from "@/lib/i18n/use-t";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
+import { RING_STEPS } from "@/lib/range-rings";
 import { cn } from "@/lib/utils";
 import type { RadarSettings } from "@/store/app-store";
 import { Toggle } from "../ui/misc";
@@ -282,6 +283,21 @@ export function RadarControls({
             </p>
           )}
           <Toggle label={t("Radar sites")} checked={settings.showSites} onChange={(showSites) => onChange({ showSites })} />
+          <Toggle label={t("Range rings")} checked={settings.showRings} onChange={(showRings) => onChange({ showRings })} />
+          {settings.showRings && (
+            <div className="space-y-1 py-2.5">
+              <Segmented
+                ariaLabel={t("Range ring spacing")}
+                size="sm"
+                stretch
+                value={settings.ringStep}
+                onChange={(ringStep) => onChange({ ringStep })}
+                options={RING_STEPS.map((n) => ({ value: n, label: <span className="tabular">{`${n}\u00a0${fmt.units.distance}`}</span> }))}
+              />
+              <Toggle label={t("Bearing lines every 30°")} checked={settings.ringSpokes} onChange={(ringSpokes) => onChange({ ringSpokes })} />
+              <p className="label">{isSite ? t("Around the radar site.") : t("Around the selected location, or the radar site with single-site data.")}</p>
+            </div>
+          )}
         </div>
       </Group>
     </div>

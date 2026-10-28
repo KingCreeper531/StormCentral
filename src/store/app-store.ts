@@ -11,6 +11,7 @@ import { DEFAULT_FORECAST_SOURCE, isForecastSourceId, type ForecastSourceId } fr
 import { defaultDailyLayout, normalizeDailyLayout, type DailyItem } from "@/lib/daily-layout";
 import { isValidClock, isValidZone, setTimePrefs, type ClockPref, type ZonePref } from "@/lib/clock";
 import { isLangPref, type LangPref } from "@/lib/i18n/lang";
+import { DEFAULT_RING_STEP, isRingStep, type RingStep } from "@/lib/range-rings";
 import type { ThemePref } from "@/lib/theme";
 import { defaultUnitsForLocale, UNIT_PRESETS, type UnitPrefs } from "@/lib/weather/units";
 import { isModeId, type ModeId } from "@/modes/registry";
@@ -79,6 +80,11 @@ export interface RadarSettings {
   showChasers: boolean;
   /** Live traffic, wildfire, river and volcano cameras (lib/webcams). Off unless turned on. */
   showCams: boolean;
+  /** Range rings around the selected radar site (else the location), every `ringStep` of the distance unit. Off unless turned on. */
+  showRings: boolean;
+  ringStep: RingStep;
+  /** Bearing lines every 30° across the range rings. */
+  ringSpokes: boolean;
 }
 
 export type RadarHistory = "latest" | "2h" | "4h";
@@ -195,6 +201,9 @@ export const DEFAULT_RADAR: RadarSettings = {
   showSpotterWarnings: true,
   showChasers: false,
   showCams: false,
+  showRings: false,
+  ringStep: DEFAULT_RING_STEP,
+  ringSpokes: false,
 };
 
 /** Saved radar settings made whole: defaults for anything a previous version didn't store. */
@@ -208,6 +217,9 @@ export function normalizeRadar(r: RadarSettings): RadarSettings {
     showSpotterWarnings: r.showSpotterWarnings !== false,
     showChasers: r.showChasers === true,
     showCams: r.showCams === true,
+    showRings: r.showRings === true,
+    ringStep: isRingStep(r.ringStep) ? r.ringStep : DEFAULT_RING_STEP,
+    ringSpokes: r.ringSpokes === true,
     satelliteMap: r.satelliteMap === true,
     nowcast: r.nowcast !== false,
   };

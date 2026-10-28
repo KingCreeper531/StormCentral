@@ -169,6 +169,7 @@ export function PaneHeader({
           <Toggle label={t("Warnings")} checked={config.warnings} onChange={(v) => set({ warnings: v })} />
           <Toggle label={t("Storm cells")} checked={config.cells} onChange={(v) => set({ cells: v })} />
           <Toggle label={t("Satellite map (no clouds)")} checked={config.satelliteMap} onChange={(v) => set({ satelliteMap: v })} />
+          <Toggle label={t("Range rings")} checked={config.rings} onChange={(v) => set({ rings: v })} />
           <p className={cn("text-[11px] text-ink-3", compact && "pt-1")}>{feed.source || t("Loading")}</p>
         </div>
       </details>
