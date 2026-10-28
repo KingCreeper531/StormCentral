@@ -16,6 +16,7 @@ import { DEFAULT_RING_STEP, isRingStep, type RingStep } from "@/lib/range-rings"
 import type { ThemePref } from "@/lib/theme";
 import { defaultUnitsForLocale, UNIT_PRESETS, type UnitPrefs } from "@/lib/weather/units";
 import { isModeId, type ModeId } from "@/modes/registry";
+import { isModelFieldSetting, type ModelFieldSetting } from "@/lib/model-fields/scales";
 
 export interface AppLocation extends LatLon {
   name: string;
@@ -96,6 +97,10 @@ export interface RadarSettings {
   showWaves: boolean;
   /** Aviation weather: airports by flight category, SIGMETs and AIRMETs (lib/aviation). Off unless turned on. */
   showAviation: boolean;
+  /** Model map under the radar (Open-Meteo forecast field with a time slider, lib/model-fields). Off unless turned on. */
+  modelField: ModelFieldSetting;
+  /** Wind particles flowing over the model map. */
+  modelParticles: boolean;
 }
 
 export type RadarHistory = "latest" | "2h" | "4h";
@@ -220,6 +225,8 @@ export const DEFAULT_RADAR: RadarSettings = {
   showBuoys: false,
   showWaves: false,
   showAviation: false,
+  modelField: "off",
+  modelParticles: true,
 };
 
 /** Saved radar settings made whole: defaults for anything a previous version didn't store. */
@@ -241,6 +248,8 @@ export function normalizeRadar(r: RadarSettings): RadarSettings {
     showBuoys: r.showBuoys === true,
     showWaves: r.showWaves === true,
     showAviation: r.showAviation === true,
+    modelField: isModelFieldSetting(r.modelField) ? r.modelField : "off",
+    modelParticles: r.modelParticles !== false,
     satelliteMap: r.satelliteMap === true,
     nowcast: r.nowcast !== false,
   };

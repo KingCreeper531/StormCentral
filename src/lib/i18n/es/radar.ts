@@ -511,4 +511,19 @@ export const RADAR: Record<string, string> = {
   "Fast": "Rápida",
   "Larger text": "Texto más grande",
   "Warning codes (TOR, SVR, FFW)": "Códigos de aviso (TOR, SVR, FFW)",
+
+  // ─── model maps (radar-controls.tsx, model-field-bar.tsx) ──────────────────
+  "Model maps": "Mapas de modelos",
+  "Forecast map": "Mapa de pronóstico",
+  CAPE: "CAPE",
+  Snowfall: "Nevada",
+  "Wind particles": "Partículas de viento",
+  "Model forecasts from Open-Meteo for the next 48 hours, under the radar, with their own time slider. Off saves data and battery.":
+    "Pronósticos de modelos de Open-Meteo para las próximas 48 horas, bajo el radar, con su propio control de tiempo. Desactivado ahorra datos y batería.",
+  "Pause model forecast": "Pausar el pronóstico del modelo",
+  "Play model forecast": "Reproducir el pronóstico del modelo",
+  "Forecast hour": "Hora del pronóstico",
+  "Updating…": "Actualizando…",
+  "Open-Meteo forecast": "Pronóstico de Open-Meteo",
+  "The model map couldn't load. Open-Meteo may be busy.": "No se pudo cargar el mapa del modelo. Puede que Open-Meteo esté saturado.",
 };

@@ -6,6 +6,7 @@ import { useFormat } from "@/hooks/use-format";
 import { useT } from "@/lib/i18n/use-t";
 import { COMMUNITY_ENABLED } from "@/lib/platform";
 import { RING_STEPS } from "@/lib/range-rings";
+import { FIELDS, MODEL_FIELDS, type ModelFieldSetting } from "@/lib/model-fields/scales";
 import { cn } from "@/lib/utils";
 import type { RadarSettings } from "@/store/app-store";
 import { Toggle } from "../ui/misc";
@@ -317,6 +318,28 @@ export function RadarControls({
             </div>
           )}
         </div>
+      </Group>
+
+      <Group title={t("Model maps")}>
+        <Field label={t("Forecast map")} htmlFor="model-field">
+          <select
+            id="model-field"
+            value={settings.modelField}
+            onChange={(e) => onChange({ modelField: e.target.value as ModelFieldSetting })}
+            className={INPUT}
+          >
+            <option value="off">{t("Off")}</option>
+            {MODEL_FIELDS.map((f) => (
+              <option key={f} value={f}>
+                {t(FIELDS[f].label)}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {settings.modelField !== "off" && (
+          <Toggle label={t("Wind particles")} checked={settings.modelParticles} onChange={(modelParticles) => onChange({ modelParticles })} />
+        )}
+        <p className="label">{t("Model forecasts from Open-Meteo for the next 48 hours, under the radar, with their own time slider. Off saves data and battery.")}</p>
       </Group>
     </div>
   );
