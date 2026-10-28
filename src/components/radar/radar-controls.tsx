@@ -13,6 +13,7 @@ import { AlertKindsPicker } from "./alert-kinds";
 import { Segmented } from "../ui/segmented";
 import { GisManager } from "../map/gis-manager";
 import { sentenceCase } from "./radar-legend";
+import { SnowField } from "./snow-field";
 
 const INPUT =
   "h-9 w-full rounded-[var(--radius-control)] border border-line bg-surface-2 px-3 text-sm text-ink outline-none focus:border-accent pointer-coarse:h-11";
@@ -224,6 +225,7 @@ export function RadarControls({
           <Toggle label={t("Satellite map (no clouds)")} checked={settings.satelliteMap} onChange={(satelliteMap) => onChange({ satelliteMap })} />
           <p className="label">{t("Cloud-free pictures of the ground in place of the plain map, under the radar. Borders, roads and place names stay on top.")}</p>
         </div>
+        <SnowField settings={settings} onChange={onChange} />
       </Group>
 
       <Group title={t("Your layers")}>

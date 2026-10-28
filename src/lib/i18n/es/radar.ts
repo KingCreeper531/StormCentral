@@ -326,6 +326,24 @@ export const RADAR: Record<string, string> = {
   "Spotters sharing their live position, seen by signed-in members. Share yours in Settings → Account.":
     "Observadores que comparten su ubicación en vivo, visibles para miembros con sesión iniciada. Comparte la tuya en Configuración → Cuenta.",
 
+  // ─── snow-field.tsx / snow-legend.tsx: snow maps ──────────────────────────
+  "Snow map": "Mapa de nieve",
+  "Day 1": "Día 1",
+  "Day 2": "Día 2",
+  "Day 3": "Día 3",
+  Depth: "Espesor",
+  "Snowfall forecast, the next 24 hours": "Pronóstico de nevada, las próximas 24 horas",
+  "Snowfall forecast, 24 to 48 hours ahead": "Pronóstico de nevada, de 24 a 48 horas",
+  "Snowfall forecast, 48 to 72 hours ahead": "Pronóstico de nevada, de 48 a 72 horas",
+  "Snow depth now": "Espesor de nieve actual",
+  "Snowfall amount": "Cantidad de nieve",
+  "The Weather Prediction Center's chance of at least that much snow in each 24-hour day. Under the radar, so storms stay on top.":
+    "La probabilidad, según el Centro de Predicción Meteorológica, de al menos esa cantidad de nieve en cada día de 24 horas. Bajo el radar, para que las tormentas queden encima.",
+  "Chance of {amount} or more of snow": "Probabilidad de {amount} o más de nieve",
+  "Key unavailable right now": "Leyenda no disponible por ahora",
+  "Modelled depth on the ground, updated daily": "Espesor modelado sobre el suelo, actualizado a diario",
+  "In the 24 hours of WPC's Day {n}": "En las 24 horas del día {n} del WPC",
+
   // ─── radar-controls.tsx / webcam-detail.tsx: live cameras ─────────────────
   "Live cameras": "Cámaras en vivo",
   "Traffic cameras in California and Iowa, wildfire cameras across the West, river cameras nationwide and volcano cameras, from Caltrans, Iowa DOT, ALERTCalifornia and USGS. Tap one for its latest picture.":
