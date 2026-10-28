@@ -1,10 +1,12 @@
 "use client";
 
 import type { Map as MlMap } from "maplibre-gl";
-import { ChevronLeft, ChevronRight, Expand, Pause, Play, Settings2, Shrink, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Expand, LayoutGrid, Pause, Play, Settings2, Shrink, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { proView } from "@/lib/broadcast/pro-view";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
+import { useAppStore } from "@/store/app-store";
 import { useBroadcastStore, type BroadcastScene } from "@/store/broadcast-store";
 import { IconButton } from "../ui/button";
 
@@ -58,16 +60,33 @@ export function useSceneTour(map: MlMap | null) {
 
 export type SceneTour = ReturnType<typeof useSceneTour>;
 
+/** Switches between the radar map and Professional mode's panels; only there while Professional mode is on in Settings. */
+function ProViewButton() {
+  const t = useT();
+  const professional = useAppStore((s) => s.professional);
+  const saved = useBroadcastStore((s) => s.proView);
+  const set = useBroadcastStore((s) => s.set);
+  const view = proView(professional, saved);
+  if (!view.available) return null;
+  return (
+    <IconButton size="sm" label={t("Professional mode panels")} aria-pressed={view.on} onClick={() => set({ proView: !view.on })}>
+      <LayoutGrid className="size-4" aria-hidden />
+    </IconButton>
+  );
+}
+
 /**
  * Broadcast mode's controls: a bar along the top that shows while the
  * pointer moves, on a tap (phones have no pointer to move), or while a
- * control has focus, and hides itself on air. Scenes, the tour, full
- * screen, settings and the way out (Esc and the back button work too).
+ * control has focus, and hides itself on air. Scenes and the tour (on the
+ * map only: without a `tour`, they're left out), the Pro view, full screen,
+ * settings and the way out (Esc and the back button work too).
  */
-export function BroadcastControls({ tour, onSettings, onExit, extra }: { tour: SceneTour; onSettings: () => void; onExit: () => void; extra?: React.ReactNode }) {
+export function BroadcastControls({ tour, onSettings, onExit, extra }: { tour?: SceneTour; onSettings: () => void; onExit: () => void; extra?: React.ReactNode }) {
   const t = useT();
   const [shown, setShown] = useState(true);
-  const [full, setFull] = useState(false);
+  // Switching views remounts the bar, maybe in full screen already.
+  const [full, setFull] = useState(() => typeof document !== "undefined" && !!document.fullscreenElement);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -99,7 +118,7 @@ export function BroadcastControls({ tour, onSettings, onExit, extra }: { tour: S
     else void document.documentElement.requestFullscreen?.().catch(() => {});
   };
 
-  const n = tour.scenes.length;
+  const n = tour?.scenes.length ?? 0;
   return (
     <div
       role="toolbar"
@@ -109,17 +128,22 @@ export function BroadcastControls({ tour, onSettings, onExit, extra }: { tour: S
         shown ? "opacity-100" : "pointer-events-none opacity-0",
       )}
     >
-      <IconButton size="sm" label={t("Previous scene")} disabled={!n} onClick={() => tour.step(-1)}>
-        <ChevronLeft className="size-4" aria-hidden />
-      </IconButton>
-      <span className="max-w-[12rem] min-w-[6rem] truncate px-1 text-center text-xs text-ink-2">{tour.current ? tour.current.name : n ? t.plural(n, "{n} scene", "{n} scenes") : t("No scenes saved")}</span>
-      <IconButton size="sm" label={t("Next scene")} disabled={!n} onClick={() => tour.step(1)}>
-        <ChevronRight className="size-4" aria-hidden />
-      </IconButton>
-      <IconButton size="sm" label={tour.playing ? t("Stop the tour") : t("Play the tour")} disabled={!n} onClick={tour.playing ? tour.stop : tour.play} aria-pressed={tour.playing}>
-        {tour.playing ? <Pause className="size-4" aria-hidden /> : <Play className="size-4" aria-hidden />}
-      </IconButton>
-      <span className="mx-1 h-5 w-px bg-line" aria-hidden />
+      {tour && (
+        <>
+          <IconButton size="sm" label={t("Previous scene")} disabled={!n} onClick={() => tour.step(-1)}>
+            <ChevronLeft className="size-4" aria-hidden />
+          </IconButton>
+          <span className="max-w-[12rem] min-w-[6rem] truncate px-1 text-center text-xs text-ink-2">{tour.current ? tour.current.name : n ? t.plural(n, "{n} scene", "{n} scenes") : t("No scenes saved")}</span>
+          <IconButton size="sm" label={t("Next scene")} disabled={!n} onClick={() => tour.step(1)}>
+            <ChevronRight className="size-4" aria-hidden />
+          </IconButton>
+          <IconButton size="sm" label={tour.playing ? t("Stop the tour") : t("Play the tour")} disabled={!n} onClick={tour.playing ? tour.stop : tour.play} aria-pressed={tour.playing}>
+            {tour.playing ? <Pause className="size-4" aria-hidden /> : <Play className="size-4" aria-hidden />}
+          </IconButton>
+          <span className="mx-1 h-5 w-px bg-line" aria-hidden />
+        </>
+      )}
+      <ProViewButton />
       {extra}
       <IconButton size="sm" label={full ? t("Leave full screen") : t("Full screen")} onClick={toggleFull} aria-pressed={full}>
         {full ? <Shrink className="size-4" aria-hidden /> : <Expand className="size-4" aria-hidden />}

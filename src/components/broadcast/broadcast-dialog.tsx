@@ -29,8 +29,8 @@ const PARTS: { key: keyof BroadcastParts; label: string }[] = [
 export interface BroadcastDialogProps {
   open: boolean;
   onClose: () => void;
-  /** The map's view now, to save as a scene, with a suggested name. */
-  currentView: () => { lat: number; lon: number; zoom: number; name: string } | null;
+  /** The map's view now, to save as a scene, with a suggested name; none in the Pro view, which has no radar map. */
+  currentView?: () => { lat: number; lon: number; zoom: number; name: string } | null;
 }
 
 /**
@@ -97,7 +97,7 @@ function Panel({ onClose, currentView }: BroadcastDialogProps) {
   };
 
   const saveScene = () => {
-    const v = currentView();
+    const v = currentView?.();
     if (!v) return;
     s.addScene({ lat: v.lat, lon: v.lon, zoom: v.zoom, name: sceneName.trim() || v.name });
     setSceneName("");
@@ -192,10 +192,11 @@ function Panel({ onClose, currentView }: BroadcastDialogProps) {
           <div>
             <h3 className="text-[13px] font-semibold text-ink">{t("Scenes")}</h3>
             <p className="text-[12px] text-ink-3">{t("Save views to step through on air, or play them as a tour. The lower third shows each scene's name.")}</p>
+            {!currentView && <p className="mt-1 text-[12px] text-ink-3">{t("Scenes move the radar map: switch back to it from Professional mode's panels to save or play them.")}</p>}
           </div>
           <div className="flex gap-2">
             <input className={FIELD} value={sceneName} maxLength={40} onChange={(e) => setSceneName(e.target.value)} placeholder={t("Scene name, e.g. Oklahoma City")} aria-label={t("Scene name")} />
-            <Button size="sm" className="h-9 shrink-0" onClick={saveScene} disabled={s.scenes.length >= MAX_SCENES}>
+            <Button size="sm" className="h-9 shrink-0" onClick={saveScene} disabled={!currentView || s.scenes.length >= MAX_SCENES}>
               <MapPinPlus className="size-3.5" aria-hidden />
               {t("Save this view")}
             </Button>

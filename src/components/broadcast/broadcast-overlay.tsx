@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import { useNow } from "@/hooks/use-now";
 import type { WeatherAlert } from "@/lib/api/types";
 import { countdown, tickerItems, warningCounts, type LowerThird } from "@/lib/broadcast/graphics";
 import { lowerScale, tickerSeconds, withAlpha } from "@/lib/broadcast/look";
+import { overlayInsets, type Insets } from "@/lib/broadcast/pro-view";
 import { useT } from "@/lib/i18n/use-t";
 import { cn } from "@/lib/utils";
 import { fmtIn } from "@/lib/weather/view";
@@ -49,11 +50,45 @@ function Countdown({ until }: { until: string }) {
  * The on-air graphics over the map in broadcast mode: the station bug, the
  * clock with the active-warnings counts, the lower third (with a countdown
  * for a warning) and the warnings ticker. Each part can be turned off in
- * broadcast settings.
+ * broadcast settings. With `onInsets`, it says how far the graphics reach in
+ * from the top and bottom whenever that changes (the Pro view keeps its
+ * toolbars clear of them).
  */
-export function BroadcastOverlay({ warnings, lower, lowerKey, timeZone }: { warnings: readonly WeatherAlert[]; lower: LowerThird; lowerKey: string; timeZone?: string }) {
+export function BroadcastOverlay({
+  warnings,
+  lower,
+  lowerKey,
+  timeZone,
+  onInsets,
+}: {
+  warnings: readonly WeatherAlert[];
+  lower: LowerThird;
+  lowerKey: string;
+  timeZone?: string;
+  onInsets?: (insets: Insets) => void;
+}) {
   const t = useT();
   const s = useBroadcastStore();
+  const root = useRef<HTMLDivElement>(null);
+  const last = useRef<Insets | null>(null);
+  // After every render (turning a part on or off moves the others without resizing them) and on every resize.
+  // Layout offsets, not on-screen boxes, so the lower third's rise animation doesn't count.
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (!el || !onInsets) return;
+    const measure = () => {
+      const boxes = [...el.children].map((c) => ({ top: (c as HTMLElement).offsetTop, height: (c as HTMLElement).offsetHeight }));
+      const next = overlayInsets(boxes, el.clientHeight);
+      if (last.current?.top === next.top && last.current.bottom === next.bottom) return;
+      last.current = next;
+      onInsets(next);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    for (const c of el.children) ro.observe(c);
+    return () => ro.disconnect();
+  });
   const counts = useMemo(() => warningCounts(warnings, t), [warnings, t]);
   const ticker = useMemo(() => tickerItems(warnings, timeZone, t), [warnings, timeZone, t]);
   const L = s.look;
@@ -65,7 +100,7 @@ export function BroadcastOverlay({ warnings, lower, lowerKey, timeZone }: { warn
   const tickerFont = L.tickerLarge ? 19 : 15;
 
   return (
-    <div className="bc" aria-hidden>
+    <div ref={root} className="bc" aria-hidden>
       {s.parts.bug && (
         <div className="bc-glass absolute top-4 left-[18px] flex items-center gap-3 rounded-[14px] py-2 pr-3.5 pl-2">
           <StationLogo className="size-10 rounded-[10px] object-contain" />

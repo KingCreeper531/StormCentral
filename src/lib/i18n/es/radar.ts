@@ -439,6 +439,10 @@ export const RADAR: Record<string, string> = {
   "Leave full screen": "Salir de pantalla completa",
   "Broadcast settings": "Ajustes de transmisión",
   "Leave broadcast mode": "Salir del modo transmisión",
+  "Professional mode panels": "Paneles del modo profesional",
+  "{site} multi-panel radar": "Radar multipanel {site}",
+  "Scenes move the radar map: switch back to it from Professional mode's panels to save or play them.":
+    "Las escenas mueven el mapa de radar: vuelve a él desde los paneles del modo profesional para guardarlas o reproducirlas.",
   LIVE: "EN VIVO",
   RADAR: "RADAR",
   WARNINGS: "AVISOS",
