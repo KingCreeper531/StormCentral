@@ -5,12 +5,14 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { useIntlTimes, useNoaaTimes, useRadarProducts } from "@/hooks/queries";
 import { useRadarLoop } from "@/hooks/use-radar-loop";
 import { listLevel2, listLevel3, liveVolumes, newest } from "@/lib/pro/nexrad/aws";
-import { decodedVersion, holdDecodes, jobKey, liveJob, peekDecoded, subscribeDecoded, type DecodeJob } from "@/lib/pro/nexrad/client";
+import { decodedVersion, holdDecodes, jobKey, liveJob, maxTrailSweeps, peekDecoded, subscribeDecoded, type DecodeJob } from "@/lib/pro/nexrad/client";
+import type { DeriveSpec, TdsMark } from "@/lib/pro/nexrad/derive";
 import { archiveNote, l3CodeFor, mrmsLayer, PRO_PRODUCTS, satelliteFrames, type ProProductId } from "@/lib/pro/products";
 import { sweepColors, type Sweep } from "@/lib/pro/nexrad/sweep";
 import { paletteScale, type Palette } from "@/lib/pro/palettes";
 import type { DecodedScaleId, ValueScale } from "@/lib/pro/scales";
 import { fetchServerIndex, PRO_SERVER, serverFrames } from "@/lib/pro/server";
+import type { ResolvedSrvMotion } from "@/lib/pro/storm-tools";
 import { useProSync } from "@/lib/pro/sync";
 import { iemSiteId, type RadarFrame } from "@/lib/radar/frames";
 import { INTL_RADARS, intlFrame } from "@/lib/radar/intl";
@@ -51,6 +53,8 @@ export interface PaneFeed {
   scaleId?: DecodedScaleId;
   /** Level II velocity: the Dealias velocity setting applies. */
   dealias?: boolean;
+  /** Debris signatures by frame time (the Level II debris product). */
+  marks?: ReadonlyMap<number, TdsMark[]>;
 }
 
 export const EMPTY_FEED: PaneFeed = { frames: [], family: null, tilts: [], tilt: null, source: "", loading: true, empty: false };
@@ -67,14 +71,16 @@ interface SourceProps {
   onFeed: (f: PaneFeed) => void;
   /** Looking back at the archive: the loop ends at this past time (set by FrameSource). */
   until?: number | null;
+  /** The storm motion Level II storm-relative velocity takes out. */
+  srv?: ResolvedSrvMotion | null;
 }
 
 /** Report a feed upward whenever what it shows changes. */
 function useReport(onFeed: (f: PaneFeed) => void, feed: PaneFeed) {
-  const { frames, family, tilts, tilt, elevations, source, loading, empty, missing = false, note, scale, decoded, scaleId, dealias } = feed;
+  const { frames, family, tilts, tilt, elevations, source, loading, empty, missing = false, note, scale, decoded, scaleId, dealias, marks } = feed;
   useEffect(() => {
-    onFeed({ frames, family, tilts, tilt, elevations, source, loading, empty, missing, note, scale, decoded, scaleId, dealias });
-  }, [onFeed, frames, family, tilts, tilt, elevations, source, loading, empty, missing, note, scale, decoded, scaleId, dealias]);
+    onFeed({ frames, family, tilts, tilt, elevations, source, loading, empty, missing, note, scale, decoded, scaleId, dealias, marks });
+  }, [onFeed, frames, family, tilts, tilt, elevations, source, loading, empty, missing, note, scale, decoded, scaleId, dealias, marks]);
 }
 
 const noTilts: ResolvedTilt[] = [];
@@ -140,16 +146,19 @@ function useDecodedFrames(jobs: readonly { job: DecodeJob; time: number }[], sca
   // Identity only changes when the set of finished frames does.
   // (Newline-separated: job keys themselves contain "|".)
   const readyKey = jobs.map((j) => (peekDecoded(jobKey(j.job))?.state === "done" ? jobKey(j.job) : "")).join("\n");
-  const frames = useMemo<RadarFrame[]>(() => {
+  const { frames, marks } = useMemo(() => {
     const done = new Set(readyKey.split("\n"));
-    return jobs.flatMap(({ job, time }) => {
+    const marks = new Map<number, TdsMark[]>();
+    const frames = jobs.flatMap(({ job, time }): RadarFrame[] => {
       const e = done.has(jobKey(job)) ? peekDecoded(jobKey(job)) : undefined;
       if (e?.state !== "done") return [];
+      if (e.frame.marks) marks.set(time, e.frame.marks);
       // A new id for new colours: the GPU layer uploads each frame once per id.
       const id = palette ? `${e.frame.key}#${palette.id}` : e.frame.key;
       const colors = palette ? coloursIn(e.frame.sweep, scaleId, palette) : e.frame.colors;
       return [{ id, time, tileUrl: "", maxzoom: 0, sweep: { sweep: e.frame.sweep, colors } }];
     });
+    return { frames, marks: marks.size ? marks : undefined };
   }, [jobs, readyKey, scaleId, palette]);
   let failed = 0;
   // A constant when there are none: a new [] each render would re-report the feed forever.
@@ -165,7 +174,7 @@ function useDecodedFrames(jobs: readonly { job: DecodeJob; time: number }[], sca
       elevation = e.frame.sweep.elevation;
     }
   }
-  return { frames, failed, cuts, elevation };
+  return { frames, marks, failed, cuts, elevation };
 }
 
 /** The older Level III code for the same moment: reflectivity and velocity before the super-res products. */
@@ -217,13 +226,23 @@ function L3Source({ product, site, tilt, frameCount, onFeed, until = null }: Sou
   return null;
 }
 
-function VolumeSource({ product, site, elev, frameCount, onFeed, until = null }: SourceProps) {
+function VolumeSource({ product, site, elev, frameCount, onFeed, until = null, srv = null }: SourceProps) {
   const def = PRO_PRODUCTS[product];
   const moment = def.kind === "l2" ? def.moment : "REF";
   const scaleId = def.kind === "l2" ? def.scale : "ref";
+  const kind = def.kind === "l2" ? def.derive : undefined;
   // Velocity is unfolded in the decoder unless the setting is off (the flag is part of each frame's cache key).
+  // NROT and debris always unfold it (derive.ts); storm-relative velocity follows the setting.
   const dealiasOn = useProStore((s) => s.dealias);
-  const dealias = moment === "VEL" && dealiasOn ? true : undefined;
+  const dealias = moment === "VEL" && dealiasOn && kind !== "nrot" ? true : undefined;
+  const toward = srv ? Math.round(srv.towardDeg) % 360 : null;
+  const speed = srv ? Math.round(srv.speedKt) : null;
+  const derive = useMemo<DeriveSpec | undefined>(
+    () => (kind === "srv" ? (toward != null && speed != null ? { kind, towardDeg: toward, speedKt: speed } : undefined) : kind ? { kind } : undefined),
+    [kind, toward, speed],
+  );
+  // Storm-relative velocity without a storm motion has nothing to show.
+  const noMotion = kind === "srv" && !derive;
   const count = Math.min(frameCount, 6);
   const spanMin = count * 7 + 30;
   const list = useQuery({
@@ -247,17 +266,19 @@ function VolumeSource({ product, site, elev, frameCount, onFeed, until = null }:
   const where = getSite(site);
   const at = useMemo(() => (where ? { lat: where.lat, lon: where.lon } : undefined), [where]);
   const jobs = useMemo(() => {
+    if (noMotion) return [];
     const files = list.data ?? [];
     const lastFile = files.at(-1)?.time ?? 0;
-    const archived = files.map((f) => ({ time: f.time, job: { kind: "l2", url: f.url, moment, angle: elev, scale: scaleId, site: at, dealias } as DecodeJob }));
+    const extra = derive ? { derive } : {};
+    const archived = files.map((f) => ({ time: f.time, job: { kind: "l2", url: f.url, moment, angle: elev, scale: scaleId, site: at, dealias, ...extra } as DecodeJob }));
     const live = (until == null ? (chunked.data ?? []) : [])
       .filter((v) => v.time > lastFile + 30_000)
-      .map((v) => ({ time: v.time, job: liveJob({ kind: "l2chunks", urls: v.urls, moment, angle: elev, scale: scaleId, dealias }) }));
+      .map((v) => ({ time: v.time, job: liveJob({ kind: "l2chunks", urls: v.urls, moment, angle: elev, scale: scaleId, dealias, ...extra }) }));
     return [...archived, ...live].slice(-count);
-  }, [list.data, chunked.data, until, count, moment, elev, scaleId, at, dealias]);
+  }, [list.data, chunked.data, until, count, moment, elev, scaleId, at, dealias, derive, noMotion]);
   const realTime = jobs.some((j) => j.job.kind === "l2chunks");
   const { palette, scale } = useDecodedScale(scaleId);
-  const { frames, failed, cuts, elevation } = useDecodedFrames(jobs, scaleId, palette);
+  const { frames, marks, failed, cuts, elevation } = useDecodedFrames(jobs, scaleId, palette);
   const elevations = useMemo(() => [...new Set(cuts.map((c) => Math.round(c * 10) / 10))].sort((a, b) => a - b), [cuts]);
   // Memoised like every other field of the feed: a new object each render would re-report it forever.
   const tilt = useMemo<ResolvedTilt | null>(() => (elevation != null ? { prefix: "N0", angle: elevation, code: moment } : null), [elevation, moment]);
@@ -269,15 +290,56 @@ function VolumeSource({ product, site, elev, frameCount, onFeed, until = null }:
     tilt,
     elevations,
     source: realTime ? `NOAA Level II ${site}, real time` : `NOAA Level II ${site}`,
-    loading: list.isLoading || (jobs.length > 0 && !frames.length && !allFailed),
-    empty: list.isError || (list.isSuccess && !jobs.length) || allFailed,
-    note: allFailed && elevations.length ? "This tilt isn't in the radar's current scan pattern" : undefined,
+    loading: !noMotion && (list.isLoading || (jobs.length > 0 && !frames.length && !allFailed)),
+    empty: noMotion || list.isError || (list.isSuccess && !jobs.length) || allFailed,
+    note: noMotion
+      ? "No storm motion yet: pick one in this panel's settings"
+      : allFailed && kind === "tds" && peekError(jobs) === "This volume has no dual-pol data"
+        ? "This volume has no dual-pol data"
+        : allFailed && elevations.length
+          ? "This tilt isn't in the radar's current scan pattern"
+          : undefined,
     scale,
     decoded: true,
     scaleId,
-    dealias: moment === "VEL",
+    dealias: moment === "VEL" && kind !== "nrot",
+    marks,
   });
   return null;
+}
+
+/** The first decode error among a pane's jobs. */
+function peekError(jobs: readonly { job: DecodeJob }[]): string | undefined {
+  for (const j of jobs) {
+    const e = peekDecoded(jobKey(j.job));
+    if (e?.state === "error") return e.error;
+  }
+  return undefined;
+}
+
+/**
+ * The loop as max value trails (lib/pro/nexrad/trail.ts) when `key` (what
+ * the trail follows: site, product, tilt) is set: each frame shows the
+ * highest value so far at every gate, worked out in a worker. Until it's
+ * ready (and whenever `key` changes, which starts the trail over) the plain
+ * frames show.
+ */
+export function useTrailFrames(frames: RadarFrame[], key: string | null, signed: boolean, scale: ValueScale | null | undefined): RadarFrame[] {
+  const [done, setDone] = useState<{ id: string; frames: RadarFrame[] } | null>(null);
+  const usable = !!key && !!scale && frames.length > 0 && frames.every((f) => f.sweep);
+  const id = usable ? `${key}\n${signed}\n${frames.map((f) => f.id).join("\n")}` : "";
+  useEffect(() => {
+    if (!id || !key || !scale) return;
+    let alive = true;
+    void maxTrailSweeps(id, key, frames.map((f) => f.sweep!.sweep), signed, scale).then((r) => {
+      if (!alive || !r) return;
+      setDone({ id, frames: frames.map((f, i) => ({ ...f, id: `${f.id}#max`, sweep: { sweep: r.sweeps[i]!, colors: r.colors[i]! } })) });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [id, key, frames, signed, scale]);
+  return id && done?.id === id ? done.frames : frames;
 }
 
 function ServerSource({ product, frameCount, onFeed }: SourceProps) {

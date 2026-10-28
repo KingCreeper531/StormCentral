@@ -53,6 +53,26 @@ export const PRO: Record<string, string> = {
   "Dealias velocity": "Corregir el aliasing de la velocidad",
   "Unfolds winds faster than the radar's Nyquist velocity, which otherwise show in the opposite colour. Applies to every Level II velocity panel.":
     "Desdobla los vientos más rápidos que la velocidad de Nyquist del radar, que de lo contrario aparecen con el color opuesto. Se aplica a todos los paneles de velocidad Level II.",
+  "Max value trail": "Rastro de valores máximos",
+  "Each spot keeps its highest value over the loop (the strongest either way for velocity and NROT), so rotation and hail cores leave tracks. Starts over when the site, product or tilt changes.":
+    "Cada punto conserva su valor más alto durante el bucle (el más fuerte en cualquier sentido para la velocidad y el NROT), así la rotación y los núcleos de granizo dejan rastro. Vuelve a empezar al cambiar la estación, el producto o el ángulo.",
+  max: "máx.",
+  "Storm cells' average": "Promedio de las celdas de tormenta",
+  "Selected warning": "Aviso seleccionado",
+  "Typed in": "Escrito a mano",
+  "From (°)": "Desde (°)",
+  "Speed (kt)": "Velocidad (kt)",
+  "In use: from {dir}° at {speed} kt ({source}).": "En uso: desde {dir}° a {speed} kt ({source}).",
+  "None yet: turn on storm cells, draw a storm vector, select a warning or type one in.":
+    "Ninguno aún: activa las celdas de tormenta, traza un vector de tormenta, selecciona un aviso o escribe uno.",
+  "No storm motion yet: pick one in this panel's settings": "Aún no hay movimiento de tormenta: elige uno en los ajustes de este panel",
+  "This volume has no dual-pol data": "Este volumen no tiene datos de polarización dual",
+  "Tornado debris signature": "Firma de escombros de tornado",
+  "Max PTDS": "PTDS máx.",
+  Area: "Área",
+  Tilts: "Ángulos",
+  "Debris in the air: a tornado has done damage here. It doesn't prove one is on the ground now.":
+    "Escombros en el aire: un tornado ha causado daños aquí. No demuestra que haya uno en el suelo ahora.",
 
   // ─── cursor readout ────────────────────────────────────────────────────────
   "Move the pointer over a panel (or tap) to sample every panel at that spot.": "Mueve el puntero sobre un panel (o toca) para muestrear todos los paneles en ese punto.",
@@ -146,6 +166,12 @@ export const PRO: Record<string, string> = {
   "Velocity, any tilt (Level II)": "Velocidad, cualquier ángulo (Nivel II)",
   "ZDR, any tilt (Level II)": "ZDR, cualquier ángulo (Nivel II)",
   "CC (ρHV), any tilt (Level II)": "CC (ρHV), cualquier ángulo (Nivel II)",
+  "Storm-relative velocity, any tilt (Level II)": "Velocidad relativa a la tormenta, cualquier ángulo (Nivel II)",
+  "Normalized rotation, NROT (Level II)": "Rotación normalizada, NROT (Nivel II)",
+  "Tornado debris, PTDS (Level II)": "Escombros de tornado, PTDS (Nivel II)",
+  "Dealiased velocity minus the storm motion you pick": "Velocidad sin aliasing menos el movimiento de tormenta que elijas",
+  "Rotation scaled for range: 1 is significant, 2.5 extreme": "Rotación ajustada a la distancia: 1 es significativa, 2.5 extrema",
+  "Chance that echo is tornado debris, with debris signatures marked": "Probabilidad de que el eco sea escombros de tornado, con las firmas de escombros marcadas",
   "Hail size, MESH (MRMS)": "Tamaño de granizo, MESH (MRMS)",
   "Hail size, 60-min max (MRMS)": "Tamaño de granizo, máx. 60 min (MRMS)",
   "Rotation track, 60 min (MRMS)": "Rastro de rotación, 60 min (MRMS)",
@@ -317,6 +343,8 @@ export const PRO: Record<string, string> = {
   "specific differential phase": "fase diferencial específica",
   "hydrometeor classes": "clases de hidrometeoros",
   "echo tops": "topes de eco",
+  "normalized rotation": "rotación normalizada",
+  "debris probability": "probabilidad de escombros",
 
   // toolbar.tsx, volume-panel.tsx
   "3D volume": "Volumen 3D",

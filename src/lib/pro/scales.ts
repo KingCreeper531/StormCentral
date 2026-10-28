@@ -120,7 +120,7 @@ export const L3_HC_CLASSES: Record<number, string> = {
   14: "Unknown",
 };
 
-export type DecodedScaleId = "ref" | "vel" | "cc" | "zdr" | "kdp" | "hc" | "vil" | "eet";
+export type DecodedScaleId = "ref" | "vel" | "cc" | "zdr" | "kdp" | "hc" | "vil" | "eet" | "nrot" | "ptds";
 
 export const DECODED_SCALES: Record<DecodedScaleId, ValueScale & { clearBelow?: boolean }> = {
   ref: { stops: FAMILIES.reflectivity.legend.filter((s, i, a) => i === 0 || s.value > a[i - 1]!.value), unit: "dBZ", decimals: 1, clearBelow: true },
@@ -181,6 +181,40 @@ export const DECODED_SCALES: Record<DecodedScaleId, ValueScale & { clearBelow?: 
     clearBelow: true,
   },
   eet: { ...NOAA_ECHO_TOPS, stops: NOAA_ECHO_TOPS.stops.filter((s) => s.value >= 0), clearBelow: true },
+  // Normalized rotation (lib/pro/nexrad/nrot.ts), diverging: cyclonic warm (yellow at 1, red at 2.5), anticyclonic cool.
+  nrot: {
+    stops: [
+      { value: -5, color: "#e0c8ff" },
+      { value: -3.5, color: "#8a3df0" },
+      { value: -2.5, color: "#2b3fe0" },
+      { value: -1.75, color: "#1f86ff" },
+      { value: -1, color: "#00d2e6" },
+      { value: -0.5, color: "#2e5560" },
+      { value: 0, color: "#3a3a3a" },
+      { value: 0.5, color: "#5e5235" },
+      { value: 1, color: "#ffd400" },
+      { value: 1.75, color: "#ff8c00" },
+      { value: 2.5, color: "#e60000" },
+      { value: 3.5, color: "#c0007a" },
+      { value: 5, color: "#ffb4f0" },
+    ],
+    unit: "",
+    decimals: 2,
+  },
+  // Probability of tornado debris (lib/pro/nexrad/tds.ts): clear below 50 %, hot over 90.
+  ptds: {
+    stops: [
+      { value: 50, color: "#3b3f5c" },
+      { value: 70, color: "#6a6fa8" },
+      { value: 80, color: "#2fb5c8" },
+      { value: 90, color: "#ffd400" },
+      { value: 95, color: "#ff5a00" },
+      { value: 100, color: "#ff00d4" },
+    ],
+    unit: "%",
+    decimals: 0,
+    clearBelow: true,
+  },
 };
 
 const hex = (c: string): [number, number, number] => {
@@ -218,5 +252,5 @@ export function scaleColor(scale: ValueScale & { clearBelow?: boolean }, v: numb
 /** Text for a decoded value (exact, no ≈). */
 export function formatDecoded(scale: ValueScale, v: number, t: (s: string) => string = (s) => s): string {
   if (scale.categorical) return t(L3_HC_CLASSES[Math.round(v)] ?? "Unknown");
-  return `${v.toFixed(scale.decimals)} ${scale.unit}`;
+  return scale.unit ? `${v.toFixed(scale.decimals)} ${scale.unit}` : v.toFixed(scale.decimals);
 }

@@ -7,6 +7,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { isProProductId, type ProProductId } from "@/lib/pro/products";
+import { DEFAULT_SRV_MOTION, SRV_SOURCES, type SrvMotionSetting } from "@/lib/pro/storm-tools";
 import { TILTS, type TiltPrefix } from "@/lib/radar/products";
 import { COMPARE_MODELS, DEFAULT_COMPARE, ENSEMBLES } from "@/lib/weather/meteogram";
 import type { LatLon } from "@/lib/geo";
@@ -32,6 +33,8 @@ export interface PaneConfig {
   satelliteMap: boolean;
   /** Range rings around the panel's radar site (spacing and spokes follow the radar map's settings). */
   rings: boolean;
+  /** Decoded radar: each gate's highest value over the loop (lib/pro/nexrad/trail.ts). */
+  trail: boolean;
 }
 
 export type ProTool = "inspect" | "sounding" | "meteogram" | "xsect" | "vector" | "toa" | "warngen" | "volume";
@@ -161,6 +164,8 @@ export interface ProState {
   guideButton: boolean;
   /** Level II velocity panes unfold aliased (folded) velocities (lib/pro/nexrad/dealias.ts). */
   dealias: boolean;
+  /** The storm motion Level II storm-relative velocity panels take out. */
+  srvMotion: SrvMotionSetting;
   /** The meteogram's models (Open-Meteo ids) and ensemble. */
   meteogramModels: string[];
   meteogramEnsemble: string;
@@ -177,6 +182,7 @@ export interface ProState {
   resetWarnDraft: (kind?: WarnKind) => void;
   setGuideButton: (on: boolean) => void;
   setDealias: (on: boolean) => void;
+  setSrvMotion: (patch: Partial<SrvMotionSetting>) => void;
   setMeteogramModels: (ids: string[]) => void;
   setMeteogramEnsemble: (id: string) => void;
 }
@@ -185,12 +191,22 @@ export interface ProState {
 const DEFAULT_PRODUCTS: ProProductId[] = ["ref", "vel", "srv", "cref", "cc", "zdr", "hc", "sat-ir", "eet"];
 
 export function defaultPanes(): PaneConfig[] {
-  return DEFAULT_PRODUCTS.map((product, i) => ({ id: `p${i + 1}`, product, site: null, tilt: "N0", elev: 0.5, opacity: 0.85, warnings: true, cells: false, satelliteMap: false, rings: false }));
+  return DEFAULT_PRODUCTS.map((product, i) => ({ id: `p${i + 1}`, product, site: null, tilt: "N0", elev: 0.5, opacity: 0.85, warnings: true, cells: false, satelliteMap: false, rings: false, trail: false }));
 }
 
 const TILT_SET = new Set<string>(TILTS.map((t) => t.prefix));
 const isCompareModel = (id: unknown): id is string => COMPARE_MODELS.some((m) => m.id === id);
 const isEnsemble = (id: unknown): id is string => ENSEMBLES.some((e) => e.id === id);
+
+function normalizeSrvMotion(raw: unknown): SrvMotionSetting {
+  const m = (raw ?? {}) as Partial<SrvMotionSetting>;
+  const d = DEFAULT_SRV_MOTION;
+  return {
+    source: (SRV_SOURCES as readonly string[]).includes(m.source as string) ? (m.source as SrvMotionSetting["source"]) : d.source,
+    fromDeg: typeof m.fromDeg === "number" && Number.isFinite(m.fromDeg) ? ((Math.round(m.fromDeg) % 360) + 360) % 360 : d.fromDeg,
+    speedKt: typeof m.speedKt === "number" && Number.isFinite(m.speedKt) ? Math.min(150, Math.max(0, Math.round(m.speedKt))) : d.speedKt,
+  };
+}
 
 function normalizePanes(raw: unknown): PaneConfig[] {
   const base = defaultPanes();
@@ -209,6 +225,7 @@ function normalizePanes(raw: unknown): PaneConfig[] {
       cells: typeof p.cells === "boolean" ? p.cells : d.cells,
       satelliteMap: typeof p.satelliteMap === "boolean" ? p.satelliteMap : d.satelliteMap,
       rings: typeof p.rings === "boolean" ? p.rings : d.rings,
+      trail: typeof p.trail === "boolean" ? p.trail : d.trail,
     };
   });
 }
@@ -227,6 +244,7 @@ export const useProStore = create<ProState>()(
       warnDraft: newDraft(),
       guideButton: true,
       dealias: true,
+      srvMotion: DEFAULT_SRV_MOTION,
       meteogramModels: DEFAULT_COMPARE,
       meteogramEnsemble: ENSEMBLES[0]!.id,
       volume3d: DEFAULT_VOLUME3D,
@@ -244,6 +262,7 @@ export const useProStore = create<ProState>()(
       resetWarnDraft: (kind) => set((s) => ({ warnDraft: newDraft(kind ?? s.warnDraft.kind) })),
       setGuideButton: (guideButton) => set({ guideButton }),
       setDealias: (dealias) => set({ dealias }),
+      setSrvMotion: (patch) => set((s) => ({ srvMotion: normalizeSrvMotion({ ...s.srvMotion, ...patch }) })),
       setMeteogramModels: (ids) => set({ meteogramModels: ids.filter(isCompareModel) }),
       setMeteogramEnsemble: (id) => set({ meteogramEnsemble: isEnsemble(id) ? id : ENSEMBLES[0]!.id }),
     }),
@@ -259,6 +278,7 @@ export const useProStore = create<ProState>()(
         speed: s.speed,
         guideButton: s.guideButton,
         dealias: s.dealias,
+        srvMotion: s.srvMotion,
         meteogramModels: s.meteogramModels,
         meteogramEnsemble: s.meteogramEnsemble,
         volume3d: s.volume3d,
@@ -274,6 +294,7 @@ export const useProStore = create<ProState>()(
           speed: p.speed === 0.5 || p.speed === 2 ? p.speed : 1,
           guideButton: p.guideButton !== false,
           dealias: p.dealias !== false,
+          srvMotion: normalizeSrvMotion(p.srvMotion),
           meteogramModels: Array.isArray(p.meteogramModels) ? p.meteogramModels.filter(isCompareModel) : current.meteogramModels,
           meteogramEnsemble: isEnsemble(p.meteogramEnsemble) ? p.meteogramEnsemble : current.meteogramEnsemble,
           volume3d: normalizeVolume3d(p.volume3d),

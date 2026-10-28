@@ -44,6 +44,12 @@ export interface Level2Result {
 export interface Level2Options {
   /** Where the radar is, for volumes that don't say (Message 1, before 2008). */
   site?: { lat: number; lon: number; heightM?: number };
+  /**
+   * Decompressed LDM records by file offset, shared between parses of the
+   * same file (filled as they're read), so reading several moments of one
+   * volume decompresses each record once.
+   */
+  records?: Map<number, Uint8Array>;
 }
 
 /** Message 1 moments: which gate set they're on, and raw level → value (value = (level − offset) / scale). */
@@ -323,11 +329,14 @@ function decodeLevel2(file: Uint8Array, moment: Moment, angle: number | null | "
     // A record cut short is the end of what's arrived (a download dropped, a volume still coming in).
     if (!size || pos + size > file.length) break;
     // A corrupt record loses its radials (a wedge of the sweep), not the volume.
-    let rec: Uint8Array | null = null;
-    try {
-      rec = bunzip2(file.subarray(pos, pos + size), size * 8);
-    } catch {
-      damaged++;
+    let rec: Uint8Array | null = opts.records?.get(pos) ?? null;
+    if (!rec) {
+      try {
+        rec = bunzip2(file.subarray(pos, pos + size), size * 8);
+        opts.records?.set(pos, rec);
+      } catch {
+        damaged++;
+      }
     }
     if (rec) readMessages(rec);
     pos += size;

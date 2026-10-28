@@ -145,6 +145,33 @@ export const PRODUCT_GUIDE: Record<ProProductId, GuideTopic> = {
     read: CC_READ,
     look: ["A debris signature that reaches up several tilts means a strong tornado lofting debris high.", ...VOLUME_LOOK],
   },
+  "vol-srv": {
+    what: "Storm-relative velocity from the Level II volume, at any tilt: the dealiased velocity with a storm's motion taken out, so rotation inside a fast-moving storm stands out. Pick the motion in the panel's settings: typed in, a storm vector you clicked, the selected warning's motion or the storm cells' average. Desktop only.",
+    read: VEL_READ,
+    look: [
+      "A balanced couplet, bright green right next to bright red, once the storm's own motion is out: rotation.",
+      "Use the motion of the storm you're looking at: a storm vector or its warning's motion fits it better than the average of all cells.",
+    ],
+  },
+  "vol-nrot": {
+    what: "Normalized rotation (NROT): how fast the dealiased Level II velocity changes across the beam (azimuthal shear), divided by the shear that counts as significant at that range. Far from the radar the beam is wider and spreads a vortex out, so less shear counts. Desktop only.",
+    read: "No unit. Positive (yellow to red) is cyclonic rotation, negative (blue) anticyclonic. 1 or more is significant rotation, like a moderate mesocyclone; 2.5 or more is extreme, typical of a tight, strong vortex such as a tornado. Most echo reads between −1 and 1.",
+    look: [
+      "A spot of 1 or more on a velocity couplet, often on a storm's back side: a mesocyclone. Over 2.5 near the ground, think tornado.",
+      "Follow it up through the tilts: rotation that reaches mid levels is a deep mesocyclone.",
+      "Turn on the max value trail in the panel's settings to see the track the rotation has taken over the loop.",
+      "Lone specks at the edges of echo and right next to the radar are noise: real rotation covers several gates and lasts from scan to scan.",
+    ],
+  },
+  "vol-tds": {
+    what: "Probability of tornado debris (PTDS) from the Level II volume: how much each spot looks like debris, from reflectivity, low CC, ZDR near zero, rotation (NROT) and spectrum width together. Debris signatures (TDS) get a triangle. Desktop only; needs dual-pol data (from 2013).",
+    read: "In %, clear below 50 %. Over 95 % on a patch of at least 9 gates with NROT of 1 or more within 3 km is marked TDS; point at the triangle for its highest PTDS, its area and the tilts it shows on.",
+    look: [
+      "A TDS confirms debris lofted into the air, so a tornado has been doing damage there. It doesn't make a tornado certain, and a weak tornado over open country can loft too little to show.",
+      "A TDS on several tilts means debris lofted high: usually a strong tornado.",
+      "Birds, insects and ground clutter can look like debris; that's why a mark needs rotation nearby. Check the velocity yourself.",
+    ],
+  },
   mosaic: {
     what: "Every radar in the country blended into one map near the ground (NOAA's MRMS).",
     read: REF_READ,
@@ -475,10 +502,12 @@ export const GLOSSARY: readonly Term[] = [
   { term: "Meteogram", meaning: "A chart of one place's forecast over time, here for several models or an ensemble at once." },
   { term: "Mesocyclone", meaning: "The rotating updraft of a supercell, a few kilometres across." },
   { term: "MRMS", meaning: "Multi-Radar Multi-Sensor: NOAA's system that blends every radar into national products." },
+  { term: "NROT", meaning: "Normalized rotation: azimuthal shear divided by the shear that's significant at that range. 1 is significant rotation, 2.5 extreme." },
   { term: "Outflow boundary", meaning: "The edge of rain-cooled air spreading out from storms. New storms often form along it." },
   { term: "Overshooting top", meaning: "A dome of cloud pushed above a storm's anvil by a very strong updraft." },
   { term: "Parcel (SB / ML / MU)", meaning: "The bit of air the sounding lifts: from the surface (SB), the average of the lowest 100 hPa (ML), or the most unstable one near the ground (MU, for storms above a cool layer)." },
   { term: "PDS", meaning: "Particularly dangerous situation: wording the NWS adds to its most serious watches and warnings." },
+  { term: "PTDS", meaning: "Probability of tornado debris: how much a spot looks like lofted debris on dual-pol data, in %." },
   { term: "PWAT", meaning: "Precipitable water: all the water vapour in the column. High values mean very heavy rain is possible." },
   { term: "QLCS", meaning: "Quasi-linear convective system: a line of storms. Brief tornadoes can form along it, often at kinks in the line." },
   { term: "Range folding (RF)", meaning: "Where the radar can't tell how far away an echo is, so velocity has no data. Shown in purple." },

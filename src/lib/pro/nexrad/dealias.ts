@@ -55,7 +55,7 @@ const DEG = Math.PI / 180;
  * centre azimuths: radials can start anywhere and wrap through north, and a
  * sweep still being scanned has a gap.
  */
-function clockwise(s: Pick<Sweep, "nRadials" | "azStart" | "azWidth">): { next: Int32Array; prev: Int32Array; centre: Float64Array } {
+export function clockwise(s: Pick<Sweep, "nRadials" | "azStart" | "azWidth">): { next: Int32Array; prev: Int32Array; centre: Float64Array } {
   const n = s.nRadials;
   const centre = new Float64Array(n);
   for (let r = 0; r < n; r++) centre[r] = (s.azStart[r]! + s.azWidth[r]! / 2) % 360;
