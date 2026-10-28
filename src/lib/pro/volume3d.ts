@@ -61,12 +61,12 @@ export interface VolumeOptions {
 /** Gaps between tilts taller than this (km) are left open: too far apart to guess what's between. */
 export const MAX_FILL_KM = 4;
 /** The beam is about this wide (degrees), so filled points are spaced by its depth at that range. */
-const BEAM_DEG = 0.95;
+export const BEAM_DEG = 0.95;
 
 export const MAX_POINTS = 600_000;
 
 /** Where the spot is from the radar: east and north (km) in the radar's azimuthal frame. */
-function focusFromRadar(radar: LatLon, p: LatLon): { x: number; y: number } {
+export function focusFromRadar(radar: LatLon, p: LatLon): { x: number; y: number } {
   const lat1 = radar.lat * DEG;
   const lat2 = p.lat * DEG;
   const dLon = (p.lon - radar.lon) * DEG;
@@ -183,6 +183,58 @@ export function volumePoints(sweeps: readonly Sweep[], o: VolumeOptions): Volume
   const first = sweeps[0];
   const r = first ? focusFromRadar(first, o.focus) : { x: 0, y: 0 };
   return { positions, colors, sizes, values, count: k, stride, radar: { x: -r.x, y: -r.y, z: (first?.heightM ?? 0) / 1000 } };
+}
+
+/**
+ * Lines on the ground (lon/lat, a GeoJSON MultiLineString's coordinates) in
+ * the square of half-width `half` around the spot, clipped to it, as segment
+ * ends x, y, z (km) in the local frame at height `z`.
+ */
+export function groundLines(lines: readonly (readonly (readonly number[])[])[], radar: LatLon, focus: LatLon, half: number, z: number): Float32Array {
+  const f = focusFromRadar(radar, focus);
+  // A loose box in degrees first: most of the country is nowhere near.
+  const dLat = (half * 1.5) / 111;
+  const dLon = dLat / Math.max(0.2, Math.cos(focus.lat * DEG));
+  const local = (c: readonly number[]) => {
+    const p = focusFromRadar(radar, { lat: c[1]!, lon: c[0]! });
+    return { x: p.x - f.x, y: p.y - f.y };
+  };
+  const out: number[] = [];
+  for (const line of lines) {
+    for (let i = 1; i < line.length; i++) {
+      const a = line[i - 1]!;
+      const b = line[i]!;
+      // Both ends past the same side of the box: the segment can't cross it.
+      if (Math.min(a[1]!, b[1]!) > focus.lat + dLat || Math.max(a[1]!, b[1]!) < focus.lat - dLat) continue;
+      if (Math.min(a[0]!, b[0]!) > focus.lon + dLon || Math.max(a[0]!, b[0]!) < focus.lon - dLon) continue;
+      const p = local(a);
+      const q = local(b);
+      const s = clipSegment(p.x, p.y, q.x, q.y, half);
+      if (s) out.push(s[0], s[1], z, s[2], s[3], z);
+    }
+  }
+  return new Float32Array(out);
+}
+
+/** The part of a segment inside the square |x|, |y| ≤ h (Liang–Barsky), or null. */
+function clipSegment(x0: number, y0: number, x1: number, y1: number, h: number): [number, number, number, number] | null {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  let a = 0;
+  let b = 1;
+  for (const [p, q] of [
+    [-dx, x0 + h],
+    [dx, h - x0],
+    [-dy, y0 + h],
+    [dy, h - y0],
+  ] as const) {
+    if (p === 0) {
+      if (q < 0) return null;
+    } else if (p < 0) a = Math.max(a, q / p);
+    else b = Math.min(b, q / p);
+    if (a > b) return null;
+  }
+  return [x0 + a * dx, y0 + a * dy, x0 + b * dx, y0 + b * dy];
 }
 
 /** The highest point (km above sea level) with a value at or above `min`, or null. */

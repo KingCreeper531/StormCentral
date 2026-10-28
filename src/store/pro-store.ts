@@ -42,25 +42,61 @@ export interface Volume3dSettings {
   threshold: number;
   /** How far around the spot (km). */
   radiusKm: (typeof VOLUME_RADII)[number];
-  /** Heights drawn this many times taller than life. */
-  exaggeration: 1 | 2 | 3;
+  /** Heights drawn this many times taller than life (1–5, in halves). */
+  exaggeration: number;
   /** The model's 0 °C and −20 °C levels. */
   levels: boolean;
   /** Fill the gaps between tilts where both have echo (off: the tilts as scanned). */
   fill: boolean;
+  /** Shaded surfaces at reflectivity thresholds, or every gate as a point. */
+  view: "surfaces" | "points";
+  /** The reflectivity shells (three): threshold (dBZ), opacity (0–1) and whether it's shown. */
+  shells: { dbz: number; opacity: number; on: boolean }[];
+  /** Inbound and outbound velocity shells, at ± `velocityMs`. */
+  velocity: boolean;
+  velocityMs: number;
+  /** County lines on the ground. */
+  counties: boolean;
 }
 export const VOLUME_RADII = [30, 60, 100] as const;
-export const DEFAULT_VOLUME3D: Volume3dSettings = { threshold: 25, radiusKm: 60, exaggeration: 2, levels: true, fill: true };
+export const DEFAULT_VOLUME3D: Volume3dSettings = {
+  threshold: 25,
+  radiusKm: 60,
+  exaggeration: 2,
+  levels: true,
+  fill: true,
+  view: "surfaces",
+  // A see-through 30 dBZ shell, the 50 dBZ core inside it and 60 dBZ at its heart.
+  shells: [
+    { dbz: 30, opacity: 0.3, on: true },
+    { dbz: 50, opacity: 0.6, on: true },
+    { dbz: 60, opacity: 1, on: true },
+  ],
+  velocity: false,
+  velocityMs: 20,
+  counties: true,
+};
+
+const clampNum = (v: unknown, lo: number, hi: number, step: number, d: number) => (typeof v === "number" && v >= lo && v <= hi ? Math.round(v / step) * step : d);
 
 function normalizeVolume3d(raw: unknown): Volume3dSettings {
   const v = (raw ?? {}) as Partial<Volume3dSettings>;
   const d = DEFAULT_VOLUME3D;
+  const shells = Array.isArray(v.shells) ? v.shells : [];
   return {
-    threshold: typeof v.threshold === "number" && v.threshold >= 0 && v.threshold <= 70 ? Math.round(v.threshold / 5) * 5 : d.threshold,
+    threshold: clampNum(v.threshold, 0, 70, 5, d.threshold),
     radiusKm: (VOLUME_RADII as readonly number[]).includes(v.radiusKm as number) ? (v.radiusKm as Volume3dSettings["radiusKm"]) : d.radiusKm,
-    exaggeration: v.exaggeration === 1 || v.exaggeration === 3 ? v.exaggeration : 2,
+    exaggeration: clampNum(v.exaggeration, 1, 5, 0.5, d.exaggeration),
     levels: v.levels !== false,
     fill: v.fill !== false,
+    view: v.view === "points" ? "points" : "surfaces",
+    shells: d.shells.map((s, i) => {
+      const x = (shells[i] ?? {}) as Partial<Volume3dSettings["shells"][number]>;
+      return { dbz: clampNum(x.dbz, 20, 70, 5, s.dbz), opacity: clampNum(x.opacity, 0.1, 1, 0.05, s.opacity), on: typeof x.on === "boolean" ? x.on : s.on };
+    }),
+    velocity: v.velocity === true,
+    velocityMs: clampNum(v.velocityMs, 5, 50, 1, d.velocityMs),
+    counties: v.counties !== false,
   };
 }
 
