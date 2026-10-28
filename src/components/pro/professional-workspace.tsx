@@ -10,7 +10,7 @@ import { useT } from "@/lib/i18n/use-t";
 import type { LatLon } from "@/lib/geo";
 import { TOUR, type TourStep } from "@/lib/pro/guide";
 import { isSatellite, shownProduct } from "@/lib/pro/products";
-import { stormMotion } from "@/lib/pro/storm-tools";
+import { meanCellMotion, motionFromText, resolveSrvMotion, stormMotion } from "@/lib/pro/storm-tools";
 import { connectProLink, openPopout, PANEL_KEY, workspaceId, type PopoutKey, type ProLink, type ToolPoints } from "@/lib/pro/link";
 import { createProSync, syncTime } from "@/lib/pro/sync";
 import type { RadarFrame } from "@/lib/radar/frames";
@@ -49,7 +49,7 @@ const GRID: Record<Layout, { cols: number; rows: number }> = { "1x1": { cols: 1,
  * The Pro store's fields every window shares: the tool state, and every saved setting (each window
  * saves the whole store, so one it didn't share would put back its stale copy over the other's).
  */
-const SHARED_FIELDS = ["panes", "site", "frames", "speed", "tool", "vector", "toaPoints", "warnDraft", "layout", "guideButton", "volume3d", "meteogramModels", "meteogramEnsemble"] as const;
+const SHARED_FIELDS = ["panes", "site", "frames", "speed", "tool", "vector", "toaPoints", "warnDraft", "layout", "guideButton", "volume3d", "meteogramModels", "meteogramEnsemble", "srvMotion"] as const;
 
 /**
  * Professional mode: an AWIPS II / CAVE-style workspace. Up to nine map
@@ -129,7 +129,8 @@ export function ProfessionalWorkspace({
   const archiveAt = useAppStore((s) => s.archiveAt);
   const liveNow = useNow();
   const now = archiveAt ?? liveNow;
-  const cellsQ = useStormCells(panes.some((p) => p.cells) && archiveAt == null);
+  // Storm-relative velocity panels default to the cells' mean motion.
+  const cellsQ = useStormCells(panes.some((p) => p.cells || p.product === "vol-srv") && archiveAt == null);
   const cells = useMemo(() => cellsQ.data?.cells ?? [], [cellsQ.data]);
   const timeZone = useForecast().data?.timezone;
 
@@ -327,6 +328,20 @@ export function ProfessionalWorkspace({
     }),
     [tool, soundingAt, xsect, vector, motion, toaPoints, volumeAt, volumeRadius],
   );
+  // The storm motion Level II SRV panels take out (lib/pro/storm-tools `resolveSrvMotion`).
+  const srvSetting = useProStore((s) => s.srvMotion);
+  const srvAlert = selectedAlert ? alerts.find((a) => a.id === selectedAlert) : undefined;
+  const cellMean = useMemo(() => meanCellMotion(cells, { lat: site.lat, lon: site.lon }), [cells, site.lat, site.lon]);
+  const srvFound = useMemo(() => {
+    // The warning's motion line: from its CAP parameters, else from its text.
+    const typed = srvAlert && !srvAlert.motion ? motionFromText(srvAlert.description) : null;
+    const warning = srvAlert?.motion ? { towardDeg: srvAlert.motion.headingDeg, speedKt: srvAlert.motion.speedKt } : typed ? { towardDeg: (typed.fromDeg + 180) % 360, speedKt: typed.speedKt } : null;
+    return resolveSrvMotion(srvSetting, { cells: cellMean, vector: motion, warning });
+  }, [srvSetting, srvAlert, cellMean, motion]);
+  // One object while the rounded motion stays the same, so panels don't decode again for nothing.
+  const srvKey = srvFound ? `${Math.round(srvFound.towardDeg) % 360}|${Math.round(srvFound.speedKt)}|${srvFound.source}` : "";
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const srv = useMemo(() => srvFound, [srvKey]);
   const arrivalPoints = useMemo(() => [{ lat: home.lat, lon: home.lon, name: home.name }, ...places.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })), ...toaPoints], [home, places, toaPoints]);
   const activeAlert = selectedAlert ? alerts.find((a) => a.id === selectedAlert) : undefined;
 
@@ -449,7 +464,7 @@ export function ProfessionalWorkspace({
       </PanelBoundary>
     </div>
   );
-  const paneProps = { site: site.icao, frameCount, caps, tool, alerts, selectedAlert, cells, shapes, home };
+  const paneProps = { site: site.icao, frameCount, caps, tool, alerts, selectedAlert, cells, shapes, home, srv };
 
   // ── A pop-out window: one panel, kept in step with the workspace ──────────
   if (popout) {

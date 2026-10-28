@@ -5,9 +5,10 @@
  * sampled exactly), and a subscription so frame sources re-render as frames
  * arrive.
  */
-import type { DecodedScaleId } from "../scales";
+import type { DecodedScaleId, ValueScale } from "../scales";
+import { deriveKey, type DeriveSpec, type TdsMark } from "./derive";
 import type { Moment } from "./level2";
-import type { DecodeRequest, DecodeResponse, VolumeResponse } from "./protocol";
+import type { DecodeRequest, DecodeResponse, TrailResponse, VolumeResponse } from "./protocol";
 import { azimuthIndex, levelAt, type Sweep } from "./sweep";
 
 export interface DecodedFrame {
@@ -18,19 +19,27 @@ export interface DecodedFrame {
   cuts: number[];
   /** The sweep ran to its end (a volume still arriving can hold part of one). */
   complete: boolean;
+  /** Debris signatures (the derived "tds" product). */
+  marks?: TdsMark[];
 }
 
 export type DecodeJob =
   | { kind: "l3"; url: string; scale: DecodedScaleId }
-  /** `site`: the radar's location, for volumes from before 2008 that don't carry it. */
-  | { kind: "l2"; url: string; moment: Moment; angle: number; scale: DecodedScaleId; site?: { lat: number; lon: number } }
+  /**
+   * `site`: the radar's location, for volumes from before 2008 that don't carry it. `dealias`: unfold folded
+   * velocities. `derive`: a product worked out from the volume (SRV, NROT, debris) instead of the moment.
+   */
+  | { kind: "l2"; url: string; moment: Moment; angle: number; scale: DecodedScaleId; site?: { lat: number; lon: number }; dealias?: boolean; derive?: DeriveSpec }
   /** A volume still being scanned, from its real-time chunks so far. */
-  | { kind: "l2chunks"; urls: string[]; moment: Moment; angle: number; scale: DecodedScaleId };
+  | { kind: "l2chunks"; urls: string[]; moment: Moment; angle: number; scale: DecodedScaleId; dealias?: boolean; derive?: DeriveSpec };
 
 type ChunkJob = Extract<DecodeJob, { kind: "l2chunks" }>;
 
+/** What a Level II job makes besides the moment: dealiased, or a derived product. */
+const flags = (j: { dealias?: boolean; derive?: DeriveSpec }) => `${j.dealias ? "|da" : ""}${j.derive ? `|${deriveKey(j.derive)}` : ""}`;
+
 /** The same sweep of a live volume, however many chunks have arrived. */
-const chunkGroup = (j: ChunkJob) => `l2c|${j.urls[0]}|${j.moment}|${j.angle}|${j.scale}`;
+const chunkGroup = (j: ChunkJob) => `l2c|${j.urls[0]}|${j.moment}|${j.angle}|${j.scale}${flags(j)}`;
 
 /** The first complete decode of each live sweep: later chunks don't change it, so it isn't decoded again. */
 const settled = new Map<string, ChunkJob>();
@@ -39,7 +48,7 @@ const settled = new Map<string, ChunkJob>();
 export const liveJob = (job: ChunkJob): DecodeJob => settled.get(chunkGroup(job)) ?? job;
 
 export const jobKey = (j: DecodeJob) =>
-  j.kind === "l3" ? `l3|${j.url}|${j.scale}` : j.kind === "l2" ? `l2|${j.url}|${j.moment}|${j.angle}|${j.scale}` : `${chunkGroup(j)}|${j.urls.length}`;
+  j.kind === "l3" ? `l3|${j.url}|${j.scale}` : j.kind === "l2" ? `l2|${j.url}|${j.moment}|${j.angle}|${j.scale}${flags(j)}` : `${chunkGroup(j)}|${j.urls.length}`;
 
 type Entry = { state: "pending" } | { state: "done"; frame: DecodedFrame } | { state: "error"; error: string; cuts?: number[]; at: number };
 
@@ -72,7 +81,7 @@ export const peekDecoded = (key: string) => entries.get(key);
 let pool: Worker[] | null = null;
 let rr = 0;
 let nextId = 1;
-const waiting = new Map<number, (r: DecodeResponse | VolumeResponse) => void>();
+const waiting = new Map<number, (r: DecodeResponse | VolumeResponse | TrailResponse) => void>();
 
 /** Fail everything in flight and drop the workers; the next request starts a fresh pool. */
 function resetPool(error: string) {
@@ -89,7 +98,7 @@ function workers(): Worker[] {
   pool = Array.from({ length: size }, () => {
     // A classic worker: Turbopack's worker bootstrap loads its chunks with importScripts.
     const w = new Worker(new URL("./decode.worker.ts", import.meta.url));
-    w.onmessage = (e: MessageEvent<DecodeResponse | VolumeResponse>) => {
+    w.onmessage = (e: MessageEvent<DecodeResponse | VolumeResponse | TrailResponse>) => {
       waiting.get(e.data.id)?.(e.data);
       waiting.delete(e.data.id);
     };
@@ -103,7 +112,8 @@ function workers(): Worker[] {
   return pool;
 }
 
-function post<R>(req: DecodeRequest): Promise<R> {
+/** Send to a worker: the next in turn, or (`route`) always the same one for the same route, so it can reuse what it decoded. */
+function post<R>(req: DecodeRequest, route?: string): Promise<R> {
   const id = req.id;
   return new Promise((resolve) => {
     const timer = setTimeout(() => waiting.has(id) && resetPool("Decoder timed out"), JOB_TIMEOUT_MS);
@@ -112,11 +122,18 @@ function post<R>(req: DecodeRequest): Promise<R> {
       resolve(r as R);
     });
     const ws = workers();
-    ws[rr++ % ws.length]!.postMessage(req);
+    let at = rr++;
+    if (route) {
+      at = 0;
+      for (let i = 0; i < route.length; i++) at = (at * 31 + route.charCodeAt(i)) | 0;
+    }
+    ws[Math.abs(at) % ws.length]!.postMessage(req);
   });
 }
 
-const run = (job: DecodeJob) => post<DecodeResponse>({ ...job, id: nextId++ } as DecodeRequest);
+/** Products derived from one volume (NROT, debris, SRV) go to one worker, which decompresses the volume once for all of them. */
+const run = (job: DecodeJob) =>
+  post<DecodeResponse>({ ...job, id: nextId++ } as DecodeRequest, job.kind === "l3" || !job.derive ? undefined : job.kind === "l2" ? job.url : job.urls[0]);
 
 /**
  * Past MAX_ENTRIES, drop the least recently used frames no pane shows. Not
@@ -145,7 +162,7 @@ export function requestDecode(job: DecodeJob): void {
   evict();
   void run(job).then((r) => {
     if (!entries.has(key)) return;
-    if (r.ok) entries.set(key, { state: "done", frame: { key, sweep: r.sweep, colors: r.colors, cuts: r.cuts, complete: r.complete } });
+    if (r.ok) entries.set(key, { state: "done", frame: { key, sweep: r.sweep, colors: r.colors, cuts: r.cuts, complete: r.complete, ...(r.marks && { marks: r.marks }) } });
     else entries.set(key, { state: "error", error: r.error, cuts: r.cuts, at: Date.now() });
     if (job.kind === "l2chunks") {
       const group = chunkGroup(job);
@@ -207,6 +224,31 @@ export function decodedValueAt(sweep: Sweep, lat: number, lon: number): { value:
   if (sp) return { value: null, special: sp.label };
   const v = sweep.table[lvl];
   return { value: v == null || Number.isNaN(v) ? null : v, special: null };
+}
+
+// ── Max value trails ────────────────────────────────────────────────────────
+
+/** Recent trails by the frames and colours they were made from. */
+const trails = new Map<string, Promise<{ sweeps: Sweep[]; colors: Uint8Array[] } | null>>();
+const MAX_TRAILS = 6;
+
+/**
+ * Max value trails (trail.ts) of a loop's sweeps, oldest first, coloured on
+ * `scale`: worked out once per set of frames (`id`), in a worker. `key`
+ * names what the trail follows (site, product, tilt). Null if it failed.
+ */
+export function maxTrailSweeps(id: string, key: string, sweeps: Sweep[], signed: boolean, scale: ValueScale & { clearBelow?: boolean }): Promise<{ sweeps: Sweep[]; colors: Uint8Array[] } | null> {
+  let p = trails.get(id);
+  if (p) {
+    trails.delete(id);
+    trails.set(id, p);
+    return p;
+  }
+  p = post<TrailResponse>({ id: nextId++, kind: "trail", key, sweeps, signed, scale }).then((r) => (r.ok ? { sweeps: r.sweeps, colors: r.colors } : null));
+  p.then((r) => r || trails.delete(id));
+  trails.set(id, p);
+  while (trails.size > MAX_TRAILS) trails.delete(trails.keys().next().value!);
+  return p;
 }
 
 // ── Whole volumes (the 3D view) ─────────────────────────────────────────────

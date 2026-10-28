@@ -347,7 +347,7 @@ export function VolumePanel({ point, site, until, onPoint }: { point: LatLon | n
               </label>
               <p className="label">
                 <span style={{ color: rgbCss(INBOUND) }}>■</span> {t("towards the radar")} <span style={{ color: rgbCss(OUTBOUND) }}>■</span> {t("away from it")}.{" "}
-                {velVolume.isError ? t("The volume's velocity couldn't be loaded.") : !velVolume.data ? t("Loading the velocity…") : t("Raw velocity, not dealiased: folded gates can make false shells.")}
+                {velVolume.isError ? t("The volume's velocity couldn't be loaded.") : !velVolume.data ? t("Loading the velocity…") : t("Dealiased velocity. A few folded gates can remain and make small false shells.")}
               </p>
             </>
           )}

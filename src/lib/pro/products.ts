@@ -39,6 +39,9 @@ export const PRO_PRODUCT_IDS = [
   "vol-vel",
   "vol-zdr",
   "vol-cc",
+  "vol-srv",
+  "vol-nrot",
+  "vol-tds",
   "mosaic",
   "cref",
   "eet",
@@ -73,6 +76,8 @@ interface Base {
   label: string;
   short: string;
   group: ProGroup;
+  /** One line on what it shows, for the product menu. */
+  hint?: string;
 }
 
 export type ProProduct =
@@ -80,8 +85,8 @@ export type ProProduct =
   | (Base & { kind: "site"; family: ProductFamily; l3Letter?: string; scale?: DecodedScaleId })
   /** Decoded Level III from AWS: a tilt-based product (`letter`) or a single one (`code`). */
   | (Base & { kind: "l3"; letter?: string; code?: string; scale: DecodedScaleId })
-  /** Decoded Level II volume (desktop): any cut of a moment. */
-  | (Base & { kind: "l2"; moment: Moment; scale: DecodedScaleId })
+  /** Decoded Level II volume (desktop): any cut of a moment, or a product worked out from it (`derive`, lib/pro/nexrad/derive.ts). */
+  | (Base & { kind: "l2"; moment: Moment; scale: DecodedScaleId; derive?: "srv" | "nrot" | "tds" })
   | (Base & { kind: "mosaic" })
   | (Base & { kind: "mrms"; layer: string })
   /** Rendered by the Pro data server (pro-server/), once one is set in Settings. */
@@ -102,7 +107,16 @@ const site = (id: ProProductId, family: ProductFamily, l3Letter?: string, scale?
   group: "Radar (site)",
 });
 const l3 = (id: ProProductId, label: string, short: string, scale: DecodedScaleId, at: { letter: string } | { code: string }): ProProduct => ({ id, kind: "l3", label, short, scale, group: "Radar (site)", ...at });
-const vol = (id: ProProductId, label: string, short: string, moment: Moment, scale: DecodedScaleId): ProProduct => ({ id, kind: "l2", moment, scale, label, short, group: "Radar (volume)" });
+const vol = (id: ProProductId, label: string, short: string, moment: Moment, scale: DecodedScaleId, derive?: { derive: "srv" | "nrot" | "tds"; hint: string }): ProProduct => ({
+  id,
+  kind: "l2",
+  moment,
+  scale,
+  label,
+  short,
+  group: "Radar (volume)",
+  ...derive,
+});
 
 const intl = (id: ProProductId, source: IntlRadarId, short: string): ProProduct => ({
   id,
@@ -127,6 +141,9 @@ export const PRO_PRODUCTS: Record<ProProductId, ProProduct> = {
   "vol-vel": vol("vol-vel", "Velocity, any tilt (Level II)", "V", "VEL", "vel"),
   "vol-zdr": vol("vol-zdr", "ZDR, any tilt (Level II)", "ZDR", "ZDR", "zdr"),
   "vol-cc": vol("vol-cc", "CC (ρHV), any tilt (Level II)", "ρHV", "RHO", "cc"),
+  "vol-srv": vol("vol-srv", "Storm-relative velocity, any tilt (Level II)", "SRV", "VEL", "vel", { derive: "srv", hint: "Dealiased velocity minus the storm motion you pick" }),
+  "vol-nrot": vol("vol-nrot", "Normalized rotation, NROT (Level II)", "NROT", "VEL", "nrot", { derive: "nrot", hint: "Rotation scaled for range: 1 is significant, 2.5 extreme" }),
+  "vol-tds": vol("vol-tds", "Tornado debris, PTDS (Level II)", "TDS", "RHO", "ptds", { derive: "tds", hint: "Chance that echo is tornado debris, with debris signatures marked" }),
   mosaic: { id: "mosaic", kind: "mosaic", label: "Base Reflectivity (MRMS mosaic)", short: "MOSAIC", group: "Radar (national)" },
   cref: { id: "cref", kind: "mrms", layer: "conus_cref_qcd", label: "Composite Reflectivity (MRMS)", short: "CREF", group: "Radar (national)" },
   eet: { id: "eet", kind: "mrms", layer: "conus_neet_v18", label: "Echo Tops (MRMS)", short: "EET", group: "Radar (national)" },
@@ -239,6 +256,9 @@ const STAND_IN: Partial<Record<ProProductId, ProProductId>> = {
   "vol-vel": "vel",
   "vol-zdr": "zdr",
   "vol-cc": "cc",
+  "vol-srv": "srv",
+  "vol-nrot": "vel",
+  "vol-tds": "cc",
   "mrms-mesh": "cref",
   "mrms-mesh60": "cref",
   "mrms-rotation": "vel",

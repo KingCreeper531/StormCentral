@@ -105,3 +105,67 @@ export function arrivals(m: Motion, points: readonly (LatLon & { name: string })
 
 /** Minutes from `now` (not from the pick, which may be a loop frame long ago) to an arrival; negative once it's passed. */
 export const minutesUntil = (a: Pick<Arrival, "at">, now: number) => (a.at - now) / 60_000;
+
+// ── Storm motion for Level II storm-relative velocity ───────────────────────
+
+/** Where an SRV panel's storm motion comes from; "auto" takes the first there is of cells, vector, warning. */
+export const SRV_SOURCES = ["auto", "cells", "vector", "warning", "typed"] as const;
+export type SrvSource = (typeof SRV_SOURCES)[number];
+
+/** The saved choice: a source, and the typed-in motion (FROM, as the NWS gives it). */
+export interface SrvMotionSetting {
+  source: SrvSource;
+  fromDeg: number;
+  speedKt: number;
+}
+
+export const DEFAULT_SRV_MOTION: SrvMotionSetting = { source: "auto", fromDeg: 240, speedKt: 30 };
+
+export interface ResolvedSrvMotion {
+  /** Direction of travel (toward), degrees. */
+  towardDeg: number;
+  speedKt: number;
+  source: Exclude<SrvSource, "auto">;
+}
+
+/** A warning's storm motion line, "TIME...MOT...LOC 2147Z 239DEG 36KT 4153 9178", as FROM direction and speed. */
+export function motionFromText(text: string | null | undefined): { fromDeg: number; speedKt: number } | null {
+  const m = /TIME\.\.\.MOT\.\.\.LOC\s+\d{3,4}Z\s+(\d{1,3})DEG\s+(\d{1,3})KT/i.exec(text ?? "");
+  if (!m) return null;
+  const fromDeg = Number(m[1]);
+  return fromDeg <= 360 ? { fromDeg: fromDeg % 360, speedKt: Number(m[2]) } : null;
+}
+
+/**
+ * The storm cells' mean motion within `maxKm` of the radar: their motion
+ * vectors averaged (cells give FROM directions; under 1 kt is no motion).
+ */
+export function meanCellMotion(cells: readonly { lat: number; lon: number; motion: { fromDeg: number; speedKt: number } | null }[], radar: LatLon, maxKm = 230): { towardDeg: number; speedKt: number; count: number } | null {
+  let u = 0;
+  let v = 0;
+  let count = 0;
+  for (const c of cells) {
+    if (!c.motion || c.motion.speedKt < 1 || haversineKm(radar, c) > maxKm) continue;
+    const to = toRad(c.motion.fromDeg + 180);
+    u += c.motion.speedKt * Math.sin(to);
+    v += c.motion.speedKt * Math.cos(to);
+    count++;
+  }
+  if (!count) return null;
+  return { towardDeg: (toDeg(Math.atan2(u, v)) + 360) % 360, speedKt: Math.hypot(u, v) / count, count };
+}
+
+/** The motion an SRV panel uses, from its setting and what's available; null when there's none. */
+export function resolveSrvMotion(
+  setting: SrvMotionSetting,
+  have: { cells?: { towardDeg: number; speedKt: number } | null; vector?: Pick<Motion, "headingDeg" | "speedKt"> | null; warning?: { towardDeg: number; speedKt: number } | null },
+): ResolvedSrvMotion | null {
+  const pick = (source: Exclude<SrvSource, "auto">): ResolvedSrvMotion | null => {
+    if (source === "typed") return { towardDeg: (setting.fromDeg + 180) % 360, speedKt: setting.speedKt, source };
+    if (source === "vector") return have.vector ? { towardDeg: have.vector.headingDeg, speedKt: have.vector.speedKt, source } : null;
+    const m = have[source];
+    return m ? { ...m, source } : null;
+  };
+  if (setting.source !== "auto") return pick(setting.source);
+  return pick("cells") ?? pick("vector") ?? pick("warning");
+}

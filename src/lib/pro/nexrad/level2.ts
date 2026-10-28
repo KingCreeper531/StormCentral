@@ -44,6 +44,12 @@ export interface Level2Result {
 export interface Level2Options {
   /** Where the radar is, for volumes that don't say (Message 1, before 2008). */
   site?: { lat: number; lon: number; heightM?: number };
+  /**
+   * Decompressed LDM records by file offset, shared between parses of the
+   * same file (filled as they're read), so reading several moments of one
+   * volume decompresses each record once.
+   */
+  records?: Map<number, Uint8Array>;
 }
 
 /** Message 1 moments: which gate set they're on, and raw level → value (value = (level − offset) / scale). */
@@ -78,6 +84,8 @@ interface Radial {
   wordBits: number;
   scale: number;
   offset: number;
+  /** Nyquist velocity, m/s (0: not given). */
+  nyquist: number;
   data: Uint8Array;
 }
 
@@ -196,6 +204,7 @@ function decodeLevel2(file: Uint8Array, moment: Moment, angle: number | null | "
       if (Math.abs(nominal - angle) > 0.25) return;
     }
     let found: Radial | null = null;
+    let nyquist = 0;
     for (let b = 0; b < blocks; b++) {
       const ptr = dv.getUint32(o + 32 + b * 4);
       if (!ptr) continue;
@@ -207,6 +216,8 @@ function decodeLevel2(file: Uint8Array, moment: Moment, angle: number | null | "
         lon = dv.getFloat32(p + 12);
         heightM = dv.getInt16(p + 16) + dv.getUint16(p + 18);
         vcp ??= dv.getUint16(p + 40);
+      } else if (type === 0x52 && name === "RAD") {
+        nyquist = dv.getInt16(p + 16) / 100;
       } else if (type === 0x44 && name === moment) {
         const gates = dv.getUint16(p + 8);
         const wordBits = dv.getUint8(p + 19);
@@ -225,11 +236,12 @@ function decodeLevel2(file: Uint8Array, moment: Moment, angle: number | null | "
           wordBits,
           scale: dv.getFloat32(p + 20),
           offset: dv.getFloat32(p + 24),
+          nyquist: 0,
           data: m.slice(p + 28, p + 28 + bytes),
         };
       }
     }
-    if (found) accept(elNum, elAngle, found, status);
+    if (found) accept(elNum, elAngle, { ...found, nyquist }, status);
   };
 
   const handleMsg1 = (m: Uint8Array, dv: DataView, o: number) => {
@@ -265,6 +277,7 @@ function decodeLevel2(file: Uint8Array, moment: Moment, angle: number | null | "
       wordBits: 8,
       scale: fine ? def.scale : 1,
       offset: def.offset,
+      nyquist: dv.getUint16(o + 60) / 100,
       data: m.slice(o + ptr, o + ptr + gates),
     };
     accept(elNum, elAngle, radial, status);
@@ -316,11 +329,14 @@ function decodeLevel2(file: Uint8Array, moment: Moment, angle: number | null | "
     // A record cut short is the end of what's arrived (a download dropped, a volume still coming in).
     if (!size || pos + size > file.length) break;
     // A corrupt record loses its radials (a wedge of the sweep), not the volume.
-    let rec: Uint8Array | null = null;
-    try {
-      rec = bunzip2(file.subarray(pos, pos + size), size * 8);
-    } catch {
-      damaged++;
+    let rec: Uint8Array | null = opts.records?.get(pos) ?? null;
+    if (!rec) {
+      try {
+        rec = bunzip2(file.subarray(pos, pos + size), size * 8);
+        opts.records?.set(pos, rec);
+      } catch {
+        damaged++;
+      }
     }
     if (rec) readMessages(rec);
     pos += size;
@@ -358,6 +374,8 @@ function buildSweep(d: Decoded, cut: CutRadials, moment: Moment): { sweep: Sweep
   const table = new Float32Array(levels).fill(NaN);
   const k = moment === "VEL" || moment === "SW" ? MS_TO_KT : 1;
   for (let i = 2; i < levels; i++) table[i] = ((i - ref.offset) / ref.scale) * k;
+  // Velocity: each radial's Nyquist velocity, for dealiasing (only when every radial gives one).
+  const nyquist = moment === "VEL" && radials.every((r) => r.nyquist > 0) ? Float32Array.from(radials, (r) => r.nyquist * k) : undefined;
 
   return {
     damaged,
@@ -376,6 +394,7 @@ function buildSweep(d: Decoded, cut: CutRadials, moment: Moment): { sweep: Sweep
       data,
       table,
       special: [{ level: 1, label: "RF" }],
+      ...(nyquist && { nyquist }),
     },
   };
 }

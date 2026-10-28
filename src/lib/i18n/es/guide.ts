@@ -139,6 +139,32 @@ export const GUIDE: Record<string, string> = {
   "Level II correlation coefficient at every tilt, decoded on your device. Desktop only.": "Coeficiente de correlación Level II en cada ángulo, decodificado en tu dispositivo. Solo en computadora.",
   "A debris signature that reaches up several tilts means a strong tornado lofting debris high.":
     "Una firma de escombros que sube varios ángulos indica un tornado fuerte que eleva escombros muy alto.",
+  "Storm-relative velocity from the Level II volume, at any tilt: the dealiased velocity with a storm's motion taken out, so rotation inside a fast-moving storm stands out. Pick the motion in the panel's settings: typed in, a storm vector you clicked, the selected warning's motion or the storm cells' average. Desktop only.":
+    "Velocidad relativa a la tormenta del volumen Level II, en cualquier ángulo: la velocidad sin aliasing menos el movimiento de una tormenta, para que la rotación dentro de una tormenta rápida resalte. Elige el movimiento en los ajustes del panel: escrito a mano, un vector de tormenta que marcaste, el movimiento del aviso seleccionado o el promedio de las celdas de tormenta. Solo en computadora.",
+  "A balanced couplet, bright green right next to bright red, once the storm's own motion is out: rotation.":
+    "Un par equilibrado, verde intenso justo al lado de rojo intenso, una vez quitado el movimiento propio de la tormenta: rotación.",
+  "Use the motion of the storm you're looking at: a storm vector or its warning's motion fits it better than the average of all cells.":
+    "Usa el movimiento de la tormenta que estás mirando: un vector de tormenta o el movimiento de su aviso le corresponde mejor que el promedio de todas las celdas.",
+  "Normalized rotation (NROT): how fast the dealiased Level II velocity changes across the beam (azimuthal shear), divided by the shear that counts as significant at that range. Far from the radar the beam is wider and spreads a vortex out, so less shear counts. Desktop only.":
+    "Rotación normalizada (NROT): qué tan rápido cambia la velocidad Level II sin aliasing a lo ancho del haz (cizalladura azimutal), dividido entre la cizalladura que se considera significativa a esa distancia. Lejos del radar el haz es más ancho y diluye el vórtice, así que cuenta menos cizalladura. Solo en computadora.",
+  "No unit. Positive (yellow to red) is cyclonic rotation, negative (blue) anticyclonic. 1 or more is significant rotation, like a moderate mesocyclone; 2.5 or more is extreme, typical of a tight, strong vortex such as a tornado. Most echo reads between −1 and 1.":
+    "Sin unidad. Positivo (de amarillo a rojo) es rotación ciclónica, negativo (azul) anticiclónica. 1 o más es rotación significativa, como un mesociclón moderado; 2.5 o más es extrema, típica de un vórtice estrecho y fuerte como un tornado. La mayor parte del eco marca entre −1 y 1.",
+  "A spot of 1 or more on a velocity couplet, often on a storm's back side: a mesocyclone. Over 2.5 near the ground, think tornado.":
+    "Una mancha de 1 o más sobre un par de velocidades, a menudo en la parte trasera de la tormenta: un mesociclón. Por encima de 2.5 cerca del suelo, piensa en un tornado.",
+  "Follow it up through the tilts: rotation that reaches mid levels is a deep mesocyclone.": "Síguela hacia arriba por los ángulos: la rotación que llega a niveles medios es un mesociclón profundo.",
+  "Turn on the max value trail in the panel's settings to see the track the rotation has taken over the loop.":
+    "Activa el rastro de valores máximos en los ajustes del panel para ver la trayectoria que siguió la rotación durante el bucle.",
+  "Lone specks at the edges of echo and right next to the radar are noise: real rotation covers several gates and lasts from scan to scan.":
+    "Los puntos sueltos en los bordes del eco y junto al radar son ruido: la rotación real cubre varias celdas y dura de un escaneo al siguiente.",
+  "Probability of tornado debris (PTDS) from the Level II volume: how much each spot looks like debris, from reflectivity, low CC, ZDR near zero, rotation (NROT) and spectrum width together. Debris signatures (TDS) get a triangle. Desktop only; needs dual-pol data (from 2013).":
+    "Probabilidad de escombros de tornado (PTDS) del volumen Level II: cuánto se parece cada punto a escombros, a partir de la reflectividad, un CC bajo, un ZDR cercano a cero, la rotación (NROT) y el ancho espectral en conjunto. Las firmas de escombros (TDS) llevan un triángulo. Solo en computadora; requiere datos de polarización dual (desde 2013).",
+  "In %, clear below 50 %. Over 95 % on a patch of at least 9 gates with NROT of 1 or more within 3 km is marked TDS; point at the triangle for its highest PTDS, its area and the tilts it shows on.":
+    "En %, transparente por debajo de 50 %. Más de 95 % en una zona de al menos 9 celdas con NROT de 1 o más a menos de 3 km se marca como TDS; pasa el puntero por el triángulo para ver su PTDS máxima, su área y los ángulos en que aparece.",
+  "A TDS confirms debris lofted into the air, so a tornado has been doing damage there. It doesn't make a tornado certain, and a weak tornado over open country can loft too little to show.":
+    "Una TDS confirma escombros elevados en el aire, así que un tornado ha estado causando daños ahí. No hace seguro que haya un tornado, y un tornado débil en campo abierto puede elevar muy poco para notarse.",
+  "A TDS on several tilts means debris lofted high: usually a strong tornado.": "Una TDS en varios ángulos indica escombros elevados muy alto: por lo general un tornado fuerte.",
+  "Birds, insects and ground clutter can look like debris; that's why a mark needs rotation nearby. Check the velocity yourself.":
+    "Las aves, los insectos y los ecos del terreno pueden parecer escombros; por eso una marca necesita rotación cerca. Revisa la velocidad tú mismo.",
   "Every radar in the country blended into one map near the ground (NOAA's MRMS).": "Todos los radares del país combinados en un mapa cerca del suelo (el MRMS de NOAA).",
   "The big picture: lines, clusters and what's coming. Then switch a panel to one radar site for detail.":
     "El panorama general: líneas, grupos y lo que viene. Luego cambia un panel a una estación de radar para ver el detalle.",
@@ -353,6 +379,9 @@ export const GUIDE: Record<string, string> = {
     "Índice de elevación: cuánto más cálida es una parcela de superficie elevada que el aire a 500 hPa. Negativo es inestable; −6 o menos es muy inestable.",
   "The rotating updraft of a supercell, a few kilometres across.": "La corriente ascendente giratoria de una supercelda, de unos pocos kilómetros de ancho.",
   "Multi-Radar Multi-Sensor: NOAA's system that blends every radar into national products.": "Multi-Radar Multi-Sensor: el sistema de NOAA que combina todos los radares en productos nacionales.",
+  "Normalized rotation: azimuthal shear divided by the shear that's significant at that range. 1 is significant rotation, 2.5 extreme.":
+    "Rotación normalizada: la cizalladura azimutal dividida entre la que es significativa a esa distancia. 1 es rotación significativa, 2.5 extrema.",
+  "Probability of tornado debris: how much a spot looks like lofted debris on dual-pol data, in %.": "Probabilidad de escombros de tornado: cuánto se parece un punto a escombros elevados en los datos de polarización dual, en %.",
   "Outflow boundary": "Límite de flujo de salida",
   "The edge of rain-cooled air spreading out from storms. New storms often form along it.": "El borde del aire enfriado por la lluvia que se extiende desde las tormentas. A menudo se forman tormentas nuevas a lo largo de él.",
   "Overshooting top": "Tope sobresaliente",

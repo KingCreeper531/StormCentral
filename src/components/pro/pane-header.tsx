@@ -6,6 +6,7 @@ import { useT } from "@/lib/i18n/use-t";
 import { PRO_PRODUCT_IDS, PRO_PRODUCTS, productUsable, SAT_LATENCY_MS, type ProProduct, type ProProductId } from "@/lib/pro/products";
 import { frameAt, syncTime } from "@/lib/pro/sync";
 import { PALETTE_SCALES } from "@/lib/pro/palettes";
+import { SRV_SOURCES, type ResolvedSrvMotion, type SrvSource } from "@/lib/pro/storm-tools";
 import { useProStore, type PaneConfig } from "@/store/pro-store";
 import { cn } from "@/lib/utils";
 import type { TiltPrefix } from "@/lib/radar/products";
@@ -23,6 +24,64 @@ const zulu = (ms: number) => {
   const d = new Date(ms);
   return `${String(d.getUTCHours()).padStart(2, "0")}${String(d.getUTCMinutes()).padStart(2, "0")}Z`;
 };
+
+const SOURCE_LABEL: Record<SrvSource, string> = {
+  auto: "Automatic",
+  cells: "Storm cells' average",
+  vector: "Storm vector",
+  warning: "Selected warning",
+  typed: "Typed in",
+};
+
+const INPUT = "mt-1 h-8 w-full rounded-[var(--radius-control)] border border-line bg-surface-2 px-2 text-[12px] text-ink outline-none focus:border-accent";
+
+/**
+ * The storm motion Level II storm-relative velocity takes out (shared by
+ * every SRV panel): where it comes from, the typed-in one, and the one in use.
+ */
+function SrvMotionControl({ srv }: { srv: ResolvedSrvMotion | null }) {
+  const t = useT();
+  const setting = useProStore((s) => s.srvMotion);
+  const setMotion = useProStore((s) => s.setSrvMotion);
+  const num = (v: string, key: "fromDeg" | "speedKt") => {
+    if (v.trim() !== "" && Number.isFinite(Number(v))) setMotion({ [key]: Number(v) });
+  };
+  return (
+    <div>
+      <label className="block">
+        <span className="label">{t("Storm motion")}</span>
+        <select value={setting.source} onChange={(e) => setMotion({ source: e.target.value as SrvSource })} className={INPUT}>
+          {SRV_SOURCES.map((x) => (
+            <option key={x} value={x}>
+              {t(SOURCE_LABEL[x])}
+            </option>
+          ))}
+        </select>
+      </label>
+      {setting.source === "typed" && (
+        <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+          <label className="block">
+            <span className="text-[11px] text-ink-3">{t("From (°)")}</span>
+            <input type="number" min={0} max={359} step={1} value={setting.fromDeg} onChange={(e) => num(e.target.value, "fromDeg")} className={cn(INPUT, "font-mono")} />
+          </label>
+          <label className="block">
+            <span className="text-[11px] text-ink-3">{t("Speed (kt)")}</span>
+            <input type="number" min={0} max={150} step={1} value={setting.speedKt} onChange={(e) => num(e.target.value, "speedKt")} className={cn(INPUT, "font-mono")} />
+          </label>
+        </div>
+      )}
+      <p className="mt-1 text-[11px] text-ink-3">
+        {srv
+          ? t("In use: from {dir}° at {speed} kt ({source}).", {
+              dir: String(Math.round((srv.towardDeg + 180) % 360) % 360).padStart(3, "0"),
+              speed: Math.round(srv.speedKt),
+              source: t(SOURCE_LABEL[srv.source]),
+            })
+          : t("None yet: turn on storm cells, draw a storm vector, select a warning or type one in.")}
+      </p>
+    </div>
+  );
+}
 
 /**
  * The frame time shown in a pane, updated straight from the loop clock (a
@@ -54,6 +113,7 @@ export function PaneHeader({
   basis,
   compact,
   volume,
+  srv,
   onPopOut,
 }: {
   config: PaneConfig;
@@ -63,11 +123,15 @@ export function PaneHeader({
   compact: boolean;
   /** Level II products allowed on this device. */
   volume: boolean;
+  /** The storm motion Level II storm-relative velocity takes out. */
+  srv: ResolvedSrvMotion | null;
   /** Move this panel to a window of its own (another monitor). */
   onPopOut?: () => void;
 }) {
   const t = useT();
   const setPane = useProStore((s) => s.setPane);
+  const dealias = useProStore((s) => s.dealias);
+  const setDealias = useProStore((s) => s.setDealias);
   const def = PRO_PRODUCTS[config.product];
   const set = (patch: Partial<Omit<PaneConfig, "id">>) => setPane(config.id, patch);
 
@@ -85,7 +149,7 @@ export function PaneHeader({
           {GROUPS.map((g) => (
             <optgroup key={g} label={t(g)}>
               {PRO_PRODUCT_IDS.filter((id) => PRO_PRODUCTS[id].group === g && productUsable(id, { volume })).map((id) => (
-                <option key={id} value={id}>
+                <option key={id} value={id} title={PRO_PRODUCTS[id].hint ? t(PRO_PRODUCTS[id].hint!) : undefined}>
                   {PRO_PRODUCTS[id].short} · {t(PRO_PRODUCTS[id].label)}
                 </option>
               ))}
@@ -152,7 +216,8 @@ export function PaneHeader({
         >
           <SlidersHorizontal className="size-3.5" aria-hidden />
         </summary>
-        <div className="absolute top-8 right-0 w-56 space-y-3 rounded-[var(--radius-control)] border border-line bg-surface-1 p-3 text-[12px] shadow-xl">
+        <div className="absolute top-8 right-0 max-h-[70vh] w-56 space-y-3 overflow-y-auto rounded-[var(--radius-control)] border border-line bg-surface-1 p-3 text-[12px] shadow-xl">
+          {def.hint && <p className="text-[11px] text-ink-3">{t(def.hint)}</p>}
           <label className="block">
             <span className="label">{t("Opacity")}</span>
             <input
@@ -166,6 +231,21 @@ export function PaneHeader({
             />
           </label>
           {feed.decoded && feed.scaleId && PALETTE_SCALES.includes(feed.scaleId) && <ColourTablePicker scaleId={feed.scaleId} />}
+          {def.kind === "l2" && def.derive === "srv" && <SrvMotionControl srv={srv} />}
+          {feed.decoded && feed.scaleId && feed.scaleId !== "hc" && (
+            <div>
+              <Toggle label={t("Max value trail")} checked={config.trail} onChange={(v) => set({ trail: v })} />
+              <p className="text-[11px] text-ink-3">
+                {t("Each spot keeps its highest value over the loop (the strongest either way for velocity and NROT), so rotation and hail cores leave tracks. Starts over when the site, product or tilt changes.")}
+              </p>
+            </div>
+          )}
+          {feed.dealias && (
+            <div>
+              <Toggle label={t("Dealias velocity")} checked={dealias} onChange={setDealias} />
+              <p className="text-[11px] text-ink-3">{t("Unfolds winds faster than the radar's Nyquist velocity, which otherwise show in the opposite colour. Applies to every Level II velocity panel.")}</p>
+            </div>
+          )}
           <Toggle label={t("Warnings")} checked={config.warnings} onChange={(v) => set({ warnings: v })} />
           <Toggle label={t("Storm cells")} checked={config.cells} onChange={(v) => set({ cells: v })} />
           <Toggle label={t("Satellite map (no clouds)")} checked={config.satelliteMap} onChange={(v) => set({ satelliteMap: v })} />
