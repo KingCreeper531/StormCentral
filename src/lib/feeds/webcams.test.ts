@@ -187,7 +187,8 @@ describe("cameras waiting for permission", () => {
   afterEach(() => setUpstreamTransport(async () => ({})));
 
   it("aren't fetched or listed until their owner allows it", async () => {
-    expect(WEBCAM_SOURCES.iowa.approved).toBe(false);
+    // Iowa DOT allowed its cameras on 2026-10-27; WSDOT hasn't answered yet.
+    expect(WEBCAM_SOURCES.iowa.approved).toBe(true);
     expect(WEBCAM_SOURCES.wsdot.approved).toBe(false);
     const asked: string[] = [];
     setUpstreamTransport(async (url) => {
@@ -196,13 +197,13 @@ describe("cameras waiting for permission", () => {
     });
     const res = await webcamsFeed.load(new URLSearchParams());
     expect(asked.length).toBeGreaterThan(0);
-    expect(asked.filter((u) => /iowadot|wsdot/.test(u))).toEqual([]);
-    expect(res.cams.filter(([source]) => source === "iowa" || source === "wsdot")).toEqual([]);
+    expect(asked.filter((u) => /wsdot/.test(u))).toEqual([]);
+    expect(asked.some((u) => u.includes("Traffic_Cameras_View"))).toBe(true);
+    expect(res.cams.filter(([source]) => source === "wsdot")).toEqual([]);
   });
 
   it("never reach the live stream without being allowed in the app first", () => {
     for (const info of Object.values(WEBCAM_SOURCES)) if (info.onStream) expect(info.approved).toBe(true);
-    expect(WEBCAM_SOURCES.iowa.onStream).toBe(false);
     expect(WEBCAM_SOURCES.wsdot.onStream).toBe(false);
   });
 });

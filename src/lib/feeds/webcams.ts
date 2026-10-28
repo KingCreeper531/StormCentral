@@ -11,8 +11,8 @@ import { upstreamJson } from "./upstream";
  *    West; live feeds may be shown with the credit "ALERTCalifornia | UC San Diego".
  *  - USGS NIMS: cameras at stream gages nationwide (floods).
  *  - USGS AshCam: volcano cameras (Alaska, Cascades, Hawaii…).
- *  - Iowa DOT and WSDOT highway cameras (their ArcGIS layers), once each
- *    agency allows it (lib/webcams: `approved`).
+ *  - Iowa DOT highway cameras (its ArcGIS layer), and WSDOT's once it
+ *    allows it (lib/webcams: `approved`).
  * Only the camera list goes through here; the pictures load straight from
  * each source, so this costs one small server run every ten minutes.
  */
@@ -283,7 +283,8 @@ const LOADERS: Record<WebcamSource, () => Promise<WebcamRow[]>> = {
       parseUsgsVolcano(await upstreamJson("https://volcview.wr.usgs.gov/ashcam-api/webcamApi/webcams", { timeoutMs: 20_000 })),
     ),
   // The camera lists, at most every 30 minutes (as promised when asking each agency).
-  iowa: () => cached("webcams:iowa", 30 * 60_000, async () => parseIowa(await arcgisFeatures(IOWA_LAYER, (j) => (j as { features?: unknown[] })?.features ?? []))),
+  // Iowa DOT changes its camera list rarely and suggested reading it about twice a day.
+  iowa: () => cached("webcams:iowa", 6 * HOUR, async () => parseIowa(await arcgisFeatures(IOWA_LAYER, (j) => (j as { features?: unknown[] })?.features ?? []))),
   wsdot: () => cached("webcams:wsdot", 30 * 60_000, async () => parseWsdot(await arcgisFeatures(WSDOT_LAYER, (j) => (j as { features?: unknown[] })?.features ?? []))),
 };
 

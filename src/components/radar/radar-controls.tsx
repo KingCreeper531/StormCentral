@@ -278,7 +278,7 @@ export function RadarControls({
           <Toggle label={t("Live cameras")} checked={settings.showCams} onChange={(showCams) => onChange({ showCams })} />
           {settings.showCams && (
             <p className="label py-2.5">
-              {t("Traffic and wildfire cameras across California and the West, river cameras nationwide and volcano cameras, from Caltrans, ALERTCalifornia and USGS. Tap one for its latest picture.")}
+              {t("Traffic cameras in California and Iowa, wildfire cameras across the West, river cameras nationwide and volcano cameras, from Caltrans, Iowa DOT, ALERTCalifornia and USGS. Tap one for its latest picture.")}
             </p>
           )}
           <Toggle label={t("Radar sites")} checked={settings.showSites} onChange={(showSites) => onChange({ showSites })} />

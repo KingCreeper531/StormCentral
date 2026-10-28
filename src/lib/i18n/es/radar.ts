@@ -323,8 +323,8 @@ export const RADAR: Record<string, string> = {
 
   // ─── radar-controls.tsx / webcam-detail.tsx: live cameras ─────────────────
   "Live cameras": "Cámaras en vivo",
-  "Traffic and wildfire cameras across California and the West, river cameras nationwide and volcano cameras, from Caltrans, ALERTCalifornia and USGS. Tap one for its latest picture.":
-    "Cámaras de tráfico y de incendios en California y el oeste, cámaras de ríos en todo el país y cámaras de volcanes, de Caltrans, ALERTCalifornia y el USGS. Toca una para ver su imagen más reciente.",
+  "Traffic cameras in California and Iowa, wildfire cameras across the West, river cameras nationwide and volcano cameras, from Caltrans, Iowa DOT, ALERTCalifornia and USGS. Tap one for its latest picture.":
+    "Cámaras de tráfico en California e Iowa, cámaras de incendios en el oeste, cámaras de ríos en todo el país y cámaras de volcanes, de Caltrans, Iowa DOT, ALERTCalifornia y el USGS. Toca una para ver su imagen más reciente.",
   "Live cameras nearby": "Cámaras en vivo cercanas",
   "the live cameras": "las cámaras en vivo",
   "Live camera": "Cámara en vivo",
