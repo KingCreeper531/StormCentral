@@ -289,11 +289,12 @@ select option {
 :root[data-broadcast] [data-chrome] {
   display: none;
 }
-/* No zoom buttons on air; the map credit stays visible, above the lower third. */
+/* No zoom buttons on air; the map credit stays visible, above the lower third
+   (the Pro view's panels, "pro", already sit above it). */
 :root[data-broadcast] .maplibregl-ctrl-group {
   display: none;
 }
-:root[data-broadcast] .maplibregl-ctrl-bottom-right {
+:root[data-broadcast="on"] .maplibregl-ctrl-bottom-right {
   top: auto;
   bottom: 132px;
 }

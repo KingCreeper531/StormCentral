@@ -2,12 +2,11 @@
 
 import { Layers } from "lucide-react";
 import type { Map as MlMap, MapMouseEvent } from "maplibre-gl";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNow } from "@/hooks/use-now";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RadarLoop } from "@/hooks/use-radar-loop";
 import type { WeatherAlert } from "@/lib/api/types";
 import { drawBroadcast } from "@/lib/broadcast/canvas";
-import { broadcastWarnings, tickerItems, warningLowerThird, type LowerThird } from "@/lib/broadcast/graphics";
+import { tickerItems } from "@/lib/broadcast/graphics";
 import { useT } from "@/lib/i18n/use-t";
 import type { ExportLoopOptions } from "@/lib/radar/export-loop";
 import { useBroadcastStore } from "@/store/broadcast-store";
@@ -17,6 +16,7 @@ import { BroadcastControls, useSceneTour } from "./broadcast-controls";
 import { BroadcastDialog } from "./broadcast-dialog";
 import { BroadcastLayers } from "./broadcast-layers";
 import { BroadcastOverlay } from "./broadcast-overlay";
+import { useBroadcastGraphics } from "./use-broadcast-graphics";
 
 /** The map's view as a scene to save. */
 const viewOf = (map: MlMap | null, name: string) => {
@@ -26,8 +26,8 @@ const viewOf = (map: MlMap | null, name: string) => {
 };
 
 /**
- * Broadcast mode on the radar map (the /broadcast page): the app's chrome
- * hidden, on-air graphics over the map, a control bar that hides itself,
+ * Broadcast mode on the radar map (the /broadcast page, which hides the
+ * app's chrome): on-air graphics over the map, a control bar that hides itself,
  * scenes and tours, loop exports with the same graphics, and a layers and
  * plugins menu. Picking a warning on the map puts it in the lower third with
  * a countdown.
@@ -36,7 +36,6 @@ export function BroadcastStage({
   map,
   loop,
   speed,
-  alerts,
   activeAlert,
   title,
   placeName,
@@ -48,8 +47,6 @@ export function BroadcastStage({
   map: MlMap | null;
   loop: RadarLoop;
   speed: number;
-  /** Every alert the map has; the graphics follow the official warnings among them. */
-  alerts: readonly WeatherAlert[];
   activeAlert: WeatherAlert | undefined;
   /** The radar product, e.g. "NEXRAD mosaic, reflectivity". */
   title: string;
@@ -62,20 +59,10 @@ export function BroadcastStage({
   layers: React.ReactNode;
 }) {
   const t = useT();
-  const now = useNow(30_000);
   const s = useBroadcastStore();
   const tour = useSceneTour(map);
   const [settings, setSettings] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
-
-  // No app chrome while on air.
-  useEffect(() => {
-    document.documentElement.dataset.broadcast = "on";
-    return () => {
-      delete document.documentElement.dataset.broadcast;
-      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-    };
-  }, []);
 
   // Moving the map by hand leaves the scene.
   const { leave } = tour;
@@ -90,18 +77,7 @@ export function BroadcastStage({
     };
   }, [map, leave]);
 
-  const warnings = useMemo(() => broadcastWarnings(alerts, now), [alerts, now]);
-  const scene = tour.current;
-  const lower = useMemo<LowerThird>(() => {
-    if (activeAlert) return warningLowerThird(activeAlert, timeZone, t);
-    // A warning keeps its own words and colour; otherwise the look's title, subtitle and bar colour apply.
-    const L = s.look;
-    const subtitle = L.lowerSubtitle.trim() || title;
-    const color = L.lowerColor ?? s.accent;
-    if (scene) return { title: scene.name.toUpperCase(), subtitle, color, ends: null };
-    return { title: (L.lowerTitle.trim() || placeName || title).toUpperCase(), subtitle, color, ends: null };
-  }, [activeAlert, scene, title, placeName, timeZone, t, s.accent, s.look]);
-  const lowerKey = activeAlert?.id ?? scene?.id ?? "view";
+  const { warnings, lower, lowerKey } = useBroadcastGraphics({ activeAlert, scene: tour.current, title, placeName, timeZone });
 
   // The logo, decoded once for exported frames.
   const logo = useRef<HTMLImageElement | null>(null);

@@ -42,6 +42,8 @@ export interface BroadcastSettings {
   look: BroadcastLook;
   /** Open in Broadcast mode when the app starts (this device only: not synced). */
   boot: boolean;
+  /** Professional mode's panels on air instead of the radar map, while Professional mode is on (this device only: not synced). */
+  proView: boolean;
 }
 
 interface BroadcastState extends BroadcastSettings {
@@ -71,6 +73,7 @@ const DEFAULTS: BroadcastSettings = {
   tourSeconds: 15,
   look: DEFAULT_LOOK,
   boot: false,
+  proView: false,
 };
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -113,7 +116,7 @@ export const useBroadcastStore = create<BroadcastState>()(
       name: "stormcentral:broadcast:v1",
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: ({ name, tagline, logo, accent, live, parts, scenes, tourSeconds, look, boot }) => ({ name, tagline, logo, accent, live, parts, scenes, tourSeconds, look, boot }),
+      partialize: ({ name, tagline, logo, accent, live, parts, scenes, tourSeconds, look, boot, proView }) => ({ name, tagline, logo, accent, live, parts, scenes, tourSeconds, look, boot, proView }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<BroadcastSettings>;
         const parts = { ...DEFAULTS.parts };
@@ -130,6 +133,7 @@ export const useBroadcastStore = create<BroadcastState>()(
           tourSeconds: (TOUR_SECONDS as readonly number[]).includes(p.tourSeconds as number) ? (p.tourSeconds as number) : DEFAULTS.tourSeconds,
           look: cleanLook(p.look),
           boot: p.boot === true,
+          proView: p.proView === true,
         };
       },
     },
