@@ -336,6 +336,7 @@ export const RADAR: Record<string, string> = {
   "Snowfall forecast, 24 to 48 hours ahead": "Pronóstico de nevada, de 24 a 48 horas",
   "Snowfall forecast, 48 to 72 hours ahead": "Pronóstico de nevada, de 48 a 72 horas",
   "Snow depth now": "Espesor de nieve actual",
+  "Snow depth now, inches": "Espesor de nieve actual, pulgadas",
   "Snowfall amount": "Cantidad de nieve",
   "The Weather Prediction Center's chance of at least that much snow in each 24-hour day. Under the radar, so storms stay on top.":
     "La probabilidad, según el Centro de Predicción Meteorológica, de al menos esa cantidad de nieve en cada día de 24 horas. Bajo el radar, para que las tormentas queden encima.",

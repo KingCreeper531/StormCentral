@@ -42,7 +42,8 @@ export function SnowLegend({
 
   const depth = map === "depth";
   const items = legend.data ? parseSnowLegend(legend.data, src.layer) : [];
-  const title = depth ? t("Snow depth now") : t("Chance of {amount} or more of snow", { amount: snowThresholdLabel(threshold, units.precip === "mm") });
+  // NOHRSC labels its depth key in inches.
+  const title = depth ? t("Snow depth now, inches") : t("Chance of {amount} or more of snow", { amount: snowThresholdLabel(threshold, units.precip === "mm") });
 
   return (
     <div className={cn(variant === "card" && "overlay w-52 px-2.5 py-2 md:w-56", className)}>
