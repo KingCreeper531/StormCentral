@@ -110,7 +110,7 @@ Every colour slot and layer option, plus ready-made examples to copy (Nord, Drac
 | Forecaster notes (Area Forecast Discussion) | [api.weather.gov](https://www.weather.gov/documentation/services-web-api) |
 | Daily normals (1991–2020) and records | [NOAA ACIS](https://www.rcc-acis.org) (threaded NWS climate sites) |
 | Active wildfires | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) |
-| Live cameras | [Caltrans](https://cwwp2.dot.ca.gov/documentation/cctv/cctv.htm) traffic, [ALERTCalifornia](https://cameras.alertcalifornia.org) (UC San Diego) wildfire, [USGS](https://api.waterdata.usgs.gov/docs/nims/) river and [USGS AshCam](https://volcview.wr.usgs.gov) volcano cameras; images load from each owner, credited on the card |
+| Live cameras | [Caltrans](https://cwwp2.dot.ca.gov/documentation/cctv/cctv.htm) and [Iowa DOT](https://data.iowadot.gov/) traffic, [ALERTCalifornia](https://cameras.alertcalifornia.org) (UC San Diego) wildfire, [USGS](https://api.waterdata.usgs.gov/docs/nims/) river and [USGS AshCam](https://volcview.wr.usgs.gov) volcano cameras; images load from each owner, credited on the card |
 | GNSS orbital elements | [CelesTrak](https://celestrak.org) |
 | Reverse geocoding | BigDataCloud free client API |
 | Forecast models you can pick (ECMWF, ECMWF AI, GFS, NBM, ICON, GEM, UK Met Office, Météo-France, JMA) | [Open-Meteo](https://open-meteo.com) |
