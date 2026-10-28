@@ -19,6 +19,7 @@ import { useAviationAdvisories, useAviationMetars } from "@/hooks/use-aviation";
 import { useFormat } from "@/hooks/use-format";
 import { useBuoys, useWaveGrid } from "@/hooks/use-marine";
 import { useMapAlerts } from "@/hooks/use-map-alerts";
+import { useModelField } from "@/hooks/use-model-field";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import { useIsDesktop, useMediaQuery } from "@/hooks/use-media-query";
 import { useNow } from "@/hooks/use-now";
@@ -60,6 +61,8 @@ import { RangeRingsLayer } from "../map/layers/range-rings-layer";
 import { UserMarker } from "../map/layers/user-marker";
 import { WarningsLayer } from "../map/layers/warnings-layer";
 import { IntlRadarLayers } from "../map/layers/intl-radar-layer";
+import { ModelFieldLayer } from "../map/layers/model-field-layer";
+import { ModelFieldBar } from "../radar/model-field-bar";
 import { AlertDetail } from "../radar/alert-detail";
 import { ArchivePicker, ArchiveStrip } from "../radar/archive-picker";
 import { AlertList, alertUntil, HazardSwatch, type RankedAlert } from "../radar/alert-list";
@@ -175,7 +178,7 @@ export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {})
   const now = archiveAt ?? liveNow;
   /** Only what has an archive: the national mosaic, warnings and storm reports. */
   const layers = archived
-    ? { ...radar, satellite: "off" as const, showOutlook: false, showReports: false, showCells: false, showTropical: false, showChasers: false, showCams: false, showBuoys: false, showWaves: false, showAviation: false, showLightning: false, showSites: false, intlRadar: false }
+    ? { ...radar, satellite: "off" as const, showOutlook: false, showReports: false, showCells: false, showTropical: false, showChasers: false, showCams: false, showBuoys: false, showWaves: false, showAviation: false, showLightning: false, showSites: false, intlRadar: false, modelField: "off" as const }
     : radar;
   const fmt = useFormat();
   // Times (warning expiry, radar frames) read in the selected location's zone, like the rest of the app.
@@ -303,6 +306,8 @@ export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {})
   const advisories = useAviationAdvisories(layers.showAviation);
   const airportList = useMemo(() => aviation.data?.airports ?? [], [aviation.data]);
   const advisoryList = useMemo(() => advisories.data?.advisories ?? [], [advisories.data]);
+  // Forecast fields (wind, temperature, CAPE…) under the radar: fetched only while on.
+  const model = useModelField(layers.modelField, bbox);
   // Live storm chaser streams: the Chasers tab, and LIVE on the chasers layer.
   const streams = useChaserStreams(tab === "chasers" || layers.showChasers);
   const liveByKey = useMemo(() => liveIndex(streams.data?.live ?? []), [streams.data]);
@@ -827,6 +832,7 @@ export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {})
       {layers.showWaves && (
         <WaveLegend grid={waves.data} hour={waveHour} onHour={setWaveHour} pending={waves.isLoading} error={waves.error} timeZone={timeZone} />
       )}
+      {layers.modelField !== "off" && <ModelFieldBar field={layers.modelField} model={model} timeZone={timeZone} />}
       {archiveOpen && (
         <div className="overlay w-full max-w-sm p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
@@ -911,6 +917,7 @@ export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {})
         )}
         {/* Live forecasts and analyses only: nothing to show for an archived moment. */}
         {!archived && radar.snow !== "off" && <SnowLayer map={radar.snow} threshold={radar.snowThreshold} />}
+        {layers.modelField !== "off" && model.grid && <ModelFieldLayer field={layers.modelField} grid={model.grid} hour={model.index} particles={radar.modelParticles} />}
         {layers.showOutlook && <OutlookLayer features={outlook.data?.features ?? []} kind={outlook.data?.kind ?? radar.outlookKind} />}
         {layers.showTropical && <TropicalLayer storms={storms} selectedId={selectedId("storm")} onSelect={(id) => select("storm", id)} />}
         {layers.showWaves && <WavesLayer grid={waves.data ?? null} hour={waveHour} />}
