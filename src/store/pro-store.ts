@@ -30,6 +30,8 @@ export interface PaneConfig {
   cells: boolean;
   /** Cloud-free satellite pictures of the ground in place of the plain basemap. */
   satelliteMap: boolean;
+  /** Range rings around the panel's radar site (spacing and spokes follow the radar map's settings). */
+  rings: boolean;
 }
 
 export type ProTool = "inspect" | "sounding" | "meteogram" | "xsect" | "vector" | "toa" | "warngen" | "volume";
@@ -144,7 +146,7 @@ export interface ProState {
 const DEFAULT_PRODUCTS: ProProductId[] = ["ref", "vel", "srv", "cref", "cc", "zdr", "hc", "sat-ir", "eet"];
 
 export function defaultPanes(): PaneConfig[] {
-  return DEFAULT_PRODUCTS.map((product, i) => ({ id: `p${i + 1}`, product, site: null, tilt: "N0", elev: 0.5, opacity: 0.85, warnings: true, cells: false, satelliteMap: false }));
+  return DEFAULT_PRODUCTS.map((product, i) => ({ id: `p${i + 1}`, product, site: null, tilt: "N0", elev: 0.5, opacity: 0.85, warnings: true, cells: false, satelliteMap: false, rings: false }));
 }
 
 const TILT_SET = new Set<string>(TILTS.map((t) => t.prefix));
@@ -167,6 +169,7 @@ function normalizePanes(raw: unknown): PaneConfig[] {
       warnings: typeof p.warnings === "boolean" ? p.warnings : d.warnings,
       cells: typeof p.cells === "boolean" ? p.cells : d.cells,
       satelliteMap: typeof p.satelliteMap === "boolean" ? p.satelliteMap : d.satelliteMap,
+      rings: typeof p.rings === "boolean" ? p.rings : d.rings,
     };
   });
 }

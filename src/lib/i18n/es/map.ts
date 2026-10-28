@@ -74,4 +74,12 @@ export const MAP: Record<string, string> = {
   "Paste a link or code": "Pega un enlace o código",
   Use: "Usar",
   "Link to this map style": "Enlace a este estilo de mapa",
+
+  // measure-tool.tsx
+  "{distance} at {bearing} {compass}": "{distance} a {bearing} {compass}",
+  "Click two points or drag to measure": "Haz clic en dos puntos o arrastra para medir",
+  "Tap two points to measure": "Toca dos puntos para medir",
+  "~{n} min at this storm's speed ({speed})": "~{n} min a la velocidad de esta tormenta ({speed})",
+  "~{h} h at this storm's speed ({speed})": "~{h} h a la velocidad de esta tormenta ({speed})",
+  "Stop measuring": "Dejar de medir",
 };
