@@ -960,7 +960,6 @@ export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {})
           map={map}
           loop={loop}
           speed={radar.speed}
-          alerts={allAlerts}
           activeAlert={activeAlert}
           title={loopTitle}
           placeName={placeName}
