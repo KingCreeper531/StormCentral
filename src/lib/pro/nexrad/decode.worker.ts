@@ -1,10 +1,11 @@
 /// <reference lib="webworker" />
 /**
  * Decodes NEXRAD files off the main thread: fetch → bzip2 → the compact
- * sweep, plus a colour per raw level. The map draws it on the GPU
+ * sweep (Level II velocity dealiased when asked), plus a colour per raw level. The map draws it on the GPU
  * (sweep-layer.ts) and the cursor readout reads exact gate values from it.
  */
 import { DECODED_SCALES } from "../scales";
+import { dealiasSweep } from "./dealias";
 import { gunzipIfNeeded } from "./gzip";
 import { parseLevel2, parseLevel2Volume } from "./level2";
 import { parseLevel3 } from "./level3";
@@ -63,12 +64,15 @@ async function chunkedVolume(urls: readonly string[]): Promise<Uint8Array> {
   return out;
 }
 
+/** A sweep's arrays, moved to the main thread rather than copied. */
+const buffersOf = (s: Sweep) => [s.data.buffer, s.azStart.buffer, s.azWidth.buffer, s.table.buffer, ...(s.nyquist ? [s.nyquist.buffer] : [])];
+
 self.onmessage = async (e: MessageEvent<DecodeRequest>) => {
   const req = e.data;
   if (req.kind === "l2volume") {
     try {
       const r = parseLevel2Volume(await volume(req.url), req.moment, { site: req.site });
-      const buffers = r.sweeps.flatMap((s) => [s.data.buffer, s.azStart.buffer, s.azWidth.buffer, s.table.buffer]);
+      const buffers = r.sweeps.flatMap(buffersOf);
       self.postMessage({ id: req.id, ok: true, sweeps: r.sweeps, complete: r.complete } satisfies VolumeResponse, buffers as Transferable[]);
     } catch (err) {
       self.postMessage({ id: req.id, ok: false, error: String((err as Error)?.message ?? err) } satisfies VolumeResponse);
@@ -84,7 +88,7 @@ self.onmessage = async (e: MessageEvent<DecodeRequest>) => {
     } else {
       const file = req.kind === "l2chunks" ? await chunkedVolume(req.urls) : await volume(req.url);
       const r = parseLevel2(file, req.moment, req.angle, { site: req.kind === "l2" ? req.site : undefined });
-      sweep = r.sweep;
+      sweep = r.sweep && req.dealias && req.moment === "VEL" ? dealiasSweep(r.sweep) : r.sweep;
       complete = r.complete;
       cuts = r.cuts.map((c) => c.angle);
       if (!sweep) {
@@ -94,7 +98,7 @@ self.onmessage = async (e: MessageEvent<DecodeRequest>) => {
     }
     const colors = sweepColors(sweep, DECODED_SCALES[req.scale]);
     const msg: DecodeResponse = { id: req.id, ok: true, sweep, colors, cuts, complete };
-    self.postMessage(msg, [sweep.data.buffer, sweep.azStart.buffer, sweep.azWidth.buffer, sweep.table.buffer, colors.buffer] as Transferable[]);
+    self.postMessage(msg, [...buffersOf(sweep), colors.buffer] as Transferable[]);
   } catch (err) {
     self.postMessage({ id: req.id, ok: false, error: String((err as Error)?.message ?? err) } satisfies DecodeResponse);
   }

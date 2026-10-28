@@ -159,6 +159,8 @@ export interface ProState {
   warnDraft: WarnDraft;
   /** The toolbar's Guide button (the optional tour and reference); people who don't want it can hide it. */
   guideButton: boolean;
+  /** Level II velocity panes unfold aliased (folded) velocities (lib/pro/nexrad/dealias.ts). */
+  dealias: boolean;
   /** The meteogram's models (Open-Meteo ids) and ensemble. */
   meteogramModels: string[];
   meteogramEnsemble: string;
@@ -174,6 +176,7 @@ export interface ProState {
   setWarnDraft: (patch: Partial<WarnDraft> | ((d: WarnDraft) => Partial<WarnDraft>)) => void;
   resetWarnDraft: (kind?: WarnKind) => void;
   setGuideButton: (on: boolean) => void;
+  setDealias: (on: boolean) => void;
   setMeteogramModels: (ids: string[]) => void;
   setMeteogramEnsemble: (id: string) => void;
 }
@@ -223,6 +226,7 @@ export const useProStore = create<ProState>()(
       toaPoints: [],
       warnDraft: newDraft(),
       guideButton: true,
+      dealias: true,
       meteogramModels: DEFAULT_COMPARE,
       meteogramEnsemble: ENSEMBLES[0]!.id,
       volume3d: DEFAULT_VOLUME3D,
@@ -239,6 +243,7 @@ export const useProStore = create<ProState>()(
       setWarnDraft: (patch) => set((s) => ({ warnDraft: { ...s.warnDraft, ...(typeof patch === "function" ? patch(s.warnDraft) : patch) } })),
       resetWarnDraft: (kind) => set((s) => ({ warnDraft: newDraft(kind ?? s.warnDraft.kind) })),
       setGuideButton: (guideButton) => set({ guideButton }),
+      setDealias: (dealias) => set({ dealias }),
       setMeteogramModels: (ids) => set({ meteogramModels: ids.filter(isCompareModel) }),
       setMeteogramEnsemble: (id) => set({ meteogramEnsemble: isEnsemble(id) ? id : ENSEMBLES[0]!.id }),
     }),
@@ -253,6 +258,7 @@ export const useProStore = create<ProState>()(
         frames: s.frames,
         speed: s.speed,
         guideButton: s.guideButton,
+        dealias: s.dealias,
         meteogramModels: s.meteogramModels,
         meteogramEnsemble: s.meteogramEnsemble,
         volume3d: s.volume3d,
@@ -267,6 +273,7 @@ export const useProStore = create<ProState>()(
           frames: typeof p.frames === "number" ? Math.min(20, Math.max(4, Math.round(p.frames))) : current.frames,
           speed: p.speed === 0.5 || p.speed === 2 ? p.speed : 1,
           guideButton: p.guideButton !== false,
+          dealias: p.dealias !== false,
           meteogramModels: Array.isArray(p.meteogramModels) ? p.meteogramModels.filter(isCompareModel) : current.meteogramModels,
           meteogramEnsemble: isEnsemble(p.meteogramEnsemble) ? p.meteogramEnsemble : current.meteogramEnsemble,
           volume3d: normalizeVolume3d(p.volume3d),

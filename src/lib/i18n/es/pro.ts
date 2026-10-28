@@ -50,6 +50,9 @@ export const PRO: Record<string, string> = {
   GeoColor: "GeoColor",
   "Dust RGB": "RGB de polvo",
   "Fire Temperature RGB": "RGB de temperatura de incendios",
+  "Dealias velocity": "Corregir el aliasing de la velocidad",
+  "Unfolds winds faster than the radar's Nyquist velocity, which otherwise show in the opposite colour. Applies to every Level II velocity panel.":
+    "Desdobla los vientos más rápidos que la velocidad de Nyquist del radar, que de lo contrario aparecen con el color opuesto. Se aplica a todos los paneles de velocidad Level II.",
 
   // ─── cursor readout ────────────────────────────────────────────────────────
   "Move the pointer over a panel (or tap) to sample every panel at that spot.": "Mueve el puntero sobre un panel (o toca) para muestrear todos los paneles en ese punto.",

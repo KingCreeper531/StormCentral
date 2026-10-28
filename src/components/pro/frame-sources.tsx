@@ -20,6 +20,7 @@ import { pickSatellite } from "@/lib/radar/satellite";
 import { getSite } from "@/lib/radar/site-utils";
 import { useAppStore } from "@/store/app-store";
 import { usePalette } from "@/store/palette-store";
+import { useProStore } from "@/store/pro-store";
 import { usePro } from "./pro-context";
 import type { ProCaps } from "./use-pro-caps";
 
@@ -48,6 +49,8 @@ export interface PaneFeed {
   decoded?: boolean;
   /** Decoded products: which scale they're on (for picking a colour table). */
   scaleId?: DecodedScaleId;
+  /** Level II velocity: the Dealias velocity setting applies. */
+  dealias?: boolean;
 }
 
 export const EMPTY_FEED: PaneFeed = { frames: [], family: null, tilts: [], tilt: null, source: "", loading: true, empty: false };
@@ -68,10 +71,10 @@ interface SourceProps {
 
 /** Report a feed upward whenever what it shows changes. */
 function useReport(onFeed: (f: PaneFeed) => void, feed: PaneFeed) {
-  const { frames, family, tilts, tilt, elevations, source, loading, empty, missing = false, note, scale, decoded, scaleId } = feed;
+  const { frames, family, tilts, tilt, elevations, source, loading, empty, missing = false, note, scale, decoded, scaleId, dealias } = feed;
   useEffect(() => {
-    onFeed({ frames, family, tilts, tilt, elevations, source, loading, empty, missing, note, scale, decoded, scaleId });
-  }, [onFeed, frames, family, tilts, tilt, elevations, source, loading, empty, missing, note, scale, decoded, scaleId]);
+    onFeed({ frames, family, tilts, tilt, elevations, source, loading, empty, missing, note, scale, decoded, scaleId, dealias });
+  }, [onFeed, frames, family, tilts, tilt, elevations, source, loading, empty, missing, note, scale, decoded, scaleId, dealias]);
 }
 
 const noTilts: ResolvedTilt[] = [];
@@ -218,6 +221,9 @@ function VolumeSource({ product, site, elev, frameCount, onFeed, until = null }:
   const def = PRO_PRODUCTS[product];
   const moment = def.kind === "l2" ? def.moment : "REF";
   const scaleId = def.kind === "l2" ? def.scale : "ref";
+  // Velocity is unfolded in the decoder unless the setting is off (the flag is part of each frame's cache key).
+  const dealiasOn = useProStore((s) => s.dealias);
+  const dealias = moment === "VEL" && dealiasOn ? true : undefined;
   const count = Math.min(frameCount, 6);
   const spanMin = count * 7 + 30;
   const list = useQuery({
@@ -243,12 +249,12 @@ function VolumeSource({ product, site, elev, frameCount, onFeed, until = null }:
   const jobs = useMemo(() => {
     const files = list.data ?? [];
     const lastFile = files.at(-1)?.time ?? 0;
-    const archived = files.map((f) => ({ time: f.time, job: { kind: "l2", url: f.url, moment, angle: elev, scale: scaleId, site: at } as DecodeJob }));
+    const archived = files.map((f) => ({ time: f.time, job: { kind: "l2", url: f.url, moment, angle: elev, scale: scaleId, site: at, dealias } as DecodeJob }));
     const live = (until == null ? (chunked.data ?? []) : [])
       .filter((v) => v.time > lastFile + 30_000)
-      .map((v) => ({ time: v.time, job: liveJob({ kind: "l2chunks", urls: v.urls, moment, angle: elev, scale: scaleId }) }));
+      .map((v) => ({ time: v.time, job: liveJob({ kind: "l2chunks", urls: v.urls, moment, angle: elev, scale: scaleId, dealias }) }));
     return [...archived, ...live].slice(-count);
-  }, [list.data, chunked.data, until, count, moment, elev, scaleId, at]);
+  }, [list.data, chunked.data, until, count, moment, elev, scaleId, at, dealias]);
   const realTime = jobs.some((j) => j.job.kind === "l2chunks");
   const { palette, scale } = useDecodedScale(scaleId);
   const { frames, failed, cuts, elevation } = useDecodedFrames(jobs, scaleId, palette);
@@ -269,6 +275,7 @@ function VolumeSource({ product, site, elev, frameCount, onFeed, until = null }:
     scale,
     decoded: true,
     scaleId,
+    dealias: moment === "VEL",
   });
   return null;
 }

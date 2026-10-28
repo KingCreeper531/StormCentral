@@ -68,6 +68,8 @@ export function PaneHeader({
 }) {
   const t = useT();
   const setPane = useProStore((s) => s.setPane);
+  const dealias = useProStore((s) => s.dealias);
+  const setDealias = useProStore((s) => s.setDealias);
   const def = PRO_PRODUCTS[config.product];
   const set = (patch: Partial<Omit<PaneConfig, "id">>) => setPane(config.id, patch);
 
@@ -166,6 +168,12 @@ export function PaneHeader({
             />
           </label>
           {feed.decoded && feed.scaleId && PALETTE_SCALES.includes(feed.scaleId) && <ColourTablePicker scaleId={feed.scaleId} />}
+          {feed.dealias && (
+            <div>
+              <Toggle label={t("Dealias velocity")} checked={dealias} onChange={setDealias} />
+              <p className="text-[11px] text-ink-3">{t("Unfolds winds faster than the radar's Nyquist velocity, which otherwise show in the opposite colour. Applies to every Level II velocity panel.")}</p>
+            </div>
+          )}
           <Toggle label={t("Warnings")} checked={config.warnings} onChange={(v) => set({ warnings: v })} />
           <Toggle label={t("Storm cells")} checked={config.cells} onChange={(v) => set({ cells: v })} />
           <Toggle label={t("Satellite map (no clouds)")} checked={config.satelliteMap} onChange={(v) => set({ satelliteMap: v })} />

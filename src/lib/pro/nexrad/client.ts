@@ -22,15 +22,15 @@ export interface DecodedFrame {
 
 export type DecodeJob =
   | { kind: "l3"; url: string; scale: DecodedScaleId }
-  /** `site`: the radar's location, for volumes from before 2008 that don't carry it. */
-  | { kind: "l2"; url: string; moment: Moment; angle: number; scale: DecodedScaleId; site?: { lat: number; lon: number } }
+  /** `site`: the radar's location, for volumes from before 2008 that don't carry it. `dealias`: unfold folded velocities. */
+  | { kind: "l2"; url: string; moment: Moment; angle: number; scale: DecodedScaleId; site?: { lat: number; lon: number }; dealias?: boolean }
   /** A volume still being scanned, from its real-time chunks so far. */
-  | { kind: "l2chunks"; urls: string[]; moment: Moment; angle: number; scale: DecodedScaleId };
+  | { kind: "l2chunks"; urls: string[]; moment: Moment; angle: number; scale: DecodedScaleId; dealias?: boolean };
 
 type ChunkJob = Extract<DecodeJob, { kind: "l2chunks" }>;
 
 /** The same sweep of a live volume, however many chunks have arrived. */
-const chunkGroup = (j: ChunkJob) => `l2c|${j.urls[0]}|${j.moment}|${j.angle}|${j.scale}`;
+const chunkGroup = (j: ChunkJob) => `l2c|${j.urls[0]}|${j.moment}|${j.angle}|${j.scale}${j.dealias ? "|da" : ""}`;
 
 /** The first complete decode of each live sweep: later chunks don't change it, so it isn't decoded again. */
 const settled = new Map<string, ChunkJob>();
@@ -39,7 +39,7 @@ const settled = new Map<string, ChunkJob>();
 export const liveJob = (job: ChunkJob): DecodeJob => settled.get(chunkGroup(job)) ?? job;
 
 export const jobKey = (j: DecodeJob) =>
-  j.kind === "l3" ? `l3|${j.url}|${j.scale}` : j.kind === "l2" ? `l2|${j.url}|${j.moment}|${j.angle}|${j.scale}` : `${chunkGroup(j)}|${j.urls.length}`;
+  j.kind === "l3" ? `l3|${j.url}|${j.scale}` : j.kind === "l2" ? `l2|${j.url}|${j.moment}|${j.angle}|${j.scale}${j.dealias ? "|da" : ""}` : `${chunkGroup(j)}|${j.urls.length}`;
 
 type Entry = { state: "pending" } | { state: "done"; frame: DecodedFrame } | { state: "error"; error: string; cuts?: number[]; at: number };
 
