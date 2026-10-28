@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { slantRange, type Sweep } from "./nexrad/sweep";
 import { DECODED_SCALES } from "./scales";
 import type { Sounding } from "./thermo";
-import { beamPosition, formatHeight, freezingLevels, heightTicks, MAX_FILL_KM, topOf, volumePoints } from "./volume3d";
+import { beamPosition, formatHeight, freezingLevels, groundLines, heightTicks, MAX_FILL_KM, topOf, volumePoints } from "./volume3d";
 
 const RADAR = { lat: 35.333, lon: -97.278 };
 
@@ -107,6 +107,28 @@ describe("volumePoints", () => {
     expect(top).toBeCloseTo(Math.max(...Array.from(p.positions.filter((_, i) => i % 3 === 2).subarray(0, p.count))), 5);
     expect(topOf(p, 45)).toBeGreaterThan(topOf(volumePoints([low], options), 20)!);
     expect(topOf(p, 60)).toBeNull();
+  });
+});
+
+describe("groundLines", () => {
+  it("puts map lines in the spot's frame, clipped to the square", () => {
+    // A line due east–west through the spot, past the square both ways (27 km), and one nowhere near.
+    const across = [
+      [SPOT.lon - 0.3, SPOT.lat],
+      [SPOT.lon + 0.3, SPOT.lat],
+    ];
+    const away = [
+      [SPOT.lon, SPOT.lat + 3],
+      [SPOT.lon + 1, SPOT.lat + 3],
+    ];
+    const l = groundLines([across, away], RADAR, SPOT, 20, 0.37);
+    expect(l.length).toBe(6);
+    expect(l[0]).toBeCloseTo(-20, 3);
+    expect(l[3]).toBeCloseTo(20, 3);
+    // Along y = 0, give or take how a parallel curves in the radar's frame.
+    expect(Math.abs(l[1]!)).toBeLessThan(0.2);
+    expect(l[2]).toBeCloseTo(0.37);
+    expect(groundLines([away], RADAR, SPOT, 20, 0).length).toBe(0);
   });
 });
 
