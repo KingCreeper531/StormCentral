@@ -263,7 +263,6 @@ describe("velocity dealiasing", () => {
       const t0 = performance.now();
       dealiasSweep(sweep);
       times.push(performance.now() - t0);
-      console.log((globalThis as unknown as { T: string }).T);
     }
     times.sort((a, b) => a - b);
     // Well under 150 ms on a laptop; generous here for slow CI machines.

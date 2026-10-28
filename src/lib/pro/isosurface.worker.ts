@@ -2,9 +2,10 @@
 /**
  * Builds the 3D view's shaded surfaces (lib/pro/isosurface) off the main
  * thread. Volumes are sent once and kept here by key, so moving a threshold
- * only sends the request.
+ * only sends the request. Velocity is dealiased once, as it arrives.
  */
 import { buildSurfaces, surfaceBuffers, type SurfaceMessage, type SurfaceReply } from "./isosurface";
+import { dealiasSweep } from "./nexrad/dealias";
 import type { Sweep } from "./nexrad/sweep";
 
 declare const self: DedicatedWorkerGlobalScope;
@@ -17,7 +18,7 @@ self.onmessage = (e: MessageEvent<SurfaceMessage>) => {
   const m = e.data;
   for (const v of m.volumes) {
     volumes.delete(v.key);
-    volumes.set(v.key, v.sweeps);
+    volumes.set(v.key, v.key === m.vel ? v.sweeps.map(dealiasSweep) : v.sweeps);
     while (volumes.size > MAX_VOLUMES) volumes.delete(volumes.keys().next().value!);
   }
   const ref = volumes.get(m.ref);

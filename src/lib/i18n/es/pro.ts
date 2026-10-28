@@ -401,7 +401,7 @@ export const PRO: Record<string, string> = {
   "away from it": "alejándose de él",
   "The volume's velocity couldn't be loaded.": "No se pudo cargar la velocidad del volumen.",
   "Loading the velocity…": "Cargando la velocidad…",
-  "Raw velocity, not dealiased: folded gates can make false shells.": "Velocidad sin corregir el aliasing: las celdas plegadas pueden crear superficies falsas.",
+  "Dealiased velocity. A few folded gates can remain and make small false shells.": "Velocidad con el aliasing corregido. Pueden quedar algunas celdas plegadas que crean pequeñas superficies falsas.",
   "Cut away": "Recortar",
   Nothing: "Nada",
   "East side": "Lado este",
