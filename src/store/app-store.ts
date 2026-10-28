@@ -7,6 +7,7 @@ import type { LatLon } from "@/lib/geo";
 import { ALERT_CATEGORIES, type AlertCategory } from "@/lib/alerts";
 import type { ProductFamily, TiltPrefix } from "@/lib/radar/products";
 import type { Speed } from "@/lib/radar/playback";
+import { isSnowMap, isSnowThreshold, type SnowMap, type SnowThreshold } from "@/lib/radar/snow";
 import { DEFAULT_FORECAST_SOURCE, isForecastSourceId, type ForecastSourceId } from "@/lib/forecast-sources";
 import { defaultDailyLayout, normalizeDailyLayout, type DailyItem } from "@/lib/daily-layout";
 import { isValidClock, isValidZone, setTimePrefs, type ClockPref, type ZonePref } from "@/lib/clock";
@@ -85,6 +86,10 @@ export interface RadarSettings {
   ringStep: RingStep;
   /** Bearing lines every 30° across the range rings. */
   ringSpokes: boolean;
+  /** Snow under the radar: WPC's chance of snow for Day 1–3, or NOHRSC's depth now (lib/radar/snow). Off unless turned on. */
+  snow: SnowMap;
+  /** The snowfall the WPC chance is of: at least 4, 8 or 12 inches. */
+  snowThreshold: SnowThreshold;
 }
 
 export type RadarHistory = "latest" | "2h" | "4h";
@@ -204,6 +209,8 @@ export const DEFAULT_RADAR: RadarSettings = {
   showRings: false,
   ringStep: DEFAULT_RING_STEP,
   ringSpokes: false,
+  snow: "off",
+  snowThreshold: 4,
 };
 
 /** Saved radar settings made whole: defaults for anything a previous version didn't store. */
@@ -220,6 +227,8 @@ export function normalizeRadar(r: RadarSettings): RadarSettings {
     showRings: r.showRings === true,
     ringStep: isRingStep(r.ringStep) ? r.ringStep : DEFAULT_RING_STEP,
     ringSpokes: r.ringSpokes === true,
+    snow: isSnowMap(r.snow) ? r.snow : "off",
+    snowThreshold: isSnowThreshold(r.snowThreshold) ? r.snowThreshold : 4,
     satelliteMap: r.satelliteMap === true,
     nowcast: r.nowcast !== false,
   };

@@ -92,6 +92,7 @@ Every colour slot and layer option, plus ready-made examples to copy (Nord, Drac
 | Local storm reports, NEXRAD storm-cell attributes | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) |
 | Tropical cyclones (positions, cone, track) | [National Hurricane Center](https://www.nhc.noaa.gov) + NOAA map services |
 | Lightning: GOES GLM flashes (read by the app's server), strike density as a fallback | [NOAA Open Data on AWS](https://registry.opendata.aws/noaa-goes/), [NOAA nowCOAST](https://nowcoast.noaa.gov) |
+| Snow maps: chance of ≥4/8/12" of snow (Day 1–3), snow depth now | [WPC winter precipitation](https://mapservices.weather.noaa.gov/vector/rest/services/precip/wpc_prob_winter_precip/MapServer) and [NOHRSC snow analysis](https://mapservices.weather.noaa.gov/raster/rest/services/snow/NOHRSC_Snow_Analysis/MapServer) map services |
 | HRRR forecast reflectivity (future radar) | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/GIS/model.phtml) |
 | NEXRAD Level II and III files (Pro mode, and its archive back to 1995) | [NOAA Open Data on AWS](https://registry.opendata.aws/noaa-nexrad/) |
 | Radar archive: national mosaic, warnings and storm reports at a past time | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) |

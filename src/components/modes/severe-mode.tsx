@@ -38,6 +38,7 @@ import { LightningLayer } from "../map/layers/lightning-layer";
 import { RadarLayer } from "../map/layers/radar-layer";
 import { SatelliteLayer, type SatelliteImage } from "../map/layers/satellite-layer";
 import { SatelliteMapLayer } from "../map/layers/satellite-map-layer";
+import { SnowLayer } from "../map/layers/snow-layer";
 import { GisLayers } from "../map/layers/gis-layers";
 import { StormCellsLayer } from "../map/layers/storm-cells-layer";
 import { StormReportsLayer } from "../map/layers/storm-reports-layer";
@@ -65,6 +66,7 @@ import { ExportLoopButton } from "../radar/export-loop-dialog";
 import { OutlookLegend } from "../radar/outlook-legend";
 import { RadarControls } from "../radar/radar-controls";
 import { RadarLegend } from "../radar/radar-legend";
+import { SnowLegend } from "../radar/snow-legend";
 import { frameTimeLabel, RadarTimeline } from "../radar/radar-timeline";
 import { StormCellDetail, StormCellList, StormReportDetail, StormReportsList } from "../radar/storm-detail";
 import { TropicalDetail } from "../radar/tropical-detail";
@@ -779,6 +781,7 @@ export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {})
       {desktop && !short && layers.showOutlook && (outlook.data?.features.length ?? 0) > 0 && (
         <OutlookLegend kind={radar.outlookKind} features={outlook.data?.features ?? []} />
       )}
+      {desktop && !short && !archived && radar.snow !== "off" && <SnowLegend map={radar.snow} threshold={radar.snowThreshold} />}
       {desktop && !short && <RadarLegend family={family} caption={caption} />}
       {satCaption && <p className="overlay px-2.5 py-1 text-[11px] text-ink-3 tabular">{satCaption}</p>}
       {archiveOpen && (
@@ -863,6 +866,8 @@ export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {})
         {layers.satellite !== "off" && (
           <SatelliteLayer band={layers.satellite} times={satLoop.times} current={satLoop.current} onImage={setSatImage} />
         )}
+        {/* Live forecasts and analyses only: nothing to show for an archived moment. */}
+        {!archived && radar.snow !== "off" && <SnowLayer map={radar.snow} threshold={radar.snowThreshold} />}
         {layers.showOutlook && <OutlookLayer features={outlook.data?.features ?? []} kind={outlook.data?.kind ?? radar.outlookKind} />}
         {layers.showTropical && <TropicalLayer storms={storms} selectedId={selectedId("storm")} onSelect={(id) => select("storm", id)} />}
         {layers.showLightning && <LightningLayer />}
