@@ -1,5 +1,6 @@
 import { alertsFeed } from "./alerts";
 import { buoysFeed } from "./buoys";
+import { aviationAdvisoriesFeed, aviationAirportFeed, aviationMetarsFeed } from "./aviation";
 import { climateFeed } from "./climate";
 import { floodGaugesFeed } from "./flood-gauges";
 import { forecasterNotesFeed } from "./forecaster-notes";
@@ -38,5 +39,8 @@ export const FEEDS: ReadonlyMap<string, Feed> = new Map(
     wildfiresFeed,
     webcamsFeed,
     buoysFeed,
+    aviationMetarsFeed,
+    aviationAirportFeed,
+    aviationAdvisoriesFeed,
   ].map((f) => [f.path, f as Feed]),
 );
