@@ -32,10 +32,6 @@ jobs:
             exit 1
           fi
       - uses: actions/checkout@v5
-      - name: Probe data sources
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        run: bash scripts/probe-sources.sh
       - uses: actions/setup-node@v5
         with:
           node-version: 22
