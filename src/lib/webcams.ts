@@ -7,10 +7,11 @@
  * (no reuse without written consent), HPWREN (live images need a license),
  * FAA WeatherCams (redistribution needs an FAA agreement and token).
  *
- * State DOT cameras are listed only once the agency has said yes: Iowa DOT's
- * site terms need written consent to show its images in another app, and
- * WSDOT publishes no terms for them; both were asked in October 2026. Until
- * then their `approved` is false and the feed leaves them out.
+ * State DOT cameras are listed only once the agency has said yes. Iowa DOT
+ * said yes on 2026-10-27: its camera images are CC0 (credit appreciated, no
+ * endorsement implied). WSDOT publishes no terms for its images and was asked
+ * in October 2026; until it answers, its `approved` is false and the feed
+ * leaves it out.
  */
 
 /** Where a camera comes from. */
@@ -45,8 +46,9 @@ export const WEBCAM_SOURCES: Record<WebcamSource, WebcamSourceInfo> = {
   alertca: { label: "Wildfire camera", credit: "ALERTCalifornia | UC San Diego", site: "https://cameras.alertcalifornia.org/", color: "#f97362", refreshMin: 2, approved: true, onStream: true },
   "usgs-river": { label: "River camera", credit: "USGS", site: "https://apps.usgs.gov/hivis/", color: "#4fb3ff", refreshMin: 15, approved: true, onStream: true },
   "usgs-volcano": { label: "Volcano camera", credit: "USGS Volcano Hazards Program", site: "https://volcanoes.usgs.gov/", color: "#c084fc", refreshMin: 10, approved: true, onStream: true },
-  // Asked 2026-10-21 (Outreach & Development Bureau): at most one picture per 5 minutes, credited "Iowa DOT".
-  iowa: { label: "Traffic camera", credit: "Iowa DOT", site: "https://511ia.org/", color: "#f5b942", refreshMin: 5, approved: false, onStream: false },
+  // Allowed 2026-10-27 by Iowa DOT's Traffic Operations & Safety Bureau: the images are CC0, credit welcome
+  // ("Source: Iowa DOT"). We keep to what we asked: at most one picture per 5 minutes while a camera is open.
+  iowa: { label: "Traffic camera", credit: "Iowa DOT", site: "https://511ia.org/", color: "#f5b942", refreshMin: 5, approved: true, onStream: true },
   // Asked 2026-10-21 (the camera layer's data contact): WSDOT's own cameras only, images refresh about every 5 minutes.
   wsdot: { label: "Traffic camera", credit: "WSDOT", site: "https://wsdot.com/travel/real-time/map/", color: "#f5b942", refreshMin: 5, approved: false, onStream: false },
 };
