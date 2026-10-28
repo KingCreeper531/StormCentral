@@ -294,6 +294,12 @@ export function RadarControls({
           {settings.showWaves && (
             <p className="label py-2.5">{t("Wave height and direction over the sea from Open-Meteo's marine forecast. Pick the hour with the slider by the legend.")}</p>
           )}
+          <Toggle label={t("Aviation weather")} checked={settings.showAviation} onChange={(showAviation) => onChange({ showAviation })} />
+          {settings.showAviation && (
+            <p className="label py-2.5">
+              {t("Airports coloured by flight category from their latest METAR (VFR green, MVFR blue, IFR red, LIFR magenta), with SIGMETs and AIRMETs, from the NOAA Aviation Weather Center. Airports show once the map spans a few states or less. Tap one for its METAR and TAF.")}
+            </p>
+          )}
           <Toggle label={t("Radar sites")} checked={settings.showSites} onChange={(showSites) => onChange({ showSites })} />
           <Toggle label={t("Range rings")} checked={settings.showRings} onChange={(showRings) => onChange({ showRings })} />
           {settings.showRings && (

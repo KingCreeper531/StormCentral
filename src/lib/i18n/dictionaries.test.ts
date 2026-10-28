@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ALERTS } from "./es/alerts";
+import { AVIATION } from "./es/aviation";
 import { COMMON } from "./es/common";
 import { COMMUNITY } from "./es/community";
 import { DAILY } from "./es/daily";
@@ -14,7 +15,7 @@ import { RADAR } from "./es/radar";
 import { SETTINGS } from "./es/settings";
 import { SHELL } from "./es/shell";
 
-const AREAS = { ALERTS, COMMON, COMMUNITY, DAILY, GUIDE, LIB, MAP, MARINE, MODES, NOTIFY, PRO, RADAR, SETTINGS, SHELL };
+const AREAS = { ALERTS, AVIATION, COMMON, COMMUNITY, DAILY, GUIDE, LIB, MAP, MARINE, MODES, NOTIFY, PRO, RADAR, SETTINGS, SHELL };
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
 describe("Spanish dictionaries", () => {

@@ -94,6 +94,8 @@ export interface RadarSettings {
   showBuoys: boolean;
   /** Open-Meteo's 48-hour wave forecast over the sea (lib/api/open-meteo-marine). Off unless turned on. */
   showWaves: boolean;
+  /** Aviation weather: airports by flight category, SIGMETs and AIRMETs (lib/aviation). Off unless turned on. */
+  showAviation: boolean;
 }
 
 export type RadarHistory = "latest" | "2h" | "4h";
@@ -217,6 +219,7 @@ export const DEFAULT_RADAR: RadarSettings = {
   snowThreshold: 4,
   showBuoys: false,
   showWaves: false,
+  showAviation: false,
 };
 
 /** Saved radar settings made whole: defaults for anything a previous version didn't store. */
@@ -237,6 +240,7 @@ export function normalizeRadar(r: RadarSettings): RadarSettings {
     snowThreshold: isSnowThreshold(r.snowThreshold) ? r.snowThreshold : 4,
     showBuoys: r.showBuoys === true,
     showWaves: r.showWaves === true,
+    showAviation: r.showAviation === true,
     satelliteMap: r.satelliteMap === true,
     nowcast: r.nowcast !== false,
   };
