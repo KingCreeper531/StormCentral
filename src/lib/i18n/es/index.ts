@@ -32,6 +32,7 @@
  *   Update = Actualizar (noun: Actualización) · Download = Descargar · Install = Instalar
  */
 import { ALERTS } from "./alerts";
+import { AVIATION } from "./aviation";
 import { COMMON } from "./common";
 import { COMMUNITY } from "./community";
 import { DAILY } from "./daily";
@@ -61,4 +62,5 @@ export const ES: Readonly<Record<string, string>> = {
   ...NOTIFY,
   ...PRO,
   ...GUIDE,
+  ...AVIATION,
 };
