@@ -92,6 +92,11 @@ export const RADAR: Record<string, string> = {
   Wind: "Viento",
   "Spotter reports (6 h)": "Reportes de observadores (6 h)",
   "Radar sites": "Estaciones de radar",
+  "Range rings": "Anillos de distancia",
+  "Range ring spacing": "Separación de los anillos de distancia",
+  "Bearing lines every 30°": "Líneas de rumbo cada 30°",
+  "Around the radar site.": "Alrededor de la estación de radar.",
+  "Around the selected location, or the radar site with single-site data.": "Alrededor de la ubicación seleccionada, o de la estación de radar con datos de una sola estación.",
 
   // ─── radar-timeline.tsx ────────────────────────────────────────────────────
   "In {n} min": "En {n} min",
@@ -434,6 +439,7 @@ export const RADAR: Record<string, string> = {
 
   // ─── drawing on the map ────────────────────────────────────────────────────
   "Draw on the map": "Dibujar en el mapa",
+  "Measure distance and bearing": "Medir distancia y rumbo",
   "Drawing tools": "Herramientas de dibujo",
   "Move the map": "Mover el mapa",
   Pen: "Lápiz",

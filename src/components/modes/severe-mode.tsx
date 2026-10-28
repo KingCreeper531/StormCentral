@@ -1,7 +1,7 @@
 "use client";
 
 import type { Map as MlMap } from "maplibre-gl";
-import { ChevronLeft, CircleAlert, History, Layers, PanelLeftClose, Pause, PenLine, Play, X } from "lucide-react";
+import { ChevronLeft, CircleAlert, History, Layers, PanelLeftClose, Pause, PenLine, Play, Ruler, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { WeatherAlert } from "@/lib/api/types";
@@ -31,6 +31,7 @@ import { ChaserStreams } from "../radar/chaser-streams";
 import { WebcamDetail, WebcamList } from "../radar/webcam-detail";
 import { PostCard } from "../community/post-card";
 import { MapView } from "../map/map-view";
+import { MeasureTool } from "../map/measure-tool";
 import { MapStyleControls } from "../map/map-style-controls";
 import { OutlookLayer } from "../map/layers/outlook-layer";
 import { LightningLayer } from "../map/layers/lightning-layer";
@@ -46,6 +47,7 @@ import { ChasersLayer } from "../map/layers/chasers-layer";
 import { WebcamsLayer } from "../map/layers/webcams-layer";
 import { SitesLayer } from "../map/layers/sites-layer";
 import { StormPathLayer } from "../map/layers/storm-path-layer";
+import { RangeRingsLayer } from "../map/layers/range-rings-layer";
 import { UserMarker } from "../map/layers/user-marker";
 import { WarningsLayer } from "../map/layers/warnings-layer";
 import { IntlRadarLayers } from "../map/layers/intl-radar-layer";
@@ -199,9 +201,32 @@ export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {})
   const drawShapes = useDrawStore((s) => s.shapes);
   const presenter = usePresenter();
   const airStatus = useLiveDrawingPublisher(presenter);
+  // Measuring distance and bearing (map/measure-tool). It and drawing each take the map's clicks: one at a time.
+  const [measuring, setMeasuring] = useState(false);
   const drawButton = (
-    <IconButton size="sm" label={t("Draw on the map")} aria-pressed={drawOpen} onClick={() => setDrawOpen(!drawOpen)}>
+    <IconButton
+      size="sm"
+      label={t("Draw on the map")}
+      aria-pressed={drawOpen}
+      onClick={() => {
+        setDrawOpen(!drawOpen);
+        setMeasuring(false);
+      }}
+    >
       <PenLine className="size-4" aria-hidden />
+    </IconButton>
+  );
+  const measureButton = (
+    <IconButton
+      size="sm"
+      label={t("Measure distance and bearing")}
+      aria-pressed={measuring}
+      onClick={() => {
+        setMeasuring(!measuring);
+        setDrawOpen(false);
+      }}
+    >
+      <Ruler className="size-4" aria-hidden />
     </IconButton>
   );
   const panelW = short ? 280 : wide ? 340 : 300;
@@ -810,6 +835,7 @@ export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {})
               <IconButton size="sm" label={t("Radar archive")} onClick={() => setArchiveOpen((o) => !o)} aria-pressed={archiveOpen}>
                 <History className="size-4" aria-hidden />
               </IconButton>
+              {measureButton}
               {drawButton}
               <ExportLoopButton size="sm" map={map} loop={loop} speed={radar.speed} title={loopTitle} subtitle={placeName} timeZone={timeZone} />
             </>
@@ -862,6 +888,8 @@ export function SevereMode({ studio }: { studio?: { onExit: () => void } } = {})
         {COMMUNITY_ENABLED && layers.showChasers && (
           <ChasersLayer chasers={chaserList} isLive={(c) => !!liveOf(c)} fetchedAt={chasers.dataUpdatedAt} now={now} onSelect={(u) => select("chaser", u)} />
         )}
+        {radar.showRings && <RangeRingsLayer center={site ?? loc} step={radar.ringStep} unit={fmt.units.distance} spokes={radar.ringSpokes} />}
+        {measuring && <MeasureTool cells={cellList} onClose={() => setMeasuring(false)} />}
         <UserMarker lat={loc.lat} lon={loc.lon} />
         <DrawingLayer id="mine" shapes={drawShapes} />
         <LiveDrawingLayer />

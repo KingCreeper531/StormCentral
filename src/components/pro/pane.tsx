@@ -11,11 +11,14 @@ import { frameAt, syncTime } from "@/lib/pro/sync";
 import type { RadarFrame } from "@/lib/radar/frames";
 import type { BufferStatus } from "@/lib/radar/layer-manager";
 import { FAMILIES, legendGradient } from "@/lib/radar/products";
+import { getSite } from "@/lib/radar/site-utils";
+import { useAppStore } from "@/store/app-store";
 import type { PaneConfig, ProTool } from "@/store/pro-store";
 import { cn } from "@/lib/utils";
 import { MapView } from "../map/map-view";
 import { SatelliteMapLayer } from "../map/layers/satellite-map-layer";
 import { GisLayers } from "../map/layers/gis-layers";
+import { RangeRingsLayer } from "../map/layers/range-rings-layer";
 import { StormCellsLayer } from "../map/layers/storm-cells-layer";
 import { UserMarker } from "../map/layers/user-marker";
 import { WarningsLayer } from "../map/layers/warnings-layer";
@@ -59,6 +62,10 @@ export const Pane = memo(function Pane({ config, n, site, frameCount, basis, too
   const crosshair = useRef<HTMLDivElement>(null);
   const map = useRef<{ getZoom(): number } | null>(null);
   const def = PRO_PRODUCTS[config.product];
+  const ringStep = useAppStore((s) => s.radar.ringStep);
+  const ringSpokes = useAppStore((s) => s.radar.ringSpokes);
+  const unit = useAppStore((s) => s.units.distance);
+  const ringSite = config.rings ? getSite(config.site ?? site) : undefined;
 
   const onFeed = useCallback((f: PaneFeed) => setFeed(f), []);
 
@@ -111,6 +118,7 @@ export const Pane = memo(function Pane({ config, n, site, frameCount, basis, too
         {config.warnings && <WarningsLayer alerts={alerts} selectedId={selectedAlert} onSelect={selectAlert} />}
         {config.cells && <StormCellsLayer cells={cells} selectedId={null} onSelect={() => {}} />}
         <GisLayers />
+        {ringSite && <RangeRingsLayer center={ringSite} step={ringStep} unit={unit} spokes={ringSpokes} />}
         <ToolOverlay shapes={shapes} />
         {tool === "warngen" && <WarnGenOverlay />}
         <ToolClicks tool={tool} />
