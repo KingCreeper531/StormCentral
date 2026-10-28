@@ -65,7 +65,7 @@ export default function PrivacyPage() {
             <li>
               Weather data: the U.S. National Weather Service and other NOAA services (Storm Prediction Center, National Hurricane Center, nowCOAST and the
               National Water Prediction Service), Open-Meteo (forecasts, air quality and place search), the Iowa Environmental Mesonet (radar) and the U.S.
-              Geological Survey (rivers and volcanoes).
+              Geological Survey (rivers and volcanoes). Marine conditions: NOAA&apos;s National Data Buoy Center (buoys) and Open-Meteo&apos;s marine forecast (waves).
             </li>
             <li>Place names for your location: BigDataCloud.</li>
             <li>

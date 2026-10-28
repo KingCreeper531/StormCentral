@@ -38,6 +38,7 @@ import { DAILY } from "./daily";
 import { GUIDE } from "./guide";
 import { LIB } from "./lib";
 import { MAP } from "./map";
+import { MARINE } from "./marine";
 import { MODES } from "./modes";
 import { NOTIFY } from "./notify";
 import { PRO } from "./pro";
@@ -53,6 +54,7 @@ export const ES: Readonly<Record<string, string>> = {
   ...MODES,
   ...RADAR,
   ...MAP,
+  ...MARINE,
   ...COMMUNITY,
   ...SETTINGS,
   ...ALERTS,

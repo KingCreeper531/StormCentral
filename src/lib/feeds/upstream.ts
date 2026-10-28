@@ -41,8 +41,24 @@ export function upstreamJson<T>(url: string, { headers, timeoutMs = 12_000 }: { 
   return retryOnce(() => transport(url, req)) as Promise<T>;
 }
 
-/** A text body (XML capabilities documents). Plain fetch on every platform. */
-export function upstreamText(url: string, { timeoutMs = 12_000 }: { timeoutMs?: number } = {}): Promise<string> {
+/** Resolves with the body as text; rejects with `HttpError` on a non-2xx status. */
+export type UpstreamTextTransport = (url: string, req: UpstreamRequest) => Promise<string>;
+
+/** The phone's native HTTP for text (set by the Android build), for hosts that send no CORS headers. */
+let nativeText: UpstreamTextTransport | null = null;
+
+export function setUpstreamTextTransport(next: UpstreamTextTransport) {
+  nativeText = next;
+}
+
+/**
+ * A text body (XML capabilities documents, NDBC's text files). Plain fetch on
+ * every platform, except that `noCors` hosts (they send no CORS headers) go
+ * through the phone's native HTTP in the Android app.
+ */
+export function upstreamText(url: string, { timeoutMs = 12_000, noCors = false }: { timeoutMs?: number; noCors?: boolean } = {}): Promise<string> {
+  const native = noCors ? nativeText : null;
+  if (native) return retryOnce(() => native(url, { headers: { "User-Agent": USER_AGENT }, timeoutMs }));
   return retryOnce(async () => {
     const res = await fetch(url, {
       cache: "no-store",
