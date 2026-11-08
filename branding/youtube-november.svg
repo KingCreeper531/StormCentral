@@ -26,6 +26,8 @@
     </g>
   </defs>
   <rect width="800" height="800" fill="url(#sky)"/>
+  <!-- The art was drawn around (400, 430): moved up to the middle for the round crop. -->
+  <g transform="translate(0 -30)">
   <circle cx="400" cy="430" r="300" fill="url(#halo)"/>
   <path d="M400 430 L730 430 A330 330 0 0 1 633 663 Z" fill="#ffb347" opacity=".16"/>
   <circle cx="400" cy="430" r="330" fill="none" stroke="#ffb347" stroke-opacity=".55" stroke-width="5.0"/>
@@ -33,7 +35,7 @@
   <circle cx="400" cy="430" r="200" fill="none" stroke="#ffb347" stroke-opacity=".2" stroke-width="3.0"/>
   <path d="M35 14 L26 34 h7 l-4 16 L41 28 h-7 z" transform="translate(132.0 174.0) scale(8.00)" fill="#ffd54f" opacity=".55" filter="url(#soft)"/>
   <path d="M35 14 L26 34 h7 l-4 16 L41 28 h-7 z" transform="translate(132.0 174.0) scale(8.00)" fill="url(#bolt)" stroke="#a8650a" stroke-width="0.6" stroke-linejoin="round"/>
-  <g stroke-width="2.5">
+  <g stroke-width="2.5" transform="translate(400 430) scale(0.9) translate(-400 -430)">
     <use href="#maple" xlink:href="#maple" transform="translate(340 90) rotate(320) scale(1.90)" fill="#c8402a" stroke="#6e1d10"/>
     <use href="#maple" xlink:href="#maple" transform="translate(527 130) rotate(46) scale(1.82)" fill="#e2672c" stroke="#8c3a12"/>
     <use href="#maple" xlink:href="#maple" transform="translate(654 259) rotate(72) scale(1.74)" fill="#f59a23" stroke="#8c5a12"/>
@@ -45,5 +47,6 @@
     <use href="#maple" xlink:href="#maple" transform="translate(218 482) rotate(228) scale(1.26)" fill="#f2c43b" stroke="#8c6a12"/>
     <use href="#maple" xlink:href="#maple" transform="translate(238 380) rotate(314) scale(1.18)" fill="#8aa83a" stroke="#45561a"/>
     <use href="#maple" xlink:href="#maple" transform="translate(304 315) rotate(340) scale(1.10)" fill="#c8402a" stroke="#6e1d10"/>
+  </g>
   </g>
 </svg>

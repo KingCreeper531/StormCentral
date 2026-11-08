@@ -44,6 +44,8 @@
   </defs>
 
   <rect width="800" height="800" fill="url(#sky)"/>
+  <!-- The art was drawn around (400, 430): moved up to the middle for the round crop. -->
+  <g transform="translate(0 -30)">
   <circle cx="400" cy="430" r="300" fill="url(#halo)"/>
 
   <!-- radar rings and sweep -->
@@ -92,10 +94,11 @@
 
   <!-- falling leaves -->
   <g stroke-width="3" stroke-linecap="round">
-    <use href="#leaf" xlink:href="#leaf" transform="translate(150 150) rotate(-35) scale(1.5)" fill="#e2672c" stroke="#8c3a12"/>
+    <use href="#leaf" xlink:href="#leaf" transform="translate(190 195) rotate(-35) scale(1.4)" fill="#e2672c" stroke="#8c3a12"/>
     <use href="#leaf" xlink:href="#leaf" transform="translate(655 170) rotate(40) scale(1.25)" fill="#f2b13b" stroke="#8c5a12"/>
     <use href="#leaf" xlink:href="#leaf" transform="translate(120 600) rotate(-70) scale(1.15)" fill="#c8402a" stroke="#6e1d10"/>
     <use href="#leaf" xlink:href="#leaf" transform="translate(690 610) rotate(65) scale(1.4)" fill="#d98b2b" stroke="#7a4a10"/>
     <use href="#leaf" xlink:href="#leaf" transform="translate(560 90) rotate(15) scale(0.95)" fill="#c8402a" stroke="#6e1d10"/>
+  </g>
   </g>
 </svg>
