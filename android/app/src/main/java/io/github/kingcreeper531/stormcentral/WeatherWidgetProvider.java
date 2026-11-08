@@ -91,6 +91,51 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
 
     // ---- Refresh -----------------------------------------------------------
 
+    /**
+     * Refetches the forecast when it is stale and any widget is placed, then
+     * redraws every widget; blocks, so call it off the main thread. The
+     * 15-minute background check ({@link AlertsWorker}) calls this: WorkManager
+     * runs it with a network even while the phone dozes, when the system's own
+     * widget updates (every 30 minutes at best) often have none.
+     */
+    static void refreshNow(Context context) {
+        Context app = context.getApplicationContext();
+        JSONObject snapshot = WeatherWidgetData.read(app);
+        if (hasWidgets(app)
+                && WeatherWidgetData.needsRefresh(app, snapshot, System.currentTimeMillis())
+                && REFRESHING.compareAndSet(false, true)) {
+            try {
+                double[] coordinates = WeatherWidgetData.coordinates(snapshot);
+                JSONObject merged = WeatherWidgetData.storeForecast(
+                        app, coordinates, WeatherWidgetData.fetchForecast(app, coordinates[0], coordinates[1]));
+                if (merged != null) snapshot = merged;
+            } catch (Exception e) {
+                // Network or parse failure: keep showing the stored snapshot.
+                Log.w(TAG, "Widget refresh failed", e);
+            } finally {
+                REFRESHING.set(false);
+            }
+        }
+        renderAll(app, snapshot);
+    }
+
+    /** Whether any Storm Central widget, of any style, is on the home screen. */
+    private static boolean hasWidgets(Context context) {
+        AppWidgetManager manager = AppWidgetManager.getInstance(context);
+        if (manager == null) return false;
+        for (Class<?> cls : new Class<?>[] {
+                WeatherWidgetProvider.class, CompactWidgetProvider.class, HourlyWidgetProvider.class,
+                DailyWidgetProvider.class, ClockWidgetProvider.class}) {
+            try {
+                int[] ids = manager.getAppWidgetIds(new ComponentName(context, cls));
+                if (ids != null && ids.length > 0) return true;
+            } catch (RuntimeException ignored) {
+                // Treat as none of this style.
+            }
+        }
+        return false;
+    }
+
     private static void refreshAsync(BroadcastReceiver receiver, Context context, final double[] coordinates) {
         if (coordinates == null || !REFRESHING.compareAndSet(false, true)) return;
         final Context app = context.getApplicationContext();

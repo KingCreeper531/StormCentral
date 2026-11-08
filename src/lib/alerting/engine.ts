@@ -242,8 +242,10 @@ export interface WidgetSnapshot {
   updated: string;
 }
 
-const WIDGET_DAYS = 5;
-const WIDGET_HOURS = 6;
+// More than the widgets show (5 days, 6 hours): the extra lets them keep a forecast when the
+// next refresh is late (the phone dozing with the app closed) instead of running out.
+const WIDGET_DAYS = 7;
+const WIDGET_HOURS = 24;
 
 function widgetForecast(f: Forecast, now: number): Pick<WidgetSnapshot, "days" | "hours"> {
   const days: NonNullable<WidgetSnapshot["days"]> = [];
@@ -296,6 +298,24 @@ export function widgetSnapshot(
     note: note && Date.parse(note.until) > now ? note : null,
     updated: new Date(now).toISOString(),
   };
+}
+
+/**
+ * A background refresh whose forecast or warnings download failed keeps the
+ * last ones it had for the same place, instead of blanking the widget ("No
+ * data yet" until the app is opened). An expired warning is still dropped.
+ */
+export function keepLastGood(
+  next: WidgetSnapshot,
+  prev: WidgetSnapshot | null,
+  got: { forecast: boolean; alerts: boolean },
+  now: number,
+): WidgetSnapshot {
+  if (!prev || Math.abs(prev.place.lat - next.place.lat) > 1e-4 || Math.abs(prev.place.lon - next.place.lon) > 1e-4) return next;
+  let out = next;
+  if (!got.forecast && prev.now) out = { ...out, now: prev.now, days: prev.days, hours: prev.hours, updated: prev.updated };
+  if (!got.alerts && prev.alert && Date.parse(prev.alert.until) > now) out = { ...out, alert: prev.alert };
+  return out;
 }
 
 /**

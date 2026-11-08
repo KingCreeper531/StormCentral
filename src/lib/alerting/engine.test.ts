@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { WeatherAlert } from "../api/types";
 import type { Forecast } from "../api/open-meteo";
-import { alertCategory, alertMatchesLevel, checkRules, checkWarnings, widgetSnapshot, type EngineIO } from "./engine";
+import { alertCategory, alertMatchesLevel, checkRules, checkWarnings, keepLastGood, widgetSnapshot, type EngineIO } from "./engine";
 import { clockAt, clockFromIso, dayKeyAt, hashId } from "./format";
 import { describeRule, firstHit, fromDisplay, toDisplay } from "./metrics";
 import type { AppNotification, WatchConfig } from "./types";
@@ -182,10 +182,35 @@ describe("widget snapshot", () => {
       daily: { time: Array.from({ length: 7 }, (_, i) => day0 + i * 86400), code: [1, 2, 3, 61, 95, 0, 0], tMax: [30, 31, 32, 33, 34, 35, 36], tMin: [10, 11, 12, 13, 14, 15, 16] },
     } as unknown as Forecast;
     const s = widgetSnapshot({ id: "current", name: "Norman, OK", lat: 35.22, lon: -97.44 }, "F", f, null, NOW);
-    expect(s.days?.map((d) => d.date)).toEqual(["2026-05-20", "2026-05-21", "2026-05-22", "2026-05-23", "2026-05-24"]);
+    expect(s.days?.map((d) => d.date)).toEqual(["2026-05-20", "2026-05-21", "2026-05-22", "2026-05-23", "2026-05-24", "2026-05-25", "2026-05-26"]);
     expect(s.days?.[0]).toMatchObject({ code: 1, hiC: 30, loC: 10 });
     expect(s.hours?.[0]).toEqual({ time: "2026-05-20T21:00:00.000Z", code: 3, tempC: 21 });
-    expect(s.hours).toHaveLength(6);
+    // Every remaining hour from the current one (up to 24), so a late refresh doesn't run the widget dry.
+    expect(s.hours).toHaveLength(9);
+  });
+  it("keeps the last forecast and warning when a background download fails", () => {
+    const place = { id: "current", name: "Norman, OK", lat: 35.22, lon: -97.44 };
+    const until = new Date(NOW + 3_600_000).toISOString();
+    const prev = {
+      ...widgetSnapshot(place, "F", null, null, NOW - 900_000),
+      now: { tempC: 20, code: 1, text: "Mainly clear", hiC: 25, loC: 12, isDay: true, time: new Date(NOW - 900_000).toISOString() },
+      hours: [{ time: new Date(NOW).toISOString(), code: 1, tempC: 20 }],
+      days: [{ date: "2026-05-20", code: 1, hiC: 25, loC: 12 }],
+      alert: { event: "Tornado Warning", until },
+    };
+    const failed = widgetSnapshot(place, "F", null, null, NOW);
+    const kept = keepLastGood(failed, prev, { forecast: false, alerts: false }, NOW);
+    expect(kept.now?.tempC).toBe(20);
+    expect(kept.hours).toEqual(prev.hours);
+    expect(kept.days).toEqual(prev.days);
+    expect(kept.updated).toBe(prev.updated);
+    expect(kept.alert?.event).toBe("Tornado Warning");
+    // A warning that has expired, or a successful download, is not carried over.
+    expect(keepLastGood(failed, { ...prev, alert: { event: "Tornado Warning", until: new Date(NOW - 1).toISOString() } }, { forecast: false, alerts: false }, NOW).alert).toBeNull();
+    expect(keepLastGood(failed, prev, { forecast: true, alerts: true }, NOW)).toBe(failed);
+    // Another place: nothing of the old one.
+    const moved = widgetSnapshot({ ...place, lat: 40, lon: -100 }, "F", null, null, NOW);
+    expect(keepLastGood(moved, prev, { forecast: false, alerts: false }, NOW)).toBe(moved);
   });
 });
 
