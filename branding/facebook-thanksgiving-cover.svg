@@ -1,10 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1640 624" width="1640" height="624">
   <!--
-    Storm Central's Thanksgiving cover for the Facebook Page: 1640x624 (twice
-    Facebook's 820x312). Phones show only the middle (about x 262-1378), and the
-    Page picture covers the lower left on computers, so the words and the
-    turkey (the channel picture's, branding/youtube-thanksgiving.svg) sit in the
-    middle.
+    Storm Central's Thanksgiving cover for the Facebook Page: 1640x624 (twice Facebook's 820x312). The Page's
+    profile picture covers the lower left (about x 0-690, y 250 down) on phones
+    and computers alike, so the words and the art sit to the right of it.
   -->
   <defs>
     <radialGradient id="sky" cx="50%" cy="46%" r="62%">
@@ -43,7 +41,7 @@
     </g>
     <path id="leaf" d="M0 -26 C 14 -18 18 -2 0 26 C -18 -2 -14 -18 0 -26 Z M0 -22 V 30"/>
   
-    <radialGradient id="cover-sky" cx="62%" cy="45%" r="75%">
+    <radialGradient id="cover-sky" cx="78%" cy="45%" r="75%">
       <stop offset="0" stop-color="#5a2a14"/>
       <stop offset="0.55" stop-color="#2e140a"/>
       <stop offset="1" stop-color="#140804"/>
@@ -55,15 +53,15 @@
   </defs>
 
   <rect width="1640" height="624" fill="url(#cover-sky)"/>
-  <circle cx="1150" cy="312" r="300" fill="url(#halo)"/>
+  <circle cx="1455" cy="312" r="215" fill="url(#halo)"/>
 
   <!-- radar rings around the turkey -->
-  <circle cx="1150" cy="312" r="255" fill="none" stroke="#ffb347" stroke-opacity=".45" stroke-width="4"/>
-  <circle cx="1150" cy="312" r="195" fill="none" stroke="#ffb347" stroke-opacity=".25" stroke-width="3"/>
-  <path d="M1150 312 L1405 312 A255 255 0 0 1 1330 492 Z" fill="#ffb347" opacity=".13"/>
+  <circle cx="1455" cy="312" r="172" fill="none" stroke="#ffb347" stroke-opacity=".45" stroke-width="3.5"/>
+  <circle cx="1455" cy="312" r="134" fill="none" stroke="#ffb347" stroke-opacity=".25" stroke-width="2.5"/>
+  <path d="M1455 312 L1627 312 A172 172 0 0 1 1577 434 Z" fill="#ffb347" opacity=".13"/>
 
   <!-- the turkey from the channel picture -->
-  <g transform="translate(1150 318) scale(0.56) translate(-400 -430)">
+  <g transform="translate(1455 318) scale(0.38) translate(-400 -430)">
   <!-- tail: the radar colour scale, red in the middle -->
   <use href="#feather" xlink:href="#feather" transform="rotate(-80 400 470)" fill="#2fa84f"/>
   <use href="#feather" xlink:href="#feather" transform="rotate(80 400 470)" fill="#2fa84f"/>
@@ -105,21 +103,21 @@
 
   <!-- words -->
   <g font-family="Inter, 'Segoe UI', Roboto, Arial, sans-serif" text-anchor="start">
-    <text x="300" y="250" font-size="88" font-weight="800" fill="url(#title)" letter-spacing="-1.5">Happy</text>
-    <text x="300" y="345" font-size="88" font-weight="800" fill="url(#title)" letter-spacing="-1.5">Thanksgiving</text>
-    <text x="304" y="408" font-size="34" font-weight="600" fill="#ffb347">from all of us at Storm Central</text>
-    <text x="304" y="456" font-size="24" font-weight="500" fill="#e9c9a3" fill-opacity=".85">Safe travels! Live radar: stormcentralwx.com</text>
+    <text x="720" y="250" font-size="80" font-weight="800" fill="url(#title)" letter-spacing="-1.5">Happy</text>
+    <text x="720" y="340" font-size="80" font-weight="800" fill="url(#title)" letter-spacing="-1.5">Thanksgiving</text>
+    <text x="724" y="408" font-size="34" font-weight="600" fill="#ffb347">from all of us at Storm Central</text>
+    <text x="724" y="456" font-size="24" font-weight="500" fill="#e9c9a3" fill-opacity=".85">Safe travels! Live radar: stormcentralwx.com</text>
   </g>
 
   <!-- falling leaves -->
   <g stroke-width="3" stroke-linecap="round">
     <use href="#leaf" xlink:href="#leaf" transform="translate(120 90) rotate(-35) scale(1.6)" fill="#e2672c" stroke="#8c3a12"/>
-    <use href="#leaf" xlink:href="#leaf" transform="translate(330 520) rotate(-60) scale(1.3)" fill="#c8402a" stroke="#6e1d10"/>
+    <use href="#leaf" xlink:href="#leaf" transform="translate(330 200) rotate(-60) scale(1.3)" fill="#c8402a" stroke="#6e1d10"/>
     <use href="#leaf" xlink:href="#leaf" transform="translate(560 70) rotate(20) scale(1.1)" fill="#f2b13b" stroke="#8c5a12"/>
-    <use href="#leaf" xlink:href="#leaf" transform="translate(905 560) rotate(55) scale(1.35)" fill="#d98b2b" stroke="#7a4a10"/>
+    <use href="#leaf" xlink:href="#leaf" transform="translate(1000 560) rotate(55) scale(1.2)" fill="#d98b2b" stroke="#7a4a10"/>
     <use href="#leaf" xlink:href="#leaf" transform="translate(1460 95) rotate(40) scale(1.5)" fill="#f2b13b" stroke="#8c5a12"/>
     <use href="#leaf" xlink:href="#leaf" transform="translate(1560 480) rotate(70) scale(1.7)" fill="#e2672c" stroke="#8c3a12"/>
-    <use href="#leaf" xlink:href="#leaf" transform="translate(1330 560) rotate(-25) scale(1.0)" fill="#c8402a" stroke="#6e1d10"/>
-    <use href="#leaf" xlink:href="#leaf" transform="translate(760 140) rotate(-15) scale(0.9)" fill="#d98b2b" stroke="#7a4a10"/>
+    <use href="#leaf" xlink:href="#leaf" transform="translate(1240 575) rotate(-25) scale(0.9)" fill="#c8402a" stroke="#6e1d10"/>
+    <use href="#leaf" xlink:href="#leaf" transform="translate(900 95) rotate(-15) scale(0.9)" fill="#d98b2b" stroke="#7a4a10"/>
   </g>
 </svg>
