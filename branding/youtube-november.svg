@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 800 800" width="800" height="800">
+  <!--
+    Storm Central's November channel picture: the app's radar rings, sweep and
+    bolt in autumn amber, with fall leaves swirling in toward the middle as if
+    the sweep were blowing them. 800x800; everything that matters sits inside
+    YouTube's round crop.
+  -->
+  <defs>
+    <radialGradient id="sky" cx="50%" cy="46%" r="62%">
+      <stop offset="0" stop-color="#4a2410"/>
+      <stop offset="0.6" stop-color="#26110a"/>
+      <stop offset="1" stop-color="#120704"/>
+    </radialGradient>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffb347" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bolt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff3a3"/>
+      <stop offset="1" stop-color="#fdd835"/>
+    </linearGradient>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="10"/></filter>
+    <g id="maple">
+      <path d="M0 -30 L6 -16 L14 -21 L12 -6 L27 -11 L21 0 L29 6 L14 9 L17 19 L4 13 L1 26 L-1 26 L-4 13 L-17 19 L-14 9 L-29 6 L-21 0 L-27 -11 L-12 -6 L-14 -21 L-6 -16 Z" stroke-linejoin="round"/>
+      <path d="M0 26 L0 38 M0 18 L0 -18 M0 4 L14 -4 M0 4 L-14 -4" fill="none" stroke-opacity=".55"/>
+    </g>
+  </defs>
+  <rect width="800" height="800" fill="url(#sky)"/>
+  <!-- The art was drawn around (400, 430): moved up to the middle for the round crop. -->
+  <g transform="translate(0 -30)">
+  <circle cx="400" cy="430" r="300" fill="url(#halo)"/>
+  <path d="M400 430 L730 430 A330 330 0 0 1 633 663 Z" fill="#ffb347" opacity=".16"/>
+  <circle cx="400" cy="430" r="330" fill="none" stroke="#ffb347" stroke-opacity=".55" stroke-width="5.0"/>
+  <circle cx="400" cy="430" r="265" fill="none" stroke="#ffb347" stroke-opacity=".32" stroke-width="4.0"/>
+  <circle cx="400" cy="430" r="200" fill="none" stroke="#ffb347" stroke-opacity=".2" stroke-width="3.0"/>
+  <path d="M35 14 L26 34 h7 l-4 16 L41 28 h-7 z" transform="translate(132.0 174.0) scale(8.00)" fill="#ffd54f" opacity=".55" filter="url(#soft)"/>
+  <path d="M35 14 L26 34 h7 l-4 16 L41 28 h-7 z" transform="translate(132.0 174.0) scale(8.00)" fill="url(#bolt)" stroke="#a8650a" stroke-width="0.6" stroke-linejoin="round"/>
+  <g stroke-width="2.5" transform="translate(400 430) scale(0.9) translate(-400 -430)">
+    <use href="#maple" xlink:href="#maple" transform="translate(340 90) rotate(320) scale(1.90)" fill="#c8402a" stroke="#6e1d10"/>
+    <use href="#maple" xlink:href="#maple" transform="translate(527 130) rotate(46) scale(1.82)" fill="#e2672c" stroke="#8c3a12"/>
+    <use href="#maple" xlink:href="#maple" transform="translate(654 259) rotate(72) scale(1.74)" fill="#f59a23" stroke="#8c5a12"/>
+    <use href="#maple" xlink:href="#maple" transform="translate(686 425) rotate(98) scale(1.66)" fill="#f2c43b" stroke="#8c6a12"/>
+    <use href="#maple" xlink:href="#maple" transform="translate(626 571) rotate(124) scale(1.58)" fill="#8aa83a" stroke="#45561a"/>
+    <use href="#maple" xlink:href="#maple" transform="translate(505 654) rotate(150) scale(1.50)" fill="#c8402a" stroke="#6e1d10"/>
+    <use href="#maple" xlink:href="#maple" transform="translate(368 656) rotate(176) scale(1.42)" fill="#e2672c" stroke="#8c3a12"/>
+    <use href="#maple" xlink:href="#maple" transform="translate(263 587) rotate(202) scale(1.34)" fill="#f59a23" stroke="#8c5a12"/>
+    <use href="#maple" xlink:href="#maple" transform="translate(218 482) rotate(228) scale(1.26)" fill="#f2c43b" stroke="#8c6a12"/>
+    <use href="#maple" xlink:href="#maple" transform="translate(238 380) rotate(314) scale(1.18)" fill="#8aa83a" stroke="#45561a"/>
+    <use href="#maple" xlink:href="#maple" transform="translate(304 315) rotate(340) scale(1.10)" fill="#c8402a" stroke="#6e1d10"/>
+  </g>
+  </g>
+</svg>
