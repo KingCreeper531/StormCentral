@@ -248,6 +248,19 @@ Meta's Graph API is free.
 | `FB_CARDS` | on | `false` to post text and a link without the picture |
 | `FB_REELS` | on | `false` to stop posting each Short to the Page as a Reel too (`youtube-shorts.yml`, `youtube-breaking.yml`; full-length videos never are) |
 
+## YouTube statistics
+
+**Actions → YouTube stats → Run workflow** writes a report into the run's
+summary: every video's views, likes and comments, grouped by kind (each kind
+has its own playlist) with the best median first, and the top 15 videos.
+
+Watch time (how much of each Short people watch, the best sign of what to make
+more of) needs one more scope on the refresh token. Make a new one as in
+step 4 with both scopes, separated by a space:
+`https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/yt-analytics.readonly`,
+and put it in the `YT_REFRESH_TOKEN` secret. Without it the report has
+everything else and says watch time is missing.
+
 ## A reliable schedule (cron-job.org)
 
 GitHub often starts scheduled runs late or drops them. For posts on time, let a free outside scheduler start the workflows instead (the GitHub schedules stay as a backup; each kind still posts once a day, and each breaking event once).

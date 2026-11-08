@@ -1,0 +1,25 @@
+# How the YouTube channel's videos are doing, by kind (playlist): views, likes,
+# and watch time when the refresh token allows it. Read-only; the report is the
+# run's summary. Run it from the Actions tab (YouTube stats → Run workflow).
+name: YouTube stats
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Build
+        run: npx --yes esbuild@0.28.2 shorts/stats.ts --bundle --platform=node --format=esm --target=node22 --outfile="$RUNNER_TEMP/stats.mjs" --log-level=warning
+      - name: Report
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: node "$RUNNER_TEMP/stats.mjs"
