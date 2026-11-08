@@ -39,12 +39,26 @@ const placeOf = (r: StormReport) => {
   return [name, r.state].filter(Boolean).join(", ");
 };
 
-/** Only severe thunderstorm reports over land: tornadoes, severe hail, severe gusts and wind damage. */
+/** Territories the Shorts' US map doesn't draw (it has the 50 states): a report there would be counted and named but missing from the map. */
+const OFF_MAP_STATES = new Set(["PR", "VI", "GU", "AS", "MP"]);
+
+/** Whether a report is somewhere the US map draws: not a territory, by its state code or, without one, by where it is (Puerto Rico and the Virgin Islands). */
+export function onUsMap(r: { state: string | null; lat: number; lon: number }): boolean {
+  if (r.state && OFF_MAP_STATES.has(r.state.toUpperCase())) return false;
+  return !(r.lat < 20 && r.lon > -68 && r.lon < -64);
+}
+
+/**
+ * Only severe thunderstorm reports over land in the 50 states: tornadoes, severe
+ * hail, severe gusts and wind damage. Waterspouts (counted as tornadoes in the
+ * app) aren't tornado reports here: SPC's daily counts leave them out too.
+ */
 export function severeReports(reports: StormReport[]): RecapReport[] {
   const out: RecapReport[] = [];
   for (const r of reports) {
     const t = r.typeText.toUpperCase();
-    if (t.startsWith("MARINE") || t.includes("NON-TSTM") || t.includes("NON TSTM")) continue;
+    if (t.startsWith("MARINE") || t.includes("NON-TSTM") || t.includes("NON TSTM") || t.includes("WATERSPOUT")) continue;
+    if (!onUsMap(r)) continue;
     let kind: RecapKind | null = null;
     if (r.kind === "tornado") kind = "tornado";
     else if (r.kind === "hail" && (r.magnitude ?? 0) >= SEVERE_HAIL_IN) kind = "hail";

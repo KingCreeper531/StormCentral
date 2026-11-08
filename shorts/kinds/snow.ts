@@ -11,6 +11,7 @@ import type { StormReport } from "../../src/lib/feeds/storm-reports";
 import { DISCLAIMER, DISCLAIMER_ES, fitTitle, LINK_LINE, LINK_LINE_ES, longDayEs, shortDayEn, shortDayEs } from "../meta";
 import { STATE_NAMES } from "../narration";
 import { getJson, readVendor } from "../source";
+import { onUsMap } from "./recap";
 import type { Kind } from "../video";
 
 const IEM_LSR = "https://mesonet.agron.iastate.edu/geojson/lsr.geojson";
@@ -47,6 +48,7 @@ export function snowReports(reports: StormReport[]): SnowReport[] {
   for (const r of reports) {
     const t = r.typeText.toUpperCase();
     if (r.kind !== "snow" || !/SNOW|BLIZZARD/.test(t) || /SLEET|FREEZING|\bICE\b/.test(t)) continue;
+    if (!onUsMap(r)) continue;
     if (r.unit && !/^INCH/i.test(r.unit)) continue;
     const inches = r.magnitude ?? 0;
     if (inches < 0.1 || inches > MAX_IN) continue;

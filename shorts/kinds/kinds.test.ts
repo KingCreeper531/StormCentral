@@ -56,6 +56,18 @@ describe("storm report recap", () => {
     expect(s.wind?.magnitude).toBe(70);
   });
 
+  it("leaves out what the US map can't show and waterspouts", () => {
+    const kept = severeReports([
+      report({ kind: "tornado", typeText: "TORNADO", magnitude: null, state: "PR", place: "2 N BAYAMON", lat: 18.4, lon: -66.16 }),
+      report({ kind: "tornado", typeText: "TORNADO", magnitude: null, state: null, place: "CHARLOTTE AMALIE", lat: 18.34, lon: -64.93 }),
+      report({ kind: "tornado", typeText: "WATERSPOUT", magnitude: null, state: "FL", place: "2 S KEY WEST", lat: 24.53, lon: -81.8 }),
+      report({ magnitude: 1.5, state: "HI", place: "HILO", lat: 19.72, lon: -155.09 }),
+      report({ magnitude: 1.25, state: "FL", place: "KEY WEST", lat: 24.55, lon: -81.78 }),
+    ]);
+    expect(kept.map((r) => r.place)).toEqual(["Hilo, HI", "Key West, FL"]);
+    expect(summarize(kept).counts.tornado).toBe(0);
+  });
+
   it("is an active day with any tornado report, or 15 severe reports", () => {
     expect(isActive(s)).toBe(true);
     const hailOnly = summarize(severeReports(Array.from({ length: 14 }, () => report({}))));
