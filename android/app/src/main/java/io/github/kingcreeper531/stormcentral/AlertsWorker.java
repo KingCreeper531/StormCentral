@@ -107,9 +107,10 @@ public final class AlertsWorker extends Worker {
         } catch (Exception e) {
             result = "error: " + e.getClass().getSimpleName();
         }
-        // The background runner may have written a new warning into the widget snapshot: show it now.
+        // Keep the widgets' forecast fresh without the app being opened, and show any new
+        // warning the background runner wrote into the snapshot.
         try {
-            WeatherWidgetProvider.updateAll(ctx);
+            WeatherWidgetProvider.refreshNow(ctx);
         } catch (Exception ignored) {
             // No widgets, or none placed.
         }

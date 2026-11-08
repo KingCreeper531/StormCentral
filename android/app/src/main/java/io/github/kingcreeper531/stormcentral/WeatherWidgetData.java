@@ -55,6 +55,13 @@ final class WeatherWidgetData {
     /** Forecast lengths the widgets show (the hourly list also has the current hour). */
     static final int DAYS = 5;
     static final int HOURS = 5;
+    /**
+     * Forecast lengths stored: more than shown, so the widgets still have a
+     * forecast when the next refresh comes late (the phone dozing with the app
+     * closed) instead of running out and showing "No data yet".
+     */
+    static final int STORED_DAYS = 7;
+    static final int STORED_HOURS = 24;
 
     /** A snapshot whose conditions are newer than this is not refetched. */
     private static final long FRESH_MS = 10 * 60 * 1000L;
@@ -288,7 +295,7 @@ final class WeatherWidgetData {
                         + "&hourly=temperature_2m,weather_code"
                         + "&daily=weather_code,temperature_2m_max,temperature_2m_min"
                         + "&timezone=auto&forecast_days=%d&forecast_hours=%d",
-                lat, lon, DAYS, HOURS + 1)
+                lat, lon, STORED_DAYS, STORED_HOURS)
                 + (model == null ? "" : "&models=" + model);
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         try {
@@ -338,8 +345,8 @@ final class WeatherWidgetData {
         String loc = String.format(Locale.US, "location.latitude=%.3f&location.longitude=%.3f&key=%s",
                 lat, lon, java.net.URLEncoder.encode(key, "UTF-8"));
         JSONObject current = getJson(base + "currentConditions:lookup?" + loc);
-        JSONObject daysBody = getJson(base + "forecast/days:lookup?" + loc + "&days=" + DAYS + "&pageSize=" + DAYS);
-        JSONObject hoursBody = getJson(base + "forecast/hours:lookup?" + loc + "&hours=" + (HOURS + 1) + "&pageSize=" + (HOURS + 1));
+        JSONObject daysBody = getJson(base + "forecast/days:lookup?" + loc + "&days=" + STORED_DAYS + "&pageSize=" + STORED_DAYS);
+        JSONObject hoursBody = getJson(base + "forecast/hours:lookup?" + loc + "&hours=" + STORED_HOURS + "&pageSize=" + STORED_HOURS);
 
         double tempC = current.optJSONObject("temperature") == null ? Double.NaN : current.getJSONObject("temperature").optDouble("degrees", Double.NaN);
         if (Double.isNaN(tempC)) throw new JSONException("Google returned no temperature");
@@ -357,7 +364,7 @@ final class WeatherWidgetData {
 
         JSONArray days = new JSONArray();
         JSONArray rawDays = daysBody.optJSONArray("forecastDays");
-        for (int i = 0; rawDays != null && i < rawDays.length() && days.length() < DAYS; i++) {
+        for (int i = 0; rawDays != null && i < rawDays.length() && days.length() < STORED_DAYS; i++) {
             JSONObject d = rawDays.optJSONObject(i);
             JSONObject date = d == null ? null : d.optJSONObject("displayDate");
             if (date == null) continue;
@@ -465,7 +472,7 @@ final class WeatherWidgetData {
         JSONObject daily = body.optJSONObject("daily");
         JSONArray dates = daily == null ? null : daily.optJSONArray("time");
         if (dates == null) return out;
-        for (int i = 0; i < dates.length() && out.length() < DAYS; i++) {
+        for (int i = 0; i < dates.length() && out.length() < STORED_DAYS; i++) {
             String date = dates.optString(i, "");
             if (date.length() < 10) continue;
             JSONObject day = new JSONObject();
@@ -488,7 +495,7 @@ final class WeatherWidgetData {
         JSONArray times = hourly == null ? null : hourly.optJSONArray("time");
         if (times == null) return out;
         long offset = body.optLong("utc_offset_seconds", 0L) * 1000L;
-        for (int i = 0; i < times.length() && out.length() < HOURS + 1; i++) {
+        for (int i = 0; i < times.length() && out.length() < STORED_HOURS; i++) {
             long local = parseIso(times.optString(i, null));
             double temp = at(hourly, "temperature_2m", i);
             if (local == NO_TIME || Double.isNaN(temp)) continue;

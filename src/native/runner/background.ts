@@ -15,7 +15,7 @@
  */
 import { normalizeAlerts, type RawAlertFeature } from "../../lib/alerts";
 import { airQualityUrl, forecastUrl, parseAirQuality, parseForecast } from "../../lib/api/open-meteo";
-import { checkRules, checkWarnings, widgetSnapshot, carryNote, type EngineIO, type WidgetSnapshot } from "../../lib/alerting/engine";
+import { checkRules, checkWarnings, widgetSnapshot, carryNote, keepLastGood, type EngineIO, type WidgetSnapshot } from "../../lib/alerting/engine";
 import { CURRENT_PLACE_ID, type AppNotification, type WatchConfig } from "../../lib/alerting/types";
 import { hasForecastData } from "../../lib/forecast-sources";
 import { fetchGoogleForecast } from "../../lib/google-weather";
@@ -140,7 +140,7 @@ async function check() {
     const last = Number(kvGet("widgetGoogleAt") ?? 0);
     if (samePlace && prev?.now && now - last < GOOGLE_EVERY_MS) {
       const fresh = widgetSnapshot(place, prev.unit, null, placeAlerts, now, note, cfg.lang ?? "en");
-      CapacitorKV.set("widget", JSON.stringify({ ...fresh, now: prev.now, days: prev.days, hours: prev.hours, updated: prev.updated }));
+      CapacitorKV.set("widget", JSON.stringify(keepLastGood(fresh, prev, { forecast: false, alerts: placeAlerts != null }, now)));
       return;
     }
     if (f) {
@@ -154,7 +154,8 @@ async function check() {
   }
 
   const snapshot = widgetSnapshot(place, prev?.unit ?? cfg.units.temp, f, placeAlerts, now, note, cfg.lang ?? "en");
-  CapacitorKV.set("widget", JSON.stringify(snapshot));
+  // A failed download (no network while the phone dozes) keeps the last forecast and warning rather than blanking the widget.
+  CapacitorKV.set("widget", JSON.stringify(keepLastGood(snapshot, prev, { forecast: f != null, alerts: placeAlerts != null }, now)));
 }
 
 addEventListener("sync", (resolve, reject, args) => {
