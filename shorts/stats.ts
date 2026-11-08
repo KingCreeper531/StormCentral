@@ -1,7 +1,9 @@
 /**
  * How the channel's videos are doing, by playlist (each Short kind has its
  * own: Storm Report Recaps, Severe Outlooks…): views, likes and comments from
- * the YouTube Data API, plus watch time and how much of each video people
+ * the YouTube Data API, what the API shows of the channel's health (long
+ * uploads taken away, rejected, age-restricted, blocked or made-for-kids
+ * videos), plus watch time and how much of each video people
  * watch from the YouTube Analytics API when the refresh token allows it (the
  * yt-analytics.readonly scope; without it the report says so and carries on).
  * Prints a Markdown report, also to the job summary. Read-only.
@@ -23,6 +25,8 @@ export interface VideoStats {
   likes: number;
   comments: number;
   playlists: string[];
+  /** Problems the API shows on the video ("age-restricted", "rejected: duplicate"…); empty when none. */
+  flags: string[];
   /** From YouTube Analytics, when allowed: average seconds watched and percent of the video watched. */
   avgSeconds?: number;
   avgPercent?: number;
@@ -74,17 +78,68 @@ export function groupByPlaylist(videos: VideoStats[]): GroupStats[] {
     .sort((a, b) => b.medianViews - a.medianViews || b.views - a.views);
 }
 
+export interface VideoStatus {
+  status?: { privacyStatus?: string; uploadStatus?: string; rejectionReason?: string; failureReason?: string; madeForKids?: boolean };
+  contentDetails?: { regionRestriction?: { blocked?: string[]; allowed?: string[] }; contentRating?: { ytRating?: string } };
+}
+
+/** What the Data API shows wrong with a video: not public, rejected or failed, made for kids, age-restricted, region-blocked. */
+export function videoFlags(v: VideoStatus): string[] {
+  const out: string[] = [];
+  const st = v.status ?? {};
+  if (st.privacyStatus && st.privacyStatus !== "public") out.push(st.privacyStatus);
+  if (st.uploadStatus === "rejected") out.push(`rejected${st.rejectionReason ? `: ${st.rejectionReason}` : ""}`);
+  if (st.uploadStatus === "failed") out.push(`failed${st.failureReason ? `: ${st.failureReason}` : ""}`);
+  if (st.madeForKids) out.push("made for kids");
+  if (v.contentDetails?.contentRating?.ytRating === "ytAgeRestricted") out.push("age-restricted");
+  const r = v.contentDetails?.regionRestriction;
+  if (r?.blocked?.length) out.push(`blocked in ${r.blocked.length} countries`);
+  if (r?.allowed) out.push(`only allowed in ${r.allowed.length} countries`);
+  return out;
+}
+
+export interface ChannelStatus {
+  privacyStatus?: string;
+  longUploadsStatus?: string;
+  madeForKids?: boolean;
+  isLinked?: boolean;
+}
+
+/** The channel's own warning signs, in words. Long uploads are taken away ("disallowed") after strikes or guideline warnings. */
+export function channelFlags(st: ChannelStatus | undefined): string[] {
+  if (!st) return ["The API didn't return the channel's status."];
+  const out: string[] = [];
+  if (st.longUploadsStatus === "disallowed")
+    out.push("**Long uploads are disallowed.** YouTube takes them away from channels with a Community Guidelines warning or strike, or copyright strikes: check YouTube Studio → Dashboard and the Channel → Feature eligibility page.");
+  if (st.madeForKids) out.push("**The channel is set as made for kids.** That turns off comments and most recommendations: YouTube Studio → Settings → Channel → Advanced settings.");
+  if (st.privacyStatus && st.privacyStatus !== "public") out.push(`The channel is ${st.privacyStatus}.`);
+  if (st.isLinked === false) out.push("The channel isn't linked to a Google account.");
+  return out;
+}
+
 const fmt = (n: number, digits = 0) => n.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: digits });
 const cell = (s: string) => s.replace(/\|/g, "\\|");
 
-export function report(channel: { subscribers: number; views: number; videos: number }, videos: VideoStats[], analyticsNote: string | null): string {
+export function report(channel: { subscribers: number; views: number; videos: number; flags?: string[]; longUploads?: string }, videos: VideoStats[], analyticsNote: string | null): string {
   const groups = groupByPlaylist(videos);
+  const flagged = videos.filter((v) => v.flags.length);
+  const health = [
+    "## Channel health (what the API can see)",
+    "",
+    ...(channel.flags?.length ? channel.flags.map((f) => `- ${f}`) : [`- No warning signs on the channel${channel.longUploads ? ` (long uploads: ${channel.longUploads})` : ""}.`]),
+    ...(flagged.length
+      ? ["", `${flagged.length} of ${videos.length} videos have something wrong:`, "", ...flagged.map((v) => `- [${cell(v.title)}](https://youtu.be/${v.id}): ${v.flags.join(", ")}`)]
+      : ["- No video is private, rejected, age-restricted, region-blocked or made for kids."]),
+    "- Strikes, warnings and Shorts-feed reach aren't in the API: YouTube Studio's dashboard shows those.",
+    "",
+  ];
   const lines = [
     "# Storm Central on YouTube",
     "",
     `${fmt(channel.subscribers)} subscribers, ${fmt(channel.views)} views over ${fmt(channel.videos)} videos.`,
     "",
     ...(analyticsNote ? [`> ${analyticsNote}`, ""] : []),
+    ...health,
     "## By kind (playlist), best median first",
     "",
     "| Playlist | Videos | Total views | Median views | Likes per 100 views | Avg watched | Best video |",
@@ -143,8 +198,8 @@ async function main() {
   if (!creds) throw new Error("YT_CLIENT_ID, YT_CLIENT_SECRET and YT_REFRESH_TOKEN are needed.");
   const token = await accessToken(creds);
 
-  type Channel = { contentDetails?: { relatedPlaylists?: { uploads?: string } }; statistics?: { subscriberCount?: string; viewCount?: string; videoCount?: string } };
-  const [channel] = await pages<Channel>(token, `${API}/channels?part=contentDetails,statistics&mine=true`, "Reading the channel");
+  type Channel = { contentDetails?: { relatedPlaylists?: { uploads?: string } }; statistics?: { subscriberCount?: string; viewCount?: string; videoCount?: string }; status?: ChannelStatus };
+  const [channel] = await pages<Channel>(token, `${API}/channels?part=contentDetails,statistics,status&mine=true`, "Reading the channel");
   const uploads = channel?.contentDetails?.relatedPlaylists?.uploads;
   if (!uploads) throw new Error("The channel has no uploads playlist.");
 
@@ -163,10 +218,15 @@ async function main() {
     }
   }
 
-  type Video = { id: string; snippet?: { title?: string; publishedAt?: string }; contentDetails?: { duration?: string }; statistics?: { viewCount?: string; likeCount?: string; commentCount?: string } };
+  type Video = VideoStatus & {
+    id: string;
+    snippet?: { title?: string; publishedAt?: string };
+    contentDetails?: { duration?: string };
+    statistics?: { viewCount?: string; likeCount?: string; commentCount?: string };
+  };
   const videos: VideoStats[] = [];
   for (let i = 0; i < ids.length; i += 50) {
-    const batch = await get<{ items?: Video[] }>(token, `${API}/videos?part=snippet,contentDetails,statistics&id=${ids.slice(i, i + 50).join(",")}`, "Reading videos");
+    const batch = await get<{ items?: Video[] }>(token, `${API}/videos?part=snippet,contentDetails,statistics,status&id=${ids.slice(i, i + 50).join(",")}`, "Reading videos");
     for (const v of batch.items ?? [])
       videos.push({
         id: v.id,
@@ -177,6 +237,7 @@ async function main() {
         likes: Number(v.statistics?.likeCount ?? 0),
         comments: Number(v.statistics?.commentCount ?? 0),
         playlists: inPlaylists.get(v.id) ?? [],
+        flags: videoFlags(v),
       });
   }
 
@@ -203,7 +264,13 @@ async function main() {
   }
 
   const md = report(
-    { subscribers: Number(channel.statistics?.subscriberCount ?? 0), views: Number(channel.statistics?.viewCount ?? 0), videos: Number(channel.statistics?.videoCount ?? videos.length) },
+    {
+      subscribers: Number(channel.statistics?.subscriberCount ?? 0),
+      views: Number(channel.statistics?.viewCount ?? 0),
+      videos: Number(channel.statistics?.videoCount ?? videos.length),
+      flags: channelFlags(channel.status),
+      longUploads: channel.status?.longUploadsStatus,
+    },
     videos,
     analyticsNote,
   );

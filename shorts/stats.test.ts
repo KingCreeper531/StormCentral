@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { groupByPlaylist, isoSeconds, report, type VideoStats } from "./stats";
+import { channelFlags, groupByPlaylist, isoSeconds, report, videoFlags, type VideoStats } from "./stats";
 
-const v = (over: Partial<VideoStats>): VideoStats => ({ id: "a", title: "A", published: "2026-10-20T12:00:00Z", duration: 45, views: 0, likes: 0, comments: 0, playlists: [], ...over });
+const v = (over: Partial<VideoStats>): VideoStats => ({ id: "a", title: "A", published: "2026-10-20T12:00:00Z", duration: 45, views: 0, likes: 0, comments: 0, playlists: [], flags: [], ...over });
 
 describe("YouTube stats", () => {
   it("reads ISO durations", () => {
@@ -30,5 +30,24 @@ describe("YouTube stats", () => {
     expect(md).toContain("12 subscribers, 345 views over 2 videos.");
     expect(md).toContain("> Watch time isn't included.");
     expect(md).toContain("[Tornado \\| Oklahoma](https://youtu.be/x1)");
+  });
+
+  it("names what's wrong with a video", () => {
+    expect(videoFlags({ status: { privacyStatus: "public", uploadStatus: "processed" } })).toEqual([]);
+    expect(
+      videoFlags({
+        status: { privacyStatus: "private", uploadStatus: "rejected", rejectionReason: "duplicate", madeForKids: true },
+        contentDetails: { contentRating: { ytRating: "ytAgeRestricted" }, regionRestriction: { blocked: ["DE", "FR"] } },
+      }),
+    ).toEqual(["private", "rejected: duplicate", "made for kids", "age-restricted", "blocked in 2 countries"]);
+  });
+
+  it("warns when long uploads are taken away or the channel is for kids", () => {
+    expect(channelFlags({ privacyStatus: "public", longUploadsStatus: "allowed", madeForKids: false, isLinked: true })).toEqual([]);
+    const f = channelFlags({ privacyStatus: "public", longUploadsStatus: "disallowed", madeForKids: true });
+    expect(f).toHaveLength(2);
+    expect(f[0]).toContain("Long uploads are disallowed");
+    expect(report({ subscribers: 1, views: 1, videos: 1, flags: f }, [], null)).toContain("Long uploads are disallowed");
+    expect(report({ subscribers: 1, views: 1, videos: 1, flags: [], longUploads: "allowed" }, [], null)).toContain("No warning signs on the channel (long uploads: allowed)");
   });
 });
