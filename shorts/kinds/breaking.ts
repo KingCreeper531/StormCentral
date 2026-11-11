@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { normalizeAlert, type RawAlertFeature } from "../../src/lib/alerts";
 import type { WeatherAlert } from "../../src/lib/api/types";
 import { fitTitle, LINK_LINE, LINK_LINE_ES, regionOf, RISK_CODES, type GeoCollection } from "../meta";
-import { STATE_NAMES } from "../narration";
+import { forRegion, STATE_NAMES } from "../narration";
 import { getJson, readVendor, USER_AGENT } from "../source";
 import { parseOutlook } from "../spc-outlook";
 import type { Kind, KindContext, Video } from "../video";
@@ -472,7 +472,7 @@ export function breakingLines(e: BreakingEvent): BreakingLines {
   const t = TRIGGERS[e.trigger];
   const article = /^[AEIOU]/.test(t.name) ? "an" : "a";
   let intro: string;
-  if (e.trigger === "high-risk") intro = `Breaking: the Storm Prediction Center has issued a High Risk of severe storms, level 5 of 5${e.region ? `, for the ${e.region}` : ""}.`;
+  if (e.trigger === "high-risk") intro = `Breaking: the Storm Prediction Center has issued a High Risk of severe storms, level 5 of 5${e.region ? `, for ${forRegion(e.region)}` : ""}.`;
   else if (e.trigger === "pds-tornado-watch") intro = `Breaking: the Storm Prediction Center has issued a particularly dangerous situation Tornado Watch for ${placesText(e.areas)}.`;
   else if (e.trigger === "pds-tornado-warning") intro = `Breaking: the ${e.issuer} has issued a particularly dangerous situation Tornado Warning for ${placesText(e.areas)}.`;
   else intro = `Breaking: the ${e.issuer} has issued ${article} ${t.name} for ${placesText(e.areas)}.`;

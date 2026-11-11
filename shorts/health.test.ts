@@ -42,4 +42,13 @@ describe("health check", () => {
     expect(checks.filter((c) => c.name.includes("stormcentralwx.com")).map((c) => c.level)).toEqual(["ok", "ok"]);
     expect(report(checks)).toMatch(/^## All good/);
   });
+
+  it("skips the Facebook token while Facebook posting is paused", async () => {
+    const f = vi.fn(async () => new Response(JSON.stringify({ data: { is_valid: false } })));
+    const env = { FB_PAGE_TOKEN: "EAAbroken", FB_WARNINGS: "false", FB_REELS: "false" };
+    const paused = await runChecks(env, f as unknown as typeof fetch, NOW);
+    expect(paused.find((c) => c.name === "Facebook Page token")?.level).toBe("skip");
+    const live = await runChecks({ ...env, FB_REELS: undefined }, f as unknown as typeof fetch, NOW);
+    expect(live.find((c) => c.name === "Facebook Page token")?.level).toBe("problem");
+  });
 });
