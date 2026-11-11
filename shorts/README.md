@@ -209,45 +209,6 @@ official warning source.
   with body `{"ref":"main","inputs":{"scheduled":"true"}}` (same token and
   headers as below).
 
-## Warnings on Facebook
-
-`.github/workflows/facebook-warnings.yml` posts warnings to the Storm Central
-Facebook Page as the NWS issues them: every Tornado Warning, Extreme Wind
-Warning and Flash Flood Emergency, and the Severe Thunderstorm Warnings with a
-destructive damage threat (80 mph winds or baseball-size hail). A warning
-posts once; one upgraded later (to PDS or a Tornado Emergency) posts again
-as "UPGRADED". Each post has where, until when, the NWS's description of the
-storm, the threats, what to do, a link to the app, and a reminder that Storm
-Central isn't an official warning source, with a picture of the warning: its
-polygon over the radar, its title, area, end time and threats
-(`warning-card.html`). Chromium is installed only on runs with something to
-post; if the picture can't be made, the post goes up as text and a link.
-Meta's Graph API is free.
-
-1. **Secret** (Settings → Secrets and variables → Actions): `FB_PAGE_TOKEN`,
-   the Page's own access token, one that never expires. In the app, add the
-   "Manage everything on your Page" use case and, under Customize, the
-   `pages_show_list`, `pages_read_engagement` and `pages_manage_posts`
-   permissions. Then in the Graph API Explorer get a user token with those
-   three, extend it in the Access Token Debugger, run `me/accounts` with it
-   and copy the Page's `access_token` (it starts with `EAA`; not the App
-   Secret). The Page is the token's own, so `FB_PAGE_ID` is optional; if set,
-   the check warns when it's something else (the App ID, say).
-2. **Test:** Actions → Facebook warnings → Run workflow → `check`. It finds
-   the token's Page, makes a hidden post and deletes it. `dry-run` shows the posts
-   and pictures for every warning out now (the pictures are in the run's
-   artifacts), without posting.
-3. It then runs every 5 minutes on its own, and every 3 with cron-job.org
-   (run "Set up cron-job.org" again to add that job).
-
-| Variable | Default | |
-|---|---|---|
-| `FB_WARNINGS` | on | `false` to pause the posts |
-| `FB_SEVERE` | destructive only | `all` for every Severe Thunderstorm Warning (hundreds a day in spring) |
-| `FB_POSTS_PER_HOUR` | `12` | at most this many an hour; on a big outbreak the rest are skipped, the most dangerous posted first |
-| `FB_CARDS` | on | `false` to post text and a link without the picture |
-| `FB_REELS` | on | `false` to stop posting each Short to the Page as a Reel too (`youtube-shorts.yml`, `youtube-breaking.yml`; full-length videos never are) |
-
 ## YouTube statistics
 
 **Actions → YouTube stats → Run workflow** writes a report into the run's
@@ -285,7 +246,6 @@ GitHub often starts scheduled runs late or drops them. For posts on time, let a 
 | review (week in review) | 2:30 PM Sundays |
 | recap | 11:15 PM daily |
 | breaking | every 10 minutes (`youtube-breaking.yml`, body `{"ref":"main","inputs":{"scheduled":"true"}}`) |
-| facebook | every 3 minutes (`facebook-warnings.yml`, body `{"ref":"main","inputs":{"scheduled":"true"}}`) |
 
 ## Notes
 

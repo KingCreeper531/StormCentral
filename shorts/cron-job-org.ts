@@ -68,8 +68,6 @@ const PLANS: Plan[] = [
   { name: "snow", workflow: "youtube-shorts.yml", inputs: { kind: "snow" }, hours: [9], minutes: [50] },
   // Five minutes after GitHub's own every-10-minutes schedule, so together they look every 5.
   { name: "breaking", workflow: "youtube-breaking.yml", inputs: {}, hours: EVERY, minutes: [5, 15, 25, 35, 45, 55] },
-  // Warnings on Facebook: every 3 minutes (GitHub's own every-5-minutes schedule is often late).
-  { name: "facebook", workflow: "facebook-warnings.yml", inputs: {}, hours: EVERY, minutes: Array.from({ length: 20 }, (_, i) => i * 3) },
 ];
 
 /** The cron-job.org jobs that start each Short through GitHub's workflow-dispatch API. */
@@ -96,7 +94,8 @@ export function desiredJobs(repo: string, token: string): CronJob[] {
 type Fetch = typeof fetch;
 
 /**
- * Creates the jobs that don't exist yet and updates the rest. cron-job.org
+ * Creates the jobs that don't exist yet, updates the rest, and deletes this
+ * repo's jobs that are no longer wanted (a kind that was removed, say). cron-job.org
  * allows about 1 write a second, and only 5 new jobs a minute: a 429 waits
  * (Retry-After, else a minute) and tries again.
  */
@@ -120,7 +119,7 @@ export async function syncJobs(apiKey: string, jobs: CronJob[], { fetchImpl = fe
   };
   const list = (await call("GET", "/jobs")) as { jobs?: { jobId: number; title?: string }[] } | null;
   const existing = new Map((list?.jobs ?? []).filter((j) => j.title?.startsWith(PREFIX)).map((j) => [j.title!, j.jobId]));
-  const result = { created: 0, updated: 0 };
+  const result = { created: 0, updated: 0, deleted: 0 };
   for (const job of jobs) {
     const id = existing.get(job.title);
     if (id != null) {
@@ -134,6 +133,14 @@ export async function syncJobs(apiKey: string, jobs: CronJob[], { fetchImpl = fe
     }
     if (pauseMs) await new Promise((r) => setTimeout(r, pauseMs));
   }
+  const wanted = new Set(jobs.map((j) => j.title));
+  for (const [title, id] of existing) {
+    if (wanted.has(title)) continue;
+    await call("DELETE", `/jobs/${id}`);
+    result.deleted++;
+    log(`Deleted "${title}" (job ${id}): no longer used.`);
+    if (pauseMs) await new Promise((r) => setTimeout(r, pauseMs));
+  }
   return result;
 }
 
@@ -145,8 +152,8 @@ async function main() {
   if (token) console.log(`GitHub token for cron-job.org to send: the ${token.name} secret.`);
   const missing = [!key && "a cron-job.org API key secret (CRONJOB_API_KEY)", !token && "a GitHub token secret (SHORTS_DISPATCH_TOKEN)", !repo && "REPO"].filter(Boolean);
   if (missing.length) throw new Error(`Missing ${missing.join(" and ")}; see shorts/README.md, "A reliable schedule".`);
-  const { created, updated } = await syncJobs(key!.value, desiredJobs(repo!, token!.value));
-  console.log(`\nDone: ${created} created, ${updated} updated. They're listed at https://console.cron-job.org/jobs.`);
+  const { created, updated, deleted } = await syncJobs(key!.value, desiredJobs(repo!, token!.value));
+  console.log(`\nDone: ${created} created, ${updated} updated, ${deleted} deleted. They're listed at https://console.cron-job.org/jobs.`);
 }
 
 if (process.argv[1]?.endsWith("cron-job-org.mjs")) {

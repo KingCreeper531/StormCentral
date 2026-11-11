@@ -16,7 +16,6 @@ describe("cron-job.org setup", () => {
       "Storm Central: review",
       "Storm Central: snow",
       "Storm Central: breaking",
-      "Storm Central: facebook",
     ]);
     expect(jobs.find((j) => j.title.endsWith("lesson"))!.schedule).toMatchObject({ hours: [13], minutes: [20], wdays: [3] });
     const recap = jobs.find((j) => j.title.endsWith("recap"))!;
@@ -31,26 +30,24 @@ describe("cron-job.org setup", () => {
     expect(breaking.url).toContain("/youtube-breaking.yml/dispatches");
     expect(JSON.parse(breaking.extendedData.body)).toEqual({ ref: "main", inputs: { scheduled: "true" } });
     expect(breaking.schedule.minutes).toEqual([5, 15, 25, 35, 45, 55]);
-    const facebook = jobs.find((j) => j.title.endsWith("facebook"))!;
-    expect(facebook.url).toContain("/facebook-warnings.yml/dispatches");
-    expect(facebook.schedule.minutes).toEqual([0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57]);
   });
 
-  it("updates the jobs it made before and creates the rest", async () => {
+  it("updates the jobs it made before, creates the rest and deletes ones no longer wanted", async () => {
     const calls: string[] = [];
     const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       const path = String(url).replace("https://api.cron-job.org", "");
       calls.push(`${init?.method} ${path}`);
       expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer key");
-      if (init?.method === "GET") return Response.json({ jobs: [{ jobId: 7, title: "Storm Central: recap" }, { jobId: 9, title: "Someone else's job" }] });
+      if (init?.method === "GET") return Response.json({ jobs: [{ jobId: 7, title: "Storm Central: recap" }, { jobId: 8, title: "Storm Central: facebook" }, { jobId: 9, title: "Someone else's job" }] });
       if (init?.method === "PUT") return Response.json({ jobId: 100 });
       return new Response("{}");
     });
     const r = await syncJobs("key", jobs, { fetchImpl: fetchImpl as typeof fetch, pauseMs: 0, log: () => {} });
-    expect(r).toEqual({ created: 10, updated: 1 });
+    expect(r).toEqual({ created: 9, updated: 1, deleted: 1 });
+    expect(calls).toContain("DELETE /jobs/8");
     expect(calls[0]).toBe("GET /jobs");
     expect(calls).toContain("PATCH /jobs/7");
-    expect(calls.filter((c) => c === "PUT /jobs")).toHaveLength(10);
+    expect(calls.filter((c) => c === "PUT /jobs")).toHaveLength(9);
     expect(calls.some((c) => c.includes("/jobs/9"))).toBe(false);
   });
 
@@ -64,7 +61,7 @@ describe("cron-job.org setup", () => {
     });
     const waits: string[] = [];
     const r = await syncJobs("key", jobs, { fetchImpl: fetchImpl as typeof fetch, pauseMs: 0, retryMs: 1, log: (m: string) => waits.push(m) });
-    expect(r).toEqual({ created: 11, updated: 0 });
+    expect(r).toEqual({ created: 10, updated: 0, deleted: 0 });
     expect(waits.filter((m) => m.includes("rate limit"))).toHaveLength(1);
   });
 
