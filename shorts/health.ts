@@ -3,8 +3,6 @@
  * when something needs you, instead of a stream of "run failed" emails or a
  * silent outage. It checks the things that have broken before:
  *
- *   - the Facebook Page token (valid, and not expiring within EXPIRY_DAYS;
- *     a 1-hour token once took the warning posts down)
  *   - the YouTube refresh token, and that a Short went up in the last day
  *   - the Anthropic API key the Shorts' narration uses
  *   - the website and the app answering
@@ -16,7 +14,6 @@
  */
 import { appendFileSync } from "node:fs";
 import { ANTHROPIC_API, ANTHROPIC_VERSION } from "./anthropic";
-import { pageFromEnv } from "./facebook";
 import { accessToken, credentialsFromEnv } from "./youtube";
 
 export type Level = "ok" | "warn" | "problem" | "skip";
@@ -26,35 +23,13 @@ export interface Check {
   detail: string;
 }
 
-const GRAPH = "https://graph.facebook.com/v25.0";
 const DAY = 86_400_000;
-/** A token expiring within this many days is a problem, so there's time to replace it. */
-export const EXPIRY_DAYS = 10;
 /** A Short goes up every morning; longer than this without one is a problem. */
 export const UPLOAD_HOURS = 30;
 /** The workflows whose failures mean something didn't post. */
-export const WATCHED = ["youtube-shorts.yml", "youtube-breaking.yml", "facebook-warnings.yml"];
+export const WATCHED = ["youtube-shorts.yml", "youtube-breaking.yml"];
 
 type Fetch = typeof fetch;
-
-/** The permissions the warning posts need. */
-export const FB_SCOPES = ["pages_manage_posts", "pages_read_engagement"];
-
-/** What Meta's token debugger says, as a check: invalid, expiring soon, or fine (expires_at 0 = never). */
-export function tokenCheck(data: { is_valid?: boolean; expires_at?: number; data_access_expires_at?: number; scopes?: string[]; error?: { message?: string } } | undefined, now = Date.now()): Check {
-  const name = "Facebook Page token";
-  if (!data?.is_valid) return { name, level: "problem", detail: `Not valid${data?.error?.message ? `: ${data.error.message}` : ""}. Make a new one (shorts/README.md, Facebook).` };
-  // Valid but unable to post: a permission was taken away (Facebook then refuses every warning post).
-  const missing = data.scopes ? FB_SCOPES.filter((s) => !data.scopes!.includes(s)) : [];
-  if (missing.length) return { name, level: "problem", detail: `Missing the ${missing.join(" and ")} permission${missing.length > 1 ? "s" : ""}, so it can't post. Make a new one (shorts/README.md, Facebook).` };
-  const ends = [data.expires_at, data.data_access_expires_at].filter((t): t is number => !!t && t > 0).map((t) => t * 1000);
-  const soonest = ends.length ? Math.min(...ends) : null;
-  if (soonest == null) return { name, level: "ok", detail: "Valid, never expires." };
-  const days = Math.floor((soonest - now) / DAY);
-  const when = new Date(soonest).toISOString().slice(0, 10);
-  if (days < EXPIRY_DAYS) return { name, level: "problem", detail: `Expires in ${Math.max(0, days)} days (${when}). Make a new one now (shorts/README.md, Facebook).` };
-  return { name, level: "ok", detail: `Valid until ${when}.` };
-}
 
 /** The newest upload's age as a check. */
 export function uploadCheck(publishedAt: string | null, now = Date.now()): Check {
@@ -73,17 +48,6 @@ export function failuresCheck(failed: Record<string, number>): Check {
   if (!bad.length) return { name, level: "ok", detail: "No failed runs." };
   const total = bad.reduce((s, [, n]) => s + n, 0);
   return { name, level: total >= 3 ? "problem" : "warn", detail: bad.map(([w, n]) => `${w}: ${n} failed`).join(", ") };
-}
-
-async function facebook(env: Record<string, string | undefined>, f: Fetch): Promise<Check> {
-  const page = pageFromEnv(env);
-  if (!page) return { name: "Facebook Page token", level: "skip", detail: "FB_PAGE_TOKEN isn't set." };
-  // Paused (FB_WARNINGS and FB_REELS both "false"): nothing uses the token, so a broken one isn't a problem.
-  if (env.FB_WARNINGS === "false" && env.FB_REELS === "false") return { name: "Facebook Page token", level: "skip", detail: "Facebook posting is paused (FB_WARNINGS and FB_REELS are false)." };
-  const q = new URLSearchParams({ input_token: page.token, access_token: page.token });
-  const res = await f(`${GRAPH}/debug_token?${q}`, { signal: AbortSignal.timeout(20_000) });
-  const json = (await res.json().catch(() => ({}))) as { data?: Parameters<typeof tokenCheck>[0]; error?: { message?: string } };
-  return tokenCheck(json.data ?? { is_valid: false, error: json.error });
 }
 
 async function youtube(env: Record<string, string | undefined>, f: Fetch): Promise<Check[]> {
@@ -168,7 +132,6 @@ export async function runChecks(env: Record<string, string | undefined> = proces
   };
   return (
     await Promise.all([
-      safe("Facebook Page token", facebook(env, f)),
       safe("YouTube", youtube(env, f)),
       safe("Anthropic API key", anthropicKey(env, f)),
       safe("Sites", sites(f)),

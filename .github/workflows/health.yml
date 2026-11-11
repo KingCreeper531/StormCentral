@@ -1,5 +1,4 @@
-# The daily health check (shorts/health.ts): the Facebook Page token (valid,
-# not expiring within 10 days), the YouTube refresh token and the latest
+# The daily health check (shorts/health.ts): the YouTube refresh token and the latest
 # upload, the Anthropic key, the website and app, and failed posting runs. A
 # problem fails the run, so GitHub sends one email; the run's summary lists
 # every check. Checks whose secrets aren't set are skipped.
@@ -28,9 +27,6 @@ jobs:
         run: npx --yes esbuild@0.28.2 shorts/health.ts --bundle --platform=node --format=esm --target=node22 --outfile="$RUNNER_TEMP/health.mjs" --log-level=warning
       - name: Check
         env:
-          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-          FB_WARNINGS: ${{ vars.FB_WARNINGS }}
-          FB_REELS: ${{ vars.FB_REELS }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
