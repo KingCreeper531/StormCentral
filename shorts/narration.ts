@@ -22,6 +22,12 @@ export const STATE_NAMES: Record<string, string> = {
   PA: "Pennsylvania", RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah",
   VT: "Vermont", VA: "Virginia", WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming", PR: "Puerto Rico",
 };
+
+/** "the Southern Plains" or "the Ohio Valley", but "Arizona" and "South Texas": a region ending in a state's name takes no "the". */
+export function forRegion(region: string): string {
+  const r = region.toLowerCase();
+  return Object.values(STATE_NAMES).some((n) => r === n.toLowerCase() || r.endsWith(` ${n.toLowerCase()}`)) ? region : `the ${region}`;
+}
 const DAYS: Record<string, string> = { Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday" };
 const POINTS: Record<string, string> = { N: "north", E: "east", S: "south", W: "west" };
 /** "NNW" → "north-northwest". */
@@ -75,7 +81,7 @@ function outlook(d: OutlookData): Cue[] {
   const [torn, wind, hail] = [maxProb(d.torn), maxProb(d.wind), maxProb(d.hail)];
   return [
     { at: 0.4, text: `Here's your severe weather outlook for ${o.date}.` },
-    { at: 4.0, text: o.risk ? `The top risk today is a ${o.risk} Risk, level ${o.level} of 5${o.region ? `, for the ${o.region}` : ""}.` : "No severe storms are expected today." },
+    { at: 4.0, text: o.risk ? `The top risk today is a ${o.risk} Risk, level ${o.level} of 5${o.region ? `, for ${forRegion(o.region)}` : ""}.` : "No severe storms are expected today." },
     { at: 10.2, text: torn ? `The tornado threat peaks at ${torn} percent.` : "Tornadoes aren't expected." },
     { at: 13.6, text: wind ? `Damaging winds, up to ${wind} percent.` : "Damaging winds aren't expected." },
     { at: 17.0, text: hail ? `And large hail, up to ${hail} percent.` : "And large hail isn't expected." },

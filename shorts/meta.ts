@@ -3,6 +3,7 @@
  * Spanish) and the daily outlook's risk, region, hazards, title, description
  * and tags. Pure functions, tested in meta.test.ts.
  */
+import { forRegion } from "./narration";
 import { RISKS, type Outlook, type Risk } from "./spc-outlook";
 
 export const SITE = "https://www.stormcentralwx.com";
@@ -48,7 +49,12 @@ export function regionOf(productText: string): string {
   const text = productText.replace(/\s+/g, " ");
   const m = /THERE IS AN? (?:MARGINAL|SLIGHT|ENHANCED|MODERATE|HIGH) RISK OF SEVERE THUNDERSTORMS (?:ACROSS|OVER|FOR|IN) (.*?)\.\.\./.exec(text);
   if (!m) return "";
-  const words = m[1]!.replace(/^(?:PORTIONS|PARTS) OF\s+/, "").replace(/^THE\s+/, "").trim().split(" ");
+  // "A SMALL PART OF SOUTH TEXAS" is South Texas: the title says "for South Texas", not "for the A Small Part of…".
+  const words = m[1]!
+    .replace(/^(?:(?:A\s+)?(?:SMALL\s+|LARGE\s+)?(?:PORTIONS?|PARTS?|SECTIONS?)\s+OF\s+|MUCH\s+OF\s+)+/, "")
+    .replace(/^THE\s+/, "")
+    .trim()
+    .split(" ");
   const region = words.map((w, i) => (i > 0 && SMALL.has(w.toLowerCase()) ? w.toLowerCase() : titleWord(w))).join(" ");
   return region.length <= 48 ? region : "";
 }
@@ -64,7 +70,7 @@ const riskName = (o: Outlook) => (o.risk ? `${titleWord(o.risk)} Risk` : "No Sev
 /** "Severe Weather Outlook, Wed, Oct 14: Slight Risk for the Southern Plains #shorts" (YouTube's limit is 100). */
 export function titleFor(o: Outlook, region: string, issued: number): string {
   const base = `Severe Weather Outlook, ${shortDay(issued)}: ${riskName(o)}`;
-  const withRegion = region && o.risk ? `${base} for the ${region} #shorts` : `${base} #shorts`;
+  const withRegion = region && o.risk ? `${base} for ${forRegion(region)} #shorts` : `${base} #shorts`;
   return withRegion.length <= 100 ? withRegion : `${base} #shorts`;
 }
 
@@ -111,7 +117,7 @@ export function descriptionForEs(o: Outlook, region: string, h: Hazards): string
 export function descriptionFor(o: Outlook, region: string, h: Hazards): string {
   const level = o.risk ? RISKS.indexOf(o.risk) + 1 : 0;
   const lead = o.risk
-    ? `Today's severe weather outlook from NOAA's Storm Prediction Center: ${riskName(o)} (level ${level} of 5)${region ? ` for the ${region}` : ""}.`
+    ? `Today's severe weather outlook from NOAA's Storm Prediction Center: ${riskName(o)} (level ${level} of 5)${region ? ` for ${forRegion(region)}` : ""}.`
     : "Today's severe weather outlook from NOAA's Storm Prediction Center: no severe thunderstorms are forecast.";
   return [
     lead,

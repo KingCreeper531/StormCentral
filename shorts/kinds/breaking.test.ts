@@ -150,7 +150,7 @@ describe("breaking text", () => {
     const swo = fixture<{ productText: string; issuanceTime: string }>("high-risk", "swody1.json");
     const h = highRiskEvent(swo.productText, swo.issuanceTime, null) as BreakingEvent;
     const hl = breakingLines(h);
-    expect(hl.intro).toBe("Breaking: the Storm Prediction Center has issued a High Risk of severe storms, level 5 of 5, for the Central Oklahoma.");
+    expect(hl.intro).toBe("Breaking: the Storm Prediction Center has issued a High Risk of severe storms, level 5 of 5, for Central Oklahoma.");
     expect(hl.situation).toContain("A tornado outbreak is expected");
     expect(breakingText(h, hl).title).toBe("High Risk of Severe Storms for Central Oklahoma #shorts");
   });

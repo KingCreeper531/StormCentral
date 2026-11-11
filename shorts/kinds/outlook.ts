@@ -16,6 +16,7 @@ import {
   titleForEs,
   type GeoCollection,
 } from "../meta";
+import { forRegion } from "../narration";
 import { getJson, readVendor } from "../source";
 import type { Kind, KindContext } from "../video";
 
@@ -81,7 +82,7 @@ export const outlookKind: Kind = async (ctx) => {
   const { f, o } = await morningOutlook(ctx);
   const region = o.risk ? regionOf(f.text) : "";
   const hazards = { tornado: maxProbability(f.torn), wind: maxProbability(f.wind), hail: maxProbability(f.hail) };
-  console.log(`Outlook ${o.validFrom}: ${o.risk ?? "no severe risk"}${region ? ` for the ${region}` : ""}; tornado ${hazards.tornado}%, wind ${hazards.wind}%, hail ${hazards.hail}%.`);
+  console.log(`Outlook ${o.validFrom}: ${o.risk ?? "no severe risk"}${region ? ` for ${forRegion(region)}` : ""}; tornado ${hazards.tornado}%, wind ${hazards.wind}%, hail ${hazards.hail}%.`);
   if (!o.risk && ctx.env.SHORTS_SKIP_QUIET === "true") {
     console.log("No severe risk today; no video (SHORTS_SKIP_QUIET).");
     return [];

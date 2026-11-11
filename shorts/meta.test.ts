@@ -40,6 +40,8 @@ describe("regionOf", () => {
     expect(regionOf(SLIGHT)).toBe("Southern Plains");
     expect(regionOf("...THERE IS AN ENHANCED RISK OF SEVERE THUNDERSTORMS ACROSS PARTS OF THE SOUTHERN HIGH PLAINS INTO THE OZARKS...")).toBe("Southern High Plains into the Ozarks");
     expect(regionOf("...THERE IS A MARGINAL RISK OF SEVERE THUNDERSTORMS OVER PORTIONS OF FLORIDA...")).toBe("Florida");
+    expect(regionOf("...THERE IS A MARGINAL RISK OF SEVERE THUNDERSTORMS ACROSS A SMALL PART OF SOUTH TEXAS...")).toBe("South Texas");
+    expect(regionOf("...THERE IS A SLIGHT RISK OF SEVERE THUNDERSTORMS ACROSS MUCH OF THE OHIO VALLEY...")).toBe("Ohio Valley");
   });
 
   it("gives nothing on a quiet day or for a headline too long to show", () => {
@@ -75,6 +77,10 @@ describe("video text", () => {
   it("titles it with the risk and the region, within YouTube's 100 characters", () => {
     expect(titleFor(o, "Southern Plains", ISSUED)).toBe("Severe Weather Outlook, Wed, Oct 14: Slight Risk for the Southern Plains #shorts");
     expect(titleFor(quiet, "", ISSUED)).toBe("Severe Weather Outlook, Wed, Oct 14: No Severe Risk #shorts");
+    // A state takes no "the": the Oct 21 Short said "for the Arizona".
+    expect(titleFor(o, "Arizona", ISSUED)).toBe("Severe Weather Outlook, Wed, Oct 14: Slight Risk for Arizona #shorts");
+    expect(titleFor(o, "South Texas", ISSUED)).toBe("Severe Weather Outlook, Wed, Oct 14: Slight Risk for South Texas #shorts");
+    expect(titleFor(o, "Ohio Valley", ISSUED)).toBe("Severe Weather Outlook, Wed, Oct 14: Slight Risk for the Ohio Valley #shorts");
     expect(titleFor(o, "X".repeat(80), ISSUED).length).toBeLessThanOrEqual(100);
   });
 

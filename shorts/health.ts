@@ -78,6 +78,8 @@ export function failuresCheck(failed: Record<string, number>): Check {
 async function facebook(env: Record<string, string | undefined>, f: Fetch): Promise<Check> {
   const page = pageFromEnv(env);
   if (!page) return { name: "Facebook Page token", level: "skip", detail: "FB_PAGE_TOKEN isn't set." };
+  // Paused (FB_WARNINGS and FB_REELS both "false"): nothing uses the token, so a broken one isn't a problem.
+  if (env.FB_WARNINGS === "false" && env.FB_REELS === "false") return { name: "Facebook Page token", level: "skip", detail: "Facebook posting is paused (FB_WARNINGS and FB_REELS are false)." };
   const q = new URLSearchParams({ input_token: page.token, access_token: page.token });
   const res = await f(`${GRAPH}/debug_token?${q}`, { signal: AbortSignal.timeout(20_000) });
   const json = (await res.json().catch(() => ({}))) as { data?: Parameters<typeof tokenCheck>[0]; error?: { message?: string } };
