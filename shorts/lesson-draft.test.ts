@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { LESSONS } from "./kinds/lesson";
-import { gates, nextTopic, SAFETY, type Checked } from "./lesson-draft";
+import { gates, nextTopic, ollamaReply, SAFETY, type Checked } from "./lesson-draft";
 import type { Source } from "./research";
 
 const noaa: Source = { title: "JetStream", url: "https://www.weather.gov/jetstream/x", kind: "noaa", text: "" };
@@ -61,5 +61,19 @@ describe("nextTopic", () => {
   it("reads the real queue", () => {
     const t = nextTopic();
     expect(t === null || (/^[a-z0-9-]+$/.test(t.id) && t.topic.length > 3)).toBe(true);
+  });
+});
+
+describe("ollamaReply", () => {
+  async function* chunks(...parts: string[]) {
+    for (const p of parts) yield new TextEncoder().encode(p);
+  }
+  it("joins a streamed reply, even with rows split across chunks", async () => {
+    const rows = ['{"message":{"content":"{\\"ti"}}\n', '{"message":{"content":"tle\\": 1}"}}\n', '{"done":true}'];
+    const text = rows.join("");
+    expect(JSON.parse(await ollamaReply(chunks(text.slice(0, 17), text.slice(17, 50), text.slice(50))))).toEqual({ title: 1 });
+  });
+  it("throws Ollama's own error", async () => {
+    await expect(ollamaReply(chunks('{"error":"model not found"}\n'))).rejects.toThrow("Ollama: model not found");
   });
 });
