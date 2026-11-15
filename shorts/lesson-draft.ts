@@ -28,13 +28,40 @@ const MODEL = env.SHORTS_AI_MODEL || "gemma3:12b";
 const REVIEWER = env.REVIEW_MODEL || "qwen3:8b";
 const HOST = (env.OLLAMA_HOST || "http://127.0.0.1:11434").replace(/^(?!https?:\/\/)/, "http://");
 
+/**
+ * Ollama's streamed chat reply, put back together. Streamed because Node's fetch
+ * gives up when a reply's headers take over 5 minutes ("fetch failed"), and the
+ * writer on a CPU runner takes longer than that to plan a whole lesson: every
+ * scheduled draft failed that way until Nov 15, 2026.
+ */
+export async function ollamaReply(body: AsyncIterable<Uint8Array>): Promise<string> {
+  let reply = "";
+  let buf = "";
+  const decoder = new TextDecoder();
+  const take = (row: string) => {
+    if (!row.trim()) return;
+    const msg = JSON.parse(row) as { message?: { content?: string }; error?: string };
+    if (msg.error) throw new Error(`Ollama: ${msg.error}`);
+    reply += msg.message?.content ?? "";
+  };
+  for await (const chunk of body) {
+    buf += decoder.decode(chunk, { stream: true });
+    for (let nl = buf.indexOf("\n"); nl >= 0; nl = buf.indexOf("\n")) {
+      take(buf.slice(0, nl));
+      buf = buf.slice(nl + 1);
+    }
+  }
+  take(buf + decoder.decode());
+  return reply;
+}
+
 async function ask<T>(system: string, prompt: string, schema: object, { maxTokens = 1500, temperature = 0.4, model = MODEL } = {}): Promise<T> {
   const res = await fetch(`${HOST}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
-      stream: false,
+      stream: true,
       // One model in memory at a time on the runner.
       keep_alive: "5m",
       ...(/^(qwen3|deepseek-r1|gemma4|magistral)/.test(model) ? { think: false } : {}),
@@ -47,9 +74,8 @@ async function ask<T>(system: string, prompt: string, schema: object, { maxToken
     }),
     signal: AbortSignal.timeout(20 * 60_000),
   });
-  if (!res.ok) throw new Error(`Ollama answered ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const body = (await res.json()) as { message?: { content?: string } };
-  return JSON.parse(body.message?.content ?? "{}") as T;
+  if (!res.ok || !res.body) throw new Error(`Ollama answered ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return JSON.parse((await ollamaReply(res.body as unknown as AsyncIterable<Uint8Array>)) || "{}") as T;
 }
 
 const SYSTEM = `You write scripts for Radar School, a YouTube series that teaches ordinary people how to read weather radar. The narrator reads your lines over radar pictures and diagrams.
@@ -332,7 +358,9 @@ async function main() {
 
 if (process.argv[1]?.endsWith("lesson-draft.ts")) {
   main().catch((err) => {
-    console.error(err instanceof Error ? err.message : err);
+    // fetch's own message is just "fetch failed"; the reason (a timeout, a refused connection) is its cause.
+    const cause = err instanceof Error && err.cause ? ` (${err.cause instanceof Error ? err.cause.message : String(err.cause)})` : "";
+    console.error(`${err instanceof Error ? err.message : err}${cause}`);
     process.exit(1);
   });
 }
