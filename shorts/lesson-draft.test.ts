@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { LESSONS } from "./kinds/lesson";
-import { gates, nextTopic, ollamaReply, SAFETY, type Checked } from "./lesson-draft";
+import { closedSchema, gates, nextTopic, ollamaReply, SAFETY, type Checked } from "./lesson-draft";
 import type { Source } from "./research";
 
 const noaa: Source = { title: "JetStream", url: "https://www.weather.gov/jetstream/x", kind: "noaa", text: "" };
@@ -75,5 +75,21 @@ describe("ollamaReply", () => {
   });
   it("throws Ollama's own error", async () => {
     await expect(ollamaReply(chunks('{"error":"model not found"}\n'))).rejects.toThrow("Ollama: model not found");
+  });
+});
+
+describe("closedSchema", () => {
+  it("closes every object and drops limits structured outputs don't take", () => {
+    const s = closedSchema({
+      type: "object",
+      properties: { beats: { type: "array", minItems: 1, items: { type: "object", properties: { say: { type: "string", maxLength: 200 } }, required: ["say"] } } },
+      required: ["beats"],
+    });
+    expect(s).toEqual({
+      type: "object",
+      additionalProperties: false,
+      properties: { beats: { type: "array", items: { type: "object", additionalProperties: false, properties: { say: { type: "string" } }, required: ["say"] } } },
+      required: ["beats"],
+    });
   });
 });
