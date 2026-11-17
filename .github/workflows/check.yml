@@ -38,4 +38,4 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - run: for f in vps/*.sh stream/*.sh; do bash -n "$f"; done
+      - run: for f in vps/*.sh stream/*.sh scripts/*.sh; do bash -n "$f"; done
