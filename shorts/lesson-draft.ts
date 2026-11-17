@@ -16,9 +16,13 @@
  *   npx tsx shorts/lesson-draft.ts --topic "radar velocity" --id velocity [--urls a,b] [--auto]
  *   npx tsx shorts/lesson-draft.ts --next --auto     (the next topic in shorts/lessons/topics.txt)
  * Environment: OLLAMA_HOST, SHORTS_AI_MODEL (writer, default gemma3:12b), REVIEW_MODEL (reviewer, default qwen3:8b).
+ * With ANTHROPIC_API_KEY, Claude (LESSON_MODEL, default claude-opus-5-5) writes instead of the local
+ * writer: the 12B model on a GitHub runner's 4 CPUs took over an hour and got its runner shut down
+ * mid-draft. The reviewer stays local, so a different model family still checks every line.
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { ANTHROPIC_API, ANTHROPIC_VERSION } from "./anthropic";
 import { CASES, nextFreeWeek, timeline, validLesson, type Lesson } from "./kinds/lesson";
 import { checkEvidence, JETSTREAM_RADAR, pages, relevant, wikipedia, type Evidence, type Source } from "./research";
 
@@ -27,6 +31,10 @@ const MODEL = env.SHORTS_AI_MODEL || "gemma3:12b";
 /** A different model family from the writer, so it doesn't share the writer's blind spots. */
 const REVIEWER = env.REVIEW_MODEL || "qwen3:8b";
 const HOST = (env.OLLAMA_HOST || "http://127.0.0.1:11434").replace(/^(?!https?:\/\/)/, "http://");
+const CLAUDE_KEY = env.ANTHROPIC_API_KEY?.trim() || null;
+const CLAUDE_MODEL = env.LESSON_MODEL || "claude-opus-5-5";
+/** Who writes: Claude with the key, else the local model. */
+const WRITER = CLAUDE_KEY ? CLAUDE_MODEL : MODEL;
 
 /**
  * Ollama's streamed chat reply, put back together. Streamed because Node's fetch
@@ -55,7 +63,53 @@ export async function ollamaReply(body: AsyncIterable<Uint8Array>): Promise<stri
   return reply;
 }
 
+/**
+ * A JSON schema as structured outputs need it: every object closed
+ * (additionalProperties: false), and no numeric or length limits.
+ */
+export function closedSchema(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(closedSchema);
+  if (!schema || typeof schema !== "object") return schema;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(schema)) {
+    if (["minimum", "maximum", "minLength", "maxLength", "minItems", "maxItems", "multipleOf"].includes(k)) continue;
+    out[k] = closedSchema(v);
+  }
+  if (out.type === "object") out.additionalProperties = false;
+  return out;
+}
+
+/** The writer's reply from Claude, as JSON matching `schema` (structured outputs). */
+async function askClaude<T>(system: string, prompt: string, schema: object): Promise<T> {
+  const res = await fetch(`${ANTHROPIC_API}/messages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": CLAUDE_KEY!,
+      "anthropic-version": ANTHROPIC_VERSION,
+      // If a safety check declines a turn, the API retries it on another model in the same call.
+      "anthropic-beta": "server-side-fallback-2026-07-01",
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 16_000,
+      fallbacks: "default",
+      output_config: { effort: "medium", format: { type: "json_schema", schema: closedSchema(schema) } },
+      system,
+      messages: [{ role: "user", content: prompt }],
+    }),
+    signal: AbortSignal.timeout(5 * 60_000),
+  });
+  if (!res.ok) throw new Error(`Anthropic API answered ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const r = (await res.json()) as { content?: { type: string; text?: string }[]; stop_reason?: string };
+  // A refusal or a reply cut off at max_tokens isn't JSON to trust.
+  if (r.stop_reason !== "end_turn") throw new Error(`Claude stopped: ${r.stop_reason}`);
+  return JSON.parse((r.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("") || "{}") as T;
+}
+
 async function ask<T>(system: string, prompt: string, schema: object, { maxTokens = 1500, temperature = 0.4, model = MODEL } = {}): Promise<T> {
+  // The writer's calls (model left at its default) go to Claude when there's a key; the reviewer's stay local.
+  if (CLAUDE_KEY && model === MODEL) return askClaude<T>(system, prompt, schema);
   const res = await fetch(`${HOST}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -319,7 +373,7 @@ async function main() {
   const report = [
     `# Review: ${lesson.title}`,
     "",
-    `Drafted by ${MODEL}, reviewed by ${REVIEWER}, from the sources below.`,
+    `Drafted by ${WRITER}, reviewed by ${REVIEWER}, from the sources below.`,
     "",
     lesson.approved
       ? `**Approved automatically** (every gate passed): it posts in series week ${lesson.week}.`

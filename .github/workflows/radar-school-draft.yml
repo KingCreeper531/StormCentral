@@ -1,5 +1,5 @@
 # Drafts the next Radar School lesson (shorts/lesson-draft.ts) every Sunday,
-# or one on a topic you name: the local model writes it from Wikipedia and
+# or one on a topic you name: Claude (with ANTHROPIC_API_KEY) or the local model writes it from Wikipedia and
 # NOAA/NWS pages, every factual line must quote a source word for word, and
 # a second, different model reviews every line; lines that fail are dropped.
 #
@@ -44,6 +44,9 @@ jobs:
     env:
       SHORTS_AI_MODEL: ${{ vars.SHORTS_AI_MODEL || 'gemma3:12b' }}
       REVIEW_MODEL: ${{ vars.REVIEW_MODEL || 'qwen3:8b' }}
+      # With the ANTHROPIC_API_KEY secret, Claude writes (LESSON_MODEL, default claude-opus-5-5) and only the
+      # reviewer runs locally: the 12B writer on the runner's CPUs took over an hour and got the runner shut down.
+      HAS_ANTHROPIC: ${{ secrets.ANTHROPIC_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -58,7 +61,7 @@ jobs:
             nohup ollama serve >"$RUNNER_TEMP/ollama.log" 2>&1 &
             for _ in $(seq 30); do curl -sf http://127.0.0.1:11434/api/version >/dev/null && break; sleep 1; done
           fi
-          ollama pull "$SHORTS_AI_MODEL"
+          if [ "$HAS_ANTHROPIC" != true ]; then ollama pull "$SHORTS_AI_MODEL"; fi
           ollama pull "$REVIEW_MODEL"
       - name: Research, draft and check
         id: draft
@@ -67,6 +70,8 @@ jobs:
           ID: ${{ inputs.id }}
           URLS: ${{ inputs.urls }}
           AUTO: ${{ github.event_name == 'schedule' || inputs.auto }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          LESSON_MODEL: ${{ vars.LESSON_MODEL }}
         run: |
           args=()
           if [ -n "$TOPIC" ]; then args+=(--topic "$TOPIC" --id "${ID:-$TOPIC}" --urls "$URLS"); else args+=(--next); fi
