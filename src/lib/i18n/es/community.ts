@@ -235,7 +235,6 @@ export const COMMUNITY: Record<string, string> = {
   "Sign in required": "Tienes que iniciar sesión",
   "Too many requests — slow down.": "Demasiadas solicitudes. Espera un poco.",
   "You can't verify your own report": "No puedes verificar tu propio reporte",
-  "You can't confirm this report": "No puedes confirmar este reporte",
   "You can only delete your own reports": "Solo puedes eliminar tus propios reportes",
   "You can only delete your own comments": "Solo puedes eliminar tus propios comentarios",
   "That account doesn't exist": "Esa cuenta no existe",
