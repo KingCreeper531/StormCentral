@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from widget_dot.xml by scripts/widget-clear-layouts.mjs: edit that file and re-run. -->
 <!--
     "Dot" widget (StyledWidgetProvider, Style.DOT), in the style of Nothing OS:
     a red dot and the place in small capitals, the temperature large in a
     dot-matrix font (res/font/doto_round.ttf), then the sky and today's high
     and low, or the active warning in red. Wide widgets add the next hours on
-    the right. This is the transparent twin of widget_dot.xml: white text with
-    shadows so it reads on any wallpaper.
+    the right. widget_dot_clear.xml is its transparent twin (text shadows).
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_background_dot_clear"
+    android:background="@drawable/widget_background_dot"
     android:gravity="center_vertical"
     android:orientation="horizontal"
     android:padding="16dp">
@@ -31,23 +31,19 @@
 
             <TextView
                 android:id="@+id/widget_dot_mark"
-                android:shadowColor="#99000000"
-                android:shadowDx="0"
-                android:shadowDy="1"
-                android:shadowRadius="4"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:includeFontPadding="false"
                 android:text="@string/widget_dot_mark"
                 android:textColor="#FFFF3B3F"
-                android:textSize="10sp" />
-
-            <TextView
-                android:id="@+id/widget_place"
+                android:textSize="10sp"
                 android:shadowColor="#99000000"
                 android:shadowDx="0"
                 android:shadowDy="1"
-                android:shadowRadius="4"
+                android:shadowRadius="4" />
+
+            <TextView
+                android:id="@+id/widget_place"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
@@ -57,15 +53,15 @@
                 android:maxLines="1"
                 android:textAllCaps="true"
                 android:textColor="#FFB3B3B3"
-                android:textSize="11sp" />
+                android:textSize="11sp"
+                android:shadowColor="#99000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="4" />
         </LinearLayout>
 
         <TextView
             android:id="@+id/widget_temp"
-            android:shadowColor="#99000000"
-            android:shadowDx="0"
-            android:shadowDy="1"
-            android:shadowRadius="4"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
@@ -75,14 +71,14 @@
             android:maxLines="1"
             android:text="@string/widget_temp_unknown"
             android:textColor="#FFFFFFFF"
-            android:textSize="64sp" />
-
-        <TextView
-            android:id="@+id/widget_condition"
+            android:textSize="64sp"
             android:shadowColor="#99000000"
             android:shadowDx="0"
             android:shadowDy="1"
-            android:shadowRadius="4"
+            android:shadowRadius="4" />
+
+        <TextView
+            android:id="@+id/widget_condition"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="end"
@@ -90,14 +86,14 @@
             android:maxLines="1"
             android:textAllCaps="true"
             android:textColor="#FFFFFFFF"
-            android:textSize="11sp" />
-
-        <TextView
-            android:id="@+id/widget_hilo"
+            android:textSize="11sp"
             android:shadowColor="#99000000"
             android:shadowDx="0"
             android:shadowDy="1"
-            android:shadowRadius="4"
+            android:shadowRadius="4" />
+
+        <TextView
+            android:id="@+id/widget_hilo"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
@@ -106,21 +102,25 @@
             android:maxLines="1"
             android:textAllCaps="true"
             android:textColor="#FF8C8C8C"
-            android:textSize="11sp" />
-
-        <TextView
-            android:id="@+id/widget_message"
+            android:textSize="11sp"
             android:shadowColor="#99000000"
             android:shadowDx="0"
             android:shadowDy="1"
-            android:shadowRadius="4"
+            android:shadowRadius="4" />
+
+        <TextView
+            android:id="@+id/widget_message"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="3"
             android:textColor="#FFB3B3B3"
             android:textSize="12sp"
-            android:visibility="gone" />
+            android:visibility="gone"
+            android:shadowColor="#99000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="4" />
     </LinearLayout>
 
     <!-- The next hours (wide widgets only): widget_dot_cell.xml rows. -->

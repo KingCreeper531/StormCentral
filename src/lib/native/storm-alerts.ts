@@ -21,7 +21,6 @@ export interface NativeAlertsStatus {
 
 interface StormAlertsPlugin {
   sync(): Promise<void>;
-  checkNow(): Promise<void>;
   test(): Promise<{ shown: boolean }>;
   status(): Promise<NativeAlertsStatus>;
   openNotificationSettings(): Promise<void>;

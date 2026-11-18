@@ -35,12 +35,6 @@ public class StormAlertsPlugin extends Plugin {
     }
 
     @PluginMethod
-    public void checkNow(PluginCall call) {
-        AlertsScheduler.runNow(getContext());
-        call.resolve();
-    }
-
-    @PluginMethod
     public void test(PluginCall call) {
         boolean es = Lang.spanish(getContext());
         boolean shown = Notifier.show(getContext(), 1, Notifier.WARNINGS,
