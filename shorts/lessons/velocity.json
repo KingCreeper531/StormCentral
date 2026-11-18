@@ -2,10 +2,10 @@
   "id": "velocity",
   "title": "Reading Doppler Velocity: Spreading Winds, Converging Winds and Spin Signatures",
   "youtube": "Doppler Radar Velocity: Downbursts, Convergence and Tornado Signatures | Radar School",
-  "summary": "This lesson shows how Doppler radar velocity data can reveal winds spreading out at the ground (divergence) and winds coming together inside a storm (convergence), and how velocity data led to the Tornadic Vortex Signature. Note for the producer: the sources do not explain inbound/outbound colors or couplet shapes, so those parts of the requested topic are left out rather than guessed at, and the lesson ends with what velocity data can and cannot tell you.",
+  "summary": "This lesson shows how Doppler radar velocity data can reveal winds spreading out at the ground (divergence) and winds coming together inside a storm (convergence), and how velocity data led to the Tornadic Vortex Signature.",
   "es": {
     "title": "Reading Doppler Velocity: Spreading Winds, Converging Winds and Spin Signatures | Escuela de Radar",
-    "summary": "This lesson shows how Doppler radar velocity data can reveal winds spreading out at the ground (divergence) and winds coming together inside a storm (convergence), and how velocity data led to the Tornadic Vortex Signature. Note for the producer: the sources do not explain inbound/outbound colors or couplet shapes, so those parts of the requested topic are left out rather than guessed at, and the lesson ends with what velocity data can and cannot tell you."
+    "summary": "This lesson shows how Doppler radar velocity data can reveal winds spreading out at the ground (divergence) and winds coming together inside a storm (convergence), and how velocity data led to the Tornadic Vortex Signature."
   },
   "thumb": {
     "lines": [
@@ -28,7 +28,7 @@
       "title": "Introduction",
       "beats": [
         {
-          "say": "This lesson shows how Doppler radar velocity data can reveal winds spreading out at the ground (divergence) and winds coming together inside a storm (convergence), and how velocity data led to the Tornadic Vortex Signature. Note for the producer: the sources do not explain inbound/outbound colors or couplet shapes, so those parts of the requested topic are left out rather than guessed at, and the ",
+          "say": "This lesson shows how Doppler radar velocity data can reveal winds spreading out at the ground (divergence) and winds coming together inside a storm (convergence), and how velocity data led to the Tornadic Vortex Signature.",
           "visual": {
             "type": "title"
           },
@@ -397,7 +397,7 @@
     "Radar School",
     "Storm Central"
   ],
-  "approved": false,
+  "approved": true,
   "checked": "auto",
   "sources": [
     {
@@ -440,5 +440,6 @@
       "title": "Wikipedia: Convective storm detection",
       "url": "https://en.wikipedia.org/wiki/Convective_storm_detection"
     }
-  ]
+  ],
+  "week": 5
 }
