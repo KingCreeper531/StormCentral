@@ -12,7 +12,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const LAYOUT_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "android", "app", "src", "main", "res", "layout");
-export const WIDGET_LAYOUTS = ["widget_weather", "widget_compact", "widget_forecast", "widget_cell", "widget_clock"];
+export const WIDGET_LAYOUTS = ["widget_weather", "widget_compact", "widget_forecast", "widget_cell", "widget_clock", "widget_dot", "widget_dot_cell"];
 
 const SHADOW = [
   'android:shadowColor="#99000000"',

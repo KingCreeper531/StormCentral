@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Transparent twin of widget_dot_cell.xml (text shadows). One upcoming hour in widget_dot_clear.xml: the time in small capitals, the temperature in dots. -->
+<!-- Generated from widget_dot_cell.xml by scripts/widget-clear-layouts.mjs: edit that file and re-run. -->
+<!-- One upcoming hour in widget_dot.xml: the time in small capitals, the temperature in dots. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_cell"
     android:layout_width="wrap_content"
@@ -10,24 +11,20 @@
 
     <TextView
         android:id="@+id/widget_cell_label"
-        android:shadowColor="#99000000"
-        android:shadowDx="0"
-        android:shadowDy="1"
-        android:shadowRadius="4"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:letterSpacing="0.08"
         android:maxLines="1"
         android:textAllCaps="true"
         android:textColor="#FF8C8C8C"
-        android:textSize="10sp" />
-
-    <TextView
-        android:id="@+id/widget_cell_value"
+        android:textSize="10sp"
         android:shadowColor="#99000000"
         android:shadowDx="0"
         android:shadowDy="1"
-        android:shadowRadius="4"
+        android:shadowRadius="4" />
+
+    <TextView
+        android:id="@+id/widget_cell_value"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
@@ -37,5 +34,9 @@
         android:minEms="2"
         android:gravity="end"
         android:textColor="#FFFFFFFF"
-        android:textSize="22sp" />
+        android:textSize="22sp"
+        android:shadowColor="#99000000"
+        android:shadowDx="0"
+        android:shadowDy="1"
+        android:shadowRadius="4" />
 </LinearLayout>
