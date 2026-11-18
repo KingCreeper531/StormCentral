@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Nothing's Glyph SDK declares Android 13+; GlyphLights and WeatherGlyphToy only run on Android 14+ Nothing phones. -->
+    <uses-sdk tools:overrideLibrary="com.nothing.thirdparty" />
+    <uses-permission android:name="com.nothing.ketchum.permission.ENABLE" />
+
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
@@ -131,6 +135,35 @@
             </intent-filter>
         </receiver>
 
+        <!-- Nothing Glyph SDK key: "test" works on Android 16+ and with Glyph debugging on; a release key comes from Nothing. -->
+        <meta-data
+            android:name="NothingKey"
+            android:value="@string/nothing_glyph_key" />
+
+        <!-- Glyph Toy for the Glyph Matrix on Nothing Phone (3): weather on the back of the phone. -->
+        <service
+            android:name=".WeatherGlyphToy"
+            android:exported="true"
+            tools:ignore="ExportedService">
+            <intent-filter>
+                <action android:name="com.nothing.glyph.TOY" />
+            </intent-filter>
+            <meta-data
+                android:name="com.nothing.glyph.toy.name"
+                android:resource="@string/glyph_toy_name" />
+            <meta-data
+                android:name="com.nothing.glyph.toy.image"
+                android:resource="@drawable/glyph_toy_preview" />
+            <meta-data
+                android:name="com.nothing.glyph.toy.summary"
+                android:resource="@string/glyph_toy_summary" />
+            <meta-data
+                android:name="com.nothing.glyph.toy.longpress"
+                android:value="1" />
+            <meta-data
+                android:name="com.nothing.glyph.toy.aod_support"
+                android:value="1" />
+        </service>
     </application>
 
     <!-- Permissions -->

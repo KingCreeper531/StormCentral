@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { DOT_COLS, DOT_ICONS, DOT_ROWS, dotIconFor, dotsOf, type DotIcon } from "./dot-icons";
 import { describeCode, iconName } from "./wmo";
@@ -37,5 +38,27 @@ describe("dot-grid weather icons", () => {
   it("puts lightning, and only lightning, in the accent colour", () => {
     expect(dotsOf("thunder").some(([, , accent]) => accent)).toBe(true);
     expect(dotsOf("rain").some(([, , accent]) => accent)).toBe(false);
+  });
+});
+
+describe("the Glyph Matrix toy's copy (android/app/src/glyph/.../GlyphArt.java)", () => {
+  const java = readFileSync("android/app/src/glyph/java/io/github/kingcreeper531/stormcentral/glyph/GlyphArt.java", "utf8");
+
+  it("draws the same dot icons as the app", () => {
+    for (const [name, rows] of Object.entries(DOT_ICONS)) {
+      const block = new RegExp(`static final String\\[\\] ${name.toUpperCase().replace(/-/g, "_")} = \\{([^}]*)\\}`).exec(java)?.[1];
+      expect(block, name).toBeDefined();
+      expect([...block!.matchAll(/"([.#r]+)"/g)].map((m) => m[1]), name).toEqual([...rows]);
+    }
+  });
+
+  it("maps every weather code to the same icon name as the app", () => {
+    const table = /ICON_NAMES = "([^"]+)"/.exec(java)?.[1] ?? "";
+    const pairs = new Map(table.split(",").map((p) => [Number(p.split(":")[0]), p.split(":")[1]]));
+    for (let code = 0; code <= 99; code++) {
+      const info = describeCode(code);
+      if (info.label === "—") expect(pairs.has(code), `${code}`).toBe(false);
+      else expect(pairs.get(code), `${code} ${info.label}`).toBe(info.icon);
+    }
   });
 });

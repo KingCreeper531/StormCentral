@@ -119,8 +119,9 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
         renderAll(app, snapshot);
     }
 
-    /** Whether any Storm Central widget, of any style, is on the home screen. */
+    /** Whether any Storm Central widget, of any style, is on the home screen, or the Glyph Toy is on the matrix. */
     private static boolean hasWidgets(Context context) {
+        if (WeatherGlyphToy.active) return true;
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
         if (manager == null) return false;
         for (Class<?> cls : new Class<?>[] {

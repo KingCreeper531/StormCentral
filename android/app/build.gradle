@@ -81,6 +81,21 @@ dependencies {
     implementation project(':capacitor-cordova-android-plugins')
 }
 
+// Nothing's Glyph SDK (Glyph lights and the Glyph Matrix toy). It is closed source and may not be
+// redistributed, so it isn't in the repository: scripts/build-native.mjs downloads it into libs/.
+// Without it the app builds with the stand-ins in src/noglyph (no Glyph features).
+def glyphSdk = file('libs/glyph-matrix-sdk-2.0.aar')
+android {
+    sourceSets {
+        main {
+            java.srcDirs += glyphSdk.exists() ? 'src/glyph/java' : 'src/noglyph/java'
+        }
+    }
+}
+dependencies {
+    if (glyphSdk.exists()) implementation files(glyphSdk)
+}
+
 apply from: 'capacitor.build.gradle'
 
 try {

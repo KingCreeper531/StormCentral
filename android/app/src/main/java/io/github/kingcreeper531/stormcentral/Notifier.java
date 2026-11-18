@@ -32,6 +32,9 @@ final class Notifier {
     static final String ACTIVITY = "sc_activity";
 
     private static final int ACCENT = 0xFF5B9CF6;
+    /** Warnings that flash the Glyph lights faster and longer. */
+    private static final java.util.regex.Pattern LIFE_THREATENING = java.util.regex.Pattern.compile(
+            "tornado|extreme wind|emergency|particularly dangerous|hurricane warning", java.util.regex.Pattern.CASE_INSENSITIVE);
 
     private Notifier() {}
 
@@ -85,6 +88,8 @@ final class Notifier {
         if (!allowed(context)) return false;
 
         boolean urgent = WARNINGS.equals(channel) || LIGHTNING.equals(channel) || STORMS.equals(channel);
+        // Nothing phones: the Glyph lights breathe for a warning while the app is open (GlyphLights).
+        if (WARNINGS.equals(channel)) GlyphLights.warningPosted(context, title != null && LIFE_THREATENING.matcher(title).find());
         NotificationCompat.Builder b = new NotificationCompat.Builder(context, channel)
                 .setSmallIcon(R.drawable.ic_stat_stormcentral)
                 .setColor(ACCENT)
