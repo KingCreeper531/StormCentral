@@ -11,6 +11,30 @@ import { clientIp, rateLimit } from "@/lib/server/rate-limit";
 const NO_STORE = { "Cache-Control": "no-store" };
 
 /**
+ * The site address reset links point to: PUBLIC_SITE_URL. Only the desktop
+ * app's loopback server (ALLOWED_HOST set, which sameOrigin() pins the Host to)
+ * may use the request's own Origin instead; anywhere else Origin and Host
+ * come from the client, so a link built from them could point at another site.
+ */
+function resetLinkOrigin(req: Request): string | null {
+  const site = process.env.PUBLIC_SITE_URL?.trim();
+  if (site) {
+    try {
+      const url = new URL(site);
+      if (url.protocol === "https:" || url.protocol === "http:") return url.origin + url.pathname.replace(/\/+$/, "");
+    } catch {}
+    console.error("[forgot] PUBLIC_SITE_URL isn't an http(s) address");
+    return null;
+  }
+  if (!process.env.ALLOWED_HOST) return null;
+  try {
+    return new URL(req.headers.get("origin") ?? "").origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Emails a one-time reset link. The answer is the same whether or not the
  * address has an account, so this can't be used to find out who has one.
  */
@@ -18,6 +42,11 @@ export async function POST(req: Request) {
   if (!sameOrigin(req)) return forbidden();
   if (!mailConfigured()) {
     return Response.json({ error: "Password reset by email isn't set up on this server yet." }, { status: 503, headers: NO_STORE });
+  }
+  // Checked before anything else so the answer doesn't depend on whether the address has an account.
+  const origin = resetLinkOrigin(req);
+  if (!origin) {
+    return Response.json({ error: "Password reset by email isn't set up on this server yet (PUBLIC_SITE_URL)." }, { status: 503, headers: NO_STORE });
   }
   // Per IP before the body is read; a refused IP never reaches the per-address counters.
   const ip = await rateLimit(`forgot-ip:${clientIp(req)}`, 5, 15 * 60_000);
@@ -33,9 +62,7 @@ export async function POST(req: Request) {
   const db = await getDb();
   const [user] = await db.select({ id: users.id, username: users.username }).from(users).where(eq(users.email, email)).limit(1);
   if (user) {
-    // sameOrigin() checked that Origin matches this host, so it's safe to link back to it.
-    const origin = process.env.PUBLIC_SITE_URL || req.headers.get("origin")!;
-    const link = `${origin.replace(/\/$/, "")}/reset-password?token=${await createResetToken(user.id)}`;
+    const link = `${origin}/reset-password?token=${await createResetToken(user.id)}`;
     try {
       await sendMail({
         to: email,
