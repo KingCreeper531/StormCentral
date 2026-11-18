@@ -1,7 +1,8 @@
 /**
  * Sources for drafting a Radar School lesson (lesson-draft.ts): Wikipedia
- * articles found by searching the topic, plus NOAA/NWS pages (JetStream, the
- * NWS's online weather school, and any pages named for the topic), reduced to
+ * articles found by searching the topic, plus NOAA/NWS pages (the National
+ * Severe Storms Laboratory's radar and Severe Weather 101 pages, and any pages
+ * named for the topic), reduced to
  * plain text. The drafting model may only use what's in here, and every line
  * it writes must come with a quote that really appears in one of them
  * (verifyQuote), which is what makes the draft checkable.
@@ -16,14 +17,21 @@ export interface Source {
 }
 
 const UA = "StormCentral Radar School drafts (github.com/KingCreeper531/StormCentral)";
-/** NOAA JetStream's radar pages, the default reading for radar topics (missing ones are skipped). */
-export const JETSTREAM_RADAR = [
-  "https://www.weather.gov/jetstream/radar",
-  "https://www.weather.gov/jetstream/doppler",
-  "https://www.weather.gov/jetstream/refl",
-  "https://www.weather.gov/jetstream/vel",
-  "https://www.weather.gov/jetstream/dualpol",
-  "https://www.weather.gov/jetstream/tstorms",
+/**
+ * NOAA's radar pages, the default reading for radar topics (missing ones are skipped). These come from
+ * the National Severe Storms Laboratory: NOAA's JetStream school moved to www.noaa.gov, whose CDN refuses
+ * GitHub's runners, and its old weather.gov addresses all redirect to its home page now.
+ */
+export const NOAA_RADAR = [
+  "https://www.nssl.noaa.gov/tools/radar/",
+  "https://www.nssl.noaa.gov/tools/radar/nexrad/",
+  "https://www.nssl.noaa.gov/tools/radar/dualpol/",
+  "https://www.nssl.noaa.gov/education/svrwx101/thunderstorms/detection/",
+  "https://www.nssl.noaa.gov/education/svrwx101/tornadoes/detection/",
+  "https://www.nssl.noaa.gov/education/svrwx101/hail/detection/",
+  "https://www.nssl.noaa.gov/education/svrwx101/wind/detection/",
+  "https://www.nssl.noaa.gov/education/svrwx101/floods/detection/",
+  "https://www.nssl.noaa.gov/education/svrwx101/winter/detection/",
 ];
 
 type Fetch = typeof fetch;
@@ -66,7 +74,7 @@ export async function wikipedia(query: string, { limit = 3, maxChars = 24_000, f
     .map((p) => ({ title: `Wikipedia: ${p.title}`, url: p.fullurl ?? `https://en.wikipedia.org/wiki/${encodeURIComponent(p.title)}`, kind: "wikipedia" as const, text: p.extract!.slice(0, maxChars) }));
 }
 
-/** Government pages as plain text; ones that don't load are skipped. */
+/** Government pages as plain text; ones that don't load, or redirect to a different page (a moved site's home page), are skipped. */
 export async function pages(urls: string[], { maxChars = 24_000, fetchImpl = fetch as Fetch, log = console.log } = {}): Promise<Source[]> {
   const out: Source[] = [];
   for (const url of urls) {
@@ -76,8 +84,12 @@ export async function pages(urls: string[], { maxChars = 24_000, fetchImpl = fet
         log(`  skipped ${url} (${res.status})`);
         continue;
       }
+      if (res.redirected && res.url && movedTo(url, res.url)) {
+        log(`  skipped ${url} (moved to ${res.url})`);
+        continue;
+      }
       const html = await res.text();
-      const title = htmlText(html.match(/<title>([\s\S]*?)<\/title>/i)?.[1] ?? url);
+      const title = htmlText(html.match(/<title>([\s\S]*?)<\/title>/i)?.[1] ?? url).replace(/\s+/g, " ");
       const text = htmlText(html).slice(0, maxChars);
       if (text.length > 400) out.push({ title, url, kind: /\.gov\//.test(url) || /\.gov$/.test(new URL(url).hostname) ? "noaa" : "wikipedia", text });
     } catch (err) {
@@ -85,6 +97,12 @@ export async function pages(urls: string[], { maxChars = 24_000, fetchImpl = fet
     }
   }
   return out;
+}
+
+/** True when a redirect landed on a different page, not just the same path with a trailing slash or https. */
+export function movedTo(asked: string, landed: string): boolean {
+  const path = (u: string) => new URL(u).pathname.replace(/\/+$/, "").toLowerCase();
+  return new URL(asked).hostname.replace(/^www\./, "") !== new URL(landed).hostname.replace(/^www\./, "") || path(asked) !== path(landed);
 }
 
 const STOP = new Set(
