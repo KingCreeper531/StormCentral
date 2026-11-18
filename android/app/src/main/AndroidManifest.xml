@@ -2,8 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Nothing's Glyph SDK targets Android 14+; GlyphLights and WeatherGlyphToy only run there, on Nothing phones. -->
-    <uses-sdk tools:overrideLibrary="com.nothing.ketchum" />
+    <!-- Nothing's Glyph SDK declares Android 13+; GlyphLights and WeatherGlyphToy only run on Android 14+ Nothing phones. -->
+    <uses-sdk tools:overrideLibrary="com.nothing.thirdparty" />
     <uses-permission android:name="com.nothing.ketchum.permission.ENABLE" />
 
     <application

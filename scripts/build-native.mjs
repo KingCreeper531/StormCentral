@@ -52,7 +52,7 @@ const GLYPH_SDK = {
   url: "https://github.com/Nothing-Developer-Programme/GlyphMatrix-Developer-Kit/raw/refs/heads/main/glyph-matrix-sdk-2.0.aar",
   file: path.join(root, "android", "app", "libs", "glyph-matrix-sdk-2.0.aar"),
   /** Pinned after the first download; a different file fails the build until it is checked and re-pinned. */
-  sha256: null,
+  sha256: "be00ee9cd7115f6b11984c6e31fe98e298fb726940d1555063610685ef3bbf29",
 };
 
 async function fetchGlyphSdk() {
