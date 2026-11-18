@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   if (!user) return unauthorized();
   const blocked = suspended(user);
   if (blocked) return blocked;
-  const rl = rateLimit(`avatar:${user.id}`, 10, 15 * 60_000);
+  const rl = await rateLimit(`avatar:${user.id}`, 10, 15 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
 
   // The form around the picture is a few hundred bytes.

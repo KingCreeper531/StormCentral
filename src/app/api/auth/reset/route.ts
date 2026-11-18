@@ -12,7 +12,7 @@ import { clientIp, rateLimit } from "@/lib/server/rate-limit";
 /** Sets a new password from a reset link, signs out other devices and signs in here. */
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return forbidden();
-  const ip = rateLimit(`reset-ip:${clientIp(req)}`, 10, 15 * 60_000);
+  const ip = await rateLimit(`reset-ip:${clientIp(req)}`, 10, 15 * 60_000);
   if (!ip.ok) return tooMany(ip.retryAfterSec);
   const body = await readJson(req);
   if (body instanceof Response) return body;

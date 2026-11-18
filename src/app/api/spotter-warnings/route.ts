@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { firstIssue } from "@/lib/community";
+import { readJson } from "@/lib/server/body";
 import { forbidden, sameOrigin, suspended, tooMany, unauthorized } from "@/lib/server/guard";
 import { rateLimit } from "@/lib/server/rate-limit";
 import { badRequest } from "@/lib/server/respond";
@@ -30,10 +31,12 @@ export async function POST(req: Request) {
   if (blocked) return blocked;
   const perm = await issuePermission(user);
   if (!perm.ok) return forbidden(perm.reason ?? "You can't issue spotter warnings yet");
-  const rl = rateLimit(`warngen:${user.id}`, 8, 15 * 60_000);
+  const rl = await rateLimit(`warngen:${user.id}`, 8, 15 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
 
-  const raw: unknown = await req.json().catch(() => null);
+  const raw = await readJson(req);
+
+  if (raw instanceof Response) return raw;
   const parsed = issueSchema.safeParse(raw);
   if (!parsed.success) return badRequest(firstIssue(parsed.error));
   if ((await activeCount(user.id)) >= MAX_ACTIVE_PER_USER) return badRequest(`You already have ${MAX_ACTIVE_PER_USER} active warnings. Cancel or let one expire first.`);

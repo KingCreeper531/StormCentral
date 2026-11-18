@@ -11,7 +11,7 @@ import { clientIp, rateLimit } from "@/lib/server/rate-limit";
 
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return forbidden();
-  const rl = rateLimit(`register:${clientIp(req)}`, 5, 60 * 60_000);
+  const rl = await rateLimit(`register:${clientIp(req)}`, 5, 60 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
 
   const body = await readJson(req);

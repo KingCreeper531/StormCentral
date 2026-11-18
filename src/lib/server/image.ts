@@ -33,21 +33,43 @@ function concat(parts: Uint8Array[]): Uint8Array {
 // JPEG APP1 (EXIF/XMP), APP13 (IPTC/Photoshop) and COM (comments).
 const JPEG_DROP = new Set([0xe1, 0xed, 0xfe]);
 
+/** True for the byte after 0xFF inside entropy-coded data: stuffing (FF 00) or a restart marker (FF D0-D7). */
+const inScan = (next: number) => next === 0x00 || (next >= 0xd0 && next <= 0xd7);
+
+/**
+ * The JPEG's segments without the metadata ones, ending at its EOI marker.
+ * Anything after EOI (a second file, a script, more metadata) is dropped:
+ * viewers ignore it, so it could only ever be a payload riding along. The
+ * scans are walked rather than searched for FF D9, so a progressive JPEG's
+ * tables between scans can't end it early.
+ */
 function stripJpeg(b: Uint8Array): Uint8Array {
   const parts: Uint8Array[] = [b.subarray(0, 2)];
   let o = 2;
-  while (o + 4 <= b.length) {
+  while (o + 2 <= b.length) {
     if (b[o] !== 0xff) throw new Error("Corrupt JPEG");
     const marker = b[o + 1]!;
-    if (marker === 0xd9) break;
-    if (marker === 0xda) {
-      parts.push(b.subarray(o)); // SOS: entropy-coded data runs to EOI
-      return concat(parts);
+    if (marker === 0xff) {
+      o++; // a fill byte before a marker
+      continue;
     }
+    if (marker === 0xd9) break; // EOI
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+      parts.push(b.subarray(o, o + 2)); // a marker without a length
+      o += 2;
+      continue;
+    }
+    if (o + 4 > b.length) throw new Error("Corrupt JPEG");
     const len = u16be(b, o + 2);
     if (len < 2 || o + 2 + len > b.length) throw new Error("Corrupt JPEG");
     if (!JPEG_DROP.has(marker)) parts.push(b.subarray(o, o + 2 + len));
     o += 2 + len;
+    if (marker === 0xda) {
+      // SOS: entropy-coded data runs to the next real marker.
+      const start = o;
+      while (o < b.length && !(b[o] === 0xff && o + 1 < b.length && !inScan(b[o + 1]!))) o++;
+      parts.push(b.subarray(start, o));
+    }
   }
   parts.push(new Uint8Array([0xff, 0xd9]));
   return concat(parts);

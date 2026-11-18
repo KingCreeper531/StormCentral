@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { blockSchema, firstIssue } from "@/lib/community";
+import { readJson } from "@/lib/server/body";
 import { block, findUserId, listBlocked, unblock } from "@/lib/server/moderation-repo";
 import { forbidden, sameOrigin, tooMany, unauthorized } from "@/lib/server/guard";
 import { rateLimit } from "@/lib/server/rate-limit";
@@ -15,7 +16,9 @@ export async function GET() {
 }
 
 async function target(req: Request) {
-  const parsed = blockSchema.safeParse(await req.json().catch(() => null));
+  const json = await readJson(req);
+  if (json instanceof Response) return { error: json };
+  const parsed = blockSchema.safeParse(json);
   if (!parsed.success) return { error: badRequest(firstIssue(parsed.error)) };
   const id = await findUserId(parsed.data.username);
   if (!id) return { error: Response.json({ error: "That account doesn't exist" }, { status: 404, headers: noStore }) };
@@ -27,7 +30,7 @@ export async function POST(req: Request) {
   if (!sameOrigin(req)) return forbidden();
   const user = await getSessionUser();
   if (!user) return unauthorized();
-  const rl = rateLimit(`block:${user.id}`, 30, 10 * 60_000);
+  const rl = await rateLimit(`block:${user.id}`, 30, 10 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
   const t = await target(req);
   if (t.error) return t.error;

@@ -51,7 +51,7 @@ export async function POST(req: Request) {
   if (!user) return unauthorized();
   const blocked = suspended(user);
   if (blocked) return blocked;
-  const rl = rateLimit(`post:${user.id}`, 10, 15 * 60_000);
+  const rl = await rateLimit(`post:${user.id}`, 10, 15 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
 
   const form = await readForm(req, MAX_POST_BYTES, "Image is too large (max 2.5 MB)");
