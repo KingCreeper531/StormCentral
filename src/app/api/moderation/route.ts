@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { firstIssue, moderationActionSchema } from "@/lib/community";
+import { readJson } from "@/lib/server/body";
 import { findUserId, keepContent, moderationQueue, removeContent, suspendUser, unsuspendUser } from "@/lib/server/moderation-repo";
 import { forbidden, sameOrigin, suspended, unauthorized } from "@/lib/server/guard";
 import { badRequest } from "@/lib/server/respond";
@@ -25,7 +26,9 @@ export async function POST(req: Request) {
   const blocked = suspended(user);
   if (blocked) return blocked;
   if (!user.moderator) return forbidden("Moderators only");
-  const parsed = moderationActionSchema.safeParse(await req.json().catch(() => null));
+  const json = await readJson(req);
+  if (json instanceof Response) return json;
+  const parsed = moderationActionSchema.safeParse(json);
   if (!parsed.success) return badRequest(firstIssue(parsed.error));
   const a = parsed.data;
 

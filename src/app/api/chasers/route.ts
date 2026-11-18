@@ -1,6 +1,7 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { MIN_UPDATE_MS, parseStream, positionSchema, type ChasersResponse } from "@/lib/chasers";
 import { firstIssue } from "@/lib/community";
+import { readJson } from "@/lib/server/body";
 import { listChasers, pruneChasers, stopSharing, upsertPosition } from "@/lib/server/chaser-repo";
 import { forbidden, sameOrigin, suspended, tooMany, unauthorized } from "@/lib/server/guard";
 import { rateLimit } from "@/lib/server/rate-limit";
@@ -37,7 +38,9 @@ export async function PUT(req: Request) {
   const rl = await rateLimit(`chaser:${user.id}`, 1, MIN_UPDATE_MS);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
 
-  const raw: unknown = await req.json().catch(() => null);
+  const raw = await readJson(req);
+
+  if (raw instanceof Response) return raw;
   const parsed = positionSchema.safeParse(raw);
   if (!parsed.success) return badRequest(firstIssue(parsed.error));
   const now = Date.now();

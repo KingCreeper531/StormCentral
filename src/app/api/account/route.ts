@@ -4,6 +4,7 @@ import { destroySession, getSessionUser } from "@/lib/auth/session";
 import { deleteAccountSchema, firstIssue, profileSchema } from "@/lib/community";
 import { getDb } from "@/lib/db/client";
 import { blocks, chaserPositions, comments, flags, media, passwordResets, posts, sessions, spotterWarnings, userRoles, users, userSettings, verifications } from "@/lib/db/schema";
+import { readJson } from "@/lib/server/body";
 import { forbidden, sameOrigin, suspended, tooMany, unauthorized } from "@/lib/server/guard";
 import { rateLimit } from "@/lib/server/rate-limit";
 
@@ -16,7 +17,9 @@ export async function PATCH(req: Request) {
   if (!user) return unauthorized();
   const blocked = suspended(user);
   if (blocked) return blocked;
-  const parsed = profileSchema.safeParse(await req.json().catch(() => null));
+  const json = await readJson(req);
+  if (json instanceof Response) return json;
+  const parsed = profileSchema.safeParse(json);
   if (!parsed.success) return Response.json({ error: firstIssue(parsed.error) }, { status: 400, headers: noStore });
   const db = await getDb();
   await db
@@ -42,7 +45,9 @@ export async function DELETE(req: Request) {
   if (!user) return unauthorized();
   const rl = await rateLimit(`delete-account:${user.id}`, 5, 15 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
-  const parsed = deleteAccountSchema.safeParse(await req.json().catch(() => null));
+  const json = await readJson(req);
+  if (json instanceof Response) return json;
+  const parsed = deleteAccountSchema.safeParse(json);
   if (!parsed.success) return Response.json({ error: firstIssue(parsed.error) }, { status: 400, headers: noStore });
 
   const db = await getDb();

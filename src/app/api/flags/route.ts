@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { firstIssue, flagSchema } from "@/lib/community";
+import { readJson } from "@/lib/server/body";
 import { createFlag } from "@/lib/server/moderation-repo";
 import { forbidden, sameOrigin, suspended, tooMany, unauthorized } from "@/lib/server/guard";
 import { rateLimit } from "@/lib/server/rate-limit";
@@ -16,7 +17,9 @@ export async function POST(req: Request) {
   if (blocked) return blocked;
   const rl = await rateLimit(`flag:${user.id}`, 20, 60 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
-  const parsed = flagSchema.safeParse(await req.json().catch(() => null));
+  const json = await readJson(req);
+  if (json instanceof Response) return json;
+  const parsed = flagSchema.safeParse(json);
   if (!parsed.success) return badRequest(firstIssue(parsed.error));
   const r = await createFlag(user.id, parsed.data);
   if (!r.ok) return Response.json({ error: r.error }, { status: r.status, headers: noStore });

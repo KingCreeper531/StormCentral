@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { firstIssue, GRANTABLE_ROLES, roleChangeSchema, type GrantedListDto } from "@/lib/community";
+import { readJson } from "@/lib/server/body";
 import { findUserId } from "@/lib/server/moderation-repo";
 import { forbidden, sameOrigin, suspended, tooMany, unauthorized } from "@/lib/server/guard";
 import { badRequest } from "@/lib/server/respond";
@@ -42,7 +43,9 @@ export async function POST(req: Request) {
   if (m.error) return m.error;
   const rl = await rateLimit(`roles:${m.user.id}`, 30, 15 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
-  const parsed = roleChangeSchema.safeParse(await req.json().catch(() => null));
+  const json = await readJson(req);
+  if (json instanceof Response) return json;
+  const parsed = roleChangeSchema.safeParse(json);
   if (!parsed.success) return badRequest(firstIssue(parsed.error));
   const { username, role, on } = parsed.data;
   if (!canChangeRole(m.user, role)) return forbidden("Only the site's own moderators can give or take away that role");
