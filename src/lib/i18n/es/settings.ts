@@ -214,8 +214,8 @@ export const SETTINGS: Record<string, string> = {
     "Guardado: {snapshot} (aún no se cargó el pronóstico; abre Hoy primero). Ve a la pantalla de inicio para ver el widget.",
   "saved, but reading it back returned nothing": "se guardó, pero al volver a leerlo no devolvió nada",
   "Couldn't save widget data: {error}": "No se pudieron guardar los datos del widget: {error}",
-  "Six styles: Weather, Clock and weather, Temperature, Hourly forecast, 5-day forecast and Dot (dot-matrix numbers, in the style of Nothing OS). Long-press your home screen, tap Widgets, then Storm Central. They follow your theme and clock settings and update when you leave the app.":
-    "Seis estilos: Tiempo, Reloj y tiempo, Temperatura, Pronóstico por hora, Pronóstico de 5 días y Puntos (números en puntos, al estilo de Nothing OS). Mantén presionada la pantalla de inicio, toca Widgets y luego Storm Central. Siguen tu tema y tu configuración de reloj, y se actualizan cuando sales de la app.",
+  "Six styles: Weather, Clock and weather, Temperature, Hourly forecast, 5-day forecast and Dot (dot-matrix type, in the style of Nothing OS). Long-press your home screen, tap Widgets, then Storm Central. They follow your theme and clock settings and update when you leave the app.":
+    "Seis estilos: Tiempo, Reloj y tiempo, Temperatura, Pronóstico por hora, Pronóstico de 5 días y Puntos (texto en puntos, al estilo de Nothing OS). Mantén presionada la pantalla de inicio, toca Widgets y luego Storm Central. Siguen tu tema y tu configuración de reloj, y se actualizan cuando sales de la app.",
 
   // ─── desktop-settings.tsx ──────────────────────────────────────────────────
   "Desktop app": "App de escritorio",

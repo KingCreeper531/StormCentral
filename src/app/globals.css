@@ -265,9 +265,9 @@ select option {
   box-shadow: 0 1px 2px rgb(15 23 42 / 0.14), 0 2px 8px rgb(15 23 42 / 0.08);
 }
 
-/* Dot-matrix themes ("font": "dot" in a theme add-on, e.g. Dot Matrix): the
-   big readouts (.display-num) and page titles in Doto with round dots, the
-   look of Nothing OS. Body text stays in the sans for legibility. The font
+/* Dot-matrix themes ("font": "dot" in a theme add-on, e.g. Dot Matrix): all
+   text in Doto with round dots, the look of Nothing OS. Characters Doto
+   doesn't have (emoji, arrows) fall back to the sans. The font
    (public/fonts/doto, OFL) is only fetched when a dot theme is on. */
 @font-face {
   font-family: "Doto";
@@ -277,17 +277,24 @@ select option {
   font-display: swap;
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
-:root[data-font="dot"] :is(.display-num, h1.text-xl) {
-  font-family: "Doto", var(--font-mono);
-  font-weight: 800;
-  font-variation-settings: "ROND" 100;
+:root[data-font="dot"] {
+  --font-sans: "Doto", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Doto", var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
+}
+/* Thin dots vanish at reading sizes: all text is drawn at full weight
+   (bigger dots); emphasis comes from colour and size, as on Nothing OS. */
+:root[data-font="dot"] body {
+  font-variation-settings: "ROND" 100, "wght" 900;
   letter-spacing: 0;
+}
+:root[data-font="dot"] :is(.display-num, h1.text-xl) {
+  font-variation-settings: "ROND" 100, "wght" 800;
 }
 /* Dots need size to read: page titles go up a step and to full weight. */
 :root[data-font="dot"] h1.text-xl {
   font-size: 1.75rem;
   line-height: 2.25rem;
-  font-weight: 900;
+  font-variation-settings: "ROND" 100, "wght" 900;
 }
 
 /* The sun disc's slow glow. */

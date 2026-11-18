@@ -13,7 +13,7 @@
     <string name="widget_label_daily">5-day forecast</string>
     <string name="widget_description_daily">Current conditions and highs and lows for five days</string>
     <string name="widget_label_dot">Dot</string>
-    <string name="widget_description_dot">The temperature large in dot-matrix type, in black, white and red, in the style of Nothing OS</string>
+    <string name="widget_description_dot">The temperature large and everything in dot-matrix type, in black, white and red, in the style of Nothing OS</string>
     <!-- The Dot widget's red dot before the place. -->
     <string name="widget_dot_mark" translatable="false">●</string>
 

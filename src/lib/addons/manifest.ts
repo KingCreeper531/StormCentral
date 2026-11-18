@@ -49,7 +49,7 @@ export interface ThemeAddon extends AddonMeta {
   sky?: "vivid";
   /** Light by day, dark at night at the selected location ("base": "auto" in the manifest). */
   followSun?: boolean;
-  /** "dot": big numbers and page titles in a dot-matrix display font (built-in font, no download from elsewhere). */
+  /** "dot": all text in a dot-matrix font (built-in font, no download from elsewhere). */
   font?: "dot";
 }
 
