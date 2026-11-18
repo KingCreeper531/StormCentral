@@ -125,7 +125,7 @@ public class WeatherWidgetProvider extends AppWidgetProvider {
         if (manager == null) return false;
         for (Class<?> cls : new Class<?>[] {
                 WeatherWidgetProvider.class, CompactWidgetProvider.class, HourlyWidgetProvider.class,
-                DailyWidgetProvider.class, ClockWidgetProvider.class}) {
+                DailyWidgetProvider.class, ClockWidgetProvider.class, DotWidgetProvider.class}) {
             try {
                 int[] ids = manager.getAppWidgetIds(new ComponentName(context, cls));
                 if (ids != null && ids.length > 0) return true;

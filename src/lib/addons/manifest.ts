@@ -49,6 +49,12 @@ export interface ThemeAddon extends AddonMeta {
   sky?: "vivid";
   /** Light by day, dark at night at the selected location ("base": "auto" in the manifest). */
   followSun?: boolean;
+  /** "dot": big readouts and headers in a dot-matrix font, small labels in the mono (built-in font, no download from elsewhere). */
+  font?: "dot";
+  /** "dot": flat dot-grid weather icons in the text colour instead of the colour artwork (built in). */
+  icons?: "dot";
+  /** "pill": fully rounded buttons, fields and switches, and 16 px cards. */
+  corners?: "pill";
 }
 
 export interface RasterLayer {
@@ -189,6 +195,9 @@ export function parseAddon(raw: unknown, source: { id: string; homepage: string 
       colors,
       ...(vivid ? { sky: "vivid" as const } : {}),
       ...(followSun ? { followSun: true } : {}),
+      ...(m.font === "dot" ? { font: "dot" as const } : {}),
+      ...(m.icons === "dot" ? { icons: "dot" as const } : {}),
+      ...(m.corners === "pill" ? { corners: "pill" as const } : {}),
     };
   }
   if (m.type === "plugin") {

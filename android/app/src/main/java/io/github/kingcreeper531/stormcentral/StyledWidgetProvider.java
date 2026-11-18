@@ -14,7 +14,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * The extra widget styles (Temperature, Hourly, 5-day, Clock). They draw from the same
+ * The extra widget styles (Temperature, Hourly, 5-day, Clock, Dot). They draw from the same
  * snapshot as {@link WeatherWidgetProvider} and share its refresh, so every
  * style updates together.
  */
@@ -22,7 +22,7 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
 
     private static final String TAG = "StormCentralWidget";
 
-    enum Style { COMPACT, HOURLY, DAILY, CLOCK }
+    enum Style { COMPACT, HOURLY, DAILY, CLOCK, DOT }
 
     abstract Style style();
 
@@ -44,6 +44,7 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
         render(context, manager, ids(context, manager, HourlyWidgetProvider.class), Style.HOURLY, snapshot);
         render(context, manager, ids(context, manager, DailyWidgetProvider.class), Style.DAILY, snapshot);
         render(context, manager, ids(context, manager, ClockWidgetProvider.class), Style.CLOCK, snapshot);
+        render(context, manager, ids(context, manager, DotWidgetProvider.class), Style.DOT, snapshot);
     }
 
     private static int[] ids(Context context, AppWidgetManager manager, Class<?> cls) {
@@ -66,7 +67,9 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
                         ? buildCompact(context, snapshot, heightDp, nowMs)
                         : style == Style.CLOCK
                                 ? buildClock(context, snapshot, widthDp, heightDp, nowMs)
-                                : buildForecast(context, snapshot, style, heightDp, nowMs);
+                                : style == Style.DOT
+                                        ? buildDot(context, snapshot, widthDp, heightDp, nowMs)
+                                        : buildForecast(context, snapshot, style, heightDp, nowMs);
                 manager.updateAppWidget(id, views);
             } catch (RuntimeException e) {
                 Log.w(TAG, "Could not draw widget " + id, e);
@@ -324,6 +327,115 @@ public abstract class StyledWidgetProvider extends AppWidgetProvider {
         show(views, R.id.widget_alert, alert != null && !tiny);
         note(views, snapshot, p, heightDp >= (alert != null ? 190 : 150), nowMs);
         return views;
+    }
+
+    // ---- Dot (Nothing OS style) ---------------------------------------------
+
+    static final int[] DOT_VIEWS = {
+        R.id.widget_main, R.id.widget_dot_mark, R.id.widget_place, R.id.widget_temp, R.id.widget_condition,
+        R.id.widget_hilo, R.id.widget_message, R.id.widget_cells,
+    };
+    /** Upcoming hours shown on the right of a wide Dot widget. */
+    static final int DOT_HOURS = 3;
+
+    /**
+     * In the style of Nothing OS: monochrome, one red. A red dot and the place
+     * in small capitals, the temperature large in dot-matrix type (Doto), the
+     * sky and today's high and low under it. An active warning takes the bottom
+     * line, in red. About four cells wide, the next hours join on the right.
+     */
+    private static RemoteViews buildDot(Context context, JSONObject snapshot, int widthDp, int heightDp, long nowMs) {
+        WidgetLook look = WidgetLook.of(context);
+        RemoteViews views = new RemoteViews(context.getPackageName(), look.layout(R.layout.widget_dot, R.layout.widget_dot_clear));
+        views.setInt(android.R.id.background, "setBackgroundResource",
+                look.clear ? R.drawable.widget_background_dot_clear : look.light ? R.drawable.widget_background_dot_light : R.drawable.widget_background_dot);
+        WeatherWidgetProvider.tapAnywhere(views, WeatherWidgetProvider.openApp(context), DOT_VIEWS);
+        // Nothing's red, a shade brighter on dark panels and wallpapers to stay readable.
+        int red = look.light && !look.clear ? 0xFFD71921 : 0xFFFF3B3F;
+        int ink = look.clear ? 0xFFFFFFFF : look.light ? 0xFF000000 : 0xFFFFFFFF;
+        int ink2 = look.clear ? 0xEBFFFFFF : look.light ? 0xFF474747 : 0xFFB3B3B3;
+        int ink3 = look.clear ? 0xC7FFFFFF : look.light ? 0xFF5E5E5E : 0xFF8C8C8C;
+        views.removeAllViews(R.id.widget_cells);
+        views.setTextColor(R.id.widget_dot_mark, red);
+        views.setTextColor(R.id.widget_message, ink2);
+
+        JSONObject place = snapshot == null ? null : snapshot.optJSONObject("place");
+        if (place == null) {
+            views.setTextViewText(R.id.widget_message, context.getString(R.string.widget_setup));
+            views.setTextViewText(R.id.widget_place, "Storm Central");
+            views.setTextColor(R.id.widget_place, ink2);
+            show(views, R.id.widget_message, true);
+            show(views, R.id.widget_temp, false);
+            show(views, R.id.widget_condition, false);
+            show(views, R.id.widget_hilo, false);
+            show(views, R.id.widget_cells, false);
+            return views;
+        }
+        show(views, R.id.widget_message, false);
+        show(views, R.id.widget_temp, true);
+
+        boolean f = WeatherWidgetData.fahrenheit(snapshot);
+        JSONObject now = snapshot.optJSONObject("now");
+        double tempC = WeatherWidgetData.number(now, "tempC");
+        int code = now == null || now.isNull("code") ? -1 : now.optInt("code", -1);
+        String condition = WeatherWidgetData.string(now, "text");
+        if (condition == null && code >= 0) condition = WeatherWidgetData.conditionText(context, code);
+        double hi = WeatherWidgetData.number(now, "hiC");
+        double lo = WeatherWidgetData.number(now, "loC");
+        String placeName = WeatherWidgetData.string(place, "name");
+
+        boolean shortWidget = heightDp > 0 && heightDp < 130;
+        boolean narrow = widthDp > 0 && widthDp < 130;
+        views.setTextViewText(R.id.widget_place, placeName == null ? "" : placeName);
+        views.setTextColor(R.id.widget_place, ink2);
+        views.setTextViewText(R.id.widget_temp, temp(context, tempC, f));
+        views.setTextViewTextSize(R.id.widget_temp, TypedValue.COMPLEX_UNIT_SP, shortWidget || narrow ? 44f : heightDp >= 220 ? 84f : 64f);
+        views.setTextColor(R.id.widget_temp, ink);
+
+        // An active warning takes the bottom lines, in red, and so does the dot.
+        String alert = WeatherWidgetProvider.alertLine(context, snapshot.optJSONObject("alert"), nowMs);
+        String alertEvent = alert == null ? null : WeatherWidgetData.string(snapshot.optJSONObject("alert"), "event");
+        String hilo = Double.isNaN(hi) || Double.isNaN(lo) ? null
+                : context.getString(R.string.widget_hilo, WeatherWidgetData.displayTemp(hi, f), WeatherWidgetData.displayTemp(lo, f));
+        // The warning's end ("until 6:45 PM"): alertLine starts with the event, already on the line above.
+        String until = alertEvent == null ? null : alert.startsWith(alertEvent) ? alert.substring(alertEvent.length()).trim() : alert;
+        if (alertEvent != null) {
+            views.setTextViewText(R.id.widget_condition, alertEvent);
+            views.setTextColor(R.id.widget_condition, red);
+            views.setTextViewText(R.id.widget_hilo, until);
+            views.setTextColor(R.id.widget_hilo, red);
+        } else {
+            views.setTextViewText(R.id.widget_condition, condition == null ? "" : condition);
+            views.setTextColor(R.id.widget_condition, ink);
+            views.setTextViewText(R.id.widget_hilo, hilo == null ? "" : hilo);
+            views.setTextColor(R.id.widget_hilo, ink3);
+        }
+        show(views, R.id.widget_condition, alertEvent != null || condition != null);
+        show(views, R.id.widget_hilo, !shortWidget && (alertEvent != null ? !until.isEmpty() : hilo != null));
+
+        // About four cells wide: the next hours on the right, in dots.
+        int added = widthDp >= 250 ? addDotHours(context, views, snapshot.optJSONArray("hours"), f, look, ink, ink3, nowMs) : 0;
+        show(views, R.id.widget_cells, added > 0);
+        return views;
+    }
+
+    private static int addDotHours(Context context, RemoteViews views, JSONArray hours, boolean f, WidgetLook look, int ink, int ink3, long nowMs) {
+        if (hours == null) return 0;
+        int added = 0;
+        for (int i = 0; i < hours.length() && added < DOT_HOURS; i++) {
+            JSONObject h = hours.optJSONObject(i);
+            long t = WeatherWidgetData.parseIso(WeatherWidgetData.string(h, "time"));
+            if (t == WeatherWidgetData.NO_TIME || t <= nowMs) continue; // now is the big number; only later hours here
+            RemoteViews cell = new RemoteViews(context.getPackageName(), look.layout(R.layout.widget_dot_cell, R.layout.widget_dot_cell_clear));
+            cell.setTextViewText(R.id.widget_cell_label, WeatherWidgetData.formatHour(context, t));
+            cell.setTextColor(R.id.widget_cell_label, ink3);
+            cell.setTextViewText(R.id.widget_cell_value, temp(context, WeatherWidgetData.number(h, "tempC"), f));
+            cell.setTextColor(R.id.widget_cell_value, ink);
+            cell.setOnClickPendingIntent(R.id.widget_cell, WeatherWidgetProvider.openApp(context));
+            views.addView(R.id.widget_cells, cell);
+            added++;
+        }
+        return added;
     }
 
     private static RemoteViews cell(Context context, String label, String icon, String value, WidgetLook p) {

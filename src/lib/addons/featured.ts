@@ -16,6 +16,8 @@ import themeSunset from "../../../examples/addons/themes/sunset/stormcentral.jso
 import themeOcean from "../../../examples/addons/themes/ocean/stormcentral.json";
 import themeHalloween from "../../../examples/addons/themes/halloween/stormcentral.json";
 import themeHighContrast from "../../../examples/addons/themes/high-contrast/stormcentral.json";
+import themeDotMatrix from "../../../examples/addons/themes/dot-matrix/stormcentral.json";
+import themeDotMatrixLight from "../../../examples/addons/themes/dot-matrix-light/stormcentral.json";
 import pluginRainfall from "../../../examples/addons/plugins/rainfall/stormcentral.json";
 import pluginWildfires from "../../../examples/addons/plugins/wildfires/stormcentral.json";
 import pluginEarthquakes from "../../../examples/addons/plugins/earthquakes/stormcentral.json";
@@ -47,6 +49,8 @@ export const FEATURED_THEMES: ThemeAddon[] = [
   ...load<ThemeAddon>("themes/sunset", themeSunset),
   ...load<ThemeAddon>("themes/ocean", themeOcean),
   ...load<ThemeAddon>("themes/high-contrast", themeHighContrast),
+  ...load<ThemeAddon>("themes/dot-matrix", themeDotMatrix),
+  ...load<ThemeAddon>("themes/dot-matrix-light", themeDotMatrixLight),
   ...load<ThemeAddon>("themes/halloween", themeHalloween),
 ];
 

@@ -11,6 +11,8 @@
     <string name="widget_description_clock">La hora y la fecha con las condiciones actuales y la máxima y mínima de hoy</string>
     <string name="widget_label_daily">Pronóstico de 5 días</string>
     <string name="widget_description_daily">Condiciones actuales y máximas y mínimas de cinco días</string>
+    <string name="widget_label_dot">Puntos</string>
+    <string name="widget_description_dot">La temperatura grande en puntos, en negro, blanco y rojo, al estilo de Nothing OS</string>
     <string name="widget_setup">Abre Storm Central para configurarlo</string>
     <string name="widget_setup_short">Abre la app</string>
     <string name="widget_now">Ahora</string>

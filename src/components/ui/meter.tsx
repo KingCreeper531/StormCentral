@@ -54,7 +54,7 @@ export function ScoreReadout({
   return (
     <div className="min-w-0">
       <p className="flex items-baseline gap-1.5">
-        <span className="text-5xl font-light tracking-tight text-ink tabular">{Math.round(score)}</span>
+        <span className="display-num text-5xl font-light tracking-tight text-ink tabular">{Math.round(score)}</span>
         <span className="text-sm text-ink-3">/ {max}</span>
       </p>
       <Meter value={score} max={max} color={color} label={label} ticks={[25, 50, 75].map((t) => (t / 100) * max)} className="mt-2" />

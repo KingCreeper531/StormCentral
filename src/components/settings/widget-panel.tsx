@@ -84,7 +84,7 @@ export function WidgetPanel() {
       )}
       <p className="label mt-3">
         {t(
-          "Five styles: Weather, Clock and weather, Temperature, Hourly forecast and 5-day forecast. Long-press your home screen, tap Widgets, then Storm Central. They follow your theme and clock settings and update when you leave the app.",
+          "Six styles: Weather, Clock and weather, Temperature, Hourly forecast, 5-day forecast and Dot (dot-matrix type, in the style of Nothing OS). Long-press your home screen, tap Widgets, then Storm Central. They follow your theme and clock settings and update when you leave the app.",
         )}
       </p>
     </Panel>

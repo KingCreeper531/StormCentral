@@ -206,7 +206,7 @@ export function AirMode() {
         ) : (
           <>
             <div className="flex items-end gap-4">
-              <p className="text-5xl font-light tracking-tight text-ink tabular">{aqi != null ? Math.round(aqi) : "—"}</p>
+              <p className="display-num text-5xl font-light tracking-tight text-ink tabular">{aqi != null ? Math.round(aqi) : "—"}</p>
               {cat && (
                 <div className="min-w-0 pb-1">
                   <p className="flex items-center gap-2 text-sm font-medium text-ink">

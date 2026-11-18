@@ -110,6 +110,18 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_clock_info" />
         </receiver>
+
+        <receiver
+            android:name=".DotWidgetProvider"
+            android:label="@string/widget_label_dot"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_dot_info" />
+        </receiver>
         <!-- In-app update results (only our own PackageInstaller session reaches it). -->
         <receiver android:name=".InstallStatusReceiver" android:exported="false" />
         <!-- After an update: keep background checks scheduled and say it's done. -->
