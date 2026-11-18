@@ -57,7 +57,7 @@ export function CurrentHero({ f, now, className }: { f: Forecast; now: number; c
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
-          className="mt-1 text-7xl leading-none font-light tracking-tight whitespace-nowrap text-ink tabular sm:text-8xl [@media(max-height:500px)]:text-6xl"
+          className="display-num mt-1 text-7xl leading-none font-light tracking-tight whitespace-nowrap text-ink tabular sm:text-8xl [@media(max-height:500px)]:text-6xl"
         >
           {fmt.temp(c.temp)}
         </motion.p>

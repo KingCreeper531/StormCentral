@@ -49,6 +49,8 @@ export interface ThemeAddon extends AddonMeta {
   sky?: "vivid";
   /** Light by day, dark at night at the selected location ("base": "auto" in the manifest). */
   followSun?: boolean;
+  /** "dot": big numbers and page titles in a dot-matrix display font (built-in font, no download from elsewhere). */
+  font?: "dot";
 }
 
 export interface RasterLayer {
@@ -189,6 +191,7 @@ export function parseAddon(raw: unknown, source: { id: string; homepage: string 
       colors,
       ...(vivid ? { sky: "vivid" as const } : {}),
       ...(followSun ? { followSun: true } : {}),
+      ...(m.font === "dot" ? { font: "dot" as const } : {}),
     };
   }
   if (m.type === "plugin") {

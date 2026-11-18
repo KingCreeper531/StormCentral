@@ -78,6 +78,34 @@ describe("parseAddon", () => {
     expect(() => parseAddon({ type: "theme", name: "Plain", colors: {} }, src)).toThrow(AddonError);
   });
 
+  it("takes the dot-matrix font option and ignores any other font", () => {
+    const dot = parseAddon({ type: "theme", name: "Dots", font: "dot", colors: { ink: "#ffffff" } }, src);
+    expect(dot).toMatchObject({ type: "theme", font: "dot" });
+    expect(parseAddon({ type: "theme", name: "X", font: "https://evil.example/f.woff2", colors: { ink: "#ffffff" } }, src)).not.toHaveProperty("font");
+  });
+
+  it("ships the Dot Matrix themes with the dot font and readable text and accents", () => {
+    const lum = (hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+    };
+    const contrast = (a: string, b: string) => {
+      const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+      return (hi! + 0.05) / (lo! + 0.05);
+    };
+    const dots = FEATURED_THEMES.filter((t) => t.font === "dot");
+    expect(dots.map((t) => [t.name, t.base])).toEqual([
+      ["Dot Matrix", "dark"],
+      ["Dot Matrix Light", "light"],
+    ]);
+    for (const t of dots) {
+      // The same bar as the built-in themes (globals.css): text tokens at least 4.5:1 on surface-1 and surface-2.
+      for (const ink of ["ink", "ink-2", "ink-3", "accent", "go", "caution", "nogo"] as const)
+        for (const surface of ["surface-1", "surface-2"] as const)
+          expect(contrast(t.colors[ink]!, t.colors[surface]!), `${t.name} ${ink} on ${surface}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   it("accepts WMTS {z}/{y}/{x} order and fills date tokens", () => {
     const p = parseAddon({ type: "plugin", name: "P", layers: [{ type: "raster", tiles: ["https://g.example/{date}/{z}/{y}/{x}.jpg"], visible: false }] }, src);
     expect(p.type === "plugin" && p.layers[0]?.visible).toBe(false);

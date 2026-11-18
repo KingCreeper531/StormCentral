@@ -1,0 +1,28 @@
+{
+  "type": "theme",
+  "name": "Dot Matrix",
+  "author": "Storm Central",
+  "description": "In the style of Nothing OS: true black, white type, one red, and dot-matrix numbers.",
+  "version": "1.0.0",
+  "base": "dark",
+  "font": "dot",
+  "colors": {
+    "canvas": "#000000",
+    "surface-1": "#111111",
+    "surface-2": "#1b1b1b",
+    "surface-3": "#262626",
+    "line": "#2b2b2b",
+    "line-strong": "#4a4a4a",
+    "ink": "#ffffff",
+    "ink-2": "#b3b3b3",
+    "ink-3": "#8c8c8c",
+    "accent": "#ff3b3f",
+    "go": "#3ccf6e",
+    "caution": "#f5b700",
+    "nogo": "#ff6b6b",
+    "series-1": "#ffffff",
+    "series-2": "#ff3b3f",
+    "series-3": "#8c8c8c",
+    "grid": "#222222"
+  }
+}

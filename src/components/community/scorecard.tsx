@@ -62,7 +62,7 @@ function Overall({ data }: { data: ScorecardSummary }) {
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] sm:gap-6">
         <div className="min-w-0">
           <p className="flex items-baseline gap-1">
-            <span className="text-5xl font-light tracking-tight text-ink tabular">{overall.hitRate == null ? "—" : Math.round(overall.hitRate * 100)}</span>
+            <span className="display-num text-5xl font-light tracking-tight text-ink tabular">{overall.hitRate == null ? "—" : Math.round(overall.hitRate * 100)}</span>
             <span className="text-lg text-ink-3">%</span>
           </p>
           <p className="label mt-0.5">{t("Hit rate")}</p>
