@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   if (!sameOrigin(req)) return forbidden();
   const user = await getSessionUser();
   if (!user) return unauthorized();
-  const rl = rateLimit(`block:${user.id}`, 30, 10 * 60_000);
+  const rl = await rateLimit(`block:${user.id}`, 30, 10 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
   const t = await target(req);
   if (t.error) return t.error;

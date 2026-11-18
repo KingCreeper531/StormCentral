@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   if (!user) return unauthorized();
   const blocked = suspended(user);
   if (blocked) return blocked;
-  const rl = rateLimit(`flag:${user.id}`, 20, 60 * 60_000);
+  const rl = await rateLimit(`flag:${user.id}`, 20, 60 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
   const parsed = flagSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return badRequest(firstIssue(parsed.error));

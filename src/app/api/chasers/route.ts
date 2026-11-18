@@ -34,7 +34,7 @@ export async function PUT(req: Request) {
   if (!user) return unauthorized();
   const blocked = suspended(user);
   if (blocked) return blocked;
-  const rl = rateLimit(`chaser:${user.id}`, 1, MIN_UPDATE_MS);
+  const rl = await rateLimit(`chaser:${user.id}`, 1, MIN_UPDATE_MS);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
 
   const raw: unknown = await req.json().catch(() => null);

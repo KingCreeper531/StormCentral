@@ -20,14 +20,14 @@ export async function POST(req: Request) {
     return Response.json({ error: "Password reset by email isn't set up on this server yet." }, { status: 503, headers: NO_STORE });
   }
   // Per IP before the body is read; a refused IP never reaches the per-address counters.
-  const ip = rateLimit(`forgot-ip:${clientIp(req)}`, 5, 15 * 60_000);
+  const ip = await rateLimit(`forgot-ip:${clientIp(req)}`, 5, 15 * 60_000);
   if (!ip.ok) return tooMany(ip.retryAfterSec);
   const body = await readJson(req);
   if (body instanceof Response) return body;
   const parsed = forgotSchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: firstIssue(parsed.error) }, { status: 400, headers: NO_STORE });
   const { email } = parsed.data;
-  const acct = rateLimit(`forgot-acct:${email}`, 3, 60 * 60_000);
+  const acct = await rateLimit(`forgot-acct:${email}`, 3, 60 * 60_000);
   if (!acct.ok) return tooMany(acct.retryAfterSec);
 
   const db = await getDb();

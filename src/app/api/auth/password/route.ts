@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   if (!sameOrigin(req)) return forbidden();
   const me = await getSessionUser();
   if (!me) return unauthorized();
-  const limit = rateLimit(`password:${me.id}`, 8, 15 * 60_000);
+  const limit = await rateLimit(`password:${me.id}`, 8, 15 * 60_000);
   if (!limit.ok) return tooMany(limit.retryAfterSec);
   const parsed = changePasswordSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: firstIssue(parsed.error) }, { status: 400 });

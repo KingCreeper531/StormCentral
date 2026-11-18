@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   if (blocked) return blocked;
   const perm = await issuePermission(user);
   if (!perm.ok) return forbidden(perm.reason ?? "You can't issue spotter warnings yet");
-  const rl = rateLimit(`warngen:${user.id}`, 8, 15 * 60_000);
+  const rl = await rateLimit(`warngen:${user.id}`, 8, 15 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
 
   const raw: unknown = await req.json().catch(() => null);

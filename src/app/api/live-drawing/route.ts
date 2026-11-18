@@ -21,7 +21,7 @@ export async function PUT(req: Request) {
   const user = await getSessionUser();
   if (!user) return unauthorized();
   if (!isPresenter(user)) return forbidden();
-  const rl = rateLimit(`live-drawing:${user.id}`, 5, 1000);
+  const rl = await rateLimit(`live-drawing:${user.id}`, 5, 1000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
   const raw = (await req.json().catch(() => null)) as { shapes?: unknown } | null;
   if (!raw || !Array.isArray(raw.shapes)) return badRequest("Send { shapes: [...] }");

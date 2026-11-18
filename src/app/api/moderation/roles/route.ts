@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   if (!sameOrigin(req)) return forbidden();
   const m = await moderator();
   if (m.error) return m.error;
-  const rl = rateLimit(`roles:${m.user.id}`, 30, 15 * 60_000);
+  const rl = await rateLimit(`roles:${m.user.id}`, 30, 15 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
   const parsed = roleChangeSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return badRequest(firstIssue(parsed.error));

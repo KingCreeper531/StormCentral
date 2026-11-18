@@ -12,7 +12,7 @@ import { badRequest, errorResponse } from "@/lib/server/respond";
  * one address, with room to spare.
  */
 export async function GET(req: Request) {
-  const rl = rateLimit(`gis:${clientIp(req)}`, 120, 60_000);
+  const rl = await rateLimit(`gis:${clientIp(req)}`, 120, 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
   const url = new URL(req.url).searchParams.get("url");
   if (!url) return badRequest("Add ?url= with the layer's link");

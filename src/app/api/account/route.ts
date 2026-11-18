@@ -40,7 +40,7 @@ export async function DELETE(req: Request) {
   if (!sameOrigin(req)) return forbidden();
   const user = await getSessionUser();
   if (!user) return unauthorized();
-  const rl = rateLimit(`delete-account:${user.id}`, 5, 15 * 60_000);
+  const rl = await rateLimit(`delete-account:${user.id}`, 5, 15 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
   const parsed = deleteAccountSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: firstIssue(parsed.error) }, { status: 400, headers: noStore });
