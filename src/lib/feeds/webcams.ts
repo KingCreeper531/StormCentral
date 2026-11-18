@@ -288,9 +288,6 @@ const LOADERS: Record<WebcamSource, () => Promise<WebcamRow[]>> = {
   wsdot: () => cached("webcams:wsdot", 30 * 60_000, async () => parseWsdot(await arcgisFeatures(WSDOT_LAYER, (j) => (j as { features?: unknown[] })?.features ?? []))),
 };
 
-/** One source's cameras, whether or not it's approved yet (for checks against the live source). */
-export const loadWebcamSource = (id: WebcamSource) => LOADERS[id]();
-
 export const webcamsFeed: Feed<WebcamsResponse> = {
   path: "/api/webcams",
   maxAge: 600,
