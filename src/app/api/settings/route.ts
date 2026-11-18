@@ -29,7 +29,7 @@ export async function PUT(req: Request) {
   if (!sameOrigin(req)) return forbidden();
   const user = await getSessionUser();
   if (!user) return unauthorized();
-  const rl = rateLimit(`settings:${user.id}`, 30, 60_000);
+  const rl = await rateLimit(`settings:${user.id}`, 30, 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
   // UTF-8 takes at most 3 bytes for each character JavaScript counts.
   const body = await readBody(req, MAX_BODY_CHARS * 3, TOO_BIG);

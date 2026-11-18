@@ -5,6 +5,7 @@ import { createSession, getSessionUser } from "@/lib/auth/session";
 import { changePasswordSchema, firstIssue } from "@/lib/community";
 import { getDb } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
+import { readJson } from "@/lib/server/body";
 import { forbidden, sameOrigin, tooMany, unauthorized } from "@/lib/server/guard";
 import { rateLimit } from "@/lib/server/rate-limit";
 
@@ -13,9 +14,11 @@ export async function POST(req: Request) {
   if (!sameOrigin(req)) return forbidden();
   const me = await getSessionUser();
   if (!me) return unauthorized();
-  const limit = rateLimit(`password:${me.id}`, 8, 15 * 60_000);
+  const limit = await rateLimit(`password:${me.id}`, 8, 15 * 60_000);
   if (!limit.ok) return tooMany(limit.retryAfterSec);
-  const parsed = changePasswordSchema.safeParse(await req.json().catch(() => null));
+  const json = await readJson(req);
+  if (json instanceof Response) return json;
+  const parsed = changePasswordSchema.safeParse(json);
   if (!parsed.success) return Response.json({ error: firstIssue(parsed.error) }, { status: 400 });
 
   const db = await getDb();

@@ -1,0 +1,445 @@
+{
+  "id": "velocity",
+  "title": "Reading Doppler Velocity: Spreading Winds, Converging Winds and Spin Signatures",
+  "youtube": "Doppler Radar Velocity: Downbursts, Convergence and Tornado Signatures | Radar School",
+  "summary": "This lesson shows how Doppler radar velocity data can reveal winds spreading out at the ground (divergence) and winds coming together inside a storm (convergence), and how velocity data led to the Tornadic Vortex Signature.",
+  "es": {
+    "title": "Reading Doppler Velocity: Spreading Winds, Converging Winds and Spin Signatures | Escuela de Radar",
+    "summary": "This lesson shows how Doppler radar velocity data can reveal winds spreading out at the ground (divergence) and winds coming together inside a storm (convergence), and how velocity data led to the Tornadic Vortex Signature."
+  },
+  "thumb": {
+    "lines": [
+      "READING",
+      "DOPPLER",
+      "VELOCITY:"
+    ],
+    "visual": {
+      "storm": {
+        "kind": "supercell",
+        "p": {
+          "hook": 1,
+          "notch": 1
+        }
+      }
+    }
+  },
+  "chapters": [
+    {
+      "title": "Introduction",
+      "beats": [
+        {
+          "say": "This lesson shows how Doppler radar velocity data can reveal winds spreading out at the ground (divergence) and winds coming together inside a storm (convergence), and how velocity data led to the Tornadic Vortex Signature.",
+          "visual": {
+            "type": "title"
+          },
+          "min": 7
+        },
+        {
+          "say": "We'll cover where doppler velocity data comes from, divergence: winds spreading out at the ground, convergence: winds coming together inside the storm, spin signatures and tornadoes, limits of velocity data.",
+          "caption": "What we'll cover",
+          "visual": {
+            "type": "bullets",
+            "heading": "In this lesson",
+            "items": [
+              "Where Doppler velocity data comes from",
+              "Divergence: winds spreading out at the ground",
+              "Convergence: winds coming together inside the storm",
+              "Spin signatures and tornadoes",
+              "Limits of velocity data"
+            ]
+          },
+          "min": 8
+        }
+      ]
+    },
+    {
+      "title": "Where Doppler velocity data comes from",
+      "beats": [
+        {
+          "say": "The first Doppler weather radar started working in Norman, Oklahoma, in 1974. Researchers went on to show the National Weather Service that it was a crucial forecasting tool.",
+          "caption": "1974: the first Doppler weather radar",
+          "bullet": "First one: Norman, Oklahoma, 1974",
+          "visual": {
+            "type": "bullets",
+            "heading": "1974: the first Doppler weather radar",
+            "items": [
+              "1974: the first Doppler weather radar"
+            ]
+          }
+        },
+        {
+          "say": "Today the National Weather Service runs a network of 158 of these radars. They're called NEXRAD, short for NEXt-generation RADar.",
+          "caption": "NEXRAD: a network of 158 radars",
+          "bullet": "158 NEXRAD radars",
+          "visual": {
+            "type": "bullets",
+            "heading": "NEXRAD: a network of 158 radars",
+            "items": [
+              "NEXRAD: a network of 158 radars"
+            ]
+          }
+        },
+        {
+          "say": "Scientists at NSSL, the National Severe Storms Laboratory, built the first real-time displays of Doppler velocity data. That means wind information you could watch live.",
+          "caption": "NSSL built the first live velocity displays",
+          "bullet": "First real-time velocity displays",
+          "visual": {
+            "type": "bullets",
+            "heading": "NSSL built the first live velocity displays",
+            "items": [
+              "NSSL built the first live velocity displays"
+            ]
+          }
+        },
+        {
+          "say": "This NSSL example shows a damaging downburst in central Oklahoma on June 14, 2011. Reflectivity data is on the left. Velocity data is on the right. Doppler velocity data can show winds diverging, or spreading apart, at the surface. That can point to a downburst.",
+          "caption": "Damaging downburst, central Oklahoma, June 14, 2011: reflectivity (lef",
+          "bullet": "Velocity data can show diverging surface wind",
+          "visual": {
+            "type": "bullets",
+            "heading": "Damaging downburst, central Oklahoma, June 14, 2011: reflectivity (lef",
+            "items": [
+              "Damaging downburst, central Oklahoma, June 14, 2011: reflectivity (lef"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Divergence: winds spreading out at the ground",
+      "beats": [
+        {
+          "say": "Welcome to this chapter. We're looking at diverging winds near the ground. Doppler radar velocity data can show areas of diverging winds at the surface. It can even show how strong those winds are. That can point to a downburst.",
+          "caption": "Diverging winds at the surface",
+          "bullet": "Radar velocity data can show diverging surfac",
+          "visual": {
+            "type": "bullets",
+            "heading": "Diverging winds at the surface",
+            "items": [
+              "Diverging winds at the surface"
+            ]
+          }
+        },
+        {
+          "say": "Doppler radar can measure how wind moves toward or away from the radar. That's called velocity data. It lets radar spot areas where winds spread apart right at the surface.",
+          "caption": "Velocity data can see winds spreading out",
+          "bullet": "Velocity = toward or away from radar",
+          "visual": {
+            "type": "bullets",
+            "heading": "Velocity data can see winds spreading out",
+            "items": [
+              "Velocity data can see winds spreading out"
+            ]
+          }
+        },
+        {
+          "say": "Why does that matter? When velocity data shows winds spreading out near the ground, it can point to a downburst. Downbursts are a source of damaging winds.",
+          "caption": "Spreading winds can mean a downburst",
+          "bullet": "Surface divergence → possible downburst",
+          "visual": {
+            "type": "bullets",
+            "heading": "Spreading winds can mean a downburst",
+            "items": [
+              "Spreading winds can mean a downburst"
+            ]
+          }
+        },
+        {
+          "say": "Velocity data shows more than just direction. It can also show how strong those spreading winds are. That helps forecasters judge the danger.",
+          "caption": "It shows wind strength, too",
+          "bullet": "Direction AND strength",
+          "visual": {
+            "type": "bullets",
+            "heading": "It shows wind strength, too",
+            "items": [
+              "It shows wind strength, too"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Convergence: winds coming together inside the storm",
+      "beats": [
+        {
+          "say": "Velocity displays show winds moving toward or away from the radar. Convergence in the middle levels of a storm can show up there, and it can hint that a downburst is developing.",
+          "caption": "Midlevel convergence can hint at a downburst",
+          "bullet": "Look in the storm's middle levels",
+          "visual": {
+            "type": "bullets",
+            "heading": "Midlevel convergence can hint at a downburst",
+            "items": [
+              "Midlevel convergence can hint at a downburst"
+            ]
+          }
+        },
+        {
+          "say": "Why does this matter? Forecasting when damaging winds will first start is one of the hard parts of warning people about severe storms.",
+          "caption": "Timing damaging winds is hard",
+          "bullet": "Early clues help warnings",
+          "visual": {
+            "type": "bullets",
+            "heading": "Timing damaging winds is hard",
+            "items": [
+              "Timing damaging winds is hard"
+            ]
+          }
+        },
+        {
+          "say": "These early warning signs usually develop and change very quickly. To use them to see a downburst coming, forecasters need radar data that updates rapidly.",
+          "caption": "Precursor signatures change fast, so rapid-update radar is needed",
+          "bullet": "Fast-changing signs need rapid-update radar",
+          "visual": {
+            "type": "bullets",
+            "heading": "Precursor signatures change fast, so rapid-update radar is needed",
+            "items": [
+              "Precursor signatures change fast, so rapid-update radar is needed"
+            ]
+          }
+        },
+        {
+          "say": "Here's a real case: a damaging downburst in central Oklahoma on June 14, 2011. Reflectivity is on the left, and velocity is on the right.",
+          "caption": "Real case: central Oklahoma, June 14, 2011",
+          "bullet": "Left: reflectivity. Right: velocity",
+          "visual": {
+            "type": "bullets",
+            "heading": "Real case: central Oklahoma, June 14, 2011",
+            "items": [
+              "Real case: central Oklahoma, June 14, 2011"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Spin signatures and tornadoes",
+      "beats": [
+        {
+          "say": "Doppler radar measures how fast winds in a storm move toward or away from the radar. That is called velocity data. And it led to a big discovery.",
+          "caption": "Velocity: winds toward or away from radar",
+          "bullet": "Velocity = toward or away",
+          "visual": {
+            "type": "bullets",
+            "heading": "Velocity: winds toward or away from radar",
+            "items": [
+              "Velocity: winds toward or away from radar"
+            ]
+          }
+        },
+        {
+          "say": "In the 1970s, a scientist at NSSL found a pattern in velocity data linked to tornadoes. It's called the Tornadic Vortex Signature, or TVS for short.",
+          "caption": "1970s: the Tornadic Vortex Signature",
+          "bullet": "TVS found in the 1970s",
+          "visual": {
+            "type": "bullets",
+            "heading": "1970s: the Tornadic Vortex Signature",
+            "items": [
+              "1970s: the Tornadic Vortex Signature"
+            ]
+          }
+        },
+        {
+          "say": "What does it look like? Strong winds flowing one way sit right next to strong winds flowing the opposite way. This side-by-side pair is called a couplet.",
+          "caption": "The couplet: opposite winds side by side",
+          "bullet": "Inbound next to outbound",
+          "visual": {
+            "type": "bullets",
+            "heading": "The couplet: opposite winds side by side",
+            "items": [
+              "The couplet: opposite winds side by side"
+            ]
+          }
+        },
+        {
+          "say": "This discovery, along with others, helped lead to the NEXRAD radar network, also called the WSR-88D network.",
+          "caption": "The discovery helped bring NEXRAD",
+          "bullet": "Helped spur NEXRAD",
+          "visual": {
+            "type": "bullets",
+            "heading": "The discovery helped bring NEXRAD",
+            "items": [
+              "The discovery helped bring NEXRAD"
+            ]
+          }
+        },
+        {
+          "say": "Important: radar does not see the tornado itself. A TVS is not the actual tornado. It shows signs that a storm could produce one, or that one is likely.",
+          "caption": "Radar shows signs, not the tornado itself",
+          "bullet": "TVS = likely tornado, not proof",
+          "visual": {
+            "type": "bullets",
+            "heading": "Radar shows signs, not the tornado itself",
+            "items": [
+              "Radar shows signs, not the tornado itself"
+            ]
+          }
+        },
+        {
+          "say": "Newer upgraded radars, called dual-polarization or dual-pol, can do more. They can spot debris lofted by a tornado, and confirm a tornado is on the ground causing damage.",
+          "caption": "Dual-pol can confirm a tornado on the ground",
+          "bullet": "Dual-pol sees lofted debris",
+          "visual": {
+            "type": "bullets",
+            "heading": "Dual-pol can confirm a tornado on the ground",
+            "items": [
+              "Dual-pol can confirm a tornado on the ground"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Limits of velocity data",
+      "beats": [
+        {
+          "say": "Radar's view has limits. The beam is the narrow stream of energy the radar sends out. Farther from the radar, it rides higher, because Earth curves away and the beam spreads out.",
+          "caption": "The beam climbs with distance",
+          "bullet": "Farther away = higher beam",
+          "visual": {
+            "type": "bullets",
+            "heading": "The beam climbs with distance",
+            "items": [
+              "The beam climbs with distance"
+            ]
+          }
+        },
+        {
+          "say": "So for a storm far from the radar, you may only see the rain and the winds high up in the storm. The low-level winds stay hidden.",
+          "caption": "Far away, you only see the top",
+          "bullet": "Distant storms: only high winds seen",
+          "visual": {
+            "type": "bullets",
+            "heading": "Far away, you only see the top",
+            "items": [
+              "Far away, you only see the top"
+            ]
+          }
+        },
+        {
+          "say": "So when a storm is far from the radar, the beam only sees the parts high up in the storm. The important areas might not be sampled at all. Or the resolution, meaning the level of detail in the data, might be poor.",
+          "caption": "Far from the radar: key areas may be missed, or the detail may be poor",
+          "bullet": "Far from radar: important areas may not be sa",
+          "visual": {
+            "type": "bullets",
+            "heading": "Far from the radar: key areas may be missed, or the detail may be poor",
+            "items": [
+              "Far from the radar: key areas may be missed, or the detail may be poor"
+            ]
+          }
+        },
+        {
+          "say": "Radar has other limits too. Some weather situations that lead to tornadoes are not easy for radar to detect. And on occasion, a tornado can develop more quickly than the radar can complete a scan and send its data.",
+          "caption": "Some tornadoes form faster than radar can scan",
+          "bullet": "Tornadoes can occasionally develop faster tha",
+          "visual": {
+            "type": "bullets",
+            "heading": "Some tornadoes form faster than radar can scan",
+            "items": [
+              "Some tornadoes form faster than radar can scan"
+            ]
+          }
+        },
+        {
+          "say": "That's why storm spotters still matter. Radar usually gives a warning first. But eyes on the ground can confirm the threat, or show it isn't about to happen.",
+          "caption": "Spotters provide ground truth",
+          "bullet": "Spotters confirm or rule out threats",
+          "visual": {
+            "type": "bullets",
+            "heading": "Spotters provide ground truth",
+            "items": [
+              "Spotters provide ground truth"
+            ]
+          }
+        },
+        {
+          "say": "Help is coming. Researchers are testing phased array radar, a newer kind of radar that scans the sky much faster than today's WSR-88D radars.",
+          "caption": "Phased array radar: faster scans",
+          "bullet": "Phased array scans much faster",
+          "visual": {
+            "type": "bullets",
+            "heading": "Phased array radar: faster scans",
+            "items": [
+              "Phased array radar: faster scans"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Recap",
+      "beats": [
+        {
+          "say": "That's the lesson: where doppler velocity data comes from, divergence: winds spreading out at the ground, convergence: winds coming together inside the storm, spin signatures and tornadoes, limits of velocity data. Subscribe for a new Radar School lesson every week.",
+          "caption": "What to remember",
+          "visual": {
+            "type": "bullets",
+            "heading": "Recap",
+            "items": [
+              "First one: Norman, Oklahoma, 1974",
+              "158 NEXRAD radars",
+              "First real-time velocity displays",
+              "Velocity data can show diverging surface winds, a sign of a ",
+              "Radar velocity data can show diverging surface winds and the",
+              "Velocity = toward or away from radar"
+            ]
+          },
+          "min": 12
+        }
+      ]
+    }
+  ],
+  "tags": [
+    "weather radar",
+    "how to read radar",
+    "Doppler radar velocity: inbound and outb",
+    "meteorology",
+    "severe weather",
+    "Radar School",
+    "Storm Central"
+  ],
+  "approved": true,
+  "checked": "auto",
+  "sources": [
+    {
+      "title": "Research Tools: Radar",
+      "url": "https://www.nssl.noaa.gov/tools/radar/"
+    },
+    {
+      "title": "Research Tools:NEXRAD",
+      "url": "https://www.nssl.noaa.gov/tools/radar/nexrad/"
+    },
+    {
+      "title": "Research Tools:Dual Polarized Radar",
+      "url": "https://www.nssl.noaa.gov/tools/radar/dualpol/"
+    },
+    {
+      "title": "Severe Weather 101: Thunderstorm Detection",
+      "url": "https://www.nssl.noaa.gov/education/svrwx101/thunderstorms/detection/"
+    },
+    {
+      "title": "Severe Weather 101: Tornado Detection",
+      "url": "https://www.nssl.noaa.gov/education/svrwx101/tornadoes/detection/"
+    },
+    {
+      "title": "Severe Weather 101: Hail Detection",
+      "url": "https://www.nssl.noaa.gov/education/svrwx101/hail/detection/"
+    },
+    {
+      "title": "Severe Weather 101: Damaging Winds Detection",
+      "url": "https://www.nssl.noaa.gov/education/svrwx101/wind/detection/"
+    },
+    {
+      "title": "Severe Weather 101: Flood Detection",
+      "url": "https://www.nssl.noaa.gov/education/svrwx101/floods/detection/"
+    },
+    {
+      "title": "Severe Weather 101: Winter Weather Detection",
+      "url": "https://www.nssl.noaa.gov/education/svrwx101/winter/detection/"
+    },
+    {
+      "title": "Wikipedia: Convective storm detection",
+      "url": "https://en.wikipedia.org/wiki/Convective_storm_detection"
+    }
+  ],
+  "week": 5
+}

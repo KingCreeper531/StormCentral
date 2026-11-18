@@ -10,7 +10,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!user) return unauthorized();
   const blocked = suspended(user);
   if (blocked) return blocked;
-  const rl = rateLimit(`verify:${user.id}`, 60, 10 * 60_000);
+  const rl = await rateLimit(`verify:${user.id}`, 60, 10 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
   const { id } = await ctx.params;
   const post = await getVisiblePost(id, user.id, user.moderator);

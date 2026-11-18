@@ -13,14 +13,14 @@ export async function POST(req: Request) {
   // Throttle per IP and per account to blunt both spraying and stuffing. The IP
   // comes first, before the body is read, and a refused IP never reaches the
   // account counters (so can't flood them with made-up names).
-  const ip = rateLimit(`login-ip:${clientIp(req)}`, 20, 15 * 60_000);
+  const ip = await rateLimit(`login-ip:${clientIp(req)}`, 20, 15 * 60_000);
   if (!ip.ok) return tooMany(ip.retryAfterSec);
   const body = await readJson(req);
   if (body instanceof Response) return body;
   const parsed = loginSchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: firstIssue(parsed.error) }, { status: 400 });
   const { identifier, password } = parsed.data;
-  const acct = rateLimit(`login-acct:${identifier.toLowerCase()}`, 8, 15 * 60_000);
+  const acct = await rateLimit(`login-acct:${identifier.toLowerCase()}`, 8, 15 * 60_000);
   if (!acct.ok) return tooMany(acct.retryAfterSec);
 
   const db = await getDb();

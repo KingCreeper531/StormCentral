@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { commentSchema, firstIssue } from "@/lib/community";
+import { readJson } from "@/lib/server/body";
 import { addComment, getVisiblePost, listComments } from "@/lib/server/community-repo";
 import { forbidden, sameOrigin, suspended, tooMany, unauthorized } from "@/lib/server/guard";
 import { rateLimit } from "@/lib/server/rate-limit";
@@ -20,11 +21,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!user) return unauthorized();
   const blocked = suspended(user);
   if (blocked) return blocked;
-  const rl = rateLimit(`comment:${user.id}`, 20, 10 * 60_000);
+  const rl = await rateLimit(`comment:${user.id}`, 20, 10 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
   const { id } = await ctx.params;
   if (!(await getVisiblePost(id, user.id, user.moderator))) return Response.json({ error: "Not found" }, { status: 404 });
-  const parsed = commentSchema.safeParse(await req.json().catch(() => null));
+  const json = await readJson(req);
+  if (json instanceof Response) return json;
+  const parsed = commentSchema.safeParse(json);
   if (!parsed.success) return Response.json({ error: firstIssue(parsed.error) }, { status: 400 });
   return Response.json({ id: await addComment(id, user.id, parsed.data.body) }, { status: 201 });
 }

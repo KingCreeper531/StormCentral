@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { firstIssue } from "@/lib/community";
+import { readJson } from "@/lib/server/body";
 import { forbidden, sameOrigin, suspended, tooMany, unauthorized } from "@/lib/server/guard";
 import { rateLimit } from "@/lib/server/rate-limit";
 import { badRequest } from "@/lib/server/respond";
@@ -18,7 +19,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (!user) return unauthorized();
   const blocked = suspended(user);
   if (blocked) return blocked;
-  const rl = rateLimit(`warngen-edit:${user.id}`, 30, 15 * 60_000);
+  const rl = await rateLimit(`warngen-edit:${user.id}`, 30, 15 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
 
   const { id } = await ctx.params;
@@ -26,7 +27,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (!current) return Response.json({ error: "Not found" }, { status: 404, headers: noStore });
   if (current.status !== "active") return badRequest(current.status === "cancelled" ? "This warning was already cancelled" : "This warning has expired");
 
-  const raw: unknown = await req.json().catch(() => null);
+  const raw = await readJson(req);
+
+  if (raw instanceof Response) return raw;
   const parsed = updateSchema.safeParse(raw);
   if (!parsed.success) return badRequest(firstIssue(parsed.error));
 
