@@ -49,10 +49,14 @@ few minutes to pick up a new topic; **Search again** in the app checks again.
   bright, airy day skies and deep starry nights. With `"sky": "vivid"`,
   `colors` may be empty to keep Storm Central's own light and dark colours,
   as the Sky theme does.
-- `"font": "dot"` (optional) sets all text in a dot-matrix font with round
-  dots, the look of Nothing OS, as the Dot Matrix themes do. The font (Doto,
-  SIL Open Font License) ships with Storm Central; characters it lacks, like
-  emoji, fall back to the regular font.
+- `"font": "dot"` (optional) sets the big readouts (the current temperature,
+  scores), page titles and panel titles in a dot-matrix font with round dots,
+  and small labels and timestamps in the monospace font, the type of Nothing
+  OS. The font (Doto, SIL Open Font License) ships with Storm Central.
+- `"icons": "dot"` (optional) swaps the colour weather artwork for flat
+  dot-grid icons in the text colour (lightning in the accent).
+- `"corners": "pill"` (optional) rounds buttons, fields and switches off
+  fully and gives cards 16 px corners. The Dot Matrix themes use all three.
 - `base` is `"dark"`, `"light"` or `"auto"` (light while the sun is up at the
   selected location, dark at night). It picks the basemap, and any colour you
   leave out comes from that built-in theme.

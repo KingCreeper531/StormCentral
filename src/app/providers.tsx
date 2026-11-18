@@ -96,9 +96,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
     // Vivid-sky themes switch on the bright animated sky (weather-background, globals.css).
     if (custom?.sky) document.documentElement.dataset.sky = custom.sky;
     else delete document.documentElement.dataset.sky;
-    // Dot-matrix themes set all text in the dot font (globals.css).
-    if (custom?.font) document.documentElement.dataset.font = custom.font;
-    else delete document.documentElement.dataset.font;
+    // Built-in looks a theme can ask for (globals.css, WeatherIcon): the dot font, dot-grid icons, pill corners.
+    const root = document.documentElement;
+    for (const key of ["font", "icons", "corners"] as const) {
+      const v = custom?.[key];
+      if (v) root.dataset[key] = v;
+      else delete root.dataset[key];
+    }
     if (custom?.followSun) {
       // Light while the sun is up at the selected location (civil twilight counts as day), dark at night.
       const apply = () => {

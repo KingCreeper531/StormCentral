@@ -78,10 +78,11 @@ describe("parseAddon", () => {
     expect(() => parseAddon({ type: "theme", name: "Plain", colors: {} }, src)).toThrow(AddonError);
   });
 
-  it("takes the dot-matrix font option and ignores any other font", () => {
-    const dot = parseAddon({ type: "theme", name: "Dots", font: "dot", colors: { ink: "#ffffff" } }, src);
-    expect(dot).toMatchObject({ type: "theme", font: "dot" });
-    expect(parseAddon({ type: "theme", name: "X", font: "https://evil.example/f.woff2", colors: { ink: "#ffffff" } }, src)).not.toHaveProperty("font");
+  it("takes the built-in font, icon and corner options and ignores any other value", () => {
+    const dot = parseAddon({ type: "theme", name: "Dots", font: "dot", icons: "dot", corners: "pill", colors: { ink: "#ffffff" } }, src);
+    expect(dot).toMatchObject({ type: "theme", font: "dot", icons: "dot", corners: "pill" });
+    const other = parseAddon({ type: "theme", name: "X", font: "https://evil.example/f.woff2", icons: "emoji", corners: 4, colors: { ink: "#ffffff" } }, src);
+    for (const key of ["font", "icons", "corners"]) expect(other).not.toHaveProperty(key);
   });
 
   it("ships the Dot Matrix themes with the dot font and readable text and accents", () => {
@@ -94,6 +95,7 @@ describe("parseAddon", () => {
       return (hi! + 0.05) / (lo! + 0.05);
     };
     const dots = FEATURED_THEMES.filter((t) => t.font === "dot");
+    expect(dots.every((t) => t.icons === "dot" && t.corners === "pill")).toBe(true);
     expect(dots.map((t) => [t.name, t.base])).toEqual([
       ["Dot Matrix", "dark"],
       ["Dot Matrix Light", "light"],

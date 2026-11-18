@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     "Dot" widget (StyledWidgetProvider, Style.DOT), in the style of Nothing OS:
-    all text in a dot-matrix font (res/font/doto_round.ttf): a red dot and
-    the place in capitals, the temperature large, then the sky and today's high
+    a red dot and the place in small capitals, the temperature large in a
+    dot-matrix font (res/font/doto_round.ttf), then the sky and today's high
     and low, or the active warning in red. Wide widgets add the next hours on
     the right. This is the transparent twin of widget_dot.xml: white text with
     shadows so it reads on any wallpaper.
@@ -43,7 +43,6 @@
                 android:textSize="10sp" />
 
             <TextView
-                android:fontFamily="@font/doto_round"
                 android:id="@+id/widget_place"
                 android:shadowColor="#99000000"
                 android:shadowDx="0"
@@ -54,10 +53,11 @@
                 android:layout_marginStart="6dp"
                 android:layout_weight="1"
                 android:ellipsize="end"
+                android:letterSpacing="0.08"
                 android:maxLines="1"
                 android:textAllCaps="true"
                 android:textColor="#FFB3B3B3"
-                android:textSize="13sp" />
+                android:textSize="11sp" />
         </LinearLayout>
 
         <TextView
@@ -78,7 +78,6 @@
             android:textSize="64sp" />
 
         <TextView
-            android:fontFamily="@font/doto_round"
             android:id="@+id/widget_condition"
             android:shadowColor="#99000000"
             android:shadowDx="0"
@@ -87,13 +86,13 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="end"
+            android:letterSpacing="0.08"
             android:maxLines="1"
             android:textAllCaps="true"
             android:textColor="#FFFFFFFF"
-            android:textSize="13sp" />
+            android:textSize="11sp" />
 
         <TextView
-            android:fontFamily="@font/doto_round"
             android:id="@+id/widget_hilo"
             android:shadowColor="#99000000"
             android:shadowDx="0"
@@ -103,13 +102,13 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
             android:ellipsize="end"
+            android:letterSpacing="0.08"
             android:maxLines="1"
             android:textAllCaps="true"
             android:textColor="#FF8C8C8C"
-            android:textSize="13sp" />
+            android:textSize="11sp" />
 
         <TextView
-            android:fontFamily="@font/doto_round"
             android:id="@+id/widget_message"
             android:shadowColor="#99000000"
             android:shadowDx="0"
@@ -120,7 +119,7 @@
             android:ellipsize="end"
             android:maxLines="3"
             android:textColor="#FFB3B3B3"
-            android:textSize="14sp"
+            android:textSize="12sp"
             android:visibility="gone" />
     </LinearLayout>
 

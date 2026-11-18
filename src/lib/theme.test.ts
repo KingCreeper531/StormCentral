@@ -16,9 +16,9 @@ const withTheme = (theme: Record<string, unknown>) => ({
 });
 
 describe("THEME_BOOT_SCRIPT", () => {
-  it("puts a dot-matrix theme's font on <html> before the page paints", () => {
-    const { dataset, props } = boot(withTheme({ base: "dark", font: "dot", colors: { canvas: "#000000", accent: "#ff3b3f" } }));
-    expect(dataset).toMatchObject({ theme: "dark", font: "dot" });
+  it("puts a dot-matrix theme's font, icons and corners on <html> before the page paints", () => {
+    const { dataset, props } = boot(withTheme({ base: "dark", font: "dot", icons: "dot", corners: "pill", colors: { canvas: "#000000", accent: "#ff3b3f" } }));
+    expect(dataset).toMatchObject({ theme: "dark", font: "dot", icons: "dot", corners: "pill" });
     expect(props["--color-accent"]).toBe("#ff3b3f");
   });
 

@@ -23,17 +23,17 @@
             android:textSize="10sp" />
 
         <TextView
-            android:fontFamily="@font/doto_round"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="6dp"
             android:layout_weight="1"
             android:ellipsize="end"
+            android:letterSpacing="0.08"
             android:maxLines="1"
             android:text="@string/widget_preview_place"
             android:textAllCaps="true"
             android:textColor="#FFB3B3B3"
-            android:textSize="13sp" />
+            android:textSize="11sp" />
     </LinearLayout>
 
     <TextView
@@ -49,23 +49,23 @@
         android:textSize="64sp" />
 
     <TextView
-        android:fontFamily="@font/doto_round"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:letterSpacing="0.08"
         android:maxLines="1"
         android:text="@string/widget_preview_condition"
         android:textAllCaps="true"
         android:textColor="#FFFFFFFF"
-        android:textSize="13sp" />
+        android:textSize="11sp" />
 
     <TextView
-        android:fontFamily="@font/doto_round"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
+        android:letterSpacing="0.08"
         android:maxLines="1"
         android:text="@string/widget_preview_hilo"
         android:textAllCaps="true"
         android:textColor="#FF8C8C8C"
-        android:textSize="13sp" />
+        android:textSize="11sp" />
 </LinearLayout>
