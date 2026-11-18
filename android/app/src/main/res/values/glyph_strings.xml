@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nothing Glyph features (WeatherGlyphToy.java, GlyphLights.java). -->
+<resources>
+    <string name="glyph_toy_name">Storm Central weather</string>
+    <string name="glyph_toy_summary">The sky and temperature at your place, or a warning sign when a warning is in effect. Long-press for today\'s high and low.</string>
+    <!-- Nothing Glyph SDK key ("test" for development; Nothing issues release keys). -->
+    <string name="nothing_glyph_key" translatable="false">test</string>
+</resources>

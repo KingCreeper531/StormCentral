@@ -216,6 +216,8 @@ export const SETTINGS: Record<string, string> = {
   "Couldn't save widget data: {error}": "No se pudieron guardar los datos del widget: {error}",
   "Six styles: Weather, Clock and weather, Temperature, Hourly forecast, 5-day forecast and Dot (dot-matrix type, in the style of Nothing OS). Long-press your home screen, tap Widgets, then Storm Central. They follow your theme and clock settings and update when you leave the app.":
     "Seis estilos: Tiempo, Reloj y tiempo, Temperatura, Pronóstico por hora, Pronóstico de 5 días y Puntos (texto en puntos, al estilo de Nothing OS). Mantén presionada la pantalla de inicio, toca Widgets y luego Storm Central. Siguen tu tema y tu configuración de reloj, y se actualizan cuando sales de la app.",
+  "Nothing phones: on Phone (3), pick Storm Central weather in Settings → Glyph Interface → Glyph Toys to show the weather on the back. On other Nothing phones the Glyph lights flash for a warning while the app is open; for warnings while it's closed, turn on Glyph notifications for Storm Central there.":
+    "Teléfonos Nothing: en el Phone (3), elige Tiempo de Storm Central en Ajustes → Interfaz Glyph → Glyph Toys para ver el tiempo en la parte trasera. En otros teléfonos Nothing, las luces Glyph parpadean con un aviso mientras la app está abierta; para los avisos con la app cerrada, activa allí las notificaciones Glyph de Storm Central.",
 
   // ─── desktop-settings.tsx ──────────────────────────────────────────────────
   "Desktop app": "App de escritorio",

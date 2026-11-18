@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Funciones Glyph de Nothing (WeatherGlyphToy.java, GlyphLights.java). -->
+<resources>
+    <string name="glyph_toy_name">Tiempo de Storm Central</string>
+    <string name="glyph_toy_summary">El cielo y la temperatura en tu lugar, o una señal de aviso cuando hay un aviso vigente. Mantén presionado para ver la máxima y la mínima de hoy.</string>
+</resources>

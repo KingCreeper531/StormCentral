@@ -8,6 +8,7 @@
  *                                           (then ./gradlew assembleRelease in android/)
  */
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -38,6 +39,51 @@ function copyTree(src, dest) {
     return;
   }
   copyFileSync(src, dest);
+}
+
+/**
+ * Nothing's Glyph SDK (android/app/src/glyph: Glyph lights and the Glyph Matrix toy). Its licence
+ * lets apps use it but not redistribute it, so it isn't in this repository: it's downloaded from
+ * Nothing's developer kit into android/app/libs/ (gitignored) and checked against the pinned
+ * checksum. When it can't be fetched the app builds without Glyph features (src/noglyph);
+ * GLYPH_SDK=off skips it on purpose.
+ */
+const GLYPH_SDK = {
+  url: "https://github.com/Nothing-Developer-Programme/GlyphMatrix-Developer-Kit/raw/refs/heads/main/glyph-matrix-sdk-2.0.aar",
+  file: path.join(root, "android", "app", "libs", "glyph-matrix-sdk-2.0.aar"),
+  /** Pinned after the first download; a different file fails the build until it is checked and re-pinned. */
+  sha256: null,
+};
+
+async function fetchGlyphSdk() {
+  const { url, file, sha256 } = GLYPH_SDK;
+  if (process.env.GLYPH_SDK === "off") {
+    rmSync(file, { force: true });
+    console.log("Glyph SDK: off (GLYPH_SDK=off), building without Glyph features");
+    return;
+  }
+  const digest = (buf) => createHash("sha256").update(buf).digest("hex");
+  if (existsSync(file) && sha256 && digest(readFileSync(file)) === sha256) return;
+  let buf;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(60_000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    buf = Buffer.from(await res.arrayBuffer());
+    // An .aar is a zip; anything else (an error page) isn't the SDK.
+    if (buf.length < 1024 || buf[0] !== 0x50 || buf[1] !== 0x4b) throw new Error("the download isn't an .aar");
+  } catch (err) {
+    rmSync(file, { force: true });
+    console.log(`::warning::Couldn't download Nothing's Glyph SDK (${err instanceof Error ? err.message : err}); building without Glyph features.`);
+    return;
+  }
+  const got = digest(buf);
+  if (sha256 && got !== sha256) {
+    throw new Error(`Nothing's Glyph SDK changed (sha256 ${got}, pinned ${sha256}). Check the new version, then update GLYPH_SDK.sha256 in scripts/build-native.mjs.`);
+  }
+  if (!sha256) console.log(`::warning::Glyph SDK isn't pinned yet: sha256 ${got}. Set GLYPH_SDK.sha256 in scripts/build-native.mjs.`);
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, buf);
+  console.log(`✓ Glyph SDK ${path.relative(root, file)} (${buf.length} bytes)`);
 }
 
 // Builds for different targets share .next/; never let one package another's output.
@@ -71,6 +117,7 @@ if (target === "desktop") {
         .replace(/(<meta name="sc-backup" content=")[^"]*/, `$1${backup === "none" ? "" : attr(backup)}`),
     );
   }
+  await fetchGlyphSdk();
   npx(["cap", "sync", "android"]);
   console.log("✓ static bundle synced to android/ (build it with: cd android && ./gradlew assembleRelease)");
 }
