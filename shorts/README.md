@@ -169,8 +169,8 @@ A weekly full-length lesson (`kinds/lesson.ts`, drawn by `lesson.html`), about 6
 - **Simulated examples** (`radar-sim.js`) show what's hard to find in the archive (ground clutter, the bright band, bugs) and are always labelled.
 - **App tours** (lesson 2, Professional mode): `app-capture.ts` opens the live web app (app.stormcentralwx.com; `SHORTS_APP_URL` to point it elsewhere, e.g. `http://localhost:3000`) in headless Chromium as the lesson renders, centred on the most serious NWS warning in effect (Oklahoma City when there's none), and records each Pro mode tool with the boxes of its controls, so the video zooms onto what it's talking about. A tool that can't be shown (no storm to track, no warning to inspect) falls back to the overview; if Pro mode itself doesn't open, the run fails and the backup run tries again. WarnGen is shown with a stand-in sign-in and nothing is ever issued. To look at the screens by hand: `npx tsx shorts/app-capture.ts <site> shorts/out/pro.json` (writes each screen as a JPEG too).
 - **New lessons** come from **Actions → Draft a Radar School lesson**, which also runs by itself on Sundays, taking the next topic in `shorts/lessons/topics.txt`:
-  1. It reads Wikipedia and NOAA's JetStream pages on the topic.
-  2. The local model writes the lesson from that text, quoting a source for every factual line.
+  1. It reads Wikipedia and NOAA's radar pages (the National Severe Storms Laboratory's radar and Severe Weather 101 pages) on the topic.
+  2. Claude writes the lesson from that text (the local model when there's no `ANTHROPIC_API_KEY`), quoting a source for every factual line.
   3. Each quote must appear in a source word for word and carry the line's numbers, and a second model (`REVIEW_MODEL`) has to agree each line is supported. Lines that fail are dropped.
   4. A draft that passes every gate (enough lines kept, few dropped, safety advice only from NOAA/NWS, full length) is committed to `main` and scheduled for the next free Wednesday. One that doesn't becomes a pull request with its review report, and doesn't post.
 - The hand-written lessons are read as written; the narrator's AI rewrite is off for them.

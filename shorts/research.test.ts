@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkEvidence, htmlText, norm, relevant, verifyQuote, type Source } from "./research";
+import { checkEvidence, htmlText, movedTo, norm, pages, relevant, verifyQuote, type Source } from "./research";
 
 const noaa: Source = {
   title: "JetStream: Doppler radar",
@@ -68,5 +68,33 @@ describe("relevant", () => {
 describe("norm", () => {
   it("treats curly quotes, dashes and spacing alike", () => {
     expect(norm("“Hook”—echo  ")).toBe(norm('"hook" echo'));
+  });
+});
+
+describe("movedTo", () => {
+  it("ignores a trailing slash, https or www on the same page", () => {
+    expect(movedTo("https://www.nssl.noaa.gov/tools/radar", "https://www.nssl.noaa.gov/tools/radar/")).toBe(false);
+    expect(movedTo("http://nssl.noaa.gov/tools/radar/", "https://www.nssl.noaa.gov/tools/radar/")).toBe(false);
+  });
+
+  it("catches a page that now redirects to a moved site's home page", () => {
+    expect(movedTo("https://www.weather.gov/jetstream/vel", "https://www.noaa.gov/jetstream")).toBe(true);
+    expect(movedTo("https://www.nssl.noaa.gov/tools/radar/nexrad/", "https://www.nssl.noaa.gov/")).toBe(true);
+  });
+});
+
+describe("pages", () => {
+  const body = `<html><head><title>Research Tools:\n Radar</title></head><body><p>${"Doppler radar measures motion toward or away from the radar. ".repeat(12)}</p></body></html>`;
+  const fake = (landed: Record<string, string>) =>
+    (async (url: string) => ({ ok: true, status: 200, redirected: landed[url] !== url, url: landed[url], text: async () => body })) as unknown as typeof fetch;
+
+  it("keeps government pages as NOAA sources and skips ones that moved", async () => {
+    const log: string[] = [];
+    const got = await pages(["https://www.nssl.noaa.gov/tools/radar/", "https://www.weather.gov/jetstream/vel"], {
+      fetchImpl: fake({ "https://www.nssl.noaa.gov/tools/radar/": "https://www.nssl.noaa.gov/tools/radar/", "https://www.weather.gov/jetstream/vel": "https://www.noaa.gov/jetstream" }),
+      log: (s: string) => log.push(s),
+    });
+    expect(got.map((s) => [s.title, s.url, s.kind])).toEqual([["Research Tools: Radar", "https://www.nssl.noaa.gov/tools/radar/", "noaa"]]);
+    expect(log.join("\n")).toContain("moved to https://www.noaa.gov/jetstream");
   });
 });

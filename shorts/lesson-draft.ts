@@ -24,7 +24,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { join } from "node:path";
 import { ANTHROPIC_API, ANTHROPIC_VERSION } from "./anthropic";
 import { CASES, nextFreeWeek, timeline, validLesson, type Lesson } from "./kinds/lesson";
-import { checkEvidence, JETSTREAM_RADAR, pages, relevant, wikipedia, type Evidence, type Source } from "./research";
+import { checkEvidence, NOAA_RADAR, pages, relevant, wikipedia, type Evidence, type Source } from "./research";
 
 const env = process.env;
 const MODEL = env.SHORTS_AI_MODEL || "gemma3:12b";
@@ -246,7 +246,7 @@ async function main() {
   const extra = [...(queued?.urls ?? []), ...(arg("urls") || "").split(",").map((s) => s.trim()).filter(Boolean)];
 
   console.log(`Gathering sources for "${topic}"…`);
-  const sources = [...(await pages([...JETSTREAM_RADAR, ...extra])), ...(await wikipedia(topic)), ...(await wikipedia(`${topic} weather radar`, { limit: 2 }))];
+  const sources = [...(await pages([...NOAA_RADAR, ...extra])), ...(await wikipedia(topic)), ...(await wikipedia(`${topic} weather radar`, { limit: 2 }))];
   const unique = sources.filter((s, i) => sources.findIndex((t) => t.url === s.url) === i);
   for (const s of unique) console.log(`  ${s.kind === "noaa" ? "NOAA" : "Wiki"}  ${s.title} (${s.text.length} chars)  ${s.url}`);
   if (!unique.length) throw new Error("No sources could be loaded");
