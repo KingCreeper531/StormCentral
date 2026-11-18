@@ -60,7 +60,8 @@ describe("Radar School lessons", () => {
         const cues = narration(v);
         expect(cues).toHaveLength(tl.beats.length);
         cues.forEach((c, k) => expect(c.at).toBeCloseTo(tl.beats[k]!.start + 0.3, 6));
-        expect(cues.some((c) => /D B Z/.test(c.text))).toBe(true);
+        // "dBZ" is spelled out for the narrator wherever a lesson uses it.
+        if (JSON.stringify(lesson.chapters).includes("dBZ")) expect(cues.some((c) => /D B Z/.test(c.text))).toBe(true);
         expect(cues.every((c) => !/dBZ/.test(c.text))).toBe(true);
       });
 
